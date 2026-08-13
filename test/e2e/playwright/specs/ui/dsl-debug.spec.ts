@@ -77,27 +77,54 @@ async function startSampling(page: Page, filePattern: RegExp, ruleLabel?: string
   await expect(page.getByRole('button', { name: 'stop' })).toBeEnabled({ timeout: 45_000 });
 }
 
-test('the LAL debugger samples logs driven while it is live', async ({ page, pageErrors }) => {
+test('the LAL debugger samples logs driven while it is live', async ({ page, pageErrors, request }) => {
   test.setTimeout(300_000);
   await page.goto('/operate/live-debug/lal');
   await startSampling(page, /horizon-e2e/);
 
-  // Logs only exist while something emits them. The demo provider is on the
-  // same compose network as this browser, so the page can drive its
-  // log-emitting endpoint from inside the session — which is also the honest
-  // shape of the test: records must flow THROUGH the rule while sampling.
-  const drive = page.evaluate(async () => {
+  // Logs only exist while something emits them, so the provider's log-emitting
+  // endpoint is driven concurrently with sampling — records must flow THROUGH
+  // the rule while it is live, which is the whole point of the test.
+  //
+  // Driven from the RUNNER, not from inside the page. Horizon serves
+  // `connect-src 'self'`, so a page-side `fetch` to another origin is refused
+  // by the browser before it leaves — correctly: a console page has no
+  // business calling a third host, and that directive is what would stop an
+  // exfiltration attempt. The runner's container is on the same compose
+  // network and reaches the provider by name, so this drives the same traffic
+  // without asking the product to be less strict than it ships.
+  // Individual attempts may fail while the provider warms up, so a single
+  // error must not end the run — but a driver that swallows EVERY failure
+  // turns "the provider was unreachable" into a 240-second UI timeout that
+  // reads as a product bug. Count the ones that landed and keep the last
+  // error, so the assertion below can say which of the two happened.
+  let delivered = 0;
+  let lastDriveError = '';
+  const drive = (async () => {
     for (let i = 0; i < 40; i += 1) {
       try {
-        await fetch('http://provider:9090/logs/trigger', { mode: 'no-cors' });
-      } catch {
-        /* the page is cross-origin to the provider; the request still lands */
+        const res = await request.get('http://provider:9090/logs/trigger', { timeout: 5_000 });
+        if (res.ok()) delivered += 1;
+        else lastDriveError = `HTTP ${res.status()}`;
+      } catch (e) {
+        lastDriveError = e instanceof Error ? e.message : String(e);
       }
       await new Promise((r) => setTimeout(r, 1_500));
     }
-  });
+  })();
 
-  await expect(page.locator('.lal__matrixblock').first()).toBeVisible({ timeout: 240_000 });
+  // The counters are only meaningful once the wait has finished, so the
+  // diagnosis is attached on the way out. This re-throws — it never swallows
+  // the failure — it just says which of the two things went wrong.
+  try {
+    await expect(page.locator('.lal__matrixblock').first()).toBeVisible({ timeout: 240_000 });
+  } catch (err) {
+    const cause =
+      delivered === 0
+        ? `no log-trigger request reached the provider (last error: ${lastDriveError || 'none recorded'}) — the fixture never emitted logs, so this is a fixture failure, not a UI one`
+        : `${delivered} log-trigger request(s) landed, so logs were emitted and the LAL matrix still never rendered`;
+    throw new Error(`${cause}\n\n${err instanceof Error ? err.message : String(err)}`);
+  }
   await drive.catch(() => undefined);
 
   // The panel's search filters the captured records by their CONTENT — the

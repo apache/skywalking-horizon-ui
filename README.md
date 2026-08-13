@@ -83,7 +83,7 @@ Horizon UI is a pnpm-workspaces monorepo:
 
 - `apps/ui` — the Vue 3 + TypeScript (strict) single-page app, built with Vite. State via Pinia, data via `@tanstack/vue-query`, charts via Apache ECharts (wrapped — never instantiated directly in a view), topology and flame graphs via D3, 3D via Three.js + TresJS, code editing via Monaco.
 - `apps/bff` — a Fastify (Node) backend-for-frontend. It is the only tier that talks to OAP, shaping every reply for the SPA, owning timezone conversion, template sync, auth/RBAC, and the audit log.
-- `packages/api-client`, `packages/design-tokens`, `packages/templates` — the shared GraphQL client, the canonical design tokens, and the bundled dashboard JSON.
+- `packages/api-client`, `packages/design-tokens` — the shared typed client for the BFF, and the canonical design tokens. Bundled dashboard JSON lives with the BFF that serves it.
 
 The BFF speaks three OAP contracts, all owned upstream and treated as fixed:
 
@@ -95,7 +95,7 @@ The flow inside the BFF is one-directional — `http → logic → client → OA
 
 ## Getting started / Development
 
-Prerequisites: Node (see `package.json` `engines` — `>=22`) and pnpm via Corepack (the repo pins the version through `packageManager`).
+Prerequisites: Node (see `package.json` `engines` — `>=24`, the line CI and the container image both use) and pnpm via Corepack (the repo pins the version through `packageManager`).
 
 ```bash
 corepack enable

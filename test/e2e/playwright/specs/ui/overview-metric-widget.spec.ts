@@ -90,8 +90,10 @@ test('a metric widget can be authored, pushed, and renders its value', async ({
 
   const mqe = page.locator('input.mqe-inline').first();
   await expect(mqe).toBeVisible({ timeout: 45_000 });
+  // No synthetic blur: the input commits on every real input event, and
+  // clicking Save moves focus the way an operator would anyway. Blurring
+  // programmatically would hide a component that only committed on blur.
   await mqe.fill('sum(top_n(service_cpm,{{topn}},DES))');
-  await mqe.blur();
 
   // Local draft first, then publish — the flow the docs describe.
   await page.getByRole('button', { name: 'save (local)' }).click();

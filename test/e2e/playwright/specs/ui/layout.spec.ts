@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-import { test, expect, type Locator } from '@playwright/test';
+import type { Locator } from '@playwright/test';
+import { test, expect } from '../support/diagnostics.js';
 import { LAYER } from '../fixture.js';
 
 // Layout failures the content assertions are blind to: a collapsed widget
@@ -55,15 +56,38 @@ test('the dashboard widget grid tiles rather than collapsing', async ({ page }) 
   expect(topRow.length, 'widgets stacked vertically instead of tiling').toBeGreaterThan(1);
 });
 
+// Each path names the element that proves the page has CONTENT to overflow
+// with. An empty shell never overflows, so measuring before the content
+// arrives reports 0 and passes for the wrong reason — which is what a fixed
+// sleep bought here.
+const RENDERED: [string, string][] = [
+  [`/layer/${LAYER}/service`, '.widget'],
+  [`/layer/${LAYER}/topology`, '.sm-node'],
+  // `/` is the landing cascade, which resolves to whichever dashboard is
+  // available — an overview on this fixture, a layer dashboard elsewhere.
+  ['/', '.sw-card.tile, .widget'],
+];
+
 test('no page scrolls sideways', async ({ page }) => {
-  for (const path of [`/layer/${LAYER}/service`, `/layer/${LAYER}/topology`, '/']) {
+  for (const [path, ready] of RENDERED) {
     await page.goto(path);
-    await page.waitForTimeout(2500);
+    await expect(page.locator(ready).first()).toBeVisible({ timeout: 45_000 });
+
     // Horizontal overflow means something refuses to shrink — a table with a
     // minimum width, or a chart sized in absolute pixels.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, `${path} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(1);
+    //
+    // Polled rather than measured once: a chart is briefly wider than its
+    // container between mount and the first resize, and that transient is not
+    // the defect. What matters is where it SETTLES, so a run that never
+    // settles fails on the last value read.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          ),
+        { timeout: 30_000, message: `${path} still overflows horizontally` },
+      )
+      .toBeLessThanOrEqual(1);
   }
 });

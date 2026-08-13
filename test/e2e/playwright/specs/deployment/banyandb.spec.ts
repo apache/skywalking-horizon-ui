@@ -102,35 +102,49 @@ test('clicking a deployment edge opens its client/server sparklines', async ({
     timeout: 60_000,
   });
 
-  // EVERY edge, not the first one: which edge carries traffic depends on
-  // where writes landed, and it differs between runs.
-  //
-  // `dispatchEvent` rather than `click`: the edge is an SVG `<g>` whose
-  // visible geometry is a thin stroke, so Playwright's centre-point
-  // actionability check lands on whatever is behind it and waits forever.
-  // The handler is bound to the `<g>` itself, so dispatching reaches it.
-  const count = await edges.count();
-  let rows = 0;
-  for (let i = 0; i < count && rows === 0; i += 1) {
-    await edges.nth(i).dispatchEvent('click');
-    await expect(page.locator('.ip-edge-rows').first()).toBeVisible({ timeout: 60_000 });
-    rows = await page.locator('.ip-edge-rows .ip-edge-row').count();
-  }
+  // Selected through the Flows table rather than by clicking the drawn edge.
+  // The graph gives an edge a 14px transparent hit path, so an operator can
+  // click it — but Playwright aims at the centre of the `<g>`'s bounding box,
+  // which for a curved edge is not on the path. Synthesising the event with
+  // `dispatchEvent` would reach the handler while proving nothing about
+  // whether anyone can actually hit it, so the test drives the other real
+  // control instead: a Flows row selects the same edge and returns to the
+  // topology tab, which is the operator's second route to this panel.
+  await page.getByRole('button', { name: 'Flows' }).click();
 
-  // The ROWS are what this proves: one per metric id the template declares
-  // for the pair, pairing `lineClient` (measured at the caller) with
-  // `lineServer` (measured at the callee). That is the edge configuration
-  // reaching the panel.
-  //
-  // The Sparkline itself is deliberately NOT asserted. It renders no
-  // `.sparkline` element for an all-null series, and on a cluster minutes old
-  // the relation metrics are still sparse — the readiness check ahead of this
-  // sees values through the same endpoint the page uses, yet the rendered
-  // rows are frequently still `—`. Requiring a drawn chart here made the case
-  // fail on a healthy fixture, which is exactly what §7 warns against. What
-  // is missing is a fixture that GUARANTEES sustained liaison<->data traffic,
-  // not a stricter assertion.
-  expect(rows, `no edge of ${count} rendered its metric rows`).toBeGreaterThan(0);
+  // The liaison -> data pair BY NAME, not whichever row comes first. Flows are
+  // grouped per role-pair, and the pairs are not equivalent: liaison -> data
+  // carries every write and query the cluster serves, so it must have data.
+  // lifecycle -> data declares only migration metrics, and this fixture
+  // configures no lifecycle migration — an empty panel there is CORRECT, and
+  // taking the first row that rendered anything let the case settle on it and
+  // conclude nothing.
+  const pair = page.locator('.sit-flow-group').filter({
+    has: page.locator('.fg-pair', { hasText: 'liaison → data' }),
+  });
+  await expect(pair, 'no liaison -> data flow group — single-role cluster?').toBeVisible({
+    timeout: 60_000,
+  });
+  const flowRows = pair.locator('tbody tr');
+  await expect(flowRows.first()).toBeVisible({ timeout: 60_000 });
+  await flowRows.first().click();
+
+  // The ROWS are the edge configuration reaching the panel: one per metric id
+  // the template declares for the pair, pairing `lineClient` (measured at the
+  // caller) with `lineServer` (measured at the callee).
+  await expect(page.locator('.ip-edge-rows').first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('.ip-edge-rows .ip-edge-row').first()).toBeVisible();
+
+  // And a DRAWN chart, not just the row. Sparkline renders `.sparkline` only
+  // when the series has a non-null point and `.sparkline-empty` otherwise, so
+  // asserting the rows alone passed on a panel of em dashes. The readiness
+  // check ahead of this proves the same pair's `write` / `query` series
+  // through the endpoint the page reads, so an empty chart here is a defect,
+  // not a cold cluster.
+  await expect(
+    page.locator('.ip-edge-rows .sparkline').first(),
+    'the liaison -> data edge rendered no sparkline — the panel drew em dashes for a pair that carries every write',
+  ).toBeVisible({ timeout: 60_000 });
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

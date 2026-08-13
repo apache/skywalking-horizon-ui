@@ -869,3 +869,100 @@ describe('push-bar calibration', () => {
     expect(found).toEqual([]);
   });
 });
+
+// The alarm-page setup, the active theme and the global time default were the
+// only configuration published with no shape check at all: a malformed payload
+// was stored on OAP verbatim and then served to every signed-in user, surfacing
+// later as a page that would not render. OAP keeps these as opaque strings and
+// tells the kinds apart only by row name, so this boundary is the only place
+// the shape can be checked.
+describe('POST /api/admin/templates/save — singleton settings reaching OAP', () => {
+  const cases: { name: string; good: object; bad: object; badPath: string }[] = [
+    {
+      name: 'horizon.alert.page-setup',
+      good: { pinnedLayers: ['GENERAL'], defaultWindowMs: 1_200_000, overviewAlarmsLimit: 200 },
+      bad: { pinnedLayers: 'GENERAL', defaultWindowMs: 1_200_000, overviewAlarmsLimit: 200 },
+      badPath: 'pinnedLayers:',
+    },
+    {
+      name: 'horizon.theme.active',
+      good: { themeId: 'horizon' },
+      bad: { themeId: 'horizon', extra: true },
+      badPath: '(root):',
+    },
+    {
+      name: 'horizon.time-defaults.global',
+      good: { defaultWindowMinutes: 60 },
+      bad: { defaultWindowMinutes: -1 },
+      badPath: 'defaultWindowMinutes:',
+    },
+  ];
+
+  for (const { name, good, bad, badPath } of cases) {
+    it(`refuses malformed ${name} and writes nothing`, async () => {
+      const store = makeStore();
+      const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+      const res = await post(app, '/api/admin/templates/save', c, { name, content: bad });
+
+      expect(res.statusCode).toBe(400);
+      const body = res.json() as { code: string; issues: string[] };
+      expect(body.code).toBe('invalid_content');
+      expect(body.issues.some((i) => i.startsWith(badPath))).toBe(true);
+      expect(store.writes).toEqual([]);
+      await app.close();
+    });
+
+    it(`still publishes a well-formed ${name}`, async () => {
+      const store = makeStore();
+      const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+      const res = await post(app, '/api/admin/templates/save', c, { name, content: good });
+
+      expect(res.statusCode).toBe(200);
+      expect(store.writes.length).toBe(1);
+      await app.close();
+    });
+  }
+});
+
+// The publish boundary is where an operator gets a REASON. Without it a link
+// to an untrusted host saves cleanly and then silently fails to render, which
+// reads as a bug rather than as policy.
+describe('POST /api/admin/templates/save — documentLink link policy', () => {
+  const withLink = (documentLink: string): Json => ({ ...validLayer('GENERAL'), documentLink });
+
+  it.each([
+    ['a javascript: scheme', 'javascript:alert(1)', 'javascript:'],
+    ['an untrusted host', 'https://evil.example/x', 'evil.example'],
+  ])('refuses %s and writes nothing', async (_label, link, expected) => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withLink(link),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_content');
+    expect(body.issues.some((i) => i.startsWith('documentLink:') && i.includes(expected))).toBe(true);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('publishes a link on the default trusted host', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withLink('https://skywalking.apache.org/docs/'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes.length).toBe(1);
+    await app.close();
+  });
+});

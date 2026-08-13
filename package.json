@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "packageManager": "pnpm@10.33.2",
   "scripts": {
@@ -15,10 +15,11 @@
     "dev:bff": "pnpm --filter @skywalking-horizon-ui/bff dev",
     "build": "pnpm -r run build",
     "type-check": "pnpm -r run type-check",
-    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs && node scripts/check-ui-i18n.mjs && node scripts/check-ui-promises.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate && pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
+    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs && node scripts/check-ui-i18n.mjs && node scripts/check-ui-promises.mjs && node scripts/check-unused-deps.mjs && node scripts/check-security.mjs && node scripts/check-security-selftest.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate && pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
     "lint:budget": "node scripts/check-source-budget.mjs",
     "lint:i18n": "node scripts/check-ui-i18n.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate",
     "lint:promises": "node scripts/check-ui-promises.mjs",
+    "lint:security": "node scripts/check-security.mjs && node scripts/check-security-selftest.mjs",
     "lint:templates": "pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
     "test:unit": "pnpm -r run test:unit",
     "license:check": "license-eye -c .licenserc.yaml header check",
@@ -26,7 +27,8 @@
     "licenses:bin:update": "node scripts/collect-dist-licenses.mjs --update-reference",
     "licenses:bin:check": "node scripts/collect-dist-licenses.mjs --check && node scripts/check-dist-licenses.mjs",
     "package": "node scripts/package.mjs",
-    "start": "HORIZON_CONFIG=${HORIZON_CONFIG:-./horizon.yaml} node dist/server.js"
+    "start": "HORIZON_CONFIG=${HORIZON_CONFIG:-./horizon.yaml} node dist/server.js",
+    "lint:deps": "node scripts/check-unused-deps.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.3",
@@ -40,7 +42,7 @@
       "vue-demi"
     ],
     "overrides": {
-      "dompurify@<3.3.2": ">=3.3.2",
+      "dompurify@<3.4.13": ">=3.4.13",
       "js-cookie@<3.0.7": ">=3.0.7",
       "ws@>=8.0.0 <8.20.1": ">=8.20.1",
       "esbuild@<0.25.0": ">=0.25.0",

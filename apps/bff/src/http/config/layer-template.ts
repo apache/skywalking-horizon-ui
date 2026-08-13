@@ -25,6 +25,8 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { allLayerTemplates } from '../../logic/layers/loader.js';
+import { documentLinkIssue } from '../../util/link-policy.js';
+import { logger } from '../../logger.js';
 
 export interface LayerTemplateConfigDeps {
   config: ConfigSource;
@@ -40,7 +42,22 @@ export function registerLayerTemplateRoutes(
   // route to drive an editor; translations are managed through the
   // dedicated translation editor and shipped separately as overlays.
   app.get('/api/admin/layer-templates', { preHandler: auth }, async (_req, reply) => {
-    return reply.send({ templates: allLayerTemplates() });
+    // The layer page falls back to this list to preview a layer OAP does not
+    // list yet, and renders its `documentLink` in the same anchor the menu
+    // does — so the same policy has to run here. Serving it unchecked would
+    // leave a render path the menu's check never sees.
+    const trusted = deps.config.current.security.trustedLinkDomains;
+    const templates = allLayerTemplates().map((tpl) => {
+      if (!tpl.documentLink) return tpl;
+      const issue = documentLinkIssue(tpl.documentLink, trusted);
+      if (!issue) return tpl;
+      logger.warn(
+        { layer: tpl.key, issue },
+        'layer documentLink rejected by link policy — withheld from the preview list',
+      );
+      return { ...tpl, documentLink: undefined };
+    });
+    return reply.send({ templates });
   });
 
   // No write route here: operator updates go through `/api/admin/templates/save`

@@ -19,7 +19,11 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateBundledTemplates, type TemplateFinding } from './bundled-validate.js';
+import {
+  validateBundledTemplates,
+  singletonPresenceIssues,
+  type TemplateFinding,
+} from './bundled-validate.js';
 
 /** Minimal well-formed layer template — every negative case below is this
  *  with ONE field broken, so a finding can only come from that field. */
@@ -412,5 +416,56 @@ describe('validateBundledTemplates — overview dashboards', () => {
       },
     });
     expect(messages(findings)).toContain('requires a `layer`');
+  });
+});
+
+// Every singleton loader hardcodes its filename and THROWS when the file is
+// missing — there is no default — and one of them is on the path of
+// `/api/configs/bundle`, which has no catch. So a rename that CI waved through
+// would 500 the route every page depends on. These fixtures prove the check
+// fires rather than only that today's tree happens to pass.
+describe('singletonPresenceIssues — the four files the runtime loads by exact path', () => {
+  const REQUIRED = [
+    'alert/page-setup.json',
+    'theme/active.json',
+    'time-defaults/global.json',
+    'infra-3d/config.json',
+  ];
+
+  /** A bundle root carrying exactly the singleton files named. */
+  function rootWith(paths: string[]): string {
+    const root = mkdtempSync(join(tmpdir(), 'singletons-'));
+    for (const rel of paths) {
+      const [dir, file] = rel.split('/');
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(join(root, dir, file), '{}');
+    }
+    return root;
+  }
+
+  it('is clean when all four are present under their exact names', () => {
+    expect(singletonPresenceIssues(rootWith(REQUIRED))).toEqual([]);
+  });
+
+  it.each(REQUIRED)('reports %s when it is missing', (missing) => {
+    const findings = singletonPresenceIssues(rootWith(REQUIRED.filter((p) => p !== missing)));
+    expect(findings.map((f) => f.file)).toContain(missing);
+    expect(findings.find((f) => f.file === missing)?.message).toMatch(/missing/);
+  });
+
+  // The key is a separate constant, never derived from the filename, so an
+  // extra file is validated by the schema pass and then silently ignored at
+  // runtime — the worst kind of pass.
+  it('reports a renamed file twice: the required one is gone AND the new one is never read', () => {
+    const renamed = REQUIRED.filter((p) => p !== 'theme/active.json').concat('theme/actives.json');
+    const files = singletonPresenceIssues(rootWith(renamed)).map((f) => f.file);
+    expect(files).toContain('theme/active.json');
+    expect(files).toContain('theme/actives.json');
+  });
+
+  it('ignores a per-locale overlay sitting beside a singleton', () => {
+    const root = rootWith(REQUIRED);
+    writeFileSync(join(root, 'theme', 'active.i18n.zh-CN.json'), '{}');
+    expect(singletonPresenceIssues(root)).toEqual([]);
   });
 });

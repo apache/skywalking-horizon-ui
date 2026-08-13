@@ -69,8 +69,25 @@ jobs:
       # shipping defect rather than operator error — and the loader only
       # JSON.parses them, which is how an orderBy naming a nonexistent column
       # and an unsupported aggregation both shipped.
-      - name: Lint, source budget, i18n, bundled templates
+      - name: Lint, source budget, i18n, security, bundled templates
         run: pnpm lint
+
+      # Advisories against what actually SHIPS. `--prod` matches the scope the
+      # binary LICENSE is generated from, so the two gates describe the same
+      # artifact. A finding here is always something an operator would run, so
+      # it blocks. Only high+ does: a gate that fails on things nobody can act
+      # on gets ignored.
+      - name: Audit shipped dependencies
+        run: pnpm audit --prod --audit-level=high
+
+      # Dev tooling is a different threat model, not a lesser one — it runs in
+      # CI with repository credentials and on contributors' machines, so a
+      # compromised build tool can reach the artifact without ever being IN it.
+      # Reported rather than enforced: an advisory in a linter's transitive
+      # tree with no patch available would otherwise block every unrelated PR.
+      - name: Audit build tooling (report only)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
 
       - name: Type-check
         run: pnpm -r run type-check
@@ -167,7 +184,36 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/layer/general/traces")
           [ "$code" = "200" ] || fail "SPA deep link returned ${code}"
           curl -s "http://127.0.0.1:8099/api/nope" | grep -q '"code":"not_found"' || fail "/api/* 404 is not the JSON envelope"
-          echo "packaged artifact boots and serves the UI"
+
+          # Security headers, asserted against the SHIPPED artifact — a unit
+          # test on the header map cannot catch a hook that never runs, a
+          # plugin registered ahead of it, or a route that writes its own head.
+          hdr() { curl -s -D - -o /dev/null "$1" | tr -d '\r' | grep -i "^$2:" | cut -d' ' -f2-; }
+          csp=$(hdr "http://127.0.0.1:8099/" "content-security-policy")
+          [ -n "$csp" ] || fail "no Content-Security-Policy on the SPA shell"
+          # Pull script-src out and judge it alone. Matching the whole policy
+          # would be both wrong ways round: style-src legitimately carries
+          # 'unsafe-inline', and a substring test on the joined string depends
+          # on token order. This is the directive that makes an injected
+          # handler or a stored javascript: URL inert.
+          scriptsrc=$(printf '%s' "$csp" | tr ';' '\n' | grep -i 'script-src' | head -1 || true)
+          [ -n "$scriptsrc" ] || fail "CSP has no script-src: ${csp}"
+          case "$scriptsrc" in *"'self'"*) ;; *) fail "script-src lacks 'self': ${scriptsrc}" ;; esac
+          case "$scriptsrc" in *unsafe-inline*|*unsafe-eval*|*unsafe-hashes*)
+            fail "script-src grants an unsafe keyword: ${scriptsrc}" ;; esac
+          for h in x-content-type-options x-frame-options referrer-policy; do
+            [ -n "$(hdr "http://127.0.0.1:8099/" "$h")" ] || fail "missing ${h} on the SPA shell"
+          done
+          # Every /api/ response, including a 404 and an error, is unstorable.
+          for p in /api/health /api/nope; do
+            cc=$(hdr "http://127.0.0.1:8099${p}" "cache-control")
+            [ "$cc" = "no-store" ] || fail "${p} Cache-Control is '${cc}', expected no-store"
+            [ -n "$(hdr "http://127.0.0.1:8099${p}" "content-security-policy")" ] || fail "no CSP on ${p}"
+          done
+          # ...while content-hashed assets stay cacheable.
+          cc=$(hdr "http://127.0.0.1:8099${asset}" "cache-control")
+          case "$cc" in *no-store*) fail "hashed asset ${asset} is no-store — static files must stay cacheable" ;; esac
+          echo "packaged artifact boots, serves the UI, and carries its security headers"
 
   required:
     # Status-check name pinned to "Required" so Apache branch protection

@@ -82,9 +82,8 @@ export function registerSettingsRoute(app: FastifyInstance, deps: SettingsRouteD
         timeDefaults: effectiveContent(sync, formatName('time-defaults', TIME_DEFAULTS_KEY)),
         alert: effectiveContent(sync, formatName('alert', ALERT_PAGE_SETUP_KEY)),
       };
-      // No browser caching: an operator's publish has to land on the next
-      // read. The 30s sync cache already absorbs the OAP hit.
-      reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
+      // Caching is governed centrally for every /api/ path (no-store), so
+      // an operator's publish always lands on the next read.
       return reply.send(body);
     },
   );

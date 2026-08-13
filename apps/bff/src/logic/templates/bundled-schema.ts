@@ -46,6 +46,7 @@
 
 import { z } from 'zod';
 import { widgetSchema, scopeSchema } from '../dashboard/schema.js';
+import { linkSchemeIssue } from '../../util/link-policy.js';
 
 /** Cross-side rollup of per-service values into one layer KPI. Mirrors
  *  `AggregationKind` — the landing route rejects anything else. */
@@ -337,7 +338,14 @@ function buildLayerSchemas(complete: boolean) {
       group: text.optional(),
       visibility: z.enum(['public', 'operate']).optional(),
       color: text.optional(),
-      documentLink: text.optional(),
+      // Rendered straight into the layer header's `<a href>`, so the scheme
+      // is checked HERE rather than at the render site — the store this is
+      // read back from (OAP) validates nothing and can be written without
+      // going through Horizon. The domain allow-list is applied separately,
+      // where the operator's config is in hand.
+      documentLink: text
+        .refine((v) => linkSchemeIssue(v) === null, (v) => ({ message: linkSchemeIssue(v) ?? 'invalid link' }))
+        .optional(),
       aliases: aliasesSchema.optional(),
       slots: aliasesSchema.optional(),
       components: componentsSchema,
@@ -719,3 +727,61 @@ export const overviewTemplateSchema = buildOverviewSchemas(true);
  * it is a product change, and the tests will say so.
  */
 export const overviewTemplatePushSchema = buildOverviewSchemas(false);
+
+/**
+ * The three singleton settings templates. Unlike dashboards, each is written
+ * whole by exactly one admin page — the alarms page setup, and the two halves
+ * of Global Defaults — so completeness IS the contract here and a partial
+ * object is a malformed one, not work in progress.
+ *
+ * `.strict()` is the load-bearing part: without it these rows are an
+ * unvalidated JSON store that every signed-in user reads back.
+ */
+/** These bounds are not new: the alarms config route enforced them until the
+ *  config moved to OAP, and they were lost in that move. The admin page still
+ *  applies them (an 8-pin cap, three fixed window choices, a 10–500 fetch
+ *  range), so a stored value outside them is one no operator could author
+ *  through the UI — and `pinnedLayers` is the one with no read-side backstop:
+ *  each entry renders a KPI tile and a list tab, so blanks and overflow reach
+ *  the page. */
+const ALARMS_WINDOW_CHOICES_MS = [20 * 60_000, 2 * 60 * 60_000, 4 * 60 * 60_000] as const;
+const MAX_PINNED_LAYERS = 8;
+const OVERVIEW_ALARMS_LIMIT_MIN = 10;
+const OVERVIEW_ALARMS_LIMIT_MAX = 500;
+
+/** `.min(1)` counts characters, so `"   "` satisfies it. These are REFINEMENTS
+ *  rather than `.trim()` transforms on purpose: the publish route stores the
+ *  caller's original object, not zod's parsed output, so a transform would
+ *  bless a value that is not the one persisted. */
+const nonBlank = z.string().refine((v) => v.trim().length > 0, { message: 'must not be blank' });
+
+export const alertTemplateSchema = z
+  .object({
+    pinnedLayers: z.array(nonBlank).max(MAX_PINNED_LAYERS),
+    defaultWindowMs: z
+      .number()
+      .int()
+      .refine((v) => (ALARMS_WINDOW_CHOICES_MS as readonly number[]).includes(v), {
+        message: `must be one of the alarm-page windows: ${ALARMS_WINDOW_CHOICES_MS.join(', ')} ms`,
+      }),
+    overviewAlarmsLimit: z
+      .number()
+      .int()
+      .min(OVERVIEW_ALARMS_LIMIT_MIN)
+      .max(OVERVIEW_ALARMS_LIMIT_MAX),
+  })
+  .strict();
+
+/** The theme id set lives in the UI (`AVAILABLE_THEMES`), which resolves an
+ *  unknown id to the default — so the BFF pins the shape and leaves the value
+ *  to the one place that owns the list. */
+export const themeTemplateSchema = z.object({ themeId: nonBlank }).strict();
+
+/** 31 days, the same ceiling the UI applies to a locally-stored override. */
+const MAX_DEFAULT_WINDOW_MINUTES = 60 * 24 * 31;
+
+export const timeDefaultsTemplateSchema = z
+  .object({
+    defaultWindowMinutes: z.number().int().positive().max(MAX_DEFAULT_WINDOW_MINUTES),
+  })
+  .strict();

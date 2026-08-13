@@ -116,6 +116,7 @@ async function submit(): Promise<void> {
     <!-- Top: SkyWalking logo + Horizon wordmark + inline auth-status pill. -->
     <header class="top">
       <span class="brand">
+        <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
         <span class="brand-logo" v-html="logoSw" />
         <span class="brand-sep" aria-hidden="true" />
         <span class="brand-name">{{ t('Horizon') }}</span>

@@ -39,8 +39,27 @@ import { test as base, expect } from '@playwright/test';
  * and the artifact never becomes something people learn to skip.
  *
  * `pageErrors` is exposed because a blank page IS a defect: specs assert it is
- * empty after a mount. Console output deliberately is not asserted.
+ * empty after a mount.
+ *
+ * It collects from TWO sources, and the second is not optional. Vue's
+ * production build hands a component error to its own handler, which
+ * `console.error`s it — it does NOT rethrow, so `pageerror` never fires. The
+ * e2e image serves a production build, so listening to `pageerror` alone made
+ * this fixture inert against the exact failure it was written for: a
+ * ReferenceError in a view's `setup` blanks the page, and every
+ * `expect(pageErrors).toEqual([])` in the suite still passed. Verified in
+ * Chromium against Vue 3.5.40's production runtime — blank page, zero
+ * `pageerror` events, one `console.error`.
+ *
+ * Only Vue's own component-error line is promoted to a failure. General
+ * console noise (a failed third-party fetch, a deprecation warning) stays in
+ * the attached log, because a fixture that fails on any console error is one
+ * people learn to disable.
  */
+
+/** Vue's production error handler prefixes component errors with this. */
+const VUE_COMPONENT_ERROR = /^\[Vue warn\]|Unhandled error during execution|^ReferenceError|^TypeError/;
+
 export const test = base.extend<{ pageErrors: string[] }>({
   pageErrors: async ({ page }, use, testInfo) => {
     const pageErrors: string[] = [];
@@ -51,6 +70,11 @@ export const test = base.extend<{ pageErrors: string[] }>({
       const type = msg.type();
       if (type === 'error' || type === 'warning') {
         consoleLines.push(`[${type}] ${msg.text()}`);
+      }
+      // A component that threw during setup/render reaches here, not
+      // `pageerror`, in a production build.
+      if (type === 'error' && VUE_COMPONENT_ERROR.test(msg.text().trim())) {
+        pageErrors.push(`console: ${msg.text().split('\n')[0]}`);
       }
     });
 

@@ -124,6 +124,7 @@ function isLayerDiverged(key: string): boolean {
          the rail keeps just the expand chevron in the 44px header row. -->
     <div v-if="!sidebarCollapsed" class="sw-brand-row">
       <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
+        <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
         <span class="brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
         <small>Horizon</small>
       </RouterLink>
