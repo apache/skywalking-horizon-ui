@@ -92,6 +92,15 @@ test('clicking a deployment edge opens its client/server sparklines', async ({
   page,
   pageErrors,
 }) => {
+  // The fixture runs two liaisons and two data nodes, so the pair can hold
+  // four edges and the one carrying writes may be last. Opening each costs a
+  // panel load plus the wait below, which does not fit the 60s default — and
+  // overrunning it reports a bare timeout instead of the assertion's own
+  // diagnosis, so a healthy-but-unlucky ordering would look like a product
+  // failure. Stated as a number with its arithmetic rather than `test.slow()`,
+  // which silently means "×3".
+  test.setTimeout(150_000);
+
   await page.goto(`/layer/${BANYANDB_LAYER}/deployment`);
   await expect(page.locator('.lg-role-name').first()).toBeVisible({ timeout: 60_000 });
 
@@ -127,24 +136,58 @@ test('clicking a deployment edge opens its client/server sparklines', async ({
   });
   const flowRows = pair.locator('tbody tr');
   await expect(flowRows.first()).toBeVisible({ timeout: 60_000 });
-  await flowRows.first().click();
 
-  // The ROWS are the edge configuration reaching the panel: one per metric id
-  // the template declares for the pair, pairing `lineClient` (measured at the
-  // caller) with `lineServer` (measured at the callee).
-  await expect(page.locator('.ip-edge-rows').first()).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('.ip-edge-rows .ip-edge-row').first()).toBeVisible();
-
-  // And a DRAWN chart, not just the row. Sparkline renders `.sparkline` only
-  // when the series has a non-null point and `.sparkline-empty` otherwise, so
-  // asserting the rows alone passed on a panel of em dashes. The readiness
-  // check ahead of this proves the same pair's `write` / `query` series
-  // through the endpoint the page reads, so an empty chart here is a defect,
-  // not a cold cluster.
+  // The edge that HAS the traffic, read off the table rather than assumed. The
+  // group holds one row per liaison×data pairing, and which of them carried the
+  // writes depends on how the cluster hashed the data — so row one is a coin
+  // flip. The table already prints every edge's Write/s and Query/s (`primary`
+  // in the pair's config, `td.fl-primary` on screen) and renders an em dash for
+  // a null, so the page's own answer names the row worth opening.
+  const withTraffic = flowRows.filter({ has: page.locator('td.fl-primary', { hasText: /\d/ }) });
   await expect(
-    page.locator('.ip-edge-rows .sparkline').first(),
-    'the liaison -> data edge rendered no sparkline — the panel drew em dashes for a pair that carries every write',
-  ).toBeVisible({ timeout: 60_000 });
+    withTraffic.first(),
+    'no liaison -> data edge reported a Write/s or Query/s value — the pair that carries every write is idle',
+  ).toBeVisible({ timeout: 30_000 });
+  // The DRAWN chart on a primary row. Sparkline needs two finite points and
+  // renders `.sparkline-empty` below that, so asserting rows alone passed on a
+  // panel of em dashes — which is why the readiness check ahead of this waits
+  // for two points rather than one. Scoping matters as much: an unscoped
+  // `.sparkline` was satisfied by the pair's `bytes` or `err` rows, the
+  // loophole that same filter was narrowed to `write` / `query` to close.
+  const primaryChart = page
+    .locator('.ip-edge-rows .ip-edge-row')
+    .filter({ has: page.locator('.ip-edge-row-label', { hasText: /^(Write\/s|Query\/s)\b/ }) })
+    .locator('.sparkline');
+
+  // Each reporting edge in turn, because a cell and a chart do not need the
+  // same amount of data: the cell prints from ONE non-null bucket while the
+  // line needs two, so an edge can report traffic and still legitimately draw
+  // nothing. The readiness check proves only that SOME call in the pair has a
+  // drawable series, and this finds it. Bounded to the edges that reported a
+  // value — usually one — rather than sweeping every pairing in the group.
+  const candidates = await withTraffic.count();
+  let drawn = false;
+  for (let i = 0; i < candidates && !drawn; i += 1) {
+    await page.getByRole('button', { name: 'Flows' }).click();
+    await withTraffic.nth(i).click();
+    // The ROWS are the edge configuration reaching the panel: one per metric
+    // id the template declares for the pair, pairing `lineClient` (measured at
+    // the caller) with `lineServer` (measured at the callee).
+    await expect(page.locator('.ip-edge-rows').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.ip-edge-rows .ip-edge-row').first()).toBeVisible();
+    // The panel's rows render from config and fill from the edge's own fetch,
+    // so this has to outlast that query — but it is a NEGATIVE wait paid once
+    // per candidate, so it stays as short as that allows.
+    drawn = await primaryChart
+      .first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+  expect(
+    drawn,
+    `none of the ${candidates} liaison -> data edge(s) reporting a value drew a Write/s or Query/s sparkline`,
+  ).toBe(true);
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

@@ -29,7 +29,7 @@ import { LAYER } from '../fixture.js';
 // says it identically on every platform. Screenshots stay what they should
 // be: evidence attached to a failure.
 
-test('the dashboard widget grid tiles rather than collapsing', async ({ page }) => {
+test('the dashboard widget grid tiles rather than collapsing', async ({ page, pageErrors }) => {
   await page.goto(`/layer/${LAYER}/service`);
 
   // `.widget`, not `.sw-card`: the service picker is also a card, so a
@@ -54,6 +54,11 @@ test('the dashboard widget grid tiles rather than collapsing', async ({ page }) 
 
   const topRow = boxes.filter((b) => Math.abs(b.y - boxes[0].y) < 8);
   expect(topRow.length, 'widgets stacked vertically instead of tiling').toBeGreaterThan(1);
+
+  // Destructured deliberately: the diagnostics fixture is lazy, so a file that
+  // imports this `test` without asking for `pageErrors` attaches no recorders
+  // at all and collects nothing.
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });
 
 // Each path names the element that proves the page has CONTENT to overflow
@@ -68,7 +73,7 @@ const RENDERED: [string, string][] = [
   ['/', '.sw-card.tile, .widget'],
 ];
 
-test('no page scrolls sideways', async ({ page }) => {
+test('no page scrolls sideways', async ({ page, pageErrors }) => {
   for (const [path, ready] of RENDERED) {
     await page.goto(path);
     await expect(page.locator(ready).first()).toBeVisible({ timeout: 45_000 });
@@ -90,4 +95,6 @@ test('no page scrolls sideways', async ({ page }) => {
       )
       .toBeLessThanOrEqual(1);
   }
+
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

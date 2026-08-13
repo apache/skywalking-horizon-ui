@@ -144,48 +144,55 @@ async function assertScopeMatchesTemplate(page: Page, scope: string, path: strin
       `widget "${w.title}" should render as type ${w.type}`,
     ).toHaveClass(new RegExp(`\\btype-${w.type}\\b`));
 
+    // A missing OR blank proof is a coverage hole, not a widget to skip. The
+    // old `if (proof)` treated `line: ''` as "nothing to check" and moved on,
+    // so a form could lose its rendered-proof with this spec and its lint gate
+    // both green. Failing here makes that impossible to do quietly.
     const proof = RENDERED_AS[w.type];
-    if (proof) {
-      if (FIXTURE_GUARANTEES_DATA.has(w.type)) {
-        await expect(
-          tile.locator(proof).first(),
-          `widget "${w.title}" (${w.type}) carries the type class but rendered nothing`,
-        ).toBeVisible();
-      } else {
-        // Content OR an explicit "no data" — never neither, and never an
-        // error. The widget's own error text is returned rather than swallowed
-        // so the failure names the OAP problem instead of just the tile.
-        const body = tile.locator('.w-body');
-        await expect
-          .poll(
-            async () => {
-              if (
+    if (!proof) {
+      throw new Error(
+        `widget "${w.title}" is type ${w.type}, which has no rendered-proof in RENDERED_AS — add one, or this spec silently stops covering that form`,
+      );
+    }
+    if (FIXTURE_GUARANTEES_DATA.has(w.type)) {
+      await expect(
+        tile.locator(proof).first(),
+        `widget "${w.title}" (${w.type}) carries the type class but rendered nothing`,
+      ).toBeVisible();
+    } else {
+      // Content OR an explicit "no data" — never neither, and never an
+      // error. The widget's own error text is returned rather than swallowed
+      // so the failure names the OAP problem instead of just the tile.
+      const body = tile.locator('.w-body');
+      await expect
+        .poll(
+          async () => {
+            if (
+              await body
+                .locator(proof)
+                .first()
+                .isVisible()
+                .catch(() => false)
+            ) {
+              return 'content';
+            }
+            const text =
+              (
                 await body
-                  .locator(proof)
+                  .locator(EMPTY_STATE)
                   .first()
-                  .isVisible()
-                  .catch(() => false)
-              ) {
-                return 'content';
-              }
-              const text =
-                (
-                  await body
-                    .locator(EMPTY_STATE)
-                    .first()
-                    .textContent()
-                    .catch(() => null)
-                )?.trim() ?? '';
-              if (NO_DATA.test(text)) return 'no data';
-              return text === '' ? 'nothing rendered' : text;
-            },
-            {
-              timeout: 45_000,
-              message: `widget "${w.title}" (${w.type}) rendered neither content nor "no data"`,
-            },
-          )
-          .toMatch(/^(content|no data)$/);
-      }
+                  .textContent()
+                  .catch(() => null)
+              )?.trim() ?? '';
+            if (NO_DATA.test(text)) return 'no data';
+            return text === '' ? 'nothing rendered' : text;
+          },
+          {
+            timeout: 45_000,
+            message: `widget "${w.title}" (${w.type}) rendered neither content nor "no data"`,
+          },
+        )
+        .toMatch(/^(content|no data)$/);
     }
 
     // Layout comes from the template too. `span` is grid columns; if it stops
@@ -253,53 +260,38 @@ test('the instance dashboard renders exactly what its template declares', async 
   expect(jvmTitles.length, 'the instance template no longer declares JVM-gated widgets').toBeGreaterThan(0);
   expect(nodeTitles.length, 'the instance template no longer declares Node.js-gated widgets').toBeGreaterThan(0);
 
-  const shown = async (titles: string[]): Promise<number> => {
-    let n = 0;
-    for (const t of titles) if (await page.getByText(t, { exact: true }).count()) n += 1;
-    return n;
-  };
-  expect(
-    await shown(jvmTitles),
-    'no JVM-gated widget rendered for a Java instance — the visibleWhen gate is stuck shut',
-  ).toBeGreaterThan(0);
-  expect(
-    await shown(nodeTitles),
-    'a Node.js-gated widget rendered for a Java instance — the visibleWhen gate is stuck open',
-  ).toBe(0);
+  // BOTH counts from ONE DOM snapshot. Judged separately, the absence check
+  // was read at a different instant from its positive control — and the grid
+  // is unmounted outright while the auto-refresh tick reloads, so a clear
+  // landing between the two made "no Node.js widget rendered" true of a page
+  // showing nothing at all. Two sequential sweeps of per-title queries have
+  // the same hole between them, however they are combined; one
+  // `allTextContents()` closes it, because both numbers then come from the
+  // same list and the zero can only be read at an instant where the JVM
+  // widgets prove the grid is there.
+  await expect
+    .poll(
+      async () => {
+        const rendered = new Set(
+          (await page.locator('.widget .w-head-title').allTextContents()).map((t) => t.trim()),
+        );
+        const jvm = jvmTitles.filter((t) => rendered.has(t)).length;
+        const node = nodeTitles.filter((t) => rendered.has(t)).length;
+        return `${jvm}/${node}`;
+      },
+      {
+        timeout: 45_000,
+        message:
+          'expected some JVM-gated widgets and no Node.js-gated ones on a Java instance — a leading 0 means the gate is stuck shut (or the grid was reloading), a trailing non-zero means it is stuck open',
+      },
+    )
+    .toMatch(/^[1-9]\d*\/0$/);
 
   expect(pageErrors).toEqual([]);
 });
 
-// A guard on the SPEC, not the product — so it is NOT a test. Every case here
-// costs a browser and a full OAP + BanyanDB stack, and this needs neither: it
-// reads two JSON files. It runs at module load, so an uncovered widget form
-// fails the whole file immediately rather than posing as a passing e2e case.
-//
-// What it protects: if a bundled template starts using a form the fixture
-// never renders, the assertions above quietly stop covering it. This turns
-// that into a decision rather than an accident.
-{
-  const covered = new Set(
-    ['service', 'endpoint', 'instance']
-      .flatMap((scope) => unconditional(widgetsOf(LAYER, scope)))
-      .map((w) => w.type),
-  );
-  for (const type of covered) {
-    if (!RENDERED_AS[type]) {
-      throw new Error(
-        `template-fidelity: no rendered-proof defined for widget type "${type}" — add one to RENDERED_AS or the assertions silently stop covering it`,
-      );
-    }
-  }
-  // `card` and `table` are not reachable from this fixture: general declares
-  // neither. They live in the Kubernetes layers — k8s.service carries 8 card
-  // and 6 table widgets, k8s_service 2 more tables — so coverage arrives with
-  // the planned k8s monitoring case, which shares its cluster fixture with
-  // the istio / rover work. Until then this keeps the omission visible rather
-  // than letting it pass as covered.
-  for (const form of ['line', 'top']) {
-    if (!covered.has(form)) {
-      throw new Error(`template-fidelity: the fixture no longer renders any "${form}" widget`);
-    }
-  }
-}
+// The guard that keeps RENDERED_AS in step with the bundled templates lives in
+// `scripts/check-e2e-widget-coverage.mjs`, run by `pnpm lint`. It drives
+// nothing and observes nothing — it reads two files — so paying a browser and
+// a full OAP + BanyanDB stack for it was wrong, and failing the UI e2e project
+// on it reported a spec-maintenance problem as a product one.

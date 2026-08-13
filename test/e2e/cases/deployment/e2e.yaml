@@ -167,9 +167,13 @@ verify:
     #    Three things have to line up, and each was learned by watching this
     #    check open on data the page could not draw:
     #      - the VALUES, not the edge: an edge exists from the topology alone;
-    #      - NON-NULL values, not a non-empty array: a series is one entry per
-    #        bucket and mostly null until data lands, and Sparkline renders no
-    #        `.sparkline` element at all for an all-null series;
+    #      - TWO non-null values, not one. A series is one entry per bucket and
+    #        mostly null until data lands, and Sparkline needs two finite
+    #        points to have a line to draw — below that it renders
+    #        `.sparkline-empty` instead. A gate that opened on a single
+    #        populated bucket therefore declared the fixture ready while the
+    #        panel the browser case asserts on could still only draw em
+    #        dashes, which is a red case on a healthy cluster;
     #      - the metrics the panel actually DRAWS, for the PAIR the spec opens.
     #        `write` / `query` are the primary rows of liaison->data, which is
     #        the pair the browser case selects and the only one this fixture
@@ -184,7 +188,7 @@ verify:
             swctl --display json --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
               service ls | yq e '.[] | select(.name == "e2e-banyandb") | .id' - \
           )" \
-          | yq -P '{"hasEdgeSeries": ([.calls[]? | (.clientMetricSeries // {}) | to_entries[]? | select(.key == "write" or .key == "query") | .value // [] | map(select(. != null)) | select(length > 0)] | length > 0)}'
+          | yq -P '{"hasEdgeSeries": ([.calls[]? | (.clientMetricSeries // {}) | to_entries[]? | select(.key == "write" or .key == "query") | .value // [] | map(select(. != null)) | select(length > 1)] | length > 0)}'
       expected: expected/has-edge-series.yml
 
     # 4. The browser half — the actual test.

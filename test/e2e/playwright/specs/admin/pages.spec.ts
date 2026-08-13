@@ -50,9 +50,9 @@ test('the capture history page mounts with its per-catalog filters', async ({ pa
   // rather than content the wire cases created. Populating it would mean
   // driving a capture through the debugger UI, which would race the wire
   // cases' mutations.
-  // The catalog chips BY NAME, in order. `.dh button` also matches "clear
-  // all", so a count alone was satisfied by a page that rendered its header
-  // and no filter row at all — the one thing this asserts.
+  // The catalog chips BY NAME, in order. `.dh button` counted the four chips
+  // plus the conditional "clear all", so the number it produced could not say
+  // WHICH buttons had rendered — naming them can.
   await expect(page.locator('.dh__filterchip')).toHaveText([
     /^all\b/,
     /^mal\b/,
@@ -92,8 +92,12 @@ test('the layer dashboard admin mounts', async ({ page, pageErrors }) => {
   await page.goto('/admin/layer-dashboards');
   await expect(page.locator('#app')).toBeVisible();
 
-  // templates.mode is live, so this page renders what OAP holds, and the layer
-  // roster is what proves the seed-and-read round trip.
+  // This editor's roster is the BUNDLED list, by design: the disk bundle
+  // reaches the runtime through initialization and read-only mode, plus this
+  // page's bundled-preview source, which is what the editor diffs against.
+  // So the rows prove the page mounted and the bundle loaded — they say
+  // nothing about OAP, and cannot: they render identically with the template
+  // store unreachable. The OAP half is asserted from the sync badge below.
   //
   // The roster is behind a click. The page mounts with its layer list
   // COLLAPSED and opens on whichever template sorts first, so on load the only
@@ -112,9 +116,19 @@ test('the layer dashboard admin mounts', async ({ page, pageErrors }) => {
   // Layer keys are enum values rendered verbatim in every locale, which is
   // what makes them safe to match on.
   expect(await rows.count()).toBeGreaterThan(2);
+  const layerRow = rows.filter({
+    has: page.locator('.key-tag', { hasText: new RegExp(`^${LAYER}$`, 'i') }),
+  });
+  await expect(layerRow, `the ${LAYER} template is missing from the bundled roster`).toHaveCount(1);
+
+  // THIS is the seed-and-read round trip. The badge compares the bundled copy
+  // against the OAP-stored one, so `synced` (byte-identical) and `diverged`
+  // (OAP holds a different copy, and OAP wins at render) both prove OAP
+  // answered. `bundled-fallback` — or no badge at all — is the break: it means
+  // the template store had nothing for this layer.
   await expect(
-    rows.locator('.key-tag').filter({ hasText: new RegExp(`^${LAYER}$`, 'i') }),
-    `the ${LAYER} template did not come back from OAP`,
+    layerRow.locator('.tsb--synced, .tsb--diverged'),
+    `${LAYER} has no OAP-stored copy — boot seeding into the template store did not land`,
   ).toHaveCount(1);
 
   expect(pageErrors).toEqual([]);

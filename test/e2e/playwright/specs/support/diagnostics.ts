@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import type { Page } from '@playwright/test';
 import { test as base, expect } from '@playwright/test';
 
 /**
@@ -57,26 +58,48 @@ import { test as base, expect } from '@playwright/test';
  * people learn to disable.
  */
 
-/** Vue's production error handler prefixes component errors with this. */
-const VUE_COMPONENT_ERROR = /^\[Vue warn\]|Unhandled error during execution|^ReferenceError|^TypeError/;
+/**
+ * What Vue's production build actually prints for a component error.
+ *
+ * Its handler calls `console.error(err)` with the raw Error object, so the line
+ * begins with the error's own class name and nothing else — `TypeError: …`,
+ * `ReferenceError: …`, `Error: …`. Matching the class generally is deliberate:
+ * pinning two of them let every other class blank the page silently.
+ *
+ * The dev-only strings are NOT matched. Vue emits `[Vue warn]` and `Unhandled
+ * error during execution` through `console.warn`, and only outside production,
+ * while this promotion is guarded on `type === 'error'` — so including them
+ * matched nothing and implied coverage the fixture did not have.
+ */
+const VUE_COMPONENT_ERROR = /^\w*Error\b/;
 
 export const test = base.extend<{ pageErrors: string[] }>({
   pageErrors: async ({ page }, use, testInfo) => {
     const pageErrors: string[] = [];
     const consoleLines: string[] = [];
 
-    page.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`));
-    page.on('console', (msg) => {
-      const type = msg.type();
-      if (type === 'error' || type === 'warning') {
-        consoleLines.push(`[${type}] ${msg.text()}`);
-      }
-      // A component that threw during setup/render reaches here, not
-      // `pageerror`, in a production build.
-      if (type === 'error' && VUE_COMPONENT_ERROR.test(msg.text().trim())) {
-        pageErrors.push(`console: ${msg.text().split('\n')[0]}`);
-      }
-    });
+    const record = (target: Page): void => {
+      target.on('pageerror', (e) => pageErrors.push(`${e.name}: ${e.message}`));
+      target.on('console', (msg) => {
+        const type = msg.type();
+        if (type === 'error' || type === 'warning') {
+          consoleLines.push(`[${type}] ${msg.text()}`);
+        }
+        // A component that threw during setup/render reaches here, not
+        // `pageerror`, in a production build.
+        if (type === 'error' && VUE_COMPONENT_ERROR.test(msg.text().trim())) {
+          pageErrors.push(`console: ${msg.text().split('\n')[0]}`);
+        }
+      });
+    };
+
+    // Recorded per CONTEXT, not per page. Specs that open a page of their own —
+    // the deep-link flows do, to prove a param consumed on first mount — would
+    // otherwise assert against an array nothing ever wrote to, so their
+    // `expect(pageErrors).toEqual([])` could not fail whatever that page did.
+    const context = page.context();
+    context.pages().forEach(record);
+    context.on('page', record);
 
     await use(pageErrors);
 
