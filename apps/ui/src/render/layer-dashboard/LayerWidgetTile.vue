@@ -73,6 +73,7 @@ const props = defineProps<{
   popOutTopList: (id: string) => void;
   setTopListRef: (id: string, el: unknown) => void;
   traceDrillMode: (w: DashboardWidget) => 'latency' | 'error' | null;
+  evaluationRecordDrillEnabled: (w: DashboardWidget) => boolean;
   onDrillPoint: (
     w: DashboardWidget,
     p: { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
@@ -150,6 +151,13 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
           <Icon name="trace" :size="11" />
           <span>{{ t('traces') }}</span>
         </span>
+        <span
+          v-else-if="!compareMode && evaluationRecordDrillEnabled(widget)"
+          class="drill-flag"
+          title="Click a point to view evaluation records at that time"
+        >
+          <span>{{ t('records') }}</span>
+        </span>
         <!-- Card widgets render the unit beneath the big value;
              surfacing it here too is a duplicate. Other types
              (line / top / record) need the unit hint here because
@@ -208,7 +216,7 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
           :accent="widgetColor(widget)"
           :format="widget.format"
           :x-labels="xLabelsForLen(compareMode ? lineLen(widget.id) : (result(widget.id)!.series![0]?.data.length ?? 0))"
-          :clickable="!compareMode && !!traceDrillMode(widget)"
+          :clickable="!compareMode && (Boolean(traceDrillMode(widget)) || evaluationRecordDrillEnabled(widget))"
           :tip-suppressed="drillOpenId === widget.id"
           @point-click="onDrillPoint(widget, $event)"
         />

@@ -68,6 +68,7 @@ export function componentsToCaps(
     endpointDependency: !!c.endpointDependency,
     traces: !!c.traces,
     logs: !!c.logs,
+    evaluationRecord: !!c.evaluationRecord,
     browserErrors: !!c.browserErrors,
     podLogs: !!c.podLogs,
     traceProfiling: !!c.traceProfiling,

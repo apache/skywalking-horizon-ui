@@ -11,6 +11,7 @@
   "components": {
     "service": true,
     "instances": true,
+    "evaluationRecord": true,
     "endpoints": false,
     "topology": false,
     "traces": false,
@@ -275,6 +276,16 @@
         ],
         "span": 4,
         "rowSpan": 2
+      },
+      {
+        "expressions": [
+          "gen_ai_model_evaluation_score_ppm/1000000"
+        ],
+        "id": "evaluation score",
+        "rowSpan": 2,
+        "span": 12,
+        "title": "Evaluation Score",
+        "type": "line"
       }
     ]
   }

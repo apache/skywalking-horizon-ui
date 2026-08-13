@@ -144,7 +144,7 @@ export function isSingleFeatureLayer(L: LayerDef): boolean {
   if (hasInstances || hasEndpoints) return false;
   if (L.caps.serviceMap || L.caps.instanceTopology || L.caps.processTopology) return false;
   const c = L.caps;
-  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
+  if (c.traces || c.logs || c.evaluationRecord || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
   if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
   return true;
 }
@@ -172,6 +172,7 @@ export function firstLayerTab(L: LayerDef | undefined): string {
   if (L.caps?.endpointDependency) return 'dependency';
   if (L.caps?.traces) return 'trace';
   if (L.caps?.logs) return 'logs';
+  if (L.caps?.evaluationRecord) return 'evaluation-record';
   if (L.caps?.browserErrors) return 'browser-errors';
   if (L.caps?.podLogs) return 'pod-logs';
   if (L.caps?.traceProfiling) return 'trace-profiling';
