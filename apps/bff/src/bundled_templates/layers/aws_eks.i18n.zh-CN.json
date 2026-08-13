@@ -8,48 +8,130 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "节点" },
-      { "label": "失败节点" },
-      { "label": "命名空间" },
-      { "label": "服务" }
+      {
+        "label": "节点"
+      },
+      {
+        "label": "失败节点"
+      },
+      {
+        "label": "命名空间"
+      },
+      {
+        "label": "服务"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "节点数" },
-      { "title": "失败节点" },
-      { "title": "命名空间数" },
-      { "title": "EKS 服务数" },
-      { "title": "集群网络错误", "expressionLabels": ["rx", "tx"] },
-      { "title": "集群网络丢包", "expressionLabels": ["rx", "tx"] }
+      {
+        "id": "node_count",
+        "title": "节点数"
+      },
+      {
+        "id": "failed_nodes",
+        "title": "失败节点"
+      },
+      {
+        "id": "namespace_count",
+        "title": "命名空间数"
+      },
+      {
+        "id": "service_count",
+        "title": "EKS 服务数"
+      },
+      {
+        "id": "network_errors",
+        "title": "集群网络错误",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "id": "network_dropped",
+        "title": "集群网络丢包",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
     ],
     "endpoint": [
-      { "title": "Pod CPU 使用率（%）" },
-      { "title": "Pod 内存使用率（%）" },
-      { "title": "Pod 网络 RX（KB/s）" },
-      { "title": "Pod RX 错误 / 秒" },
-      { "title": "Pod 网络 TX（KB/s）" },
-      { "title": "Pod TX 错误 / 秒" }
+      {
+        "id": "pod_cpu",
+        "title": "Pod CPU 使用率（%）"
+      },
+      {
+        "id": "pod_mem",
+        "title": "Pod 内存使用率（%）"
+      },
+      {
+        "id": "pod_net_rx",
+        "title": "Pod 网络 RX（KB/s）"
+      },
+      {
+        "id": "pod_net_rx_err",
+        "title": "Pod RX 错误 / 秒"
+      },
+      {
+        "id": "pod_net_tx",
+        "title": "Pod 网络 TX（KB/s）"
+      },
+      {
+        "id": "pod_net_tx_err",
+        "title": "Pod TX 错误 / 秒"
+      }
     ],
     "instance": [
-      { "title": "Pod 数量" },
-      { "title": "CPU 使用率（%）" },
-      { "title": "内存使用率（%）" },
-      { "title": "文件系统使用率（%）" },
       {
+        "id": "pods",
+        "title": "Pod 数量"
+      },
+      {
+        "id": "node_cpu",
+        "title": "CPU 使用率（%）"
+      },
+      {
+        "id": "node_mem",
+        "title": "内存使用率（%）"
+      },
+      {
+        "id": "node_fs",
+        "title": "文件系统使用率（%）"
+      },
+      {
+        "id": "node_net_rx",
         "title": "网络 RX（KB/s）",
-        "expressionLabels": ["bytes", "errors"]
+        "expressionLabels": [
+          "bytes",
+          "errors"
+        ]
       },
       {
+        "id": "node_net_tx",
         "title": "网络 TX（KB/s）",
-        "expressionLabels": ["bytes", "errors"]
+        "expressionLabels": [
+          "bytes",
+          "errors"
+        ]
       },
       {
+        "id": "disk",
         "title": "磁盘 IO（B/s）",
-        "expressionLabels": ["read", "write"]
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
       },
-      { "title": "节点上的 Pod CPU" },
-      { "title": "节点上的 Pod 内存" }
+      {
+        "id": "pod_cpu",
+        "title": "节点上的 Pod CPU"
+      },
+      {
+        "id": "pod_mem",
+        "title": "节点上的 Pod 内存"
+      }
     ]
   }
 }

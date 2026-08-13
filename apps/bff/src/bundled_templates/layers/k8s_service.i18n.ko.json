@@ -23,16 +23,18 @@
   "dashboards": {
     "service": [
       {
+        "id": "pod_total",
         "title": "서비스 Pod"
       },
       {
+        "id": "pod_waiting",
         "title": "대기 중인 Pod",
         "tableHeaders": [
-          "컨테이너 · Pod · 사유",
-          ""
+          "컨테이너 · Pod · 사유"
         ]
       },
       {
+        "id": "pod_restarts",
         "title": "Pod 재시작",
         "tableHeaders": [
           "Pod",
@@ -40,6 +42,7 @@
         ]
       },
       {
+        "id": "cpu_resources",
         "title": "CPU 리소스",
         "expressionLabels": [
           "requests",
@@ -47,6 +50,7 @@
         ]
       },
       {
+        "id": "memory_resources",
         "title": "메모리 리소스",
         "expressionLabels": [
           "requests",
@@ -54,18 +58,23 @@
         ]
       },
       {
+        "id": "pod_cpu_usage",
         "title": "Pod CPU 사용량"
       },
       {
+        "id": "pod_memory_usage",
         "title": "Pod 메모리 사용량"
       },
       {
+        "id": "http_call_cpm",
         "title": "HTTP 요청 RPM"
       },
       {
+        "id": "http_call_time",
         "title": "HTTP 응답 시간"
       },
       {
+        "id": "http_status",
         "title": "HTTP 상태 코드 RPM",
         "tip": "클래스별 상태 코드 수(1xx / 2xx / 3xx / 4xx / 5xx).",
         "expressionLabels": [
@@ -77,6 +86,7 @@
         ]
       },
       {
+        "id": "http_req_resp_size",
         "title": "HTTP 요청 / 응답 크기",
         "expressionLabels": [
           "req hdr",
@@ -86,6 +96,7 @@
         ]
       },
       {
+        "id": "tcp_connect",
         "title": "TCP 연결",
         "tip": "클라이언트 측 연결 시도와 성공(분당).",
         "expressionLabels": [
@@ -94,12 +105,15 @@
         ]
       },
       {
+        "id": "tcp_connect_time",
         "title": "TCP 연결 소요 시간"
       },
       {
+        "id": "tcp_accept",
         "title": "TCP Accept"
       },
       {
+        "id": "tcp_packets",
         "title": "TCP 패킷",
         "tip": "분당 읽기 + 쓰기 패킷 수(재전송 포함).",
         "expressionLabels": [
@@ -109,6 +123,7 @@
         ]
       },
       {
+        "id": "tcp_bytes",
         "title": "TCP 바이트",
         "expressionLabels": [
           "read",
@@ -118,12 +133,15 @@
     ],
     "instance": [
       {
+        "id": "pod_http_cpm",
         "title": "Pod HTTP RPM"
       },
       {
+        "id": "pod_http_time",
         "title": "Pod HTTP 응답 시간"
       },
       {
+        "id": "pod_http_status",
         "title": "Pod HTTP 상태 코드 RPM",
         "expressionLabels": [
           "1xx",
@@ -134,6 +152,7 @@
         ]
       },
       {
+        "id": "pod_http_sizes",
         "title": "Pod HTTP 크기",
         "expressionLabels": [
           "req hdr",
@@ -143,6 +162,7 @@
         ]
       },
       {
+        "id": "pod_tcp_connect",
         "title": "Pod TCP 연결",
         "expressionLabels": [
           "connect",
@@ -150,6 +170,7 @@
         ]
       },
       {
+        "id": "pod_tcp_packets",
         "title": "Pod TCP 패킷",
         "expressionLabels": [
           "read",
@@ -158,6 +179,7 @@
         ]
       },
       {
+        "id": "pod_tcp_bytes",
         "title": "Pod TCP 바이트",
         "expressionLabels": [
           "read",
@@ -167,12 +189,15 @@
     ],
     "endpoint": [
       {
+        "id": "ep_http_cpm",
         "title": "엔드포인트 HTTP RPM"
       },
       {
+        "id": "ep_http_time",
         "title": "엔드포인트 HTTP 응답 시간"
       },
       {
+        "id": "ep_http_status",
         "title": "엔드포인트 상태 코드 RPM",
         "expressionLabels": [
           "1xx",
@@ -183,6 +208,7 @@
         ]
       },
       {
+        "id": "ep_http_req_sizes",
         "title": "엔드포인트 요청 크기",
         "expressionLabels": [
           "헤더",
@@ -190,6 +216,7 @@
         ]
       },
       {
+        "id": "ep_http_resp_sizes",
         "title": "엔드포인트 응답 크기",
         "expressionLabels": [
           "헤더",
@@ -201,44 +228,72 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "httpCpm",
         "label": "RPM"
       },
       {
+        "id": "httpSuccess",
         "label": "성공률"
       },
       {
+        "id": "httpRespTime",
         "label": "지연 시간"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "평균 응답 시간"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "평균 응답 시간"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "성공률" },
-        { "label": "지연 시간" }
+        {
+          "id": "httpCpm",
+          "label": "RPM"
+        },
+        {
+          "id": "httpSuccess",
+          "label": "성공률"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "지연 시간"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "평균 응답 시간" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "평균 응답 시간"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "평균 응답 시간" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "평균 응답 시간"
+        }
       ]
     }
   },

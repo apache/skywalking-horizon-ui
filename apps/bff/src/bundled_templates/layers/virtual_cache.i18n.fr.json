@@ -20,46 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "access_cpm_line",
         "title": "Trafic d'accès"
       },
       {
+        "id": "access_resp_line",
         "title": "Latence d'accès moyenne"
       },
       {
+        "id": "access_sla_line",
         "title": "Taux de succès des accès"
       },
       {
+        "id": "access_percentile",
         "title": "Centile de latence d'accès"
       },
       {
+        "id": "read_traffic",
         "title": "Trafic de lecture"
       },
       {
+        "id": "read_resp",
         "title": "Latence moyenne de lecture"
       },
       {
+        "id": "write_traffic",
         "title": "Trafic d'écriture"
       },
       {
+        "id": "write_resp",
         "title": "Latence moyenne d'écriture"
       },
       {
+        "id": "read_sla",
         "title": "Taux de succès en lecture"
       },
       {
+        "id": "write_sla",
         "title": "Taux de succès en écriture"
       },
       {
+        "id": "read_percentile",
         "title": "Centile de latence de lecture"
       },
       {
+        "id": "write_percentile",
         "title": "Centile de latence d'écriture"
       },
       {
+        "id": "slow_read",
         "title": "Commandes de lecture lentes",
         "tip": "Top 10 des commandes de lecture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       },
       {
+        "id": "slow_write",
         "title": "Commandes d'écriture lentes",
         "tip": "Top 10 des commandes d'écriture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       }

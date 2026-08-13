@@ -20,33 +20,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "클러스터 가동 시간 (일)"
       },
       {
+        "id": "data_size",
         "title": "데이터 크기 (GB)"
       },
       {
+        "id": "coll_count",
         "title": "컬렉션 수"
       },
       {
+        "id": "obj_count",
         "title": "객체 수"
       },
       {
+        "id": "doc_qps",
         "title": "Document QPS"
       },
       {
+        "id": "op_qps",
         "title": "작업 QPS"
       },
       {
+        "id": "conns",
         "title": "총 연결"
       },
       {
+        "id": "cursors",
         "title": "커서 총합"
       },
       {
+        "id": "repl_lag",
         "title": "복제 랙 (ms)"
       },
       {
+        "id": "db_data_size",
         "title": "DB 총 데이터 (GB)",
         "tableHeaders": [
           "데이터베이스",
@@ -54,6 +64,7 @@
         ]
       },
       {
+        "id": "db_index_size",
         "title": "DB 총 인덱스 (GB)",
         "tableHeaders": [
           "데이터베이스",
@@ -63,12 +74,15 @@
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "가동 시간 (일)"
       },
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "rs_state",
         "title": "ReplSet 상태",
         "tableHeaders": [
           "노드",
@@ -76,15 +90,19 @@
         ]
       },
       {
+        "id": "conns",
         "title": "연결"
       },
       {
+        "id": "cpu",
         "title": "CPU 사용률 (%)"
       },
       {
+        "id": "mem",
         "title": "메모리 사용량"
       },
       {
+        "id": "mem_free",
         "title": "여유 메모리 (GB)",
         "expressionLabels": [
           "mem",
@@ -92,6 +110,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "디스크 (GB)",
         "expressionLabels": [
           "사용",
@@ -99,6 +118,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "네트워크 (KB/s)",
         "expressionLabels": [
           "입력",
@@ -106,6 +126,7 @@
         ]
       },
       {
+        "id": "active_clients",
         "title": "활성 클라이언트",
         "expressionLabels": [
           "전체",
@@ -114,15 +135,19 @@
         ]
       },
       {
+        "id": "doc_qps",
         "title": "Document QPS"
       },
       {
+        "id": "op_qps",
         "title": "작업 QPS"
       },
       {
+        "id": "op_latency",
         "title": "작업 지연 시간 (µs)"
       },
       {
+        "id": "transactions",
         "title": "트랜잭션",
         "expressionLabels": [
           "active",
@@ -130,6 +155,7 @@
         ]
       },
       {
+        "id": "repl_buffer",
         "title": "복제 버퍼",
         "expressionLabels": [
           "count",
@@ -137,6 +163,7 @@
         ]
       },
       {
+        "id": "queued_op",
         "title": "큐 작업"
       }
     ]

@@ -4,9 +4,11 @@
   "dashboards": {
     "instance": [
       {
+        "id": "tracing_created",
         "title": "트레이싱 컨텍스트 생성 / 분"
       },
       {
+        "id": "tracing_create_complete",
         "title": "트레이싱 생성 + 완료 / 분",
         "expressionLabels": [
           "created",
@@ -14,9 +16,11 @@
         ]
       },
       {
+        "id": "ignored_created",
         "title": "무시된 컨텍스트 생성 / 분"
       },
       {
+        "id": "ignored_create_complete",
         "title": "무시된 생성 + 완료 / 분",
         "expressionLabels": [
           "created",
@@ -24,12 +28,15 @@
         ]
       },
       {
+        "id": "leaked",
         "title": "누수 가능 컨텍스트 / 분"
       },
       {
+        "id": "interceptor_err",
         "title": "인터셉터 오류 수 / 분"
       },
       {
+        "id": "exec_time",
         "title": "트레이싱 컨텍스트 실행 시간 (ms)"
       }
     ]

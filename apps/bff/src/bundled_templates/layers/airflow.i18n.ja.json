@@ -7,50 +7,125 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "DAG bag サイズ" },
-      { "label": "DAG 総パース時間" },
-      { "label": "Executor 空きスロット" },
-      { "label": "スケジュール済みスロット" }
+      {
+        "label": "DAG bag サイズ"
+      },
+      {
+        "label": "DAG 総パース時間"
+      },
+      {
+        "label": "Executor 空きスロット"
+      },
+      {
+        "label": "スケジュール済みスロット"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "実行可能タスク" },
-      { "title": "実行中タスク" },
-      { "title": "スケジュール済みスロット" },
-      { "title": "キュー待ちタスク" },
-      { "title": "Executor 空きスロット" },
-      { "title": "DAG ファイルキューサイズ" },
-      { "title": "DAG インポートエラー" },
-      { "title": "DAG bag サイズ" },
-      { "title": "DAG 総パース時間" },
-      { "title": "DAG ファイル更新エラー" },
-      { "title": "Asset 更新" }
+      {
+        "id": "tasks_executable",
+        "title": "実行可能タスク"
+      },
+      {
+        "id": "running_tasks",
+        "title": "実行中タスク"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "スケジュール済みスロット"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "キュー待ちタスク"
+      },
+      {
+        "id": "open_slots",
+        "title": "Executor 空きスロット"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "DAG ファイルキューサイズ"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "DAG インポートエラー"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "DAG bag サイズ"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "DAG 総パース時間"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "DAG ファイル更新エラー"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset 更新"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Pool 空き / 延期 / 実行中スロット",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "実行中タスク / スケジュール済みスロット",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "スケジューラハートビート" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "スケジューラハートビート"
+      },
+      {
+        "id": "executor_slots",
         "title": "Executor 空き / キュー待ちスロット",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Asset 更新" },
-      { "title": "Asset 起動 DagRun" },
-      { "title": "トリガラーハートビート" },
       {
+        "id": "asset_updates",
+        "title": "Asset 更新"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset 起動 DagRun"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "トリガラーハートビート"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "実行中トリガ / 残り容量",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "トリガ ブロック / 失敗 / 成功",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

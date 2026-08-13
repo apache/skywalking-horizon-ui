@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "rows_fetched",
         "title": "가져온 행 / s"
       },
       {
+        "id": "rows_inserted",
         "title": "삽입된 행 / s"
       },
       {
+        "id": "rows_updated",
         "title": "업데이트된 행 / s"
       },
       {
+        "id": "rows_deleted",
         "title": "삭제된 행 / s"
       },
       {
+        "id": "rows_returned",
         "title": "반환된 행 / s"
       },
       {
+        "id": "temp_files",
         "title": "임시 파일 / s"
       },
       {
+        "id": "cache_hit",
         "title": "캐시 적중률"
       },
       {
+        "id": "txn_rates",
         "title": "트랜잭션 / s",
         "tip": "커밋과 롤백 비교.",
         "expressionLabels": [
@@ -49,6 +57,7 @@
         ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "충돌 + 데드락 / s",
         "expressionLabels": [
           "conflicts",
@@ -56,6 +65,7 @@
         ]
       },
       {
+        "id": "sessions",
         "title": "세션",
         "expressionLabels": [
           "active",
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "buffers",
         "title": "버퍼 / s",
         "tip": "Checkpoint / clean / fsync / alloc / backend 버퍼 활동.",
         "expressionLabels": [
@@ -75,6 +86,7 @@
         ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "Checkpoint 통계 / s",
         "expressionLabels": [
           "timed",
@@ -84,33 +96,42 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "느린 구문",
         "tip": "캡처된 가장 느린 구문 20개입니다."
       }
     ],
     "instance": [
       {
+        "id": "shared_buffers",
         "title": "공유 버퍼"
       },
       {
+        "id": "effective_cache",
         "title": "유효 캐시"
       },
       {
+        "id": "work_mem",
         "title": "워크 메모리"
       },
       {
+        "id": "max_wal_size",
         "title": "최대 WAL 크기"
       },
       {
+        "id": "instance_fetched",
         "title": "가져온 행 / s"
       },
       {
+        "id": "instance_inserted",
         "title": "삽입된 행 / s"
       },
       {
+        "id": "instance_cache_hit",
         "title": "캐시 적중률"
       },
       {
+        "id": "instance_sessions",
         "title": "세션",
         "expressionLabels": [
           "active",
@@ -119,6 +140,7 @@
         ]
       },
       {
+        "id": "instance_conflicts",
         "title": "충돌 + 데드락 / s",
         "expressionLabels": [
           "conflicts",

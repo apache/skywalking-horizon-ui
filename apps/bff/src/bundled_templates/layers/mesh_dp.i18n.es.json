@@ -11,30 +11,37 @@
   "dashboards": {
     "instance": [
       {
+        "id": "bug_failures_card",
         "title": "Bug failures",
         "tip": "Contador interno de bug-failures de Envoy — un valor distinto de cero indica que se disparó un assertion / debug check (envoy_bug_failures)."
       },
       {
+        "id": "membership_healthy_card",
         "title": "Membresía sana",
         "tip": "Endpoints sanos en todos los clústeres (envoy_cluster_membership_healthy)."
       },
       {
+        "id": "worker_threads_card",
         "title": "Hilos de trabajo",
         "tip": "Hilos de trabajo concurrentes actualmente en uso (envoy_worker_threads)."
       },
       {
+        "id": "up_rq_active_card",
         "title": "Peticiones upstream activas",
         "tip": "Peticiones upstream activas totales en los clústeres de este Envoy (envoy_cluster_up_rq_active)."
       },
       {
+        "id": "up_cx_active",
         "title": "Conexiones upstream activas",
         "tip": "Conexiones upstream activas (envoy_cluster_up_cx_active)."
       },
       {
+        "id": "up_rq_pending",
         "title": "Peticiones upstream pendientes",
         "tip": "Peticiones pendientes en las colas upstream (envoy_cluster_up_rq_pending_active)."
       },
       {
+        "id": "connections_used",
         "title": "Conexiones en uso",
         "tip": "Conexiones total + parent en uso del lado servidor (envoy_total_connections_used / envoy_parent_connections_used).",
         "expressionLabels": [
@@ -43,14 +50,17 @@
         ]
       },
       {
+        "id": "up_cx_incr",
         "title": "Incremento de conexiones upstream",
         "tip": "Conexiones upstream nuevas abiertas por minuto (envoy_cluster_up_cx_incr)."
       },
       {
+        "id": "up_rq_incr",
         "title": "Incremento de peticiones upstream",
         "tip": "Peticiones upstream nuevas por minuto (envoy_cluster_up_rq_incr)."
       },
       {
+        "id": "worker_threads_trend",
         "title": "Hilos de trabajo (actual vs máx)",
         "tip": "Hilos de trabajo concurrentes en uso vs el máximo de la ventana (envoy_worker_threads / envoy_worker_threads_max).",
         "expressionLabels": [
@@ -59,6 +69,7 @@
         ]
       },
       {
+        "id": "heap_memory",
         "title": "Memoria del servidor",
         "tip": "Memoria heap / asignada / física: actual + máx de la ventana (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size, junto con sus variantes *_max).",
         "expressionLabels": [

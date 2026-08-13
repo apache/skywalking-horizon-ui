@@ -20,66 +20,85 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "アプリ起動所要時間"
       },
       {
+        "id": "first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "package_load",
         "title": "パッケージロード所要時間",
         "tip": "ミニプログラムのパッケージバンドルをダウンロード + パースする時間。"
       },
       {
+        "id": "error_count",
         "title": "エラー件数"
       },
       {
+        "id": "route_duration",
         "title": "ルート所要時間",
         "tip": "ミニプログラムのページルート遷移に費やされた時間。"
       },
       {
+        "id": "script_duration",
         "title": "スクリプト所要時間"
       },
       {
+        "id": "request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "起動所要時間"
       },
       {
+        "id": "v_first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "v_package_load",
         "title": "パッケージロード所要時間"
       },
       {
+        "id": "v_request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "v_route_duration",
         "title": "ルート所要時間"
       },
       {
+        "id": "v_script_duration",
         "title": "スクリプト所要時間"
       },
       {
+        "id": "v_request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "ページ単位の起動所要時間"
       },
       {
+        "id": "ep_first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "ep_request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "ep_request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ]

@@ -20,46 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "access_cpm_line",
         "title": "アクセストラフィック"
       },
       {
+        "id": "access_resp_line",
         "title": "平均アクセスレイテンシ"
       },
       {
+        "id": "access_sla_line",
         "title": "アクセス成功率"
       },
       {
+        "id": "access_percentile",
         "title": "アクセスレイテンシパーセンタイル"
       },
       {
+        "id": "read_traffic",
         "title": "読み取りトラフィック"
       },
       {
+        "id": "read_resp",
         "title": "読み取り平均レイテンシ"
       },
       {
+        "id": "write_traffic",
         "title": "書き込みトラフィック"
       },
       {
+        "id": "write_resp",
         "title": "書き込み平均レイテンシ"
       },
       {
+        "id": "read_sla",
         "title": "読み取り成功率"
       },
       {
+        "id": "write_sla",
         "title": "書き込み成功率"
       },
       {
+        "id": "read_percentile",
         "title": "読み取りレイテンシパーセンタイル"
       },
       {
+        "id": "write_percentile",
         "title": "書き込みレイテンシパーセンタイル"
       },
       {
+        "id": "slow_read",
         "title": "低速読み取りコマンド",
         "tip": "捕捉された低速読み取りコマンド上位 10。各行は単一実行 — クリックでコピー、または行頭の Trace アイコンで該当 Trace を開く（サンプルに含まれる場合のみ表示）。"
       },
       {
+        "id": "slow_write",
         "title": "低速書き込みコマンド",
         "tip": "捕捉された低速書き込みコマンド上位 10。各行は単一実行 — クリックでコピー、または行頭の Trace アイコンで該当 Trace を開く（サンプルに含まれる場合のみ表示）。"
       }

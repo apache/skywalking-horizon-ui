@@ -20,66 +20,85 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "앱 실행 시간"
       },
       {
+        "id": "first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "package_load",
         "title": "패키지 로드 시간",
         "tip": "미니 프로그램 패키지 번들을 다운로드하고 파싱하는 데 걸리는 시간입니다."
       },
       {
+        "id": "error_count",
         "title": "오류 수"
       },
       {
+        "id": "route_duration",
         "title": "라우트 시간",
         "tip": "미니 프로그램 페이지 라우트 전환에 걸리는 시간입니다."
       },
       {
+        "id": "script_duration",
         "title": "스크립트 시간"
       },
       {
+        "id": "request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "request_percentile",
         "title": "요청 시간 백분위"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "실행 시간"
       },
       {
+        "id": "v_first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "v_package_load",
         "title": "패키지 로드 시간"
       },
       {
+        "id": "v_request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "v_route_duration",
         "title": "라우트 시간"
       },
       {
+        "id": "v_script_duration",
         "title": "스크립트 시간"
       },
       {
+        "id": "v_request_percentile",
         "title": "요청 시간 백분위"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "페이지의 실행 시간"
       },
       {
+        "id": "ep_first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "ep_request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "ep_request_percentile",
         "title": "요청 시간 백분위"
       }
     ]

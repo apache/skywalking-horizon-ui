@@ -24,43 +24,55 @@
   "dashboards": {
     "service": [
       {
+        "id": "consume_cpm_line",
         "title": "Tráfego de consumo"
       },
       {
+        "id": "produce_cpm_line",
         "title": "Tráfego de produção"
       },
       {
+        "id": "consume_latency_line",
         "title": "Latência média de consumo",
         "tip": "Tempo médio entre produção e consumo de mensagens."
       },
       {
+        "id": "consume_sla_line",
         "title": "Taxa de sucesso de consumo"
       },
       {
+        "id": "produce_sla_line",
         "title": "Taxa de sucesso de produção"
       },
       {
+        "id": "consume_percentile",
         "title": "Percentil de latência de consumo",
         "tip": "p50 / p75 / p90 / p95 / p99 de latência de consumo."
       }
     ],
     "endpoint": [
       {
+        "id": "ep_consume_cpm",
         "title": "Tráfego de consumo do topic"
       },
       {
+        "id": "ep_produce_cpm",
         "title": "Tráfego de produção do topic"
       },
       {
+        "id": "ep_consume_latency",
         "title": "Latência média de consumo do topic"
       },
       {
+        "id": "ep_consume_sla",
         "title": "Taxa de sucesso de consumo do topic"
       },
       {
+        "id": "ep_produce_sla",
         "title": "Taxa de sucesso de produção do topic"
       },
       {
+        "id": "ep_consume_percentile",
         "title": "Percentil de latência de consumo do topic"
       }
     ]

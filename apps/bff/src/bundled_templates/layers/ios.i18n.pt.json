@@ -25,15 +25,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_percentile",
         "title": "Percentil do tempo de inicialização do app"
       },
       {
+        "id": "hang_percentile",
         "title": "Percentil de tempo de hang"
       },
       {
+        "id": "hang_sum",
         "title": "Tempo de hang (soma)"
       },
       {
+        "id": "abnormal_exits",
         "title": "Saídas anormais (Crashes)",
         "tip": "O MetricKit reporta saídas anormais em foreground e background separadamente.",
         "expressionLabels": [
@@ -42,17 +46,21 @@
         ]
       },
       {
+        "id": "oom_kills",
         "title": "Contagem de OOM kills",
         "tip": "OOM kills em background — o sistema iOS encerrando o app por pressão de memória."
       },
       {
+        "id": "peak_memory",
         "title": "Memória de pico"
       },
       {
+        "id": "scroll_hitch",
         "title": "Taxa de hitches de scroll",
         "tip": "Porcentagem de frames de scroll classificados como hitched — quanto maior, mais travada está a UI."
       },
       {
+        "id": "network_transfer",
         "title": "Transferência de rede",
         "tip": "Bytes em wifi vs celular, entrada + saída.",
         "expressionLabels": [
@@ -63,6 +71,7 @@
         ]
       },
       {
+        "id": "outbound_http",
         "title": "HTTP externo",
         "tip": "Chamadas que o app faz para os backends — carga, latência, taxa de sucesso.",
         "expressionLabels": [
@@ -74,12 +83,15 @@
     ],
     "instance": [
       {
+        "id": "instance_launch_p",
         "title": "Percentil do tempo de inicialização"
       },
       {
+        "id": "instance_hang_p",
         "title": "Percentil de tempo de hang"
       },
       {
+        "id": "instance_crashes",
         "title": "Saídas anormais",
         "expressionLabels": [
           "foreground",
@@ -87,12 +99,15 @@
         ]
       },
       {
+        "id": "instance_oom",
         "title": "Contagem de OOM kills"
       },
       {
+        "id": "instance_peak_mem",
         "title": "Memória de pico"
       },
       {
+        "id": "instance_outbound",
         "title": "HTTP externo",
         "expressionLabels": [
           "RPM",
@@ -103,15 +118,19 @@
     ],
     "endpoint": [
       {
+        "id": "ep_cpm",
         "title": "Carga externa"
       },
       {
+        "id": "ep_resp",
         "title": "Latência média externa"
       },
       {
+        "id": "ep_sla",
         "title": "Taxa de sucesso externa"
       },
       {
+        "id": "ep_percentile",
         "title": "Percentil de latência externa"
       }
     ]

@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU medio en uso (%)"
       },
       {
+        "id": "cpu_load",
         "title": "Carga de CPU",
         "expressionLabels": [
           "1m",
@@ -31,9 +33,11 @@
         ]
       },
       {
+        "id": "filefd",
         "title": "FDs de archivo asignados"
       },
       {
+        "id": "memory",
         "title": "Memoria RAM (MB)",
         "expressionLabels": [
           "en uso",
@@ -43,6 +47,7 @@
         ]
       },
       {
+        "id": "swap",
         "title": "Memoria swap (MB)",
         "expressionLabels": [
           "libre",
@@ -50,6 +55,7 @@
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "Ancho de banda de red (KB/s)",
         "expressionLabels": [
           "recepción",
@@ -57,6 +63,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "L/E de disco (KB/s)",
         "expressionLabels": [
           "lectura",
@@ -64,9 +71,11 @@
         ]
       },
       {
+        "id": "fs",
         "title": "Uso del sistema de archivos (%)"
       },
       {
+        "id": "network_status",
         "title": "Estado de red",
         "expressionLabels": [
           "tcp establecidas",

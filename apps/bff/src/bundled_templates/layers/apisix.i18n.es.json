@@ -25,48 +25,62 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendencia de peticiones HTTP"
       },
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexiones HTTP"
       },
       {
+        "id": "status_unmatched",
         "title": "Tendencia de estado sin coincidencia",
         "tip": "Peticiones sin ruta APISIX coincidente."
       },
       {
+        "id": "latency_unmatched",
         "title": "Latencia sin coincidencia"
       },
       {
+        "id": "bandwidth_unmatched",
         "title": "Ancho de banda sin coincidencia"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendencia de peticiones HTTP"
       },
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexiones HTTP"
       },
       {
+        "id": "shared_dict",
         "title": "Diccionario compartido",
         "tip": "Capacidad vs espacio libre.",
         "expressionLabels": [
@@ -75,15 +89,18 @@
         ]
       },
       {
+        "id": "etcd_total",
         "title": "etcd accesible"
       },
       {
+        "id": "etcd",
         "title": "etcd índices",
         "expressionLabels": [
           "índices"
         ]
       },
       {
+        "id": "unmatched",
         "title": "Tráfico sin coincidencia",
         "tip": "Estado + latencia + ancho de banda para peticiones sin ruta coincidente.",
         "expressionLabels": [
@@ -95,12 +112,15 @@
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       }
     ]

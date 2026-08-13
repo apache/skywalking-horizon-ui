@@ -20,43 +20,55 @@
   "dashboards": {
     "service": [
       {
+        "id": "consume_cpm_line",
         "title": "소비 트래픽"
       },
       {
+        "id": "produce_cpm_line",
         "title": "생산 트래픽"
       },
       {
+        "id": "consume_latency_line",
         "title": "소비 평균 지연 시간",
         "tip": "메시지 생산과 소비 사이의 평균 시간입니다."
       },
       {
+        "id": "consume_sla_line",
         "title": "소비 성공률"
       },
       {
+        "id": "produce_sla_line",
         "title": "생산 성공률"
       },
       {
+        "id": "consume_percentile",
         "title": "소비 지연 시간 백분위",
         "tip": "소비 지연 시간의 p50 / p75 / p90 / p95 / p99 입니다."
       }
     ],
     "endpoint": [
       {
+        "id": "ep_consume_cpm",
         "title": "토픽 소비 트래픽"
       },
       {
+        "id": "ep_produce_cpm",
         "title": "토픽 생산 트래픽"
       },
       {
+        "id": "ep_consume_latency",
         "title": "토픽 소비 평균 지연 시간"
       },
       {
+        "id": "ep_consume_sla",
         "title": "토픽 소비 성공률"
       },
       {
+        "id": "ep_produce_sla",
         "title": "토픽 생산 성공률"
       },
       {
+        "id": "ep_consume_percentile",
         "title": "토픽 소비 지연 시간 백분위"
       }
     ]

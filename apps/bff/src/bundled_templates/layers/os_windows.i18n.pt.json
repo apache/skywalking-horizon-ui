@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU média em uso (%)"
       },
       {
+        "id": "memory",
         "title": "Memória RAM (MB)",
         "expressionLabels": [
           "em uso",
@@ -31,6 +33,7 @@
         ]
       },
       {
+        "id": "virtual_memory",
         "title": "Memória virtual (MB)",
         "expressionLabels": [
           "livre",
@@ -38,6 +41,7 @@
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "Largura de banda de rede (KB/s)",
         "expressionLabels": [
           "recepção",
@@ -45,6 +49,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "L/E de disco (KB/s)",
         "expressionLabels": [
           "leitura",

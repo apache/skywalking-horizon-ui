@@ -7,70 +7,145 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "DAG Bag 大小" },
-      { "label": "DAG 总解析时间" },
-      { "label": "Executor 空闲 Slot" },
-      { "label": "已调度 Slot" }
+      {
+        "label": "DAG Bag 大小"
+      },
+      {
+        "label": "DAG 总解析时间"
+      },
+      {
+        "label": "Executor 空闲 Slot"
+      },
+      {
+        "label": "已调度 Slot"
+      }
     ]
   },
   "dashboards": {
     "service": [
       {
+        "id": "tasks_executable",
         "title": "可执行任务",
         "tip": "集群内待执行的任务数（airflow.scheduler.tasks.executable）。"
       },
       {
+        "id": "running_tasks",
         "title": "运行中任务",
         "tip": "Executor 上正在运行的任务数（airflow.executor.running_tasks）。"
       },
       {
+        "id": "scheduled_slots",
         "title": "已调度 Slot",
         "tip": "Pool 中已调度但未运行的 slot，跨 pool 聚合（airflow.pool.scheduled_slots）。"
       },
       {
+        "id": "queued_tasks",
         "title": "排队任务",
         "tip": "Executor 上排队等待的任务数（airflow.executor.queued_tasks）。"
       },
       {
+        "id": "open_slots",
         "title": "Executor 空闲 Slot",
         "tip": "Executor 可用 slot（airflow.executor.open_slots）。"
       },
-      { "title": "DAG 文件队列大小", "tip": "待扫描的 DAG 文件数（airflow.dag_processing.file_path_queue_size）。" },
-      { "title": "DAG 导入错误", "tip": "解析失败的 DAG 文件数（airflow.dag_processing.import_errors）。" },
-      { "title": "DAG Bag 大小", "tip": "最近一次 scheduler 扫描发现的 DAG 数（airflow.dagbag_size）。" },
-      { "title": "DAG 总解析时间", "tip": "扫描并导入排队 DAG 文件的秒数（airflow.dag_processing.total_parse_time）。" },
-      { "title": "DAG 文件刷新错误", "tip": "每分钟 DAG 文件加载失败次数（airflow.dag_file_refresh_error）。" },
-      { "title": "Asset 更新", "tip": "每分钟 asset 更新事件数（airflow.asset.updates）。" }
+      {
+        "id": "dag_file_queue",
+        "title": "DAG 文件队列大小",
+        "tip": "待扫描的 DAG 文件数（airflow.dag_processing.file_path_queue_size）。"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "DAG 导入错误",
+        "tip": "解析失败的 DAG 文件数（airflow.dag_processing.import_errors）。"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "DAG Bag 大小",
+        "tip": "最近一次 scheduler 扫描发现的 DAG 数（airflow.dagbag_size）。"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "DAG 总解析时间",
+        "tip": "扫描并导入排队 DAG 文件的秒数（airflow.dag_processing.total_parse_time）。"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "DAG 文件刷新错误",
+        "tip": "每分钟 DAG 文件加载失败次数（airflow.dag_file_refresh_error）。"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset 更新",
+        "tip": "每分钟 asset 更新事件数（airflow.asset.updates）。"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Pool 空闲 / 延迟 / 运行 Slot",
         "tip": "Scheduler 上的 pool 容量（airflow.pool.open_slots、airflow.pool.deferred_slots、airflow.pool.running_slots）。",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "运行中任务 / 已调度 Slot",
         "tip": "Scheduler executor 队列深度及待运行的 pool slot（airflow.executor.running_tasks、airflow.pool.scheduled_slots）。",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "Scheduler 心跳", "tip": "Scheduler 每分钟心跳数（airflow.scheduler_heartbeat）。" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "Scheduler 心跳",
+        "tip": "Scheduler 每分钟心跳数（airflow.scheduler_heartbeat）。"
+      },
+      {
+        "id": "executor_slots",
         "title": "Executor 空闲 / 排队 Slot",
         "tip": "Scheduler 上 executor 容量与队列深度（airflow.executor.open_slots、airflow.executor.queued_tasks）。",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Asset 更新", "tip": "Scheduler 上的 asset 更新事件（airflow.asset.updates）。" },
-      { "title": "Asset 触发的 DagRun", "tip": "Scheduler 上由 asset 事件触发的 DagRun（airflow.asset.triggered_dagruns）。" },
-      { "title": "Triggerer 心跳", "tip": "Triggerer 每分钟心跳数（airflow.triggerer_heartbeat）。" },
       {
+        "id": "asset_updates",
+        "title": "Asset 更新",
+        "tip": "Scheduler 上的 asset 更新事件（airflow.asset.updates）。"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset 触发的 DagRun",
+        "tip": "Scheduler 上由 asset 事件触发的 DagRun（airflow.asset.triggered_dagruns）。"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Triggerer 心跳",
+        "tip": "Triggerer 每分钟心跳数（airflow.triggerer_heartbeat）。"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "运行中 Trigger / 剩余容量",
         "tip": "Triggerer 上 deferrable trigger 负载（airflow.triggers.running、airflow.triggerer.capacity_left）。",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "Trigger 阻塞 / 失败 / 成功",
         "tip": "Triggerer 主机上 deferred trigger 结果（airflow.triggers.blocked_main_thread、airflow.triggers.failed、airflow.triggers.succeeded）。",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

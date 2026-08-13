@@ -20,30 +20,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_total",
         "title": "ノード合計"
       },
       {
+        "id": "namespace_total",
         "title": "ネームスペース合計"
       },
       {
+        "id": "deployment_total",
         "title": "Deployment 合計"
       },
       {
+        "id": "statefulset_total",
         "title": "StatefulSet 合計"
       },
       {
+        "id": "daemonset_total",
         "title": "DaemonSet 合計"
       },
       {
+        "id": "service_total",
         "title": "サービス合計"
       },
       {
+        "id": "pod_total",
         "title": "Pod 合計"
       },
       {
+        "id": "container_total",
         "title": "コンテナ合計"
       },
       {
+        "id": "cpu_res",
         "title": "CPU リソース",
         "tip": "クラスタ CPU キャパシティ vs requests / limits / allocatable (millicore)。",
         "expressionLabels": [
@@ -54,6 +63,7 @@
         ]
       },
       {
+        "id": "mem_res",
         "title": "メモリリソース",
         "tip": "クラスタメモリ requests / allocatable / limits / total。",
         "expressionLabels": [
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "storage_res",
         "title": "ストレージリソース",
         "tip": "クラスタの ephemeral-storage 合計 vs 割当可能。",
         "expressionLabels": [
@@ -72,22 +83,23 @@
         ]
       },
       {
+        "id": "node_status",
         "title": "ノードステータス",
         "tip": "現在 true/unknown のノード単位 Kubernetes 条件 (Ready、*Pressure、…)。",
         "tableHeaders": [
-          "ノード · 条件",
-          ""
+          "ノード · 条件"
         ]
       },
       {
+        "id": "deployment_status",
         "title": "Deployment ステータス",
         "tip": "Available 条件を報告している Deployment。",
         "tableHeaders": [
-          "Deployment · Available",
-          ""
+          "Deployment · Available"
         ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Deployment Spec レプリカ",
         "tip": "Deployment 単位の希望レプリカ数。",
         "tableHeaders": [
@@ -96,46 +108,51 @@
         ]
       },
       {
+        "id": "service_pod_status",
         "title": "サービスステータス",
         "tip": "各 K8s Service を支える Pod をフェーズ別に表示 (Running / Pending / Failed / …)。",
         "tableHeaders": [
-          "サービス · フェーズ",
-          ""
+          "サービス · フェーズ"
         ]
       },
       {
+        "id": "pod_not_running",
         "title": "Pod ステータス非実行",
         "tip": "Running 以外のフェーズの Pod。",
         "tableHeaders": [
-          "Pod · ステータス",
-          ""
+          "Pod · ステータス"
         ]
       },
       {
+        "id": "pod_waiting",
         "title": "Pod ステータス Waiting",
         "tip": "Waiting 状態のコンテナを理由別に表示。",
         "tableHeaders": [
-          "コンテナ · Pod · 理由",
-          ""
+          "コンテナ · Pod · 理由"
         ]
       }
     ],
     "instance": [
       {
+        "id": "node_status",
         "title": "ノードステータス"
       },
       {
+        "id": "node_pod_total",
         "title": "ノード上の Pod"
       },
       {
+        "id": "node_cpu_usage",
         "title": "ノード CPU 使用率",
         "tip": "millicore 単位の CPU 使用量。"
       },
       {
+        "id": "node_pod_count",
         "title": "Pod 合計",
         "tip": "現在このノードにスケジュールされている Pod（全フェーズ）。"
       },
       {
+        "id": "node_cpu_resources",
         "title": "ノード CPU リソース",
         "expressionLabels": [
           "合計",
@@ -145,9 +162,11 @@
         ]
       },
       {
+        "id": "node_memory_usage",
         "title": "ノードメモリ使用率"
       },
       {
+        "id": "node_memory_resources",
         "title": "ノードメモリリソース",
         "expressionLabels": [
           "合計",
@@ -157,6 +176,7 @@
         ]
       },
       {
+        "id": "node_network_io",
         "title": "ノードネットワーク I/O",
         "expressionLabels": [
           "受信",
@@ -164,6 +184,7 @@
         ]
       },
       {
+        "id": "node_storage_resources",
         "title": "ノードストレージリソース",
         "expressionLabels": [
           "合計",

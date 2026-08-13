@@ -3,9 +3,11 @@
   "description": "Salud de servicios entre capas: servicios trazados junto con bases de datos / cachés / colas de mensajes / backends de GenAI virtuales, además de la capacidad subyacente de Kubernetes.",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "Servicios"
     },
     {
+      "id": "tile_general",
       "title": "Servicios generales",
       "tip": "Servicios de aplicación trazados en la capa General.",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "tile_db",
       "title": "Bases de datos virtuales",
       "tip": "Bases de datos observadas mediante spans del lado del cliente.",
       "kpis": [
@@ -36,6 +39,7 @@
       ]
     },
     {
+      "id": "tile_cache",
       "title": "Cachés virtuales",
       "tip": "Cachés (Redis / Memcached / …) observadas mediante spans del lado del cliente.",
       "kpis": [
@@ -51,6 +55,7 @@
       ]
     },
     {
+      "id": "tile_mq",
       "title": "Colas de mensajes virtuales",
       "tip": "Colas de mensajes observadas mediante spans de consumo + producción.",
       "kpis": [
@@ -66,6 +71,7 @@
       ]
     },
     {
+      "id": "tile_genai",
       "title": "GenAI virtual",
       "tip": "Backends de GenAI observados mediante spans instrumentados del cliente.",
       "kpis": [
@@ -81,20 +87,25 @@
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "Topología y alarmas activas"
     },
     {
+      "id": "svc_topo",
       "title": "Topología de servicios generales",
       "tip": "Mapa de servicios en vivo — el mismo renderizador que la pestaña Topología por capa, sin la barra lateral de detalle."
     },
     {
+      "id": "svc_alarms",
       "title": "Alarmas activas",
       "tip": "Alarmas disparadas actualmente sobre servicios reportados por agente."
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "Capacidad y utilización del clúster",
       "tip": "Nodos / espacios de nombres / cargas de trabajo, más el uso de CPU, memoria y disco a nivel de clúster.",
       "kpis": [

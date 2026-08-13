@@ -20,48 +20,32 @@
   "dashboards": {
     "service": [
       {
-        "title": "Verfügbarer Speicher vor Block (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "mem_available",
+        "title": "Verfügbarer Speicher vor Block (MB)"
       },
       {
-        "title": "Disk verfügbar vor Block (GB)",
-        "expressions": [
-          null
-        ]
+        "id": "disk_available",
+        "title": "Disk verfügbar vor Block (GB)"
       },
       {
+        "id": "fds",
         "title": "File-Deskriptoren + Sockets",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "fds",
           "sockets"
         ]
       },
       {
-        "title": "Bereite Nachrichten",
-        "expressions": [
-          null
-        ]
+        "id": "messages_ready",
+        "title": "Bereite Nachrichten"
       },
       {
-        "title": "Ack ausstehend",
-        "expressions": [
-          null
-        ]
+        "id": "messages_pending",
+        "title": "Ack ausstehend"
       },
       {
+        "id": "publish_pipeline",
         "title": "Publish-Pipeline",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "veröffentlicht",
           "bestätigt",
@@ -70,24 +54,16 @@
         ]
       },
       {
+        "id": "unroutable",
         "title": "Nicht-routbare Nachrichten",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "verworfen",
           "zurückgegeben"
         ]
       },
       {
+        "id": "queue_totals",
         "title": "Warteschlangen",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "deklariert",
@@ -96,12 +72,8 @@
         ]
       },
       {
+        "id": "channel_totals",
         "title": "Channels",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "geöffnet",
@@ -109,12 +81,8 @@
         ]
       },
       {
+        "id": "conn_totals",
         "title": "Verbindungen",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "geöffnet",
@@ -124,78 +92,52 @@
     ],
     "instance": [
       {
-        "title": "Bereite Nachrichten",
-        "expressions": [
-          null
-        ]
+        "id": "ready_msgs",
+        "title": "Bereite Nachrichten"
       },
       {
-        "title": "Eingehende Nachrichten",
-        "expressions": [
-          null
-        ]
+        "id": "incoming",
+        "title": "Eingehende Nachrichten"
       },
       {
-        "title": "Ausgehende Nachrichten",
-        "expressions": [
-          null
-        ]
+        "id": "outgoing",
+        "title": "Ausgehende Nachrichten"
       },
       {
-        "title": "Nicht bestätigte Nachrichten",
-        "expressions": [
-          null
-        ]
+        "id": "unack",
+        "title": "Nicht bestätigte Nachrichten"
       },
       {
-        "title": "Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "Verbindungen"
       },
       {
-        "title": "Publisher",
-        "expressions": [
-          null
-        ]
+        "id": "publishers",
+        "title": "Publisher"
       },
       {
-        "title": "Consumer",
-        "expressions": [
-          null
-        ]
+        "id": "consumers",
+        "title": "Consumer"
       },
       {
-        "title": "Channels",
-        "expressions": [
-          null
-        ]
+        "id": "channels",
+        "title": "Channels"
       },
       {
-        "title": "Queues",
-        "expressions": [
-          null
-        ]
+        "id": "queues",
+        "title": "Queues"
       },
       {
-        "title": "Allocated Used %",
-        "expressions": [
-          null
-        ]
+        "id": "memory_pct",
+        "title": "Allocated Used %"
       },
       {
-        "title": "Zugewiesen gesamt (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "memory_bytes_total",
+        "title": "Zugewiesen gesamt (MB)"
       },
       {
+        "id": "memory_bytes",
         "title": "Speicher (MB)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "ungenutzt",
@@ -203,19 +145,12 @@
         ]
       },
       {
-        "title": "Zugewiesen nach Typ (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "alloc_by_type",
+        "title": "Zugewiesen nach Typ (MB)"
       },
       {
+        "id": "blocks",
         "title": "Multi-/Single-Block-Speicher (MB)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "multi used",
           "multi unused",

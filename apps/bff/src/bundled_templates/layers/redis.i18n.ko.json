@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "가동 시간 (일)"
       },
       {
+        "id": "clients",
         "title": "연결된 클라이언트"
       },
       {
+        "id": "blocked",
         "title": "차단된 클라이언트"
       },
       {
+        "id": "mem_pct",
         "title": "메모리 사용량"
       },
       {
+        "id": "commands",
         "title": "총 명령 / s"
       },
       {
+        "id": "hit_rate",
         "title": "적중률"
       },
       {
+        "id": "avg_cmd_time",
         "title": "평균 명령 시간 / s"
       },
       {
+        "id": "net_io",
         "title": "네트워크 I/O (KB)",
         "expressionLabels": [
           "입력",
@@ -48,6 +56,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "키",
         "expressionLabels": [
           "전체",
@@ -56,33 +65,42 @@
         ]
       },
       {
+        "id": "slow_cmds",
         "title": "느린 명령",
         "tip": "캡처된 가장 느린 명령 10개입니다. SkyWalking 에이전트가 호출 지점에서 캡처합니다."
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "가동 시간 (일)"
       },
       {
+        "id": "clients",
         "title": "연결된 클라이언트"
       },
       {
+        "id": "blocked",
         "title": "차단된 클라이언트"
       },
       {
+        "id": "max_mem",
         "title": "최대 메모리 (MB)"
       },
       {
+        "id": "mem_pct",
         "title": "메모리 사용량 (%)"
       },
       {
+        "id": "cmds",
         "title": "명령 / s"
       },
       {
+        "id": "hit_rate",
         "title": "적중률"
       },
       {
+        "id": "net_io",
         "title": "네트워크 I/O (KB)",
         "expressionLabels": [
           "입력",
@@ -90,6 +108,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "키",
         "expressionLabels": [
           "전체",
@@ -98,9 +117,11 @@
         ]
       },
       {
+        "id": "cmd_dur",
         "title": "총 명령 시간 (s)"
       },
       {
+        "id": "avg_cmd_time",
         "title": "평균 명령 시간"
       }
     ]

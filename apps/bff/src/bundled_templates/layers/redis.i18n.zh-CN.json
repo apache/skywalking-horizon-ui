@@ -7,52 +7,127 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "命令/秒" },
-      { "label": "命中率" },
-      { "label": "内存 %" },
-      { "label": "客户端" }
+      {
+        "label": "命令/秒"
+      },
+      {
+        "label": "命中率"
+      },
+      {
+        "label": "内存 %"
+      },
+      {
+        "label": "客户端"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "运行时长（天）" },
-      { "title": "已连接客户端" },
-      { "title": "阻塞客户端" },
-      { "title": "内存使用" },
-      { "title": "命令总数 / 秒" },
-      { "title": "命中率" },
-      { "title": "平均命令耗时 / 秒" },
       {
+        "id": "uptime",
+        "title": "运行时长（天）"
+      },
+      {
+        "id": "clients",
+        "title": "已连接客户端"
+      },
+      {
+        "id": "blocked",
+        "title": "阻塞客户端"
+      },
+      {
+        "id": "mem_pct",
+        "title": "内存使用"
+      },
+      {
+        "id": "commands",
+        "title": "命令总数 / 秒"
+      },
+      {
+        "id": "hit_rate",
+        "title": "命中率"
+      },
+      {
+        "id": "avg_cmd_time",
+        "title": "平均命令耗时 / 秒"
+      },
+      {
+        "id": "net_io",
         "title": "网络 I/O（KB）",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "db_keys",
         "title": "Key 数量",
-        "expressionLabels": ["total", "evicted", "expired"]
+        "expressionLabels": [
+          "total",
+          "evicted",
+          "expired"
+        ]
       },
       {
+        "id": "slow_cmds",
         "title": "慢命令",
         "tip": "采集到的最慢的 10 条命令。由 SkyWalking agent 在调用点采集。"
       }
     ],
     "instance": [
-      { "title": "运行时长（天）" },
-      { "title": "已连接客户端" },
-      { "title": "阻塞客户端" },
-      { "title": "最大内存（MB）" },
-      { "title": "内存使用率（%）" },
-      { "title": "命令 / 秒" },
-      { "title": "命中率" },
       {
+        "id": "uptime",
+        "title": "运行时长（天）"
+      },
+      {
+        "id": "clients",
+        "title": "已连接客户端"
+      },
+      {
+        "id": "blocked",
+        "title": "阻塞客户端"
+      },
+      {
+        "id": "max_mem",
+        "title": "最大内存（MB）"
+      },
+      {
+        "id": "mem_pct",
+        "title": "内存使用率（%）"
+      },
+      {
+        "id": "cmds",
+        "title": "命令 / 秒"
+      },
+      {
+        "id": "hit_rate",
+        "title": "命中率"
+      },
+      {
+        "id": "net_io",
         "title": "网络 I/O（KB）",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "db_keys",
         "title": "Key 数量",
-        "expressionLabels": ["total", "evicted", "expired"]
+        "expressionLabels": [
+          "total",
+          "evicted",
+          "expired"
+        ]
       },
-      { "title": "命令总耗时（s）" },
-      { "title": "平均命令耗时" }
+      {
+        "id": "cmd_dur",
+        "title": "命令总耗时（s）"
+      },
+      {
+        "id": "avg_cmd_time",
+        "title": "平均命令耗时"
+      }
     ]
   }
 }

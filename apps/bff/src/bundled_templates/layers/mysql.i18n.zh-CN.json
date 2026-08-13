@@ -7,61 +7,134 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "QPS" },
-      { "label": "TPS" },
-      { "label": "慢 QPS" },
-      { "label": "连接错误" }
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "慢 QPS"
+      },
+      {
+        "label": "连接错误"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "QPS" },
-      { "title": "TPS" },
-      { "title": "慢查询 / 秒" },
       {
+        "id": "qps",
+        "title": "QPS"
+      },
+      {
+        "id": "tps",
+        "title": "TPS"
+      },
+      {
+        "id": "slow_qps",
+        "title": "慢查询 / 秒"
+      },
+      {
+        "id": "conn_errors",
         "title": "连接错误",
         "tip": "Internal vs max-connection 拒绝。",
-        "expressionLabels": ["internal", "max-connections"]
+        "expressionLabels": [
+          "internal",
+          "max-connections"
+        ]
       },
       {
+        "id": "commands",
         "title": "命令趋势",
         "tip": "每个命令影响的行速率（select / insert / update / delete）。",
-        "expressionLabels": ["select", "insert", "update", "delete"]
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
       },
       {
+        "id": "threads",
         "title": "线程",
-        "expressionLabels": ["connected", "running", "cached", "created"]
+        "expressionLabels": [
+          "connected",
+          "running",
+          "cached",
+          "created"
+        ]
       },
       {
+        "id": "slow_statements",
         "title": "慢语句",
         "tip": "集群范围内采集到的最慢的 20 条语句。"
       }
     ],
     "instance": [
-      { "title": "运行时长" },
-      { "title": "最大连接数" },
-      { "title": "InnoDB Buffer Pool" },
-      { "title": "线程缓存大小" },
       {
+        "id": "uptime",
+        "title": "运行时长"
+      },
+      {
+        "id": "max_conns",
+        "title": "最大连接数"
+      },
+      {
+        "id": "buffer_pool",
+        "title": "InnoDB Buffer Pool"
+      },
+      {
+        "id": "thread_cache",
+        "title": "线程缓存大小"
+      },
+      {
+        "id": "instance_qps_tps",
         "title": "QPS / TPS",
-        "expressionLabels": ["QPS", "TPS"]
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
       },
-      { "title": "慢查询 / 秒" },
       {
+        "id": "instance_slow_queries",
+        "title": "慢查询 / 秒"
+      },
+      {
+        "id": "instance_commands",
         "title": "命令趋势",
-        "expressionLabels": ["select", "insert", "update", "delete"]
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
       },
       {
+        "id": "instance_threads",
         "title": "线程",
-        "expressionLabels": ["connected", "running", "cached", "created"]
+        "expressionLabels": [
+          "connected",
+          "running",
+          "cached",
+          "created"
+        ]
       },
       {
+        "id": "instance_connects",
         "title": "连接情况",
-        "expressionLabels": ["available", "aborted"]
+        "expressionLabels": [
+          "available",
+          "aborted"
+        ]
       },
       {
+        "id": "instance_conn_errors",
         "title": "连接错误",
-        "expressionLabels": ["internal", "max-connections"]
+        "expressionLabels": [
+          "internal",
+          "max-connections"
+        ]
       }
     ]
   }

@@ -8,87 +8,205 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "健康度" },
-      { "label": "分片" },
-      { "label": "节点" },
-      { "label": "未分配" }
+      {
+        "label": "健康度"
+      },
+      {
+        "label": "分片"
+      },
+      {
+        "label": "节点"
+      },
+      {
+        "label": "未分配"
+      }
     ]
   },
   "dashboards": {
     "service": [
       {
+        "id": "health",
         "title": "集群健康",
-        "tableHeaders": ["状态", "值"]
+        "tableHeaders": [
+          "状态",
+          "值"
+        ]
       },
-      { "title": "节点" },
-      { "title": "待处理任务" },
-      { "title": "主分片" },
-      { "title": "活跃分片" },
-      { "title": "初始化中" },
-      { "title": "迁移中" },
-      { "title": "未分配" },
-      { "title": "延迟未分配" },
-      { "title": "触发的熔断器" },
-      { "title": "集群 CPU 平均" },
-      { "title": "JVM 内存已用平均" },
-      { "title": "打开文件数平均" }
+      {
+        "id": "nodes",
+        "title": "节点"
+      },
+      {
+        "id": "pending_tasks",
+        "title": "待处理任务"
+      },
+      {
+        "id": "primary_shards",
+        "title": "主分片"
+      },
+      {
+        "id": "shards_active",
+        "title": "活跃分片"
+      },
+      {
+        "id": "shards_initializing",
+        "title": "初始化中"
+      },
+      {
+        "id": "shards_relocating",
+        "title": "迁移中"
+      },
+      {
+        "id": "shards_unassigned",
+        "title": "未分配"
+      },
+      {
+        "id": "shards_delayed",
+        "title": "延迟未分配"
+      },
+      {
+        "id": "breakers",
+        "title": "触发的熔断器"
+      },
+      {
+        "id": "cluster_cpu",
+        "title": "集群 CPU 平均"
+      },
+      {
+        "id": "cluster_jvm",
+        "title": "JVM 内存已用平均"
+      },
+      {
+        "id": "open_files",
+        "title": "打开文件数平均"
+      }
     ],
     "instance": [
-      { "title": "进程 CPU（%）" },
-      { "title": "操作系统 CPU（%）" },
       {
+        "id": "cpu",
+        "title": "进程 CPU（%）"
+      },
+      {
+        "id": "os_cpu",
+        "title": "操作系统 CPU（%）"
+      },
+      {
+        "id": "load_avg",
         "title": "负载均值",
-        "expressionLabels": ["1m", "5m", "15m"]
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
       },
       {
+        "id": "jvm_mem",
         "title": "JVM 内存（MB）",
-        "expressionLabels": ["heap used", "heap max", "non-heap"]
+        "expressionLabels": [
+          "heap used",
+          "heap max",
+          "non-heap"
+        ]
       },
       {
+        "id": "gc",
         "title": "GC",
-        "expressionLabels": ["count", "time (ms/min)"]
+        "expressionLabels": [
+          "count",
+          "time (ms/min)"
+        ]
       },
       {
+        "id": "translog",
         "title": "Translog",
-        "expressionLabels": ["operations", "size (MB)"]
+        "expressionLabels": [
+          "operations",
+          "size (MB)"
+        ]
       },
       {
+        "id": "breakers",
         "title": "熔断器",
-        "expressionLabels": ["tripped", "estimated (MB)"]
+        "expressionLabels": [
+          "tripped",
+          "estimated (MB)"
+        ]
       },
       {
+        "id": "segments",
         "title": "段",
-        "expressionLabels": ["count", "memory (MB)"]
+        "expressionLabels": [
+          "count",
+          "memory (MB)"
+        ]
       },
       {
+        "id": "disk",
         "title": "磁盘使用",
-        "expressionLabels": ["GB", "%"]
+        "expressionLabels": [
+          "GB",
+          "%"
+        ]
       },
       {
+        "id": "network",
         "title": "网络",
-        "expressionLabels": ["send", "receive"]
+        "expressionLabels": [
+          "send",
+          "receive"
+        ]
       },
-      { "title": "打开文件数" }
+      {
+        "id": "open_files",
+        "title": "打开文件数"
+      }
     ],
     "endpoint": [
       {
+        "id": "indexing_rate",
         "title": "索引速率",
-        "expressionLabels": ["req", "proc"]
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
       },
       {
+        "id": "search_rate",
         "title": "搜索速率",
-        "expressionLabels": ["req", "proc"]
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
       },
-      { "title": "索引大小（全部分片）" },
-      { "title": "索引大小（主分片）" },
-      { "title": "已删除文档" },
       {
+        "id": "idx_size_all",
+        "title": "索引大小（全部分片）"
+      },
+      {
+        "id": "idx_size_primary",
+        "title": "索引大小（主分片）"
+      },
+      {
+        "id": "docs_total",
+        "title": "已删除文档"
+      },
+      {
+        "id": "docs",
         "title": "文档数",
-        "expressionLabels": ["all", "primary"]
+        "expressionLabels": [
+          "all",
+          "primary"
+        ]
       },
       {
+        "id": "search_time",
         "title": "每请求平均搜索耗时（s）",
-        "expressionLabels": ["fetch", "query", "scroll", "suggest"]
+        "expressionLabels": [
+          "fetch",
+          "query",
+          "scroll",
+          "suggest"
+        ]
       }
     ]
   }

@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "files_open",
         "title": "ファイルオープン"
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -30,6 +32,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "クエリ",
         "expressionLabels": [
           "合計",
@@ -38,6 +41,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "クエリ時間 (ms)",
         "expressionLabels": [
           "平均",
@@ -46,6 +50,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "接続",
         "expressionLabels": [
           "TCP",
@@ -53,9 +58,11 @@
         ]
       },
       {
+        "id": "slow",
         "title": "低速読み取り"
       },
       {
+        "id": "merge_mut",
         "title": "Merge / Mutation",
         "expressionLabels": [
           "マージ",
@@ -63,6 +70,7 @@
         ]
       },
       {
+        "id": "insert_io",
         "title": "Insert スループット",
         "expressionLabels": [
           "バイト/s",
@@ -70,12 +78,15 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "遅延挿入 (s)"
       },
       {
+        "id": "parts_active",
         "title": "アクティブデータパート"
       },
       {
+        "id": "replicated",
         "title": "レプリカ Fetch / Send",
         "expressionLabels": [
           "フェッチ",
@@ -83,6 +94,7 @@
         ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper バイト (b/s)",
         "expressionLabels": [
           "送信バイト",
@@ -90,29 +102,37 @@
         ]
       },
       {
+        "id": "zk_sessions",
         "title": "Zookeeper セッション"
       },
       {
+        "id": "zk_watches",
         "title": "Zookeeper Watch"
       },
       {
+        "id": "keeper_alive",
         "title": "Keeper Alive 接続"
       },
       {
+        "id": "keeper_outstanding",
         "title": "Keeper 未処理リクエスト"
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "稼働日数"
       },
       {
+        "id": "version",
         "title": "バージョン"
       },
       {
+        "id": "cpu",
         "title": "CPU (コア)"
       },
       {
+        "id": "mem",
         "title": "メモリ (%)",
         "expressionLabels": [
           "使用中",
@@ -120,6 +140,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "ネットワーク (B)",
         "expressionLabels": [
           "受信",
@@ -127,6 +148,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "接続",
         "expressionLabels": [
           "TCP",
@@ -134,6 +156,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "クエリ",
         "expressionLabels": [
           "合計",
@@ -142,6 +165,7 @@
         ]
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -149,6 +173,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "クエリ時間 (ms)",
         "expressionLabels": [
           "平均",
@@ -157,18 +182,23 @@
         ]
       },
       {
+        "id": "slow",
         "title": "ファイル低速読み取り"
       },
       {
+        "id": "merge",
         "title": "バックグラウンドマージ"
       },
       {
+        "id": "mutations",
         "title": "Mutation"
       },
       {
+        "id": "files",
         "title": "ファイルオープン"
       },
       {
+        "id": "insert_io",
         "title": "Insert スループット",
         "expressionLabels": [
           "バイト/s",
@@ -176,6 +206,7 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "遅延挿入 (s)"
       }
     ]

@@ -8,139 +8,307 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "流量" },
-      { "label": "Apdex" },
-      { "label": "延迟" },
-      { "label": "错误率" }
+      {
+        "label": "流量"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "错误率"
+      }
     ]
   },
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "前 20 API",
         "tip": "所选服务下的 Top 端点列表。切换标签可按流量、响应时间或最差成功率重新排序。",
-        "expressionLabels": ["流量", "慢请求", "成功率"]
+        "expressionLabels": [
+          "流量",
+          "慢请求",
+          "成功率"
+        ]
       },
-      { "title": "流量", "tip": "Envoy Sidecar 观测到的 Mesh 全局每分钟请求数。" },
-      { "title": "错误率" },
-      { "title": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" },
-      { "title": "平均响应时间" },
       {
+        "id": "traffic_line",
+        "title": "流量",
+        "tip": "Envoy Sidecar 观测到的 Mesh 全局每分钟请求数。"
+      },
+      {
+        "id": "err_line",
+        "title": "错误率"
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "用户满意度评分，取值范围 0 – 1。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均响应时间"
+      },
+      {
+        "id": "percentile_line",
         "title": "响应时间分位",
         "tip": "p50 / p75 / p90 / p95 / p99 延迟 — 即响应时间分布的长尾。"
       },
       {
+        "id": "throughput_line",
         "title": "服务吞吐",
         "tip": "通过 Sidecar 的每分钟字节数 — 发送 + 接收。",
-        "expressionLabels": ["received", "sent"]
+        "expressionLabels": [
+          "received",
+          "sent"
+        ]
       },
       {
+        "id": "sidecar_internal_latency",
         "title": "Sidecar 内部延迟",
         "tip": "Envoy 内部请求 + 响应延迟，单位纳秒。怀疑 Sidecar 开销时有用。",
-        "expressionLabels": ["request", "response"]
+        "expressionLabels": [
+          "request",
+          "response"
+        ]
       },
       {
+        "id": "top_instances",
         "title": "前 10 Sidecar",
         "tip": "在所选服务的 Sidecar 实例之间排序。",
-        "expressionLabels": ["流量", "慢请求", "成功率"]
+        "expressionLabels": [
+          "流量",
+          "慢请求",
+          "成功率"
+        ]
       }
     ],
     "instance": [
-      { "title": "Sidecar 负载", "tip": "针对所选 Sidecar 实例每分钟的调用次数。" },
-      { "title": "Sidecar 延迟" },
-      { "title": "Sidecar 成功率" },
       {
+        "id": "instance_cpm_line",
+        "title": "Sidecar 负载",
+        "tip": "针对所选 Sidecar 实例每分钟的调用次数。"
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "Sidecar 延迟"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "Sidecar 成功率"
+      },
+      {
+        "id": "instance_throughput",
         "title": "Sidecar 吞吐",
         "tip": "通过 Sidecar 的字节 — 接收 + 发送。",
-        "expressionLabels": ["received", "sent"]
+        "expressionLabels": [
+          "received",
+          "sent"
+        ]
       },
       {
+        "id": "instance_sidecar_internal_latency",
         "title": "Sidecar 内部延迟",
-        "expressionLabels": ["request", "response"]
+        "expressionLabels": [
+          "request",
+          "response"
+        ]
       },
       {
+        "id": "envoy_up_rq_active",
         "title": "Envoy 上游活跃请求",
         "tip": "每个集群的飞行中上游请求。仅对 Envoy 仪表化的 Sidecar 显示。"
       },
       {
+        "id": "envoy_up_rq_incr",
         "title": "Envoy 上游请求增量",
         "tip": "每分钟新增的上游请求数。"
       },
       {
+        "id": "envoy_up_rq_pending_active",
         "title": "Envoy 上游 Pending 活跃",
         "tip": "Pending 上游请求 — 指示连接池反压。"
       },
-      { "title": "Envoy 上游活跃连接" },
-      { "title": "Envoy 上游连接增量" },
       {
+        "id": "envoy_up_cx_active",
+        "title": "Envoy 上游活跃连接"
+      },
+      {
+        "id": "envoy_up_cx_incr",
+        "title": "Envoy 上游连接增量"
+      },
+      {
+        "id": "envoy_membership_healthy",
         "title": "Envoy 集群健康成员数",
         "tip": "每个集群的健康上游成员数 — 显著下降意味着上游变动。"
       },
       {
+        "id": "envoy_connections",
         "title": "Envoy 总连接数",
-        "expressionLabels": ["total", "parent"]
+        "expressionLabels": [
+          "total",
+          "parent"
+        ]
       },
       {
+        "id": "envoy_heap_memory",
         "title": "Envoy Heap 内存",
         "tip": "Envoy 内存使用。Heap vs 物理，已分配 vs 最大，单位 MB。",
-        "expressionLabels": ["heap used", "heap max", "allocated", "allocated max", "physical", "physical max"]
+        "expressionLabels": [
+          "heap used",
+          "heap max",
+          "allocated",
+          "allocated max",
+          "physical",
+          "physical max"
+        ]
       },
       {
+        "id": "envoy_worker_threads",
         "title": "Envoy Worker 线程",
-        "expressionLabels": ["live", "max"]
+        "expressionLabels": [
+          "live",
+          "max"
+        ]
       },
       {
+        "id": "envoy_bug_failures",
         "title": "Envoy Bug 失败",
         "tip": "Envoy 自身的 assertion / bug 计数器。健康集群中应为零。"
       }
     ],
     "endpoint": [
-      { "title": "端点流量" },
-      { "title": "端点平均响应时间" },
-      { "title": "端点成功率" },
-      { "title": "端点响应时间分位" },
       {
+        "id": "endpoint_cpm_line",
+        "title": "端点流量"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "端点平均响应时间"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "端点成功率"
+      },
+      {
+        "id": "endpoint_percentile",
+        "title": "端点响应时间分位"
+      },
+      {
+        "id": "endpoint_sidecar_internal_latency",
         "title": "Sidecar 内部延迟（端点维度）",
         "tip": "此端点上 Envoy 内部请求 + 响应延迟，单位纳秒。",
-        "expressionLabels": ["request", "response"]
+        "expressionLabels": [
+          "request",
+          "response"
+        ]
       }
     ]
   },
   "topology": {
     "nodeMetrics": [
-      { "label": "RPM" },
-      { "label": "SLA" },
-      { "label": "延迟" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "延迟"
+      }
     ],
     "linkServerMetrics": [
-      { "label": "RPM" },
-      { "label": "平均响应时间" },
-      { "label": "p95" },
-      { "label": "SLA" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "p95",
+        "label": "p95"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
     ],
     "linkClientMetrics": [
-      { "label": "RPM" },
-      { "label": "平均响应时间" },
-      { "label": "p95" },
-      { "label": "SLA" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "p95",
+        "label": "p95"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "延迟" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "延迟"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "平均响应时间" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均响应时间"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "平均响应时间" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均响应时间"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   }

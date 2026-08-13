@@ -20,54 +20,70 @@
   "dashboards": {
     "service": [
       {
+        "id": "count",
         "title": "Nombre de requêtes"
       },
       {
+        "id": "err4xx",
         "title": "Nombre de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Nombre de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latence moyenne des requêtes"
       },
       {
+        "id": "integration_latency",
         "title": "Latence moyenne d'intégration",
         "tip": "Latence entre la passerelle et l'intégration backend."
       },
       {
+        "id": "data",
         "title": "Données traitées (HTTP API uniquement)"
       },
       {
+        "id": "cache_hit",
         "title": "Taux de hit du cache (REST API uniquement)"
       },
       {
+        "id": "cache_miss",
         "title": "Taux de miss du cache (REST API uniquement)"
       }
     ],
     "endpoint": [
       {
+        "id": "count",
         "title": "Nombre de requêtes"
       },
       {
+        "id": "err4xx",
         "title": "Nombre de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Nombre de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latence moyenne des requêtes"
       },
       {
+        "id": "integration_latency",
         "title": "Latence moyenne d'intégration"
       },
       {
+        "id": "data",
         "title": "Données traitées"
       },
       {
+        "id": "cache_hit",
         "title": "Taux de hit du cache"
       },
       {
+        "id": "cache_miss",
         "title": "Taux de miss du cache"
       }
     ]

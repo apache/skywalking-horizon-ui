@@ -20,6 +20,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "health",
         "title": "클러스터 상태",
         "tableHeaders": [
           "상태",
@@ -27,50 +28,65 @@
         ]
       },
       {
+        "id": "nodes",
         "title": "노드"
       },
       {
+        "id": "pending_tasks",
         "title": "대기 작업"
       },
       {
+        "id": "primary_shards",
         "title": "Primary 샤드"
       },
       {
+        "id": "shards_active",
         "title": "활성 샤드"
       },
       {
+        "id": "shards_initializing",
         "title": "Initializing"
       },
       {
+        "id": "shards_relocating",
         "title": "재배치 중"
       },
       {
+        "id": "shards_unassigned",
         "title": "미할당"
       },
       {
+        "id": "shards_delayed",
         "title": "지연된 미할당"
       },
       {
+        "id": "breakers",
         "title": "발생한 서킷 브레이커"
       },
       {
+        "id": "cluster_cpu",
         "title": "클러스터 평균 CPU"
       },
       {
+        "id": "cluster_jvm",
         "title": "JVM 메모리 평균 사용량"
       },
       {
+        "id": "open_files",
         "title": "평균 열린 파일"
       }
     ],
     "instance": [
       {
+        "id": "cpu",
         "title": "프로세스 CPU (%)"
       },
       {
+        "id": "os_cpu",
         "title": "OS CPU (%)"
       },
       {
+        "id": "load_avg",
         "title": "평균 부하",
         "expressionLabels": [
           "1m",
@@ -79,6 +95,7 @@
         ]
       },
       {
+        "id": "jvm_mem",
         "title": "JVM 메모리 (MB)",
         "expressionLabels": [
           "heap 사용",
@@ -87,6 +104,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "count",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "translog",
         "title": "트랜잭션 로그",
         "expressionLabels": [
           "작업",
@@ -101,6 +120,7 @@
         ]
       },
       {
+        "id": "breakers",
         "title": "서킷 브레이커",
         "expressionLabels": [
           "tripped",
@@ -108,6 +128,7 @@
         ]
       },
       {
+        "id": "segments",
         "title": "세그먼트",
         "expressionLabels": [
           "count",
@@ -115,6 +136,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "디스크 사용량",
         "expressionLabels": [
           "GB",
@@ -122,6 +144,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "네트워크",
         "expressionLabels": [
           "전송",
@@ -129,11 +152,13 @@
         ]
       },
       {
+        "id": "open_files",
         "title": "열린 파일"
       }
     ],
     "endpoint": [
       {
+        "id": "indexing_rate",
         "title": "인덱싱 비율",
         "expressionLabels": [
           "req",
@@ -141,6 +166,7 @@
         ]
       },
       {
+        "id": "search_rate",
         "title": "검색 비율",
         "expressionLabels": [
           "req",
@@ -148,15 +174,19 @@
         ]
       },
       {
+        "id": "idx_size_all",
         "title": "인덱스 크기 (모든 샤드)"
       },
       {
+        "id": "idx_size_primary",
         "title": "인덱스 크기 (primary)"
       },
       {
+        "id": "docs_total",
         "title": "삭제된 문서"
       },
       {
+        "id": "docs",
         "title": "문서",
         "expressionLabels": [
           "전체",
@@ -164,6 +194,7 @@
         ]
       },
       {
+        "id": "search_time",
         "title": "평균 검색 시간 / 요청 (s)",
         "expressionLabels": [
           "fetch",

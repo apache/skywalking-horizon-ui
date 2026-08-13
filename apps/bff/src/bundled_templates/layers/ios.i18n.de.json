@@ -20,64 +20,44 @@
   "dashboards": {
     "service": [
       {
-        "title": "App-Startzeit-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "launch_percentile",
+        "title": "App-Startzeit-Perzentil"
       },
       {
-        "title": "Hängezeit-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "hang_percentile",
+        "title": "Hängezeit-Perzentil"
       },
       {
-        "title": "Hängezeit (Summe)",
-        "expressions": [
-          null
-        ]
+        "id": "hang_sum",
+        "title": "Hängezeit (Summe)"
       },
       {
+        "id": "abnormal_exits",
         "title": "Abnormale Beendigungen (Abstürze)",
         "tip": "MetricKit meldet Vordergrund- vs. Hintergrund-Abnormalbeendigungen getrennt.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "vordergrund",
           "hintergrund"
         ]
       },
       {
+        "id": "oom_kills",
         "title": "OOM-Kill-Anzahl",
-        "tip": "Hintergrund-OOM-Kills — das iOS-System beendet die App wegen Speicherdrucks.",
-        "expressions": [
-          null
-        ]
+        "tip": "Hintergrund-OOM-Kills — das iOS-System beendet die App wegen Speicherdrucks."
       },
       {
-        "title": "Spitzen-Speicher",
-        "expressions": [
-          null
-        ]
+        "id": "peak_memory",
+        "title": "Spitzen-Speicher"
       },
       {
+        "id": "scroll_hitch",
         "title": "Scroll-Hitch-Verhältnis",
-        "tip": "Prozentsatz der Scroll-Frames, die als hitched klassifiziert sind — höher = laggigere UI.",
-        "expressions": [
-          null
-        ]
+        "tip": "Prozentsatz der Scroll-Frames, die als hitched klassifiziert sind — höher = laggigere UI."
       },
       {
+        "id": "network_transfer",
         "title": "Netzwerk-Transfer",
         "tip": "Bytes über WiFi vs. Mobilfunk, ein + aus.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "wifi ↓",
           "wifi ↑",
@@ -86,104 +66,67 @@
         ]
       },
       {
+        "id": "outbound_http",
         "title": "Ausgehender HTTP",
         "tip": "Aufrufe der App an Backends — Last, Latenz, Erfolgsrate.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "RPM",
           "Mittlere Latenz (ms)",
           "Erfolgsrate (%)"
-        ],
-        "expressionAxes": [
-          null,
-          null,
-          null
         ]
       }
     ],
     "instance": [
       {
-        "title": "Startzeit-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "instance_launch_p",
+        "title": "Startzeit-Perzentil"
       },
       {
-        "title": "Hängezeit-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "instance_hang_p",
+        "title": "Hängezeit-Perzentil"
       },
       {
+        "id": "instance_crashes",
         "title": "Abnormale Beendigungen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "vordergrund",
           "hintergrund"
         ]
       },
       {
-        "title": "OOM-Kill-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "instance_oom",
+        "title": "OOM-Kill-Anzahl"
       },
       {
-        "title": "Spitzen-Speicher",
-        "expressions": [
-          null
-        ]
+        "id": "instance_peak_mem",
+        "title": "Spitzen-Speicher"
       },
       {
+        "id": "instance_outbound",
         "title": "Ausgehender HTTP",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "RPM",
           "Mittlere Latenz (ms)",
           "Erfolgsrate (%)"
-        ],
-        "expressionAxes": [
-          null,
-          null,
-          null
         ]
       }
     ],
     "endpoint": [
       {
-        "title": "Ausgangs-Last",
-        "expressions": [
-          null
-        ]
+        "id": "ep_cpm",
+        "title": "Ausgangs-Last"
       },
       {
-        "title": "Mittlere Ausgangs-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "ep_resp",
+        "title": "Mittlere Ausgangs-Latenz"
       },
       {
-        "title": "Ausgangs-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "ep_sla",
+        "title": "Ausgangs-Erfolgsrate"
       },
       {
-        "title": "Ausgangs-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "ep_percentile",
+        "title": "Ausgangs-Latenz-Perzentil"
       }
     ]
   },

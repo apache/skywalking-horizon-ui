@@ -17,73 +17,95 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "HTTP リクエスト傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       },
       {
+        "id": "conns",
         "title": "HTTP 接続"
       },
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 分"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 分"
       },
       {
+        "id": "errlog",
         "title": "エラーログ件数"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "HTTP リクエスト傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       },
       {
+        "id": "conns",
         "title": "HTTP 接続"
       },
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 分"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 分"
       },
       {
+        "id": "errlog",
         "title": "エラーログ件数"
       }
     ],
     "endpoint": [
       {
+        "id": "rps",
         "title": "HTTP リクエスト傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       },
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 分"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 分"
       }
     ]

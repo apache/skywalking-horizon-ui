@@ -20,65 +20,44 @@
   "dashboards": {
     "service": [
       {
-        "title": "Uptime (Tage)",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Uptime (Tage)"
       },
       {
-        "title": "Verbundene Clients",
-        "expressions": [
-          null
-        ]
+        "id": "clients",
+        "title": "Verbundene Clients"
       },
       {
-        "title": "Blockierte Clients",
-        "expressions": [
-          null
-        ]
+        "id": "blocked",
+        "title": "Blockierte Clients"
       },
       {
-        "title": "Speichernutzung",
-        "expressions": [
-          null
-        ]
+        "id": "mem_pct",
+        "title": "Speichernutzung"
       },
       {
-        "title": "Befehle gesamt / s",
-        "expressions": [
-          null
-        ]
+        "id": "commands",
+        "title": "Befehle gesamt / s"
       },
       {
-        "title": "Trefferrate",
-        "expressions": [
-          null
-        ]
+        "id": "hit_rate",
+        "title": "Trefferrate"
       },
       {
-        "title": "Mittlere Befehlszeit / s",
-        "expressions": [
-          null
-        ]
+        "id": "avg_cmd_time",
+        "title": "Mittlere Befehlszeit / s"
       },
       {
+        "id": "net_io",
         "title": "Netz-I/O (KB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "db_keys",
         "title": "Schlüssel",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "evicted",
@@ -86,74 +65,51 @@
         ]
       },
       {
+        "id": "slow_cmds",
         "title": "Langsame Befehle",
-        "tip": "Top 10 langsamste erfasste Befehle. Erfasst vom SkyWalking-Agenten an der Aufrufstelle.",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 10 langsamste erfasste Befehle. Erfasst vom SkyWalking-Agenten an der Aufrufstelle."
       }
     ],
     "instance": [
       {
-        "title": "Uptime (Tage)",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Uptime (Tage)"
       },
       {
-        "title": "Verbundene Clients",
-        "expressions": [
-          null
-        ]
+        "id": "clients",
+        "title": "Verbundene Clients"
       },
       {
-        "title": "Blockierte Clients",
-        "expressions": [
-          null
-        ]
+        "id": "blocked",
+        "title": "Blockierte Clients"
       },
       {
-        "title": "Speicher max (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "max_mem",
+        "title": "Speicher max (MB)"
       },
       {
-        "title": "Speichernutzung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "mem_pct",
+        "title": "Speichernutzung (%)"
       },
       {
-        "title": "Befehle / s",
-        "expressions": [
-          null
-        ]
+        "id": "cmds",
+        "title": "Befehle / s"
       },
       {
-        "title": "Trefferrate",
-        "expressions": [
-          null
-        ]
+        "id": "hit_rate",
+        "title": "Trefferrate"
       },
       {
+        "id": "net_io",
         "title": "Netz-I/O (KB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "db_keys",
         "title": "Schlüssel",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "evicted",
@@ -161,16 +117,12 @@
         ]
       },
       {
-        "title": "Befehlszeit gesamt (s)",
-        "expressions": [
-          null
-        ]
+        "id": "cmd_dur",
+        "title": "Befehlszeit gesamt (s)"
       },
       {
-        "title": "Mittlere Befehlszeit",
-        "expressions": [
-          null
-        ]
+        "id": "avg_cmd_time",
+        "title": "Mittlere Befehlszeit"
       }
     ]
   },

@@ -4,21 +4,27 @@
   "dashboards": {
     "instance": [
       {
+        "id": "cpu",
         "title": "CPU (%)"
       },
       {
+        "id": "mem",
         "title": "Mémoire JVM (Mo)"
       },
       {
+        "id": "gc_count",
         "title": "Nombre de GC / min"
       },
       {
+        "id": "gc_time",
         "title": "Temps GC (ms / min)"
       },
       {
+        "id": "buffer_pool",
         "title": "Buffer Pool (Mo)"
       },
       {
+        "id": "threads",
         "title": "Nombre de threads",
         "expressionLabels": [
           "vivantes",
@@ -27,6 +33,7 @@
         ]
       },
       {
+        "id": "thread_states",
         "title": "États des threads",
         "expressionLabels": [
           "exécutable",
@@ -36,6 +43,7 @@
         ]
       },
       {
+        "id": "classes",
         "title": "Nombre de classes",
         "expressionLabels": [
           "chargées",
@@ -44,9 +52,11 @@
         ]
       },
       {
+        "id": "aggregation",
         "title": "Agrégation / min"
       },
       {
+        "id": "persistence_counts",
         "title": "Nombre de persistances / min",
         "expressionLabels": [
           "préparation",
@@ -54,18 +64,23 @@
         ]
       },
       {
+        "id": "persistence_cache",
         "title": "Cache persistant / min"
       },
       {
+        "id": "persist_prepare_latency",
         "title": "Latence de préparation de persistance (ms)"
       },
       {
+        "id": "persist_execute_latency",
         "title": "Latence d'exécution de persistance (ms)"
       },
       {
+        "id": "graphql_latency",
         "title": "Latence GraphQL (ms)"
       },
       {
+        "id": "graphql_count",
         "title": "Nombre de requêtes GraphQL",
         "expressionLabels": [
           "requêtes",
@@ -73,6 +88,7 @@
         ]
       },
       {
+        "id": "trace_analysis",
         "title": "Analyse de traces / min",
         "expressionLabels": [
           "total",
@@ -80,9 +96,11 @@
         ]
       },
       {
+        "id": "trace_latency",
         "title": "Latence d'analyse de traces (ms)"
       },
       {
+        "id": "mesh_analysis",
         "title": "Analyse mesh / min",
         "expressionLabels": [
           "total",
@@ -90,9 +108,11 @@
         ]
       },
       {
+        "id": "mesh_latency",
         "title": "Latence d'analyse mesh (ms)"
       },
       {
+        "id": "otel_received",
         "title": "OTEL reçus / s",
         "expressionLabels": [
           "métriques",
@@ -101,6 +121,7 @@
         ]
       },
       {
+        "id": "k8s_als",
         "title": "K8S ALS",
         "expressionLabels": [
           "nombre",
@@ -110,6 +131,7 @@
         ]
       },
       {
+        "id": "watermark",
         "title": "Watermark Circuit Breaker",
         "tip": "Compteurs cumulés rupture + récupération par listener.",
         "expressionLabels": [
@@ -118,6 +140,7 @@
         ]
       },
       {
+        "id": "aggr_queue",
         "title": "Utilisation de la file d'agrégation (%)",
         "expressionLabels": [
           "L1",
@@ -125,6 +148,7 @@
         ]
       },
       {
+        "id": "banyandb_latency",
         "title": "Latence d'écriture BanyanDB (ms)",
         "expressionLabels": [
           "mesure bulk",
@@ -135,6 +159,7 @@
         ]
       },
       {
+        "id": "es_latency",
         "title": "Latence d'écriture Elasticsearch (ms)",
         "expressionLabels": [
           "simple",
@@ -142,6 +167,7 @@
         ]
       },
       {
+        "id": "zipkin_drop",
         "title": "Spans Zipkin rejetés"
       }
     ]

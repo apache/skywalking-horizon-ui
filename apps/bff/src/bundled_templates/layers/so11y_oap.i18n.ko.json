@@ -4,21 +4,27 @@
   "dashboards": {
     "instance": [
       {
+        "id": "cpu",
         "title": "CPU (%)"
       },
       {
+        "id": "mem",
         "title": "JVM 메모리 (MB)"
       },
       {
+        "id": "gc_count",
         "title": "GC 수 / 분"
       },
       {
+        "id": "gc_time",
         "title": "GC 시간 (ms / 분)"
       },
       {
+        "id": "buffer_pool",
         "title": "버퍼 풀 (MB)"
       },
       {
+        "id": "threads",
         "title": "스레드 수",
         "expressionLabels": [
           "활성",
@@ -27,6 +33,7 @@
         ]
       },
       {
+        "id": "thread_states",
         "title": "스레드 상태",
         "expressionLabels": [
           "runnable",
@@ -36,6 +43,7 @@
         ]
       },
       {
+        "id": "classes",
         "title": "클래스 수",
         "expressionLabels": [
           "loaded",
@@ -44,9 +52,11 @@
         ]
       },
       {
+        "id": "aggregation",
         "title": "집계 / 분"
       },
       {
+        "id": "persistence_counts",
         "title": "영속화 수 / 분",
         "expressionLabels": [
           "prepare",
@@ -54,18 +64,23 @@
         ]
       },
       {
+        "id": "persistence_cache",
         "title": "영속 캐시 / 분"
       },
       {
+        "id": "persist_prepare_latency",
         "title": "영속화 준비 지연 시간 (ms)"
       },
       {
+        "id": "persist_execute_latency",
         "title": "영속화 실행 지연 시간 (ms)"
       },
       {
+        "id": "graphql_latency",
         "title": "GraphQL 지연 시간 (ms)"
       },
       {
+        "id": "graphql_count",
         "title": "GraphQL 쿼리 수",
         "expressionLabels": [
           "쿼리",
@@ -73,6 +88,7 @@
         ]
       },
       {
+        "id": "trace_analysis",
         "title": "트레이스 분석 / 분",
         "expressionLabels": [
           "전체",
@@ -80,9 +96,11 @@
         ]
       },
       {
+        "id": "trace_latency",
         "title": "트레이스 분석 지연 시간 (ms)"
       },
       {
+        "id": "mesh_analysis",
         "title": "메시 분석 / 분",
         "expressionLabels": [
           "전체",
@@ -90,9 +108,11 @@
         ]
       },
       {
+        "id": "mesh_latency",
         "title": "메시 분석 지연 시간 (ms)"
       },
       {
+        "id": "otel_received",
         "title": "OTel 수신 / s",
         "expressionLabels": [
           "metrics",
@@ -101,6 +121,7 @@
         ]
       },
       {
+        "id": "k8s_als",
         "title": "K8s ALS",
         "expressionLabels": [
           "count",
@@ -110,6 +131,7 @@
         ]
       },
       {
+        "id": "watermark",
         "title": "워터마크 서킷 브레이커",
         "tip": "리스너별 누적 break + recover 카운터입니다.",
         "expressionLabels": [
@@ -118,6 +140,7 @@
         ]
       },
       {
+        "id": "aggr_queue",
         "title": "집계 큐 사용률 (%)",
         "expressionLabels": [
           "L1",
@@ -125,6 +148,7 @@
         ]
       },
       {
+        "id": "banyandb_latency",
         "title": "BanyanDB 쓰기 지연 시간 (ms)",
         "expressionLabels": [
           "measure bulk",
@@ -135,6 +159,7 @@
         ]
       },
       {
+        "id": "es_latency",
         "title": "Elasticsearch 쓰기 지연 시간 (ms)",
         "expressionLabels": [
           "single",
@@ -142,6 +167,7 @@
         ]
       },
       {
+        "id": "zipkin_drop",
         "title": "Zipkin 스팬 드롭"
       }
     ]

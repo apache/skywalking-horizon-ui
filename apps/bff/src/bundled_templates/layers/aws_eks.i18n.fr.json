@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_count",
         "title": "Nombre de nœuds"
       },
       {
+        "id": "failed_nodes",
         "title": "Nœuds en échec"
       },
       {
+        "id": "namespace_count",
         "title": "Nombre de namespaces"
       },
       {
+        "id": "service_count",
         "title": "Nombre de services EKS"
       },
       {
+        "id": "network_errors",
         "title": "Erreurs réseau du cluster",
         "expressionLabels": [
           "rx",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "network_dropped",
         "title": "Drops réseau du cluster",
         "expressionLabels": [
           "rx",
@@ -48,38 +54,49 @@
     ],
     "endpoint": [
       {
+        "id": "pod_cpu",
         "title": "Utilisation CPU pod (%)"
       },
       {
+        "id": "pod_mem",
         "title": "Utilisation mémoire pod (%)"
       },
       {
+        "id": "pod_net_rx",
         "title": "Réseau pod RX (Ko/s)"
       },
       {
+        "id": "pod_net_rx_err",
         "title": "Erreurs RX pod / s"
       },
       {
+        "id": "pod_net_tx",
         "title": "Réseau pod TX (Ko/s)"
       },
       {
+        "id": "pod_net_tx_err",
         "title": "Erreurs TX pod / s"
       }
     ],
     "instance": [
       {
+        "id": "pods",
         "title": "Nombre de pods"
       },
       {
+        "id": "node_cpu",
         "title": "Utilisation CPU (%)"
       },
       {
+        "id": "node_mem",
         "title": "Utilisation mémoire (%)"
       },
       {
+        "id": "node_fs",
         "title": "Utilisation FS (%)"
       },
       {
+        "id": "node_net_rx",
         "title": "Réseau RX (Ko/s)",
         "expressionLabels": [
           "octets",
@@ -87,6 +104,7 @@
         ]
       },
       {
+        "id": "node_net_tx",
         "title": "Réseau TX (Ko/s)",
         "expressionLabels": [
           "octets",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "I/O disque (o/s)",
         "expressionLabels": [
           "lecture",
@@ -101,9 +120,11 @@
         ]
       },
       {
+        "id": "pod_cpu",
         "title": "CPU pod sur le nœud"
       },
       {
+        "id": "pod_mem",
         "title": "Mémoire pod sur le nœud"
       }
     ]

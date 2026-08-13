@@ -20,48 +20,62 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "HTTP リクエスト傾向"
       },
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       },
       {
+        "id": "conns",
         "title": "HTTP 接続"
       },
       {
+        "id": "status_unmatched",
         "title": "未マッチステータス傾向",
         "tip": "APISIX ルートにマッチしないリクエスト。"
       },
       {
+        "id": "latency_unmatched",
         "title": "未マッチレイテンシ"
       },
       {
+        "id": "bandwidth_unmatched",
         "title": "未マッチ帯域"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "HTTP リクエスト傾向"
       },
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       },
       {
+        "id": "conns",
         "title": "HTTP 接続"
       },
       {
+        "id": "shared_dict",
         "title": "Shared Dict",
         "tip": "キャパシティ vs 空き容量。",
         "expressionLabels": [
@@ -70,15 +84,18 @@
         ]
       },
       {
+        "id": "etcd_total",
         "title": "etcd 到達可能"
       },
       {
+        "id": "etcd",
         "title": "etcd インデックス",
         "expressionLabels": [
           "インデックス"
         ]
       },
       {
+        "id": "unmatched",
         "title": "未マッチトラフィック",
         "tip": "ルートにマッチしないリクエストのステータス + レイテンシ + 帯域。",
         "expressionLabels": [
@@ -90,12 +107,15 @@
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "HTTP ステータス傾向"
       },
       {
+        "id": "latency",
         "title": "HTTP レイテンシ"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 帯域"
       }
     ]

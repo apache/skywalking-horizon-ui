@@ -6,40 +6,87 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "CPU %" },
-      { "label": "内存 MB" },
-      { "label": "Load 1m" },
-      { "label": "FS %" }
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "内存 MB"
+      },
+      {
+        "label": "Load 1m"
+      },
+      {
+        "label": "FS %"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "CPU 平均使用率（%）" },
       {
+        "id": "cpu",
+        "title": "CPU 平均使用率（%）"
+      },
+      {
+        "id": "cpu_load",
         "title": "CPU 负载",
-        "expressionLabels": ["1m", "5m", "15m"]
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
       },
-      { "title": "已分配文件 FD" },
       {
+        "id": "filefd",
+        "title": "已分配文件 FD"
+      },
+      {
+        "id": "memory",
         "title": "内存 RAM（MB）",
-        "expressionLabels": ["used", "total", "available", "buff/cache"]
+        "expressionLabels": [
+          "used",
+          "total",
+          "available",
+          "buff/cache"
+        ]
       },
       {
+        "id": "swap",
         "title": "内存 Swap（MB）",
-        "expressionLabels": ["free", "total"]
+        "expressionLabels": [
+          "free",
+          "total"
+        ]
       },
       {
+        "id": "network_bandwidth",
         "title": "网络带宽（KB/s）",
-        "expressionLabels": ["receive", "transmit"]
+        "expressionLabels": [
+          "receive",
+          "transmit"
+        ]
       },
       {
+        "id": "disk",
         "title": "磁盘读/写（KB/s）",
-        "expressionLabels": ["read", "written"]
+        "expressionLabels": [
+          "read",
+          "written"
+        ]
       },
-      { "title": "文件系统使用率（%）" },
       {
+        "id": "fs",
+        "title": "文件系统使用率（%）"
+      },
+      {
+        "id": "network_status",
         "title": "网络状态",
-        "expressionLabels": ["tcp estab", "tcp time-wait", "tcp alloc", "sockets used", "udp in-use"]
+        "expressionLabels": [
+          "tcp estab",
+          "tcp time-wait",
+          "tcp alloc",
+          "sockets used",
+          "udp in-use"
+        ]
       }
     ]
   }

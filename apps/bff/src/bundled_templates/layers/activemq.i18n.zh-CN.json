@@ -7,68 +7,170 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "入队/秒" },
-      { "label": "出队/秒" },
-      { "label": "系统负载" },
-      { "label": "线程数" }
+      {
+        "label": "入队/秒"
+      },
+      {
+        "label": "出队/秒"
+      },
+      {
+        "label": "系统负载"
+      },
+      {
+        "label": "线程数"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "系统平均负载" },
-      { "title": "线程数" },
-      { "title": "Heap 已用（MB）" },
-      { "title": "Heap 最大值（MB）" },
       {
+        "id": "load",
+        "title": "系统平均负载"
+      },
+      {
+        "id": "threads",
+        "title": "线程数"
+      },
+      {
+        "id": "heap_used",
+        "title": "Heap 已用（MB）"
+      },
+      {
+        "id": "heap_max",
+        "title": "Heap 最大值（MB）"
+      },
+      {
+        "id": "enqueue_dequeue",
         "title": "入队 / 出队 / 派发 每秒",
-        "expressionLabels": ["enqueue", "dequeue", "dispatch"]
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch"
+        ]
       },
-      { "title": "过期数 每秒" },
       {
+        "id": "expired_rate",
+        "title": "过期数 每秒"
+      },
+      {
+        "id": "enqueue_time",
         "title": "入队耗时",
-        "expressionLabels": ["avg", "max"]
+        "expressionLabels": [
+          "avg",
+          "max"
+        ]
       },
       {
+        "id": "gc_counts",
         "title": "GC 次数（G1+Parallel）",
-        "expressionLabels": ["old", "young"]
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
       },
       {
+        "id": "gc_time",
         "title": "GC 时间（ms）",
-        "expressionLabels": ["old", "young"]
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
       }
     ],
     "instance": [
-      { "title": "连接数", "tip": "当前到此 Broker 的 TCP/JMS 连接数。" },
-      { "title": "Producer 数量", "tip": "此 Broker 上活跃的 Producer 会话数。" },
-      { "title": "Consumer 数量", "tip": "此 Broker 上活跃的 Consumer 会话数。" },
-      { "title": "运行时长", "tip": "自上次重启以来 Broker 的运行小时数。" },
-      { "title": "连接数（趋势）" },
       {
+        "id": "connections_card",
+        "title": "连接数",
+        "tip": "当前到此 Broker 的 TCP/JMS 连接数。"
+      },
+      {
+        "id": "producer_count_card",
+        "title": "Producer 数量",
+        "tip": "此 Broker 上活跃的 Producer 会话数。"
+      },
+      {
+        "id": "consumer_count_card",
+        "title": "Consumer 数量",
+        "tip": "此 Broker 上活跃的 Consumer 会话数。"
+      },
+      {
+        "id": "uptime_card",
+        "title": "运行时长",
+        "tip": "自上次重启以来 Broker 的运行小时数。"
+      },
+      {
+        "id": "connections_line",
+        "title": "连接数（趋势）"
+      },
+      {
+        "id": "enqueue_dequeue_line",
         "title": "入队 / 出队次数",
         "tip": "此 Broker 上各目的地每分钟的入队 + 出队次数。",
-        "expressionLabels": ["enqueue", "dequeue"]
+        "expressionLabels": [
+          "enqueue",
+          "dequeue"
+        ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "Producer / Consumer 增长",
         "tip": "每分钟新建的 Producer + Consumer 会话数。",
-        "expressionLabels": ["新 Producer", "新 Consumer"]
+        "expressionLabels": [
+          "新 Producer",
+          "新 Consumer"
+        ]
       },
-      { "title": "内存使用", "tip": "各目的地的总内存使用（MB）。" },
-      { "title": "内存上限", "tip": "各目的地配置的内存上限（GB）。" },
-      { "title": "平均消息大小", "tip": "各目的地的平均消息大小。" }
+      {
+        "id": "memory_usage_line",
+        "title": "内存使用",
+        "tip": "各目的地的总内存使用（MB）。"
+      },
+      {
+        "id": "memory_limit_line",
+        "title": "内存上限",
+        "tip": "各目的地配置的内存上限（GB）。"
+      },
+      {
+        "id": "message_size_line",
+        "title": "平均消息大小",
+        "tip": "各目的地的平均消息大小。"
+      }
     ],
     "endpoint": [
-      { "title": "Producer 数量" },
-      { "title": "Consumer 数量" },
-      { "title": "队列大小" },
-      { "title": "内存使用（MB）" },
       {
-        "title": "消息计数",
-        "expressionLabels": ["enqueue", "dequeue", "dispatch", "expired", "inflight"]
+        "id": "producer",
+        "title": "Producer 数量"
       },
       {
+        "id": "consumer",
+        "title": "Consumer 数量"
+      },
+      {
+        "id": "queue_size",
+        "title": "队列大小"
+      },
+      {
+        "id": "memory",
+        "title": "内存使用（MB）"
+      },
+      {
+        "id": "messages",
+        "title": "消息计数",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch",
+          "expired",
+          "inflight"
+        ]
+      },
+      {
+        "id": "enqueue_time",
         "title": "入队耗时（s）",
-        "expressionLabels": ["avg", "max"]
+        "expressionLabels": [
+          "avg",
+          "max"
+        ]
       }
     ]
   }

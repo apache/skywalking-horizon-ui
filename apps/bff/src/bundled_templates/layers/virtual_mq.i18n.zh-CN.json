@@ -7,31 +7,74 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "消费 RPM" },
-      { "label": "生产 RPM" },
-      { "label": "消费延迟" },
-      { "label": "消费错误率" }
+      {
+        "label": "消费 RPM"
+      },
+      {
+        "label": "生产 RPM"
+      },
+      {
+        "label": "消费延迟"
+      },
+      {
+        "label": "消费错误率"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "消费流量" },
-      { "title": "生产流量" },
-      { "title": "消费平均延迟", "tip": "消息生产与消费之间的平均时间。" },
-      { "title": "消费成功率" },
-      { "title": "生产成功率" },
       {
+        "id": "consume_cpm_line",
+        "title": "消费流量"
+      },
+      {
+        "id": "produce_cpm_line",
+        "title": "生产流量"
+      },
+      {
+        "id": "consume_latency_line",
+        "title": "消费平均延迟",
+        "tip": "消息生产与消费之间的平均时间。"
+      },
+      {
+        "id": "consume_sla_line",
+        "title": "消费成功率"
+      },
+      {
+        "id": "produce_sla_line",
+        "title": "生产成功率"
+      },
+      {
+        "id": "consume_percentile",
         "title": "消费延迟分位",
         "tip": "消费延迟的 p50 / p75 / p90 / p95 / p99。"
       }
     ],
     "endpoint": [
-      { "title": "Topic 消费流量" },
-      { "title": "Topic 生产流量" },
-      { "title": "Topic 消费平均延迟" },
-      { "title": "Topic 消费成功率" },
-      { "title": "Topic 生产成功率" },
-      { "title": "Topic 消费延迟分位" }
+      {
+        "id": "ep_consume_cpm",
+        "title": "Topic 消费流量"
+      },
+      {
+        "id": "ep_produce_cpm",
+        "title": "Topic 生产流量"
+      },
+      {
+        "id": "ep_consume_latency",
+        "title": "Topic 消费平均延迟"
+      },
+      {
+        "id": "ep_consume_sla",
+        "title": "Topic 消费成功率"
+      },
+      {
+        "id": "ep_produce_sla",
+        "title": "Topic 生产成功率"
+      },
+      {
+        "id": "ep_consume_percentile",
+        "title": "Topic 消费延迟分位"
+      }
     ]
   }
 }

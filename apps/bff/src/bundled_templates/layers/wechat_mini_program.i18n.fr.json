@@ -20,66 +20,85 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "Durée de lancement de l'app"
       },
       {
+        "id": "first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "package_load",
         "title": "Durée de chargement du paquet",
         "tip": "Temps pour télécharger + parser le bundle du paquet du mini-programme."
       },
       {
+        "id": "error_count",
         "title": "Nombre d'erreurs"
       },
       {
+        "id": "route_duration",
         "title": "Durée de route",
         "tip": "Temps passé dans les transitions de routes de page du mini-programme."
       },
       {
+        "id": "script_duration",
         "title": "Durée de script"
       },
       {
+        "id": "request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "request_percentile",
         "title": "Centile de durée de requête"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "Durée de lancement"
       },
       {
+        "id": "v_first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "v_package_load",
         "title": "Durée de chargement du paquet"
       },
       {
+        "id": "v_request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "v_route_duration",
         "title": "Durée de route"
       },
       {
+        "id": "v_script_duration",
         "title": "Durée de script"
       },
       {
+        "id": "v_request_percentile",
         "title": "Centile de durée de requête"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "Durée de lancement sur la page"
       },
       {
+        "id": "ep_first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "ep_request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "ep_request_percentile",
         "title": "Centile de durée de requête"
       }
     ]

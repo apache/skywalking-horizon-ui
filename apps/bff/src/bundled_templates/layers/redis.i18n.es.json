@@ -24,27 +24,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "Uptime (días)"
       },
       {
+        "id": "clients",
         "title": "Clientes conectados"
       },
       {
+        "id": "blocked",
         "title": "Clientes bloqueados"
       },
       {
+        "id": "mem_pct",
         "title": "Uso de memoria"
       },
       {
+        "id": "commands",
         "title": "Comandos totales / s"
       },
       {
+        "id": "hit_rate",
         "title": "Tasa de aciertos"
       },
       {
+        "id": "avg_cmd_time",
         "title": "Tiempo medio de comando / s"
       },
       {
+        "id": "net_io",
         "title": "I/O de red (KB)",
         "expressionLabels": [
           "entrada",
@@ -52,6 +60,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "Claves",
         "expressionLabels": [
           "total",
@@ -60,33 +69,42 @@
         ]
       },
       {
+        "id": "slow_cmds",
         "title": "Comandos lentos",
         "tip": "Top 10 comandos más lentos capturados. Capturados por el agente SkyWalking en el call-site."
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "Uptime (días)"
       },
       {
+        "id": "clients",
         "title": "Clientes conectados"
       },
       {
+        "id": "blocked",
         "title": "Clientes bloqueados"
       },
       {
+        "id": "max_mem",
         "title": "Memoria máx (MB)"
       },
       {
+        "id": "mem_pct",
         "title": "Uso de memoria (%)"
       },
       {
+        "id": "cmds",
         "title": "Comandos / s"
       },
       {
+        "id": "hit_rate",
         "title": "Tasa de aciertos"
       },
       {
+        "id": "net_io",
         "title": "I/O de red (KB)",
         "expressionLabels": [
           "entrada",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "Claves",
         "expressionLabels": [
           "total",
@@ -102,9 +121,11 @@
         ]
       },
       {
+        "id": "cmd_dur",
         "title": "Tiempo total de comandos (s)"
       },
       {
+        "id": "avg_cmd_time",
         "title": "Tiempo medio de comando"
       }
     ]

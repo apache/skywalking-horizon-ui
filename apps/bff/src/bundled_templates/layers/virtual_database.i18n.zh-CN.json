@@ -6,22 +6,43 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "访问 RPM" },
-      { "label": "延迟" },
-      { "label": "p95" },
-      { "label": "错误率" }
+      {
+        "label": "访问 RPM"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "错误率"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "访问流量", "tip": "针对虚拟数据库每分钟的查询次数。" },
-      { "title": "平均响应时间" },
-      { "title": "成功率", "tip": "未抛异常的查询占比。" },
       {
+        "id": "traffic_line",
+        "title": "访问流量",
+        "tip": "针对虚拟数据库每分钟的查询次数。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均响应时间"
+      },
+      {
+        "id": "sla_line",
+        "title": "成功率",
+        "tip": "未抛异常的查询占比。"
+      },
+      {
+        "id": "percentile_line",
         "title": "响应时间分位",
         "tip": "p50 / p75 / p90 / p95 / p99 延迟 — 访问时间分布的长尾。"
       },
       {
+        "id": "slow_statements",
         "title": "慢语句",
         "tip": "采集到的最慢的 20 条语句。每行是单条语句的一次执行 — 点击可复制，或点击行首的 Trace 图标跳转到原始 Trace（仅在该采样包含 Trace 时显示）。"
       }

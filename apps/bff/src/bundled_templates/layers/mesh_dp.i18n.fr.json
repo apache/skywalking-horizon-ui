@@ -7,30 +7,37 @@
   "dashboards": {
     "instance": [
       {
+        "id": "bug_failures_card",
         "title": "Échecs (bug)",
         "tip": "Compteur interne de bug-failures Envoy — une valeur non nulle indique qu'une assertion / debug check a été déclenchée (envoy_bug_failures)."
       },
       {
+        "id": "membership_healthy_card",
         "title": "Membres sains",
         "tip": "Endpoints sains sur l'ensemble des clusters (envoy_cluster_membership_healthy)."
       },
       {
+        "id": "worker_threads_card",
         "title": "Worker threads",
         "tip": "Worker threads concurrents actuellement utilisés (envoy_worker_threads)."
       },
       {
+        "id": "up_rq_active_card",
         "title": "Requêtes upstream actives",
         "tip": "Requêtes upstream actives totales sur les clusters de cet Envoy (envoy_cluster_up_rq_active)."
       },
       {
+        "id": "up_cx_active",
         "title": "Connexions upstream actives",
         "tip": "Connexions upstream actives (envoy_cluster_up_cx_active)."
       },
       {
+        "id": "up_rq_pending",
         "title": "Requêtes upstream en attente",
         "tip": "Requêtes en attente dans les files upstream (envoy_cluster_up_rq_pending_active)."
       },
       {
+        "id": "connections_used",
         "title": "Connexions utilisées",
         "tip": "Connexions totales + parent utilisées côté serveur (envoy_total_connections_used / envoy_parent_connections_used).",
         "expressionLabels": [
@@ -39,14 +46,17 @@
         ]
       },
       {
+        "id": "up_cx_incr",
         "title": "Augmentation des connexions upstream",
         "tip": "Nouvelles connexions upstream ouvertes par minute (envoy_cluster_up_cx_incr)."
       },
       {
+        "id": "up_rq_incr",
         "title": "Augmentation des requêtes upstream",
         "tip": "Nouvelles requêtes upstream par minute (envoy_cluster_up_rq_incr)."
       },
       {
+        "id": "worker_threads_trend",
         "title": "Worker threads (courant vs max)",
         "tip": "Worker threads concurrents utilisés vs max sur la fenêtre (envoy_worker_threads / envoy_worker_threads_max).",
         "expressionLabels": [
@@ -55,6 +65,7 @@
         ]
       },
       {
+        "id": "heap_memory",
         "title": "Mémoire serveur",
         "tip": "Mémoire heap / allouée / physique : courant + max sur la fenêtre (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size, associées à leurs variantes *_max).",
         "expressionLabels": [

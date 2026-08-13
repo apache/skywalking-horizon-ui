@@ -20,87 +20,61 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "App-Startdauer",
-        "tip": "Ungefähre Kaltstartdauer aus dem Alipay-Container.",
-        "expressions": [
-          null
-        ]
+        "tip": "Ungefähre Kaltstartdauer aus dem Alipay-Container."
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "first_render",
+        "title": "First-Render-Dauer"
       },
       {
-        "title": "Fehleranzahl",
-        "expressions": [
-          null
-        ]
+        "id": "error_count",
+        "title": "Fehleranzahl"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ],
     "instance": [
       {
-        "title": "Startdauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_launch",
+        "title": "Startdauer"
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_first_render",
+        "title": "First-Render-Dauer"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "v_request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "v_request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ],
     "endpoint": [
       {
-        "title": "Startdauer auf Seite",
-        "expressions": [
-          null
-        ]
+        "id": "ep_launch",
+        "title": "Startdauer auf Seite"
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "ep_first_render",
+        "title": "First-Render-Dauer"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "ep_request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "ep_request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ]
   },

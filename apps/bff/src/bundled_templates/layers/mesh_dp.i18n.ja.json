@@ -7,30 +7,37 @@
   "dashboards": {
     "instance": [
       {
+        "id": "bug_failures_card",
         "title": "Bug Failures",
         "tip": "Envoy 内部の Bug Failure カウンタ — 非ゼロはアサーション / デバッグチェック発動を示す (envoy_bug_failures)。"
       },
       {
+        "id": "membership_healthy_card",
         "title": "メンバーシップ正常",
         "tip": "全クラスタの正常エンドポイント (envoy_cluster_membership_healthy)。"
       },
       {
+        "id": "worker_threads_card",
         "title": "ワーカースレッド",
         "tip": "現在使用中の同時ワーカースレッド (envoy_worker_threads)。"
       },
       {
+        "id": "up_rq_active_card",
         "title": "アップストリームリクエストアクティブ",
         "tip": "この Envoy のクラスタ全体でのアクティブアップストリームリクエスト合計 (envoy_cluster_up_rq_active)。"
       },
       {
+        "id": "up_cx_active",
         "title": "アップストリーム接続アクティブ",
         "tip": "アクティブなアップストリーム接続 (envoy_cluster_up_cx_active)。"
       },
       {
+        "id": "up_rq_pending",
         "title": "アップストリームリクエスト保留",
         "tip": "アップストリームキューで保留中のリクエスト (envoy_cluster_up_rq_pending_active)。"
       },
       {
+        "id": "connections_used",
         "title": "使用中接続",
         "tip": "サーバー側の合計 + 親接続使用量 (envoy_total_connections_used / envoy_parent_connections_used)。",
         "expressionLabels": [
@@ -39,14 +46,17 @@
         ]
       },
       {
+        "id": "up_cx_incr",
         "title": "アップストリーム接続増分",
         "tip": "1分あたりに開かれた新規アップストリーム接続 (envoy_cluster_up_cx_incr)。"
       },
       {
+        "id": "up_rq_incr",
         "title": "アップストリームリクエスト増分",
         "tip": "1分あたりの新規アップストリームリクエスト (envoy_cluster_up_rq_incr)。"
       },
       {
+        "id": "worker_threads_trend",
         "title": "ワーカースレッド (現在 vs 最大)",
         "tip": "使用中の同時ワーカースレッド vs ウィンドウ最大 (envoy_worker_threads / envoy_worker_threads_max)。",
         "expressionLabels": [
@@ -55,6 +65,7 @@
         ]
       },
       {
+        "id": "heap_memory",
         "title": "サーバーメモリ",
         "tip": "ヒープ / アロケート / 物理メモリ：現在 + ウィンドウ最大 (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size、それぞれの *_max 版と組み合わせ)。",
         "expressionLabels": [

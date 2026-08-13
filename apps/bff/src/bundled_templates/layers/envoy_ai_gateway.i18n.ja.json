@@ -20,21 +20,27 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "リクエスト RPM"
       },
       {
+        "id": "latency_avg",
         "title": "リクエストレイテンシ平均"
       },
       {
+        "id": "input_tokens",
         "title": "入力トークンレート"
       },
       {
+        "id": "output_tokens",
         "title": "出力トークンレート"
       },
       {
+        "id": "latency_percentile",
         "title": "リクエストレイテンシパーセンタイル"
       },
       {
+        "id": "ttft",
         "title": "TTFT (Time to First Token)",
         "expressionLabels": [
           "平均",
@@ -42,6 +48,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT (Time Per Output Token)",
         "expressionLabels": [
           "平均",
@@ -49,63 +56,82 @@
         ]
       },
       {
+        "id": "provider_cpm",
         "title": "プロバイダ別 RPM"
       },
       {
+        "id": "provider_tokens",
         "title": "プロバイダ別トークン"
       },
       {
+        "id": "provider_latency",
         "title": "プロバイダ別平均レイテンシ"
       },
       {
+        "id": "model_cpm",
         "title": "モデル別 RPM"
       },
       {
+        "id": "model_tokens",
         "title": "モデル別トークン"
       },
       {
+        "id": "model_latency",
         "title": "モデル別平均レイテンシ"
       },
       {
+        "id": "model_ttft",
         "title": "モデル別 TTFT"
       },
       {
+        "id": "model_tpot",
         "title": "モデル別 TPOT"
       },
       {
+        "id": "mcp_cpm",
         "title": "MCP RPM",
         "tip": "Model Context Protocol — 使用時のみ。"
       },
       {
+        "id": "mcp_latency",
         "title": "MCP 平均レイテンシ"
       },
       {
+        "id": "mcp_err",
         "title": "MCP エラー RPM"
       },
       {
+        "id": "mcp_method",
         "title": "メソッド別 MCP"
       },
       {
+        "id": "mcp_backend",
         "title": "バックエンド別 MCP"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "リクエスト RPM"
       },
       {
+        "id": "latency_avg",
         "title": "リクエストレイテンシ平均"
       },
       {
+        "id": "input_tokens",
         "title": "入力トークンレート"
       },
       {
+        "id": "output_tokens",
         "title": "出力トークンレート"
       },
       {
+        "id": "latency_percentile",
         "title": "リクエストレイテンシパーセンタイル"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "平均",
@@ -113,6 +139,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT",
         "expressionLabels": [
           "平均",

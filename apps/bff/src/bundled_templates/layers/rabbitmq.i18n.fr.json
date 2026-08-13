@@ -20,12 +20,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "mem_available",
         "title": "Mémoire disponible avant blocage (Mo)"
       },
       {
+        "id": "disk_available",
         "title": "Disque disponible avant blocage (Go)"
       },
       {
+        "id": "fds",
         "title": "Descripteurs de fichiers + sockets",
         "expressionLabels": [
           "fds",
@@ -33,12 +36,15 @@
         ]
       },
       {
+        "id": "messages_ready",
         "title": "Messages prêts"
       },
       {
+        "id": "messages_pending",
         "title": "Ack en attente"
       },
       {
+        "id": "publish_pipeline",
         "title": "Pipeline de publication",
         "expressionLabels": [
           "publiés",
@@ -48,6 +54,7 @@
         ]
       },
       {
+        "id": "unroutable",
         "title": "Messages non routables",
         "expressionLabels": [
           "rejetés",
@@ -55,6 +62,7 @@
         ]
       },
       {
+        "id": "queue_totals",
         "title": "Files",
         "expressionLabels": [
           "total",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "channel_totals",
         "title": "Canaux",
         "expressionLabels": [
           "total",
@@ -72,6 +81,7 @@
         ]
       },
       {
+        "id": "conn_totals",
         "title": "Connexions",
         "expressionLabels": [
           "total",
@@ -82,39 +92,51 @@
     ],
     "instance": [
       {
+        "id": "ready_msgs",
         "title": "Messages prêts"
       },
       {
+        "id": "incoming",
         "title": "Messages entrants"
       },
       {
+        "id": "outgoing",
         "title": "Messages sortants"
       },
       {
+        "id": "unack",
         "title": "Messages non acquittés"
       },
       {
+        "id": "conns",
         "title": "Connexions"
       },
       {
+        "id": "publishers",
         "title": "Publishers"
       },
       {
+        "id": "consumers",
         "title": "Consumers"
       },
       {
+        "id": "channels",
         "title": "Canaux"
       },
       {
+        "id": "queues",
         "title": "Files"
       },
       {
+        "id": "memory_pct",
         "title": "Alloué utilisé %"
       },
       {
+        "id": "memory_bytes_total",
         "title": "Total alloué (Mo)"
       },
       {
+        "id": "memory_bytes",
         "title": "Mémoire (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -123,9 +145,11 @@
         ]
       },
       {
+        "id": "alloc_by_type",
         "title": "Alloué par type (Mo)"
       },
       {
+        "id": "blocks",
         "title": "Mémoire multi/single-block (Mo)",
         "expressionLabels": [
           "multi utilisé",

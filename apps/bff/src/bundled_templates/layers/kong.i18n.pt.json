@@ -25,30 +25,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendência de requisições HTTP"
       },
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda HTTP"
       },
       {
+        "id": "kong_latency",
         "title": "Latência do Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latência da requisição"
       },
       {
+        "id": "upstream_latency",
         "title": "Latência upstream"
       },
       {
+        "id": "conns",
         "title": "Conexões do Nginx"
       },
       {
+        "id": "timers",
         "title": "Timers do Nginx"
       },
       {
+        "id": "datastore",
         "title": "Datastore acessível",
         "tableHeaders": [
           "Instância",
@@ -56,58 +65,75 @@
         ]
       },
       {
+        "id": "nginx_errors",
         "title": "Erros de métricas do Nginx"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendência de requisições HTTP"
       },
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda HTTP"
       },
       {
+        "id": "kong_latency",
         "title": "Latência do Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latência da requisição"
       },
       {
+        "id": "upstream_latency",
         "title": "Latência upstream"
       },
       {
+        "id": "datastore",
         "title": "Datastore acessível"
       },
       {
+        "id": "conns",
         "title": "Conexões do Nginx"
       },
       {
+        "id": "timers",
         "title": "Timers do Nginx"
       },
       {
+        "id": "shared_mem",
         "title": "Uso de memória compartilhada"
       },
       {
+        "id": "lua_vm",
         "title": "Uso da VM Lua do worker"
       }
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda total"
       },
       {
+        "id": "kong_latency",
         "title": "Latência do Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latência da requisição"
       },
       {
+        "id": "upstream_latency",
         "title": "Latência upstream"
       }
     ]

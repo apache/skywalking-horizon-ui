@@ -4,41 +4,28 @@
   "dashboards": {
     "service": [
       {
-        "title": "Verbindungsanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "Verbindungsanzahl"
       },
       {
-        "title": "CPU (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU (%)"
       },
       {
-        "title": "Queue genutzt",
-        "expressions": [
-          null
-        ]
+        "id": "queue_used",
+        "title": "Queue genutzt"
       },
       {
-        "title": "Empfangsereignisse",
-        "expressions": [
-          null
-        ]
+        "id": "receive",
+        "title": "Empfangsereignisse"
       },
       {
-        "title": "Fetch-Ereignisse",
-        "expressions": [
-          null
-        ]
+        "id": "fetch",
+        "title": "Fetch-Ereignisse"
       },
       {
+        "id": "queue_io",
         "title": "Queue Input / Output",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "input",
           "output"

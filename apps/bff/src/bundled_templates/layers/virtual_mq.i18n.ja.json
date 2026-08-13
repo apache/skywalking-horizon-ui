@@ -20,43 +20,55 @@
   "dashboards": {
     "service": [
       {
+        "id": "consume_cpm_line",
         "title": "コンシュームトラフィック"
       },
       {
+        "id": "produce_cpm_line",
         "title": "プロデューストラフィック"
       },
       {
+        "id": "consume_latency_line",
         "title": "コンシューム平均レイテンシ",
         "tip": "メッセージの生産から消費までの平均時間。"
       },
       {
+        "id": "consume_sla_line",
         "title": "コンシューム成功率"
       },
       {
+        "id": "produce_sla_line",
         "title": "プロデュース成功率"
       },
       {
+        "id": "consume_percentile",
         "title": "コンシュームレイテンシパーセンタイル",
         "tip": "コンシュームレイテンシの p50 / p75 / p90 / p95 / p99。"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_consume_cpm",
         "title": "Topic コンシュームトラフィック"
       },
       {
+        "id": "ep_produce_cpm",
         "title": "Topic プロデューストラフィック"
       },
       {
+        "id": "ep_consume_latency",
         "title": "Topic コンシューム平均レイテンシ"
       },
       {
+        "id": "ep_consume_sla",
         "title": "Topic コンシューム成功率"
       },
       {
+        "id": "ep_produce_sla",
         "title": "Topic プロデュース成功率"
       },
       {
+        "id": "ep_consume_percentile",
         "title": "Topic コンシュームレイテンシパーセンタイル"
       }
     ]

@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "files_open",
         "title": "Fichiers ouverts"
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -30,6 +32,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "Requêtes",
         "expressionLabels": [
           "total",
@@ -38,6 +41,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "Temps de requête (ms)",
         "expressionLabels": [
           "moy",
@@ -46,6 +50,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Connexions",
         "expressionLabels": [
           "TCP",
@@ -53,9 +58,11 @@
         ]
       },
       {
+        "id": "slow",
         "title": "Lectures lentes"
       },
       {
+        "id": "merge_mut",
         "title": "Merge / Mutations",
         "expressionLabels": [
           "merge",
@@ -63,6 +70,7 @@
         ]
       },
       {
+        "id": "insert_io",
         "title": "Débit d'insertion",
         "expressionLabels": [
           "octets/s",
@@ -70,12 +78,15 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "Insertions retardées (s)"
       },
       {
+        "id": "parts_active",
         "title": "Data parts actives"
       },
       {
+        "id": "replicated",
         "title": "Fetch / send de réplication",
         "expressionLabels": [
           "fetch",
@@ -83,6 +94,7 @@
         ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper Bytes (b/s)",
         "expressionLabels": [
           "octets envoyés",
@@ -90,29 +102,37 @@
         ]
       },
       {
+        "id": "zk_sessions",
         "title": "Sessions Zookeeper"
       },
       {
+        "id": "zk_watches",
         "title": "Zookeeper Watches"
       },
       {
+        "id": "keeper_alive",
         "title": "Connexions Keeper actives"
       },
       {
+        "id": "keeper_outstanding",
         "title": "Requêtes Keeper en attente"
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "Disponibilité (jours)"
       },
       {
+        "id": "version",
         "title": "Version"
       },
       {
+        "id": "cpu",
         "title": "CPU (cœurs)"
       },
       {
+        "id": "mem",
         "title": "Mémoire (%)",
         "expressionLabels": [
           "utilisé",
@@ -120,6 +140,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "Réseau (o)",
         "expressionLabels": [
           "réception",
@@ -127,6 +148,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Connexions",
         "expressionLabels": [
           "TCP",
@@ -134,6 +156,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "Requêtes",
         "expressionLabels": [
           "total",
@@ -142,6 +165,7 @@
         ]
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -149,6 +173,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "Temps de requête (ms)",
         "expressionLabels": [
           "moy",
@@ -157,18 +182,23 @@
         ]
       },
       {
+        "id": "slow",
         "title": "Lectures de fichiers lentes"
       },
       {
+        "id": "merge",
         "title": "Merge en arrière-plan"
       },
       {
+        "id": "mutations",
         "title": "Mutations"
       },
       {
+        "id": "files",
         "title": "Fichiers ouverts"
       },
       {
+        "id": "insert_io",
         "title": "Débit d'insertion",
         "expressionLabels": [
           "octets/s",
@@ -176,6 +206,7 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "Insertions retardées (s)"
       }
     ]

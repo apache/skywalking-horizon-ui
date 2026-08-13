@@ -20,33 +20,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "クラスタ稼働日数"
       },
       {
+        "id": "data_size",
         "title": "データサイズ (GB)"
       },
       {
+        "id": "coll_count",
         "title": "コレクション数"
       },
       {
+        "id": "obj_count",
         "title": "オブジェクト数"
       },
       {
+        "id": "doc_qps",
         "title": "ドキュメント QPS"
       },
       {
+        "id": "op_qps",
         "title": "操作 QPS"
       },
       {
+        "id": "conns",
         "title": "合計接続"
       },
       {
+        "id": "cursors",
         "title": "カーソル合計"
       },
       {
+        "id": "repl_lag",
         "title": "レプリケーションラグ (ms)"
       },
       {
+        "id": "db_data_size",
         "title": "DB データ合計 (GB)",
         "tableHeaders": [
           "データベース",
@@ -54,6 +64,7 @@
         ]
       },
       {
+        "id": "db_index_size",
         "title": "DB インデックス合計 (GB)",
         "tableHeaders": [
           "データベース",
@@ -63,12 +74,15 @@
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "稼働日数"
       },
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "rs_state",
         "title": "ReplSet 状態",
         "tableHeaders": [
           "ノード",
@@ -76,15 +90,19 @@
         ]
       },
       {
+        "id": "conns",
         "title": "接続"
       },
       {
+        "id": "cpu",
         "title": "CPU 使用率 (%)"
       },
       {
+        "id": "mem",
         "title": "メモリ使用率"
       },
       {
+        "id": "mem_free",
         "title": "空きメモリ (GB)",
         "expressionLabels": [
           "メモリ",
@@ -92,6 +110,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "ディスク (GB)",
         "expressionLabels": [
           "使用中",
@@ -99,6 +118,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "ネットワーク (KB/s)",
         "expressionLabels": [
           "入",
@@ -106,6 +126,7 @@
         ]
       },
       {
+        "id": "active_clients",
         "title": "アクティブクライアント",
         "expressionLabels": [
           "合計",
@@ -114,15 +135,19 @@
         ]
       },
       {
+        "id": "doc_qps",
         "title": "ドキュメント QPS"
       },
       {
+        "id": "op_qps",
         "title": "操作 QPS"
       },
       {
+        "id": "op_latency",
         "title": "操作レイテンシ (µs)"
       },
       {
+        "id": "transactions",
         "title": "トランザクション",
         "expressionLabels": [
           "アクティブ",
@@ -130,6 +155,7 @@
         ]
       },
       {
+        "id": "repl_buffer",
         "title": "レプリカバッファ",
         "expressionLabels": [
           "件数",
@@ -137,6 +163,7 @@
         ]
       },
       {
+        "id": "queued_op",
         "title": "キュー内操作"
       }
     ]

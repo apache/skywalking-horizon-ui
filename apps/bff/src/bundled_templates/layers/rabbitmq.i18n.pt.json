@@ -24,12 +24,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "mem_available",
         "title": "Memória disponível antes do bloqueio (MB)"
       },
       {
+        "id": "disk_available",
         "title": "Disco disponível antes do bloqueio (GB)"
       },
       {
+        "id": "fds",
         "title": "File descriptors + sockets",
         "expressionLabels": [
           "fds",
@@ -37,12 +40,15 @@
         ]
       },
       {
+        "id": "messages_ready",
         "title": "Mensagens prontas"
       },
       {
+        "id": "messages_pending",
         "title": "Aguardando ack"
       },
       {
+        "id": "publish_pipeline",
         "title": "Pipeline de publicação",
         "expressionLabels": [
           "publicadas",
@@ -52,6 +58,7 @@
         ]
       },
       {
+        "id": "unroutable",
         "title": "Mensagens sem rota",
         "expressionLabels": [
           "descartadas",
@@ -59,6 +66,7 @@
         ]
       },
       {
+        "id": "queue_totals",
         "title": "Filas",
         "expressionLabels": [
           "total",
@@ -68,6 +76,7 @@
         ]
       },
       {
+        "id": "channel_totals",
         "title": "Channels",
         "expressionLabels": [
           "total",
@@ -76,6 +85,7 @@
         ]
       },
       {
+        "id": "conn_totals",
         "title": "Conexões",
         "expressionLabels": [
           "total",
@@ -86,39 +96,51 @@
     ],
     "instance": [
       {
+        "id": "ready_msgs",
         "title": "Mensagens prontas"
       },
       {
+        "id": "incoming",
         "title": "Mensagens recebidas"
       },
       {
+        "id": "outgoing",
         "title": "Mensagens enviadas"
       },
       {
+        "id": "unack",
         "title": "Mensagens não reconhecidas"
       },
       {
+        "id": "conns",
         "title": "Conexões"
       },
       {
+        "id": "publishers",
         "title": "Publishers"
       },
       {
+        "id": "consumers",
         "title": "Consumidores"
       },
       {
+        "id": "channels",
         "title": "Channels"
       },
       {
+        "id": "queues",
         "title": "Filas"
       },
       {
+        "id": "memory_pct",
         "title": "% alocado em uso"
       },
       {
+        "id": "memory_bytes_total",
         "title": "Total alocado (MB)"
       },
       {
+        "id": "memory_bytes",
         "title": "Memória (MB)",
         "expressionLabels": [
           "em uso",
@@ -127,9 +149,11 @@
         ]
       },
       {
+        "id": "alloc_by_type",
         "title": "Alocado por tipo (MB)"
       },
       {
+        "id": "blocks",
         "title": "Memória multi/single-block (MB)",
         "expressionLabels": [
           "multi em uso",

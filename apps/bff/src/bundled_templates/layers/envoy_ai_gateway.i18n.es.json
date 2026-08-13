@@ -24,21 +24,27 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "RPM de peticiones"
       },
       {
+        "id": "latency_avg",
         "title": "Latencia media de petición"
       },
       {
+        "id": "input_tokens",
         "title": "Tasa de tokens de entrada"
       },
       {
+        "id": "output_tokens",
         "title": "Tasa de tokens de salida"
       },
       {
+        "id": "latency_percentile",
         "title": "Percentil de latencia de petición"
       },
       {
+        "id": "ttft",
         "title": "TTFT (Time to First Token)",
         "expressionLabels": [
           "media",
@@ -46,6 +52,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT (Time Per Output Token)",
         "expressionLabels": [
           "media",
@@ -53,63 +60,82 @@
         ]
       },
       {
+        "id": "provider_cpm",
         "title": "RPM por proveedor"
       },
       {
+        "id": "provider_tokens",
         "title": "Tokens por proveedor"
       },
       {
+        "id": "provider_latency",
         "title": "Latencia media por proveedor"
       },
       {
+        "id": "model_cpm",
         "title": "RPM por modelo"
       },
       {
+        "id": "model_tokens",
         "title": "Tokens por modelo"
       },
       {
+        "id": "model_latency",
         "title": "Latencia media por modelo"
       },
       {
+        "id": "model_ttft",
         "title": "TTFT por modelo"
       },
       {
+        "id": "model_tpot",
         "title": "TPOT por modelo"
       },
       {
+        "id": "mcp_cpm",
         "title": "RPM de MCP",
         "tip": "Model Context Protocol — cuando se usa."
       },
       {
+        "id": "mcp_latency",
         "title": "Latencia media de MCP"
       },
       {
+        "id": "mcp_err",
         "title": "RPM de errores de MCP"
       },
       {
+        "id": "mcp_method",
         "title": "MCP por método"
       },
       {
+        "id": "mcp_backend",
         "title": "MCP por backend"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "RPM de peticiones"
       },
       {
+        "id": "latency_avg",
         "title": "Latencia media de petición"
       },
       {
+        "id": "input_tokens",
         "title": "Tasa de tokens de entrada"
       },
       {
+        "id": "output_tokens",
         "title": "Tasa de tokens de salida"
       },
       {
+        "id": "latency_percentile",
         "title": "Percentil de latencia de petición"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "media",
@@ -117,6 +143,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT",
         "expressionLabels": [
           "media",

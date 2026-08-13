@@ -17,140 +17,96 @@
   "dashboards": {
     "service": [
       {
-        "title": "HTTP-Request-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "rps",
+        "title": "HTTP-Request-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       },
       {
-        "title": "HTTP-Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "HTTP-Verbindungen"
       },
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "4xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx % / min"
       },
       {
-        "title": "5xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx % / min"
       },
       {
-        "title": "Fehlerprotokoll-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "errlog",
+        "title": "Fehlerprotokoll-Anzahl"
       }
     ],
     "instance": [
       {
-        "title": "HTTP-Request-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "rps",
+        "title": "HTTP-Request-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       },
       {
-        "title": "HTTP-Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "HTTP-Verbindungen"
       },
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "4xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx % / min"
       },
       {
-        "title": "5xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx % / min"
       },
       {
-        "title": "Fehlerprotokoll-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "errlog",
+        "title": "Fehlerprotokoll-Anzahl"
       }
     ],
     "endpoint": [
       {
-        "title": "HTTP-Request-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "rps",
+        "title": "HTTP-Request-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       },
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "4xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx % / min"
       },
       {
-        "title": "5xx % / min",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx % / min"
       }
     ]
   },

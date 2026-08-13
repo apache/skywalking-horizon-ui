@@ -23,86 +23,60 @@
   "dashboards": {
     "service": [
       {
-        "title": "Service-Pods",
-        "expressions": [
-          null
-        ]
+        "id": "pod_total",
+        "title": "Service-Pods"
       },
       {
+        "id": "pod_waiting",
         "title": "Wartende Pods",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Container · Pod · Grund"
         ]
       },
       {
+        "id": "pod_restarts",
         "title": "Pod-Neustarts",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Pod",
           "Neustarts"
         ]
       },
       {
+        "id": "cpu_resources",
         "title": "CPU-Ressourcen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anfragen",
           "limits"
         ]
       },
       {
+        "id": "memory_resources",
         "title": "Speicherressourcen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anfragen",
           "limits"
         ]
       },
       {
-        "title": "Pod-CPU-Nutzung",
-        "expressions": [
-          null
-        ]
+        "id": "pod_cpu_usage",
+        "title": "Pod-CPU-Nutzung"
       },
       {
-        "title": "Pod-Speichernutzung",
-        "expressions": [
-          null
-        ]
+        "id": "pod_memory_usage",
+        "title": "Pod-Speichernutzung"
       },
       {
-        "title": "HTTP-Request-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "http_call_cpm",
+        "title": "HTTP-Request-RPM"
       },
       {
-        "title": "HTTP-Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "http_call_time",
+        "title": "HTTP-Antwortzeit"
       },
       {
+        "id": "http_status",
         "title": "HTTP-Statuscode RPM",
         "tip": "Statuscode-Anzahl pro Klasse (1xx / 2xx / 3xx / 4xx / 5xx).",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "2xx",
@@ -112,13 +86,8 @@
         ]
       },
       {
+        "id": "http_req_resp_size",
         "title": "HTTP-Anfrage- / Antwortgröße",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "req hdr",
           "req body",
@@ -127,37 +96,26 @@
         ]
       },
       {
+        "id": "tcp_connect",
         "title": "TCP-Connect",
         "tip": "Clientseitige Verbindungsversuche und Erfolge pro Minute.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "connect",
           "erfolg"
         ]
       },
       {
-        "title": "TCP-Connect-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "tcp_connect_time",
+        "title": "TCP-Connect-Dauer"
       },
       {
-        "title": "TCP-Accept",
-        "expressions": [
-          null
-        ]
+        "id": "tcp_accept",
+        "title": "TCP-Accept"
       },
       {
+        "id": "tcp_packets",
         "title": "TCP-Pakete",
         "tip": "Anzahl gelesener und geschriebener Pakete pro Minute, inkl. Retransmits.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben",
@@ -165,11 +123,8 @@
         ]
       },
       {
+        "id": "tcp_bytes",
         "title": "TCP-Bytes",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
@@ -178,26 +133,16 @@
     ],
     "instance": [
       {
-        "title": "Pod HTTP-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "pod_http_cpm",
+        "title": "Pod HTTP-RPM"
       },
       {
-        "title": "Pod HTTP-Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "pod_http_time",
+        "title": "Pod HTTP-Antwortzeit"
       },
       {
+        "id": "pod_http_status",
         "title": "Pod HTTP-Statuscode-RPM",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "2xx",
@@ -207,13 +152,8 @@
         ]
       },
       {
+        "id": "pod_http_sizes",
         "title": "Pod HTTP-Größen",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "req hdr",
           "req body",
@@ -222,23 +162,16 @@
         ]
       },
       {
+        "id": "pod_tcp_connect",
         "title": "Pod TCP-Connect",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "connect",
           "erfolg"
         ]
       },
       {
+        "id": "pod_tcp_packets",
         "title": "Pod TCP-Pakete",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben",
@@ -246,11 +179,8 @@
         ]
       },
       {
+        "id": "pod_tcp_bytes",
         "title": "Pod TCP-Bytes",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
@@ -259,26 +189,16 @@
     ],
     "endpoint": [
       {
-        "title": "Endpoint HTTP-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "ep_http_cpm",
+        "title": "Endpoint HTTP-RPM"
       },
       {
-        "title": "Endpoint HTTP-Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "ep_http_time",
+        "title": "Endpoint HTTP-Antwortzeit"
       },
       {
+        "id": "ep_http_status",
         "title": "Endpoint-Statuscode-RPM",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "2xx",
@@ -288,22 +208,16 @@
         ]
       },
       {
+        "id": "ep_http_req_sizes",
         "title": "Endpoint-Anfragegrößen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "header",
           "body"
         ]
       },
       {
+        "id": "ep_http_resp_sizes",
         "title": "Endpoint-Antwortgrößen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "header",
           "body"
@@ -314,44 +228,72 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "httpCpm",
         "label": "RPM"
       },
       {
+        "id": "httpSuccess",
         "label": "Erfolgsrate"
       },
       {
+        "id": "httpRespTime",
         "label": "Latenz"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Mittlere Antwortzeit"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Mittlere Antwortzeit"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "Erfolgsrate" },
-        { "label": "Latenz" }
+        {
+          "id": "httpCpm",
+          "label": "RPM"
+        },
+        {
+          "id": "httpSuccess",
+          "label": "Erfolgsrate"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "Latenz"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "Mittlere Antwortzeit" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Mittlere Antwortzeit"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "Mittlere Antwortzeit" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Mittlere Antwortzeit"
+        }
       ]
     }
   },

@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "today_produced",
         "title": "本日の生産数"
       },
       {
+        "id": "today_consumed",
         "title": "本日の消費数"
       },
       {
+        "id": "yesterday_produced",
         "title": "昨日の生産数"
       },
       {
+        "id": "yesterday_consumed",
         "title": "昨日の消費数"
       },
       {
+        "id": "tps",
         "title": "プロデューサー / コンシューマー TPS",
         "expressionLabels": [
           "プロデューサー",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "プロデューサー / コンシューマーメッセージサイズ (MB)",
         "expressionLabels": [
           "生産",
@@ -46,21 +52,27 @@
         ]
       },
       {
+        "id": "consumer_lag",
         "title": "最大コンシューマーレイテンシ"
       },
       {
+        "id": "commitlog_ratio_total",
         "title": "最大 CommitLog ディスク比率 (%)"
       },
       {
+        "id": "topic_count",
         "title": "Topic"
       },
       {
+        "id": "broker_count",
         "title": "Broker"
       },
       {
+        "id": "commitlog_ratio",
         "title": "CommitLog ディスク比率 (%)"
       },
       {
+        "id": "queue_wait",
         "title": "ThreadPool キュー先頭待ち (ms)",
         "expressionLabels": [
           "プル",
@@ -70,32 +82,41 @@
     ],
     "instance": [
       {
+        "id": "produce_tps",
         "title": "プロデュース TPS"
       },
       {
+        "id": "consume_qps",
         "title": "コンシューム QPS"
       },
       {
+        "id": "producer_size",
         "title": "プロデューサーメッセージサイズ (MB)"
       },
       {
+        "id": "consumer_size",
         "title": "コンシューマーメッセージサイズ (MB)"
       }
     ],
     "endpoint": [
       {
+        "id": "max_msg_producer_total",
         "title": "最大プロデューサーメッセージサイズ (MB)"
       },
       {
+        "id": "max_msg_consumer_total",
         "title": "最大コンシューマーメッセージサイズ (MB)"
       },
       {
+        "id": "consumer_groups",
         "title": "コンシューマーグループ数"
       },
       {
+        "id": "brokers",
         "title": "Broker 数"
       },
       {
+        "id": "tps",
         "title": "プロデューサー / コンシューマーグループ TPS",
         "expressionLabels": [
           "プロデューサー",
@@ -103,6 +124,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "メッセージサイズ (MB)",
         "expressionLabels": [
           "生産",
@@ -110,6 +132,7 @@
         ]
       },
       {
+        "id": "offsets",
         "title": "プロデューサー / コンシューマーオフセット",
         "expressionLabels": [
           "プロデューサー",
@@ -117,10 +140,12 @@
         ]
       },
       {
+        "id": "backlog",
         "title": "バックログメッセージ",
         "tip": "プロデューサーオフセット − コンシューマーグループオフセット — Topic のラグ。"
       },
       {
+        "id": "consumer_latency",
         "title": "コンシューマーレイテンシ (s)"
       }
     ]

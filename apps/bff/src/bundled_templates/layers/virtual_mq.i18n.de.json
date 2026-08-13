@@ -20,80 +20,56 @@
   "dashboards": {
     "service": [
       {
-        "title": "Konsum-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "consume_cpm_line",
+        "title": "Konsum-Traffic"
       },
       {
-        "title": "Erzeugungs-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "produce_cpm_line",
+        "title": "Erzeugungs-Traffic"
       },
       {
+        "id": "consume_latency_line",
         "title": "Konsum mittlere Latenz",
-        "tip": "Durchschnittliche Zeit zwischen Nachrichtenerzeugung und -konsum.",
-        "expressions": [
-          null
-        ]
+        "tip": "Durchschnittliche Zeit zwischen Nachrichtenerzeugung und -konsum."
       },
       {
-        "title": "Konsum-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "consume_sla_line",
+        "title": "Konsum-Erfolgsrate"
       },
       {
-        "title": "Erzeugungs-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "produce_sla_line",
+        "title": "Erzeugungs-Erfolgsrate"
       },
       {
+        "id": "consume_percentile",
         "title": "Konsum-Latenz-Perzentil",
-        "tip": "p50 / p75 / p90 / p95 / p99 der Verbrauchs-Latenz.",
-        "expressions": [
-          null
-        ]
+        "tip": "p50 / p75 / p90 / p95 / p99 der Verbrauchs-Latenz."
       }
     ],
     "endpoint": [
       {
-        "title": "Topic-Konsum-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "ep_consume_cpm",
+        "title": "Topic-Konsum-Traffic"
       },
       {
-        "title": "Topic-Erzeugungs-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "ep_produce_cpm",
+        "title": "Topic-Erzeugungs-Traffic"
       },
       {
-        "title": "Topic-Konsum mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "ep_consume_latency",
+        "title": "Topic-Konsum mittlere Latenz"
       },
       {
-        "title": "Topic-Konsum-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "ep_consume_sla",
+        "title": "Topic-Konsum-Erfolgsrate"
       },
       {
-        "title": "Topic-Erzeugungs-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "ep_produce_sla",
+        "title": "Topic-Erzeugungs-Erfolgsrate"
       },
       {
-        "title": "Topic-Konsum-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "ep_consume_percentile",
+        "title": "Topic-Konsum-Latenz-Perzentil"
       }
     ]
   },

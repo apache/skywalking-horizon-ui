@@ -20,29 +20,20 @@
   "dashboards": {
     "service": [
       {
-        "title": "Geöffnete Dateien",
-        "expressions": [
-          null
-        ]
+        "id": "files_open",
+        "title": "Geöffnete Dateien"
       },
       {
+        "id": "qps",
         "title": "QPS",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "select",
           "insert"
         ]
       },
       {
+        "id": "queries",
         "title": "Queries",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "select",
@@ -50,12 +41,8 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "Query-Zeit (ms)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "select",
@@ -63,166 +50,114 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Verbindungen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "TCP",
           "HTTP"
         ]
       },
       {
-        "title": "Langsame Lesevorgänge",
-        "expressions": [
-          null
-        ]
+        "id": "slow",
+        "title": "Langsame Lesevorgänge"
       },
       {
+        "id": "merge_mut",
         "title": "Merge / Mutationen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "merge",
           "mutationen"
         ]
       },
       {
+        "id": "insert_io",
         "title": "Insert-Durchsatz",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes/s",
           "zeilen/s"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
-        "title": "Verzögerte Inserts (s)",
-        "expressions": [
-          null
-        ]
+        "id": "delayed",
+        "title": "Verzögerte Inserts (s)"
       },
       {
-        "title": "Aktive Datenparts",
-        "expressions": [
-          null
-        ]
+        "id": "parts_active",
+        "title": "Aktive Datenparts"
       },
       {
+        "id": "replicated",
         "title": "Replizierter Fetch / Send",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "fetch",
           "senden"
         ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper Bytes (b/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes ges.",
           "bytes empf."
         ]
       },
       {
-        "title": "Zookeeper-Sessions",
-        "expressions": [
-          null
-        ]
+        "id": "zk_sessions",
+        "title": "Zookeeper-Sessions"
       },
       {
-        "title": "Zookeeper Watches",
-        "expressions": [
-          null
-        ]
+        "id": "zk_watches",
+        "title": "Zookeeper Watches"
       },
       {
-        "title": "Keeper Alive Conns",
-        "expressions": [
-          null
-        ]
+        "id": "keeper_alive",
+        "title": "Keeper Alive Conns"
       },
       {
-        "title": "Keeper ausstehende Anfragen",
-        "expressions": [
-          null
-        ]
+        "id": "keeper_outstanding",
+        "title": "Keeper ausstehende Anfragen"
       }
     ],
     "instance": [
       {
-        "title": "Uptime (Tage)",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Uptime (Tage)"
       },
       {
-        "title": "Version",
-        "expressions": [
-          null
-        ]
+        "id": "version",
+        "title": "Version"
       },
       {
-        "title": "CPU (Cores)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU (Cores)"
       },
       {
+        "id": "mem",
         "title": "Speicher (%)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "network",
         "title": "Netzwerk (B)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "senden"
         ]
       },
       {
+        "id": "conns",
         "title": "Verbindungen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "TCP",
           "HTTP"
         ]
       },
       {
+        "id": "queries",
         "title": "Queries",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "select",
@@ -230,23 +165,16 @@
         ]
       },
       {
+        "id": "qps",
         "title": "QPS",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "select",
           "insert"
         ]
       },
       {
+        "id": "query_time",
         "title": "Query-Zeit (ms)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "select",
@@ -254,49 +182,32 @@
         ]
       },
       {
-        "title": "Datei Slow Read",
-        "expressions": [
-          null
-        ]
+        "id": "slow",
+        "title": "Datei Slow Read"
       },
       {
-        "title": "Hintergrund-Merge",
-        "expressions": [
-          null
-        ]
+        "id": "merge",
+        "title": "Hintergrund-Merge"
       },
       {
-        "title": "Mutationen",
-        "expressions": [
-          null
-        ]
+        "id": "mutations",
+        "title": "Mutationen"
       },
       {
-        "title": "Geöffnete Dateien",
-        "expressions": [
-          null
-        ]
+        "id": "files",
+        "title": "Geöffnete Dateien"
       },
       {
+        "id": "insert_io",
         "title": "Insert-Durchsatz",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes/s",
           "zeilen/s"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
-        "title": "Verzögerte Inserts (s)",
-        "expressions": [
-          null
-        ]
+        "id": "delayed",
+        "title": "Verzögerte Inserts (s)"
       }
     ]
   },

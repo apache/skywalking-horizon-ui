@@ -20,62 +20,41 @@
   "dashboards": {
     "service": [
       {
-        "title": "Knoten gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "node_total",
+        "title": "Knoten gesamt"
       },
       {
-        "title": "Namespace gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "namespace_total",
+        "title": "Namespace gesamt"
       },
       {
-        "title": "Deployments gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "deployment_total",
+        "title": "Deployments gesamt"
       },
       {
-        "title": "StatefulSet gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "statefulset_total",
+        "title": "StatefulSet gesamt"
       },
       {
-        "title": "DaemonSet gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "daemonset_total",
+        "title": "DaemonSet gesamt"
       },
       {
-        "title": "Services gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "service_total",
+        "title": "Services gesamt"
       },
       {
-        "title": "Pods gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "pod_total",
+        "title": "Pods gesamt"
       },
       {
-        "title": "Container gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "container_total",
+        "title": "Container gesamt"
       },
       {
+        "id": "cpu_res",
         "title": "CPU-Ressourcen",
         "tip": "Cluster-CPU-Kapazität vs. Requests / Limits / Allocatable (Millicores).",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "Kapazität",
           "Anfragen",
@@ -84,14 +63,9 @@
         ]
       },
       {
+        "id": "mem_res",
         "title": "Speicherressourcen",
         "tip": "Cluster-Speicher Requests / Allocatable / Limits / Gesamt.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "Anfragen",
           "Allocatable",
@@ -100,74 +74,59 @@
         ]
       },
       {
+        "id": "storage_res",
         "title": "Storage-Ressourcen",
         "tip": "Cluster Ephemeral-Storage gesamt vs. Allocatable.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "Gesamt",
           "Allocatable"
         ]
       },
       {
+        "id": "node_status",
         "title": "Knotenstatus",
         "tip": "Kubernetes-Conditions pro Knoten, die aktuell true/unknown sind (Ready, *Pressure, …).",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Knoten · Zustand"
         ]
       },
       {
+        "id": "deployment_status",
         "title": "Deployment-Status",
         "tip": "Deployments, die die Available-Condition melden.",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Deployment · Verfügbar"
         ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Deployment Spec-Replicas",
         "tip": "Gewünschte Replica-Anzahl pro Deployment.",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Deployment",
           "Repliken"
         ]
       },
       {
+        "id": "service_pod_status",
         "title": "Servicestatus",
         "tip": "Pods hinter jedem K8s-Service, nach Phase (Running / Pending / Failed / …).",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Service · Phase"
         ]
       },
       {
+        "id": "pod_not_running",
         "title": "Pod-Status nicht laufend",
         "tip": "Pods in einer nicht-Running-Phase.",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Pod · Status"
         ]
       },
       {
+        "id": "pod_waiting",
         "title": "Pod-Status wartend",
         "tip": "Container im Wartezustand, nach Grund.",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Container · Pod · Grund"
         ]
@@ -175,39 +134,26 @@
     ],
     "instance": [
       {
-        "title": "Knotenstatus",
-        "expressions": [
-          null
-        ]
+        "id": "node_status",
+        "title": "Knotenstatus"
       },
       {
-        "title": "Pods auf Knoten",
-        "expressions": [
-          null
-        ]
+        "id": "node_pod_total",
+        "title": "Pods auf Knoten"
       },
       {
+        "id": "node_cpu_usage",
         "title": "Knoten-CPU-Nutzung",
-        "tip": "CPU-Nutzung in Millicores.",
-        "expressions": [
-          null
-        ]
+        "tip": "CPU-Nutzung in Millicores."
       },
       {
+        "id": "node_pod_count",
         "title": "Pods gesamt",
-        "tip": "Aktuell auf diesem Knoten eingeplante Pods (alle Phasen).",
-        "expressions": [
-          null
-        ]
+        "tip": "Aktuell auf diesem Knoten eingeplante Pods (alle Phasen)."
       },
       {
+        "id": "node_cpu_resources",
         "title": "Knoten-CPU-Ressourcen",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "allocatable",
@@ -216,19 +162,12 @@
         ]
       },
       {
-        "title": "Knoten-Speichernutzung",
-        "expressions": [
-          null
-        ]
+        "id": "node_memory_usage",
+        "title": "Knoten-Speichernutzung"
       },
       {
+        "id": "node_memory_resources",
         "title": "Knoten-Speicherressourcen",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "allocatable",
@@ -237,22 +176,16 @@
         ]
       },
       {
+        "id": "node_network_io",
         "title": "Knoten-Netzwerk-I/O",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "transmit"
         ]
       },
       {
+        "id": "node_storage_resources",
         "title": "Knoten-Storage-Ressourcen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "allocatable"

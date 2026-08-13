@@ -20,12 +20,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "mem_available",
         "title": "ブロック前のメモリ利用可能量 (MB)"
       },
       {
+        "id": "disk_available",
         "title": "ブロック前のディスク利用可能量 (GB)"
       },
       {
+        "id": "fds",
         "title": "ファイルディスクリプタ + ソケット",
         "expressionLabels": [
           "FD",
@@ -33,12 +36,15 @@
         ]
       },
       {
+        "id": "messages_ready",
         "title": "Ready メッセージ"
       },
       {
+        "id": "messages_pending",
         "title": "Ack 待ち"
       },
       {
+        "id": "publish_pipeline",
         "title": "発行パイプライン",
         "expressionLabels": [
           "発行",
@@ -48,6 +54,7 @@
         ]
       },
       {
+        "id": "unroutable",
         "title": "ルーティング不可メッセージ",
         "expressionLabels": [
           "破棄",
@@ -55,6 +62,7 @@
         ]
       },
       {
+        "id": "queue_totals",
         "title": "キュー",
         "expressionLabels": [
           "合計",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "channel_totals",
         "title": "Channel",
         "expressionLabels": [
           "合計",
@@ -72,6 +81,7 @@
         ]
       },
       {
+        "id": "conn_totals",
         "title": "接続",
         "expressionLabels": [
           "合計",
@@ -82,39 +92,51 @@
     ],
     "instance": [
       {
+        "id": "ready_msgs",
         "title": "Ready メッセージ"
       },
       {
+        "id": "incoming",
         "title": "受信メッセージ"
       },
       {
+        "id": "outgoing",
         "title": "送信メッセージ"
       },
       {
+        "id": "unack",
         "title": "未確認メッセージ"
       },
       {
+        "id": "conns",
         "title": "接続"
       },
       {
+        "id": "publishers",
         "title": "パブリッシャー"
       },
       {
+        "id": "consumers",
         "title": "コンシューマー"
       },
       {
+        "id": "channels",
         "title": "Channel"
       },
       {
+        "id": "queues",
         "title": "キュー"
       },
       {
+        "id": "memory_pct",
         "title": "アロケート使用率 %"
       },
       {
+        "id": "memory_bytes_total",
         "title": "アロケート合計 (MB)"
       },
       {
+        "id": "memory_bytes",
         "title": "メモリ (MB)",
         "expressionLabels": [
           "使用中",
@@ -123,9 +145,11 @@
         ]
       },
       {
+        "id": "alloc_by_type",
         "title": "タイプ別アロケート (MB)"
       },
       {
+        "id": "blocks",
         "title": "Multi/Single-block メモリ (MB)",
         "expressionLabels": [
           "multi 使用中",

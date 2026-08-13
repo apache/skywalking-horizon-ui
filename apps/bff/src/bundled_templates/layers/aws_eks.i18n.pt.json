@@ -25,18 +25,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_count",
         "title": "Quantidade de nós"
       },
       {
+        "id": "failed_nodes",
         "title": "Nós com falha"
       },
       {
+        "id": "namespace_count",
         "title": "Quantidade de namespaces"
       },
       {
+        "id": "service_count",
         "title": "Quantidade de serviços EKS"
       },
       {
+        "id": "network_errors",
         "title": "Erros de rede do cluster",
         "expressionLabels": [
           "rx",
@@ -44,6 +49,7 @@
         ]
       },
       {
+        "id": "network_dropped",
         "title": "Pacotes descartados na rede do cluster",
         "expressionLabels": [
           "rx",
@@ -53,38 +59,49 @@
     ],
     "endpoint": [
       {
+        "id": "pod_cpu",
         "title": "Utilização de CPU do Pod (%)"
       },
       {
+        "id": "pod_mem",
         "title": "Utilização de memória do Pod (%)"
       },
       {
+        "id": "pod_net_rx",
         "title": "Rede RX do Pod (KB/s)"
       },
       {
+        "id": "pod_net_rx_err",
         "title": "Erros RX do Pod / s"
       },
       {
+        "id": "pod_net_tx",
         "title": "Rede TX do Pod (KB/s)"
       },
       {
+        "id": "pod_net_tx_err",
         "title": "Erros TX do Pod / s"
       }
     ],
     "instance": [
       {
+        "id": "pods",
         "title": "Quantidade de Pods"
       },
       {
+        "id": "node_cpu",
         "title": "Utilização de CPU (%)"
       },
       {
+        "id": "node_mem",
         "title": "Utilização de memória (%)"
       },
       {
+        "id": "node_fs",
         "title": "Utilização do FS (%)"
       },
       {
+        "id": "node_net_rx",
         "title": "Rede RX (KB/s)",
         "expressionLabels": [
           "bytes",
@@ -92,6 +109,7 @@
         ]
       },
       {
+        "id": "node_net_tx",
         "title": "Rede TX (KB/s)",
         "expressionLabels": [
           "bytes",
@@ -99,6 +117,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "IO de disco (B/s)",
         "expressionLabels": [
           "leitura",
@@ -106,9 +125,11 @@
         ]
       },
       {
+        "id": "pod_cpu",
         "title": "CPU do Pod no nó"
       },
       {
+        "id": "pod_mem",
         "title": "Memória do Pod no nó"
       }
     ]

@@ -20,108 +20,74 @@
   "dashboards": {
     "service": [
       {
+        "id": "health",
         "title": "Cluster-Status",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Status",
           "Wert"
         ]
       },
       {
-        "title": "Knoten",
-        "expressions": [
-          null
-        ]
+        "id": "nodes",
+        "title": "Knoten"
       },
       {
-        "title": "Ausstehende Aufgaben",
-        "expressions": [
-          null
-        ]
+        "id": "pending_tasks",
+        "title": "Ausstehende Aufgaben"
       },
       {
-        "title": "Primary Shards",
-        "expressions": [
-          null
-        ]
+        "id": "primary_shards",
+        "title": "Primary Shards"
       },
       {
-        "title": "Aktive Shards",
-        "expressions": [
-          null
-        ]
+        "id": "shards_active",
+        "title": "Aktive Shards"
       },
       {
-        "title": "Initialisierend",
-        "expressions": [
-          null
-        ]
+        "id": "shards_initializing",
+        "title": "Initialisierend"
       },
       {
-        "title": "Relocating",
-        "expressions": [
-          null
-        ]
+        "id": "shards_relocating",
+        "title": "Relocating"
       },
       {
-        "title": "Nicht zugewiesen",
-        "expressions": [
-          null
-        ]
+        "id": "shards_unassigned",
+        "title": "Nicht zugewiesen"
       },
       {
-        "title": "Verzögert nicht zugewiesen",
-        "expressions": [
-          null
-        ]
+        "id": "shards_delayed",
+        "title": "Verzögert nicht zugewiesen"
       },
       {
-        "title": "Ausgelöste Breaker",
-        "expressions": [
-          null
-        ]
+        "id": "breakers",
+        "title": "Ausgelöste Breaker"
       },
       {
-        "title": "Cluster CPU-Mittel",
-        "expressions": [
-          null
-        ]
+        "id": "cluster_cpu",
+        "title": "Cluster CPU-Mittel"
       },
       {
-        "title": "JVM-Speicher mittlere Nutzung",
-        "expressions": [
-          null
-        ]
+        "id": "cluster_jvm",
+        "title": "JVM-Speicher mittlere Nutzung"
       },
       {
-        "title": "Offene Dateien Mittel",
-        "expressions": [
-          null
-        ]
+        "id": "open_files",
+        "title": "Offene Dateien Mittel"
       }
     ],
     "instance": [
       {
-        "title": "Prozess-CPU (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "Prozess-CPU (%)"
       },
       {
-        "title": "OS-CPU (%)",
-        "expressions": [
-          null
-        ]
+        "id": "os_cpu",
+        "title": "OS-CPU (%)"
       },
       {
+        "id": "load_avg",
         "title": "Load Average",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1m",
           "5m",
@@ -129,12 +95,8 @@
         ]
       },
       {
+        "id": "jvm_mem",
         "title": "JVM-Speicher (MB)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "heap used",
           "heap max",
@@ -142,154 +104,98 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "zeit (ms/min)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "translog",
         "title": "Translog",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "operationen",
           "größe (MB)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "breakers",
         "title": "Breaker",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ausgelöst",
           "geschätzt (MB)"
         ]
       },
       {
+        "id": "segments",
         "title": "Segmente",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "speicher (MB)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "disk",
         "title": "Disk-Nutzung",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "GB",
           "%"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "network",
         "title": "Netzwerk",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "senden",
           "empfangen"
         ]
       },
       {
-        "title": "Offene Dateien",
-        "expressions": [
-          null
-        ]
+        "id": "open_files",
+        "title": "Offene Dateien"
       }
     ],
     "endpoint": [
       {
+        "id": "indexing_rate",
         "title": "Indexierungsrate",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "req",
           "proc"
         ]
       },
       {
+        "id": "search_rate",
         "title": "Suchrate",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "req",
           "proc"
         ]
       },
       {
-        "title": "Indexgröße (alle Shards)",
-        "expressions": [
-          null
-        ]
+        "id": "idx_size_all",
+        "title": "Indexgröße (alle Shards)"
       },
       {
-        "title": "Indexgröße (Primary)",
-        "expressions": [
-          null
-        ]
+        "id": "idx_size_primary",
+        "title": "Indexgröße (Primary)"
       },
       {
-        "title": "Gelöschte Dokumente",
-        "expressions": [
-          null
-        ]
+        "id": "docs_total",
+        "title": "Gelöschte Dokumente"
       },
       {
+        "id": "docs",
         "title": "Dokumente",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "alle",
           "primary"
         ]
       },
       {
+        "id": "search_time",
         "title": "Mittlere Suchzeit / Anf. (s)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "fetch",
           "query",

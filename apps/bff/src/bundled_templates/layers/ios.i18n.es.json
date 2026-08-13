@@ -2,15 +2,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_percentile",
         "title": "Percentil de tiempo de lanzamiento de la app"
       },
       {
+        "id": "hang_percentile",
         "title": "Percentil de tiempo de hang"
       },
       {
+        "id": "hang_sum",
         "title": "Tiempo de hang (suma)"
       },
       {
+        "id": "abnormal_exits",
         "title": "Salidas anómalas (Crashes)",
         "tip": "MetricKit reporta salidas anómalas en primer plano vs segundo plano por separado.",
         "expressionLabels": [
@@ -19,17 +23,21 @@
         ]
       },
       {
+        "id": "oom_kills",
         "title": "Conteo de OOM kills",
         "tip": "Kills por OOM en segundo plano — el sistema iOS termina la app por presión de memoria."
       },
       {
+        "id": "peak_memory",
         "title": "Memoria máxima"
       },
       {
+        "id": "scroll_hitch",
         "title": "Ratio de hitches de scroll",
         "tip": "Porcentaje de frames de scroll clasificados como hitched — más alto = UI más lenta."
       },
       {
+        "id": "network_transfer",
         "title": "Transferencia de red",
         "tip": "Bytes por wifi vs móvil, entrada + salida.",
         "expressionLabels": [
@@ -40,6 +48,7 @@
         ]
       },
       {
+        "id": "outbound_http",
         "expressionLabels": [
           "RPM",
           "Latencia media (ms)",
@@ -51,12 +60,15 @@
     ],
     "instance": [
       {
+        "id": "instance_launch_p",
         "title": "Percentil de tiempo de lanzamiento"
       },
       {
+        "id": "instance_hang_p",
         "title": "Percentil de tiempo de hang"
       },
       {
+        "id": "instance_crashes",
         "title": "Salidas anómalas",
         "expressionLabels": [
           "primer plano",
@@ -64,12 +76,15 @@
         ]
       },
       {
+        "id": "instance_oom",
         "title": "Conteo de OOM kills"
       },
       {
+        "id": "instance_peak_mem",
         "title": "Memoria máxima"
       },
       {
+        "id": "instance_outbound",
         "expressionLabels": [
           "RPM",
           "Latencia media (ms)",
@@ -80,15 +95,19 @@
     ],
     "endpoint": [
       {
+        "id": "ep_cpm",
         "title": "Carga saliente"
       },
       {
+        "id": "ep_resp",
         "title": "Latencia media saliente"
       },
       {
+        "id": "ep_sla",
         "title": "Tasa de éxito saliente"
       },
       {
+        "id": "ep_percentile",
         "title": "Percentil de latencia saliente"
       }
     ]

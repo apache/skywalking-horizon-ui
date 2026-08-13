@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "tps",
         "title": "TPS"
       },
       {
+        "id": "slow_qps",
         "title": "느린 쿼리 / s"
       },
       {
+        "id": "conn_errors",
         "title": "연결 오류",
         "tip": "내부 거부와 max-connection 거부 비교.",
         "expressionLabels": [
@@ -37,6 +41,7 @@
         ]
       },
       {
+        "id": "commands",
         "title": "명령 추세",
         "tip": "명령별 영향 받은 행 비율 (select / insert / update / delete).",
         "expressionLabels": [
@@ -47,6 +52,7 @@
         ]
       },
       {
+        "id": "threads",
         "title": "스레드",
         "expressionLabels": [
           "connected",
@@ -56,24 +62,30 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "느린 구문",
         "tip": "클러스터 전체에서 캡처된 가장 느린 구문 20개입니다."
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "가동 시간"
       },
       {
+        "id": "max_conns",
         "title": "최대 연결"
       },
       {
+        "id": "buffer_pool",
         "title": "InnoDB 버퍼 풀"
       },
       {
+        "id": "thread_cache",
         "title": "스레드 캐시 크기"
       },
       {
+        "id": "instance_qps_tps",
         "title": "QPS / TPS",
         "expressionLabels": [
           "QPS",
@@ -81,9 +93,11 @@
         ]
       },
       {
+        "id": "instance_slow_queries",
         "title": "느린 쿼리 / s"
       },
       {
+        "id": "instance_commands",
         "title": "명령 추세",
         "expressionLabels": [
           "select",
@@ -93,6 +107,7 @@
         ]
       },
       {
+        "id": "instance_threads",
         "title": "스레드",
         "expressionLabels": [
           "connected",
@@ -102,6 +117,7 @@
         ]
       },
       {
+        "id": "instance_connects",
         "title": "연결 수",
         "expressionLabels": [
           "사용 가능",
@@ -109,6 +125,7 @@
         ]
       },
       {
+        "id": "instance_conn_errors",
         "title": "연결 오류",
         "expressionLabels": [
           "내부",

@@ -23,12 +23,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "l4_read",
         "title": "Paquets L4 en lecture/min"
       },
       {
+        "id": "l4_write",
         "title": "Paquets L4 en écriture/min"
       },
       {
+        "id": "tcp_drop",
         "title": "Drop TCP / min",
         "expressionLabels": [
           "lecture",
@@ -36,9 +39,11 @@
         ]
       },
       {
+        "id": "tcp_drop_reason",
         "title": "Drop TCP par raison"
       },
       {
+        "id": "http_load",
         "title": "Charge HTTP",
         "expressionLabels": [
           "appels",
@@ -46,9 +51,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "Durée HTTP"
       },
       {
+        "id": "http_status",
         "title": "Statut HTTP non-2xx",
         "expressionLabels": [
           "1xx",
@@ -58,6 +65,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Charge DNS",
         "expressionLabels": [
           "appels",
@@ -65,12 +73,15 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "Durée DNS"
       },
       {
+        "id": "dns_error",
         "title": "Erreurs DNS / min"
       },
       {
+        "id": "kafka_load",
         "title": "Charge Kafka",
         "expressionLabels": [
           "appels",
@@ -78,20 +89,25 @@
         ]
       },
       {
+        "id": "kafka_duration",
         "title": "Durée Kafka"
       },
       {
+        "id": "kafka_error",
         "title": "Erreurs Kafka / min"
       }
     ],
     "instance": [
       {
+        "id": "l4_read",
         "title": "Paquets L4 en lecture/min"
       },
       {
+        "id": "l4_write",
         "title": "Paquets L4 en écriture/min"
       },
       {
+        "id": "http_load",
         "title": "Charge HTTP",
         "expressionLabels": [
           "appels",
@@ -99,6 +115,7 @@
         ]
       },
       {
+        "id": "http_status",
         "title": "Statut HTTP non-2xx",
         "expressionLabels": [
           "1xx",
@@ -108,6 +125,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Charge DNS",
         "expressionLabels": [
           "appels",
@@ -115,9 +133,11 @@
         ]
       },
       {
+        "id": "dns_error",
         "title": "Erreurs DNS"
       },
       {
+        "id": "kafka_load",
         "title": "Charge Kafka",
         "expressionLabels": [
           "appels",
@@ -127,6 +147,7 @@
     ],
     "endpoint": [
       {
+        "id": "http_load",
         "title": "Charge HTTP",
         "expressionLabels": [
           "appels",
@@ -134,9 +155,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "Durée HTTP"
       },
       {
+        "id": "http_status",
         "title": "Statut HTTP non-2xx",
         "expressionLabels": [
           "1xx",
@@ -146,6 +169,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Charge DNS",
         "expressionLabels": [
           "appels",
@@ -153,9 +177,11 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "Durée DNS"
       },
       {
+        "id": "dns_error",
         "title": "Erreurs DNS"
       }
     ]
@@ -163,31 +189,48 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "success",
         "label": "Succès %"
       },
       {
+        "id": "respTime",
         "label": "Latence"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM HTTP"
       },
       {
+        "id": "respTime",
         "label": "Latence moyenne"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM HTTP" },
-        { "label": "Latence moyenne" }
+        {
+          "id": "httpCpm",
+          "label": "RPM HTTP"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "Latence moyenne"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM HTTP" },
-        { "label": "Latence moyenne" }
+        {
+          "id": "cpm",
+          "label": "RPM HTTP"
+        },
+        {
+          "id": "respTime",
+          "label": "Latence moyenne"
+        }
       ]
     }
   },

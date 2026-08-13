@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "ledgers",
         "title": "Ledgers Bookie"
       },
       {
+        "id": "entries",
         "title": "Entrées Bookie"
       },
       {
+        "id": "writable_dirs",
         "title": "Répertoires de ledgers inscriptibles"
       },
       {
+        "id": "write_cache",
         "title": "Cache d'écriture",
         "expressionLabels": [
           "taille (Mo)",
@@ -36,6 +40,7 @@
         ]
       },
       {
+        "id": "read_cache",
         "title": "Cache de lecture",
         "expressionLabels": [
           "taille (Mo)",
@@ -43,6 +48,7 @@
         ]
       },
       {
+        "id": "io_rates",
         "title": "Débit lecture / écriture (o/s)",
         "expressionLabels": [
           "lecture",
@@ -50,14 +56,17 @@
         ]
       },
       {
+        "id": "dir_usage",
         "title": "Utilisation du répertoire de ledgers"
       }
     ],
     "instance": [
       {
+        "id": "jvm_pool",
         "title": "Pool mémoire JVM (Mo)"
       },
       {
+        "id": "jvm_mem",
         "title": "Mémoire JVM (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -66,6 +75,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "Threads JVM",
         "expressionLabels": [
           "courant",
@@ -75,6 +85,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "secondes",
@@ -82,6 +93,7 @@
         ]
       },
       {
+        "id": "thread_executor",
         "title": "Exécuteur de threads",
         "expressionLabels": [
           "terminées",
@@ -91,6 +103,7 @@
         ]
       },
       {
+        "id": "pooled_threads",
         "title": "Threads poolés",
         "expressionLabels": [
           "priorité haute",
@@ -98,6 +111,7 @@
         ]
       },
       {
+        "id": "queue_size",
         "title": "Taille max de la file du pool",
         "expressionLabels": [
           "priorité haute",

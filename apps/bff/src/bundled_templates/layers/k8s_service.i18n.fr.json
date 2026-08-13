@@ -2,16 +2,18 @@
   "dashboards": {
     "service": [
       {
+        "id": "pod_total",
         "title": "Pods du service"
       },
       {
+        "id": "pod_waiting",
         "title": "Pods en attente",
         "tableHeaders": [
-          "Conteneur · Pod · Raison",
-          ""
+          "Conteneur · Pod · Raison"
         ]
       },
       {
+        "id": "pod_restarts",
         "title": "Redémarrages de Pod",
         "tableHeaders": [
           "Pod",
@@ -19,6 +21,7 @@
         ]
       },
       {
+        "id": "cpu_resources",
         "title": "Ressources CPU",
         "expressionLabels": [
           "requêtes",
@@ -26,6 +29,7 @@
         ]
       },
       {
+        "id": "memory_resources",
         "title": "Ressources mémoire",
         "expressionLabels": [
           "requêtes",
@@ -33,18 +37,23 @@
         ]
       },
       {
+        "id": "pod_cpu_usage",
         "title": "Utilisation CPU du Pod"
       },
       {
+        "id": "pod_memory_usage",
         "title": "Utilisation mémoire du Pod"
       },
       {
+        "id": "http_call_cpm",
         "title": "RPM des requêtes HTTP"
       },
       {
+        "id": "http_call_time",
         "title": "Temps de réponse HTTP"
       },
       {
+        "id": "http_status",
         "title": "RPM des codes HTTP",
         "tip": "Comptes de codes par classe (1xx / 2xx / 3xx / 4xx / 5xx).",
         "expressionLabels": [
@@ -56,6 +65,7 @@
         ]
       },
       {
+        "id": "http_req_resp_size",
         "title": "Taille requête / réponse HTTP",
         "expressionLabels": [
           "en-tête req",
@@ -65,6 +75,7 @@
         ]
       },
       {
+        "id": "tcp_connect",
         "title": "TCP Connect",
         "tip": "Tentatives et succès de connexion côté client par minute.",
         "expressionLabels": [
@@ -73,12 +84,15 @@
         ]
       },
       {
+        "id": "tcp_connect_time",
         "title": "Durée de TCP Connect"
       },
       {
+        "id": "tcp_accept",
         "title": "TCP Accept"
       },
       {
+        "id": "tcp_packets",
         "title": "Paquets TCP",
         "tip": "Nombre de paquets en lecture et écriture par minute, retransmissions incluses.",
         "expressionLabels": [
@@ -88,6 +102,7 @@
         ]
       },
       {
+        "id": "tcp_bytes",
         "title": "Octets TCP",
         "expressionLabels": [
           "lecture",
@@ -97,12 +112,15 @@
     ],
     "instance": [
       {
+        "id": "pod_http_cpm",
         "title": "RPM HTTP pod"
       },
       {
+        "id": "pod_http_time",
         "title": "Temps de réponse HTTP pod"
       },
       {
+        "id": "pod_http_status",
         "title": "RPM par code HTTP pod",
         "expressionLabels": [
           "1xx",
@@ -113,6 +131,7 @@
         ]
       },
       {
+        "id": "pod_http_sizes",
         "title": "Tailles HTTP pod",
         "expressionLabels": [
           "en-tête req",
@@ -122,6 +141,7 @@
         ]
       },
       {
+        "id": "pod_tcp_connect",
         "title": "Connect TCP pod",
         "expressionLabels": [
           "connect",
@@ -129,6 +149,7 @@
         ]
       },
       {
+        "id": "pod_tcp_packets",
         "title": "Paquets TCP pod",
         "expressionLabels": [
           "lecture",
@@ -137,6 +158,7 @@
         ]
       },
       {
+        "id": "pod_tcp_bytes",
         "title": "Octets TCP pod",
         "expressionLabels": [
           "lecture",
@@ -146,12 +168,15 @@
     ],
     "endpoint": [
       {
+        "id": "ep_http_cpm",
         "title": "RPM HTTP de l'endpoint"
       },
       {
+        "id": "ep_http_time",
         "title": "Temps de réponse HTTP de l'endpoint"
       },
       {
+        "id": "ep_http_status",
         "title": "RPM par code de statut de l'endpoint",
         "expressionLabels": [
           "1xx",
@@ -162,6 +187,7 @@
         ]
       },
       {
+        "id": "ep_http_req_sizes",
         "title": "Tailles des requêtes de l'endpoint",
         "expressionLabels": [
           "en-tête",
@@ -169,6 +195,7 @@
         ]
       },
       {
+        "id": "ep_http_resp_sizes",
         "title": "Tailles des réponses de l'endpoint",
         "expressionLabels": [
           "en-tête",
@@ -201,44 +228,72 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "httpCpm",
         "label": "RPM"
       },
       {
+        "id": "httpSuccess",
         "label": "Taux de succès"
       },
       {
+        "id": "httpRespTime",
         "label": "Latence"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Temps de réponse moyen"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Temps de réponse moyen"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "Taux de succès" },
-        { "label": "Latence" }
+        {
+          "id": "httpCpm",
+          "label": "RPM"
+        },
+        {
+          "id": "httpSuccess",
+          "label": "Taux de succès"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "Latence"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "Temps de réponse moyen" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Temps de réponse moyen"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "Temps de réponse moyen" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Temps de réponse moyen"
+        }
       ]
     }
   },

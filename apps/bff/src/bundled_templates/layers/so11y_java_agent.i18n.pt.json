@@ -8,9 +8,11 @@
   "dashboards": {
     "instance": [
       {
+        "id": "tracing_created",
         "title": "Criação de tracing context / min"
       },
       {
+        "id": "tracing_create_complete",
         "title": "Tracing criados + finalizados / min",
         "expressionLabels": [
           "criados",
@@ -18,9 +20,11 @@
         ]
       },
       {
+        "id": "ignored_created",
         "title": "Criação de contexto ignorado / min"
       },
       {
+        "id": "ignored_create_complete",
         "title": "Ignorados criados + finalizados / min",
         "expressionLabels": [
           "criados",
@@ -28,12 +32,15 @@
         ]
       },
       {
+        "id": "leaked",
         "title": "Possível contexto vazado / min"
       },
       {
+        "id": "interceptor_err",
         "title": "Contagem de erros do interceptor / min"
       },
       {
+        "id": "exec_time",
         "title": "Tempo de execução do tracing context (ms)"
       }
     ]

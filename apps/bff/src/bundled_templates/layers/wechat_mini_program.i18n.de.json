@@ -20,124 +20,86 @@
   "dashboards": {
     "service": [
       {
-        "title": "App-Startdauer",
-        "expressions": [
-          null
-        ]
+        "id": "launch_duration",
+        "title": "App-Startdauer"
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "first_render",
+        "title": "First-Render-Dauer"
       },
       {
+        "id": "package_load",
         "title": "Paket-Ladedauer",
-        "tip": "Zeit zum Herunterladen + Parsen des Mini-Programm-Bundles.",
-        "expressions": [
-          null
-        ]
+        "tip": "Zeit zum Herunterladen + Parsen des Mini-Programm-Bundles."
       },
       {
-        "title": "Fehleranzahl",
-        "expressions": [
-          null
-        ]
+        "id": "error_count",
+        "title": "Fehleranzahl"
       },
       {
+        "id": "route_duration",
         "title": "Route-Dauer",
-        "tip": "Zeit in Mini-Programm-Seitenübergängen.",
-        "expressions": [
-          null
-        ]
+        "tip": "Zeit in Mini-Programm-Seitenübergängen."
       },
       {
-        "title": "Script-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "script_duration",
+        "title": "Script-Dauer"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ],
     "instance": [
       {
-        "title": "Startdauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_launch",
+        "title": "Startdauer"
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_first_render",
+        "title": "First-Render-Dauer"
       },
       {
-        "title": "Paket-Ladedauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_package_load",
+        "title": "Paket-Ladedauer"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "v_request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Route-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_route_duration",
+        "title": "Route-Dauer"
       },
       {
-        "title": "Script-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "v_script_duration",
+        "title": "Script-Dauer"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "v_request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ],
     "endpoint": [
       {
-        "title": "Startdauer auf Seite",
-        "expressions": [
-          null
-        ]
+        "id": "ep_launch",
+        "title": "Startdauer auf Seite"
       },
       {
-        "title": "First-Render-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "ep_first_render",
+        "title": "First-Render-Dauer"
       },
       {
-        "title": "Anfragelast",
-        "expressions": [
-          null
-        ]
+        "id": "ep_request_cpm",
+        "title": "Anfragelast"
       },
       {
-        "title": "Anfragedauer-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "ep_request_percentile",
+        "title": "Anfragedauer-Perzentil"
       }
     ]
   },

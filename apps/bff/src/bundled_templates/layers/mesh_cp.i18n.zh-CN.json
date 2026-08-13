@@ -6,39 +6,94 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "CPU" },
-      { "label": "Goroutines" },
-      { "label": "Pilot xDS" },
-      { "label": "服务" }
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutines"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "服务"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "CPU" },
-      { "title": "Goroutines" },
-      { "title": "Istio 版本" },
       {
+        "id": "cpu",
+        "title": "CPU"
+      },
+      {
+        "id": "goroutines",
+        "title": "Goroutines"
+      },
+      {
+        "id": "version",
+        "title": "Istio 版本"
+      },
+      {
+        "id": "memory",
         "title": "内存（MB）",
-        "expressionLabels": ["alloc", "heap inuse", "stack inuse", "virtual", "resident"]
+        "expressionLabels": [
+          "alloc",
+          "heap inuse",
+          "stack inuse",
+          "virtual",
+          "resident"
+        ]
       },
       {
+        "id": "pilot_errors",
         "title": "Pilot 错误",
-        "expressionLabels": ["cds reject", "eds reject", "rds reject", "lds reject", "write timeout"]
+        "expressionLabels": [
+          "cds reject",
+          "eds reject",
+          "rds reject",
+          "lds reject",
+          "write timeout"
+        ]
       },
-      { "title": "Proxy Push 耗时（分位）" },
-      { "title": "Pilot 推送" },
-      { "title": "Sidecar 注入成功" },
       {
+        "id": "proxy_push_time",
+        "title": "Proxy Push 耗时（分位）"
+      },
+      {
+        "id": "pilot_pushes",
+        "title": "Pilot 推送"
+      },
+      {
+        "id": "sidecar_inj",
+        "title": "Sidecar 注入成功"
+      },
+      {
+        "id": "ads",
         "title": "ADS 监控",
-        "expressionLabels": ["xds", "services", "virt services"]
+        "expressionLabels": [
+          "xds",
+          "services",
+          "virt services"
+        ]
       },
       {
+        "id": "validation",
         "title": "配置校验",
-        "expressionLabels": ["passed", "failed"]
+        "expressionLabels": [
+          "passed",
+          "failed"
+        ]
       },
       {
+        "id": "conflicts",
         "title": "Pilot 冲突",
-        "expressionLabels": ["ol tcp/tcp", "il", "ol tcp/http", "ol http/tcp"]
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
       }
     ]
   }

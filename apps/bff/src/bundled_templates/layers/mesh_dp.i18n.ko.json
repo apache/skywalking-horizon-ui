@@ -7,30 +7,37 @@
   "dashboards": {
     "instance": [
       {
+        "id": "bug_failures_card",
         "title": "버그 실패",
         "tip": "Envoy 내부 버그 실패 카운터 — 0이 아니면 어설션 / 디버그 체크가 트리거된 것입니다 (envoy_bug_failures)."
       },
       {
+        "id": "membership_healthy_card",
         "title": "멤버십 정상",
         "tip": "모든 클러스터의 정상 엔드포인트 수입니다 (envoy_cluster_membership_healthy)."
       },
       {
+        "id": "worker_threads_card",
         "title": "워커 스레드",
         "tip": "현재 사용 중인 동시 워커 스레드 수입니다 (envoy_worker_threads)."
       },
       {
+        "id": "up_rq_active_card",
         "title": "업스트림 요청 활성",
         "tip": "이 Envoy 클러스터들의 활성 업스트림 요청 총합입니다 (envoy_cluster_up_rq_active)."
       },
       {
+        "id": "up_cx_active",
         "title": "업스트림 연결 활성",
         "tip": "활성 업스트림 연결입니다 (envoy_cluster_up_cx_active)."
       },
       {
+        "id": "up_rq_pending",
         "title": "업스트림 요청 대기",
         "tip": "업스트림 큐에서 대기 중인 요청 수입니다 (envoy_cluster_up_rq_pending_active)."
       },
       {
+        "id": "connections_used",
         "title": "사용 중인 연결",
         "tip": "서버 측 사용 중인 총 연결 및 부모 연결입니다 (envoy_total_connections_used / envoy_parent_connections_used).",
         "expressionLabels": [
@@ -39,14 +46,17 @@
         ]
       },
       {
+        "id": "up_cx_incr",
         "title": "업스트림 연결 증가",
         "tip": "분당 새로 열린 업스트림 연결 수입니다 (envoy_cluster_up_cx_incr)."
       },
       {
+        "id": "up_rq_incr",
         "title": "업스트림 요청 증가",
         "tip": "분당 새 업스트림 요청 수입니다 (envoy_cluster_up_rq_incr)."
       },
       {
+        "id": "worker_threads_trend",
         "title": "워커 스레드 (현재값 vs 최댓값)",
         "tip": "사용 중인 동시 워커 스레드와 윈도우 최댓값 비교입니다 (envoy_worker_threads / envoy_worker_threads_max).",
         "expressionLabels": [
@@ -55,6 +65,7 @@
         ]
       },
       {
+        "id": "heap_memory",
         "title": "서버 메모리",
         "tip": "Heap / allocated / physical 메모리: 현재값 + 윈도우 최댓값 (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size 및 각각의 *_max 변형).",
         "expressionLabels": [

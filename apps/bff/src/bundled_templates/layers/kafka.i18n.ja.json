@@ -20,24 +20,31 @@
   "dashboards": {
     "service": [
       {
+        "id": "partitions",
         "title": "パーティション数"
       },
       {
+        "id": "leaders",
         "title": "リーダー数"
       },
       {
+        "id": "active_ctrl",
         "title": "アクティブコントローラ"
       },
       {
+        "id": "max_lag",
         "title": "最大ラグ"
       },
       {
+        "id": "under_replicated",
         "title": "レプリケーション不足パーティション"
       },
       {
+        "id": "offline",
         "title": "オフラインパーティション"
       },
       {
+        "id": "leader_election",
         "title": "リーダー選出レート",
         "expressionLabels": [
           "選出",
@@ -47,39 +54,51 @@
     ],
     "instance": [
       {
+        "id": "cpu",
         "title": "CPU 使用率"
       },
       {
+        "id": "msg_rate",
         "title": "受信メッセージ / s"
       },
       {
+        "id": "bytes_in",
         "title": "受信バイト / s"
       },
       {
+        "id": "bytes_out",
         "title": "送信バイト / s"
       },
       {
+        "id": "req_rate",
         "title": "リクエスト / s"
       },
       {
+        "id": "purgatory",
         "title": "Purgatory サイズ"
       },
       {
+        "id": "isr_shrinks",
         "title": "ISR Shrink/s"
       },
       {
+        "id": "isr_expands",
         "title": "ISR Expand/s"
       },
       {
+        "id": "mem_pct",
         "title": "メモリ使用率 (%)"
       },
       {
+        "id": "under_replicated",
         "title": "レプリケーション不足パーティション"
       },
       {
+        "id": "under_min_isr",
         "title": "Min-ISR 未満パーティション"
       },
       {
+        "id": "partitions_leaders",
         "title": "パーティション + リーダー",
         "expressionLabels": [
           "パーティション",
@@ -87,6 +106,7 @@
         ]
       },
       {
+        "id": "queue_times",
         "title": "キュー / 送信時間",
         "expressionLabels": [
           "リクエスト q",
@@ -96,6 +116,7 @@
         ]
       },
       {
+        "id": "topic_rates",
         "title": "Topic レート",
         "expressionLabels": [
           "produce req/s",
@@ -104,6 +125,7 @@
         ]
       },
       {
+        "id": "replication",
         "title": "レプリケーション",
         "expressionLabels": [
           "受信バイト",
@@ -111,9 +133,11 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC 回数"
       },
       {
+        "id": "max_lag",
         "title": "最大ラグ (broker)"
       }
     ]

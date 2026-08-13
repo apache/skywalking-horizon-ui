@@ -8,40 +8,104 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "请求 RPM" },
-      { "label": "启动" },
-      { "label": "首屏渲染" },
-      { "label": "错误" }
+      {
+        "label": "请求 RPM"
+      },
+      {
+        "label": "启动"
+      },
+      {
+        "label": "首屏渲染"
+      },
+      {
+        "label": "错误"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "应用启动耗时" },
-      { "title": "首屏渲染耗时" },
       {
+        "id": "launch_duration",
+        "title": "应用启动耗时"
+      },
+      {
+        "id": "first_render",
+        "title": "首屏渲染耗时"
+      },
+      {
+        "id": "package_load",
         "title": "Package 加载耗时",
         "tip": "下载 + 解析小程序 Package 的耗时。"
       },
-      { "title": "错误数" },
-      { "title": "路由耗时", "tip": "小程序页面路由切换的耗时。" },
-      { "title": "脚本耗时" },
-      { "title": "请求负载" },
-      { "title": "请求耗时分位" }
+      {
+        "id": "error_count",
+        "title": "错误数"
+      },
+      {
+        "id": "route_duration",
+        "title": "路由耗时",
+        "tip": "小程序页面路由切换的耗时。"
+      },
+      {
+        "id": "script_duration",
+        "title": "脚本耗时"
+      },
+      {
+        "id": "request_cpm",
+        "title": "请求负载"
+      },
+      {
+        "id": "request_percentile",
+        "title": "请求耗时分位"
+      }
     ],
     "instance": [
-      { "title": "启动耗时" },
-      { "title": "首屏渲染耗时" },
-      { "title": "Package 加载耗时" },
-      { "title": "请求负载" },
-      { "title": "路由耗时" },
-      { "title": "脚本耗时" },
-      { "title": "请求耗时分位" }
+      {
+        "id": "v_launch",
+        "title": "启动耗时"
+      },
+      {
+        "id": "v_first_render",
+        "title": "首屏渲染耗时"
+      },
+      {
+        "id": "v_package_load",
+        "title": "Package 加载耗时"
+      },
+      {
+        "id": "v_request_cpm",
+        "title": "请求负载"
+      },
+      {
+        "id": "v_route_duration",
+        "title": "路由耗时"
+      },
+      {
+        "id": "v_script_duration",
+        "title": "脚本耗时"
+      },
+      {
+        "id": "v_request_percentile",
+        "title": "请求耗时分位"
+      }
     ],
     "endpoint": [
-      { "title": "页面启动耗时" },
-      { "title": "首屏渲染耗时" },
-      { "title": "请求负载" },
-      { "title": "请求耗时分位" }
+      {
+        "id": "ep_launch",
+        "title": "页面启动耗时"
+      },
+      {
+        "id": "ep_first_render",
+        "title": "首屏渲染耗时"
+      },
+      {
+        "id": "ep_request_cpm",
+        "title": "请求负载"
+      },
+      {
+        "id": "ep_request_percentile",
+        "title": "请求耗时分位"
+      }
     ]
   }
 }

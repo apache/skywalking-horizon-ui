@@ -4,56 +4,40 @@
   "dashboards": {
     "instance": [
       {
-        "title": "Tracing-Context-Erstellung / min",
-        "expressions": [
-          null
-        ]
+        "id": "tracing_created",
+        "title": "Tracing-Context-Erstellung / min"
       },
       {
+        "id": "tracing_create_complete",
         "title": "Tracing Erstellt + Beendet / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "erstellt",
           "beendet"
         ]
       },
       {
-        "title": "Ignorierte Context-Erstellung / min",
-        "expressions": [
-          null
-        ]
+        "id": "ignored_created",
+        "title": "Ignorierte Context-Erstellung / min"
       },
       {
+        "id": "ignored_create_complete",
         "title": "Ignoriert Erstellt + Beendet / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "erstellt",
           "beendet"
         ]
       },
       {
-        "title": "Möglicherweise geleakter Context / min",
-        "expressions": [
-          null
-        ]
+        "id": "leaked",
+        "title": "Möglicherweise geleakter Context / min"
       },
       {
-        "title": "Interceptor-Fehleranzahl / min",
-        "expressions": [
-          null
-        ]
+        "id": "interceptor_err",
+        "title": "Interceptor-Fehleranzahl / min"
       },
       {
-        "title": "Tracing-Context-Ausführungszeit (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "exec_time",
+        "title": "Tracing-Context-Ausführungszeit (ms)"
       }
     ]
   },

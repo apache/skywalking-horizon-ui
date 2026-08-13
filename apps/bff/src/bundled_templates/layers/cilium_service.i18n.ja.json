@@ -23,12 +23,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "l4_read",
         "title": "L4 読み取りパケット/分"
       },
       {
+        "id": "l4_write",
         "title": "L4 書き込みパケット/分"
       },
       {
+        "id": "tcp_drop",
         "title": "TCP Drop / 分",
         "expressionLabels": [
           "読み取り",
@@ -36,9 +39,11 @@
         ]
       },
       {
+        "id": "tcp_drop_reason",
         "title": "理由別 TCP Drop"
       },
       {
+        "id": "http_load",
         "title": "HTTP 負荷",
         "expressionLabels": [
           "コール",
@@ -46,9 +51,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "HTTP 所要時間"
       },
       {
+        "id": "http_status",
         "title": "HTTP 非 2xx ステータス",
         "expressionLabels": [
           "1xx",
@@ -58,6 +65,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS ロード",
         "expressionLabels": [
           "コール",
@@ -65,12 +73,15 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "DNS 所要時間"
       },
       {
+        "id": "dns_error",
         "title": "DNS エラー / 分"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka 負荷",
         "expressionLabels": [
           "コール",
@@ -78,20 +89,25 @@
         ]
       },
       {
+        "id": "kafka_duration",
         "title": "Kafka 所要時間"
       },
       {
+        "id": "kafka_error",
         "title": "Kafka エラー / 分"
       }
     ],
     "instance": [
       {
+        "id": "l4_read",
         "title": "L4 読み取りパケット/分"
       },
       {
+        "id": "l4_write",
         "title": "L4 書き込みパケット/分"
       },
       {
+        "id": "http_load",
         "title": "HTTP 負荷",
         "expressionLabels": [
           "コール",
@@ -99,6 +115,7 @@
         ]
       },
       {
+        "id": "http_status",
         "title": "HTTP 非 2xx ステータス",
         "expressionLabels": [
           "1xx",
@@ -108,6 +125,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS ロード",
         "expressionLabels": [
           "コール",
@@ -115,9 +133,11 @@
         ]
       },
       {
+        "id": "dns_error",
         "title": "DNS エラー"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka 負荷",
         "expressionLabels": [
           "コール",
@@ -127,6 +147,7 @@
     ],
     "endpoint": [
       {
+        "id": "http_load",
         "title": "HTTP 負荷",
         "expressionLabels": [
           "コール",
@@ -134,9 +155,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "HTTP 所要時間"
       },
       {
+        "id": "http_status",
         "title": "HTTP 非 2xx ステータス",
         "expressionLabels": [
           "1xx",
@@ -146,6 +169,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS ロード",
         "expressionLabels": [
           "コール",
@@ -153,9 +177,11 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "DNS 所要時間"
       },
       {
+        "id": "dns_error",
         "title": "DNS エラー"
       }
     ]
@@ -163,31 +189,48 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "success",
         "label": "成功率"
       },
       {
+        "id": "respTime",
         "label": "レイテンシ"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "HTTP RPM"
       },
       {
+        "id": "respTime",
         "label": "平均レイテンシ"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "平均レイテンシ" }
+        {
+          "id": "httpCpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "平均レイテンシ"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "平均レイテンシ" }
+        {
+          "id": "cpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均レイテンシ"
+        }
       ]
     }
   },

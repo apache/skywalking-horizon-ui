@@ -23,46 +23,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "access_cpm_line",
         "title": "Tráfico de acceso"
       },
       {
+        "id": "access_resp_line",
         "title": "Latencia media de acceso"
       },
       {
+        "id": "access_sla_line",
         "title": "Tasa de éxito de acceso"
       },
       {
+        "id": "access_percentile",
         "title": "Percentil de latencia de acceso"
       },
       {
+        "id": "read_traffic",
         "title": "Tráfico de lectura"
       },
       {
+        "id": "read_resp",
         "title": "Latencia media de lectura"
       },
       {
+        "id": "write_traffic",
         "title": "Tráfico de escritura"
       },
       {
+        "id": "write_resp",
         "title": "Latencia media de escritura"
       },
       {
+        "id": "read_sla",
         "title": "Tasa de éxito de lectura"
       },
       {
+        "id": "write_sla",
         "title": "Tasa de éxito de escritura"
       },
       {
+        "id": "read_percentile",
         "title": "Percentil de latencia de lectura"
       },
       {
+        "id": "write_percentile",
         "title": "Percentil de latencia de escritura"
       },
       {
+        "id": "slow_read",
         "title": "Comandos de lectura lentos",
         "tip": "Top 10 comandos de lectura más lentos capturados. Cada fila es una ejecución única — clic para copiar, o usa el icono de traza al inicio de la fila para abrir su traza originaria (visible solo cuando la muestra la incluye)."
       },
       {
+        "id": "slow_write",
         "title": "Comandos de escritura lentos",
         "tip": "Top 10 comandos de escritura más lentos capturados. Cada fila es una ejecución única — clic para copiar, o usa el icono de traza al inicio de la fila para abrir su traza originaria (visible solo cuando la muestra la incluye)."
       }

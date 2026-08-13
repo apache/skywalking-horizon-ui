@@ -4,21 +4,27 @@
   "dashboards": {
     "service": [
       {
+        "id": "conns",
         "title": "接続数"
       },
       {
+        "id": "cpu",
         "title": "CPU (%)"
       },
       {
+        "id": "queue_used",
         "title": "キュー使用中"
       },
       {
+        "id": "receive",
         "title": "受信イベント"
       },
       {
+        "id": "fetch",
         "title": "Fetch イベント"
       },
       {
+        "id": "queue_io",
         "title": "キュー入 / 出",
         "expressionLabels": [
           "入力",

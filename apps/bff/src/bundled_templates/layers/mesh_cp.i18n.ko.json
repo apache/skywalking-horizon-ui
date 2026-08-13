@@ -23,15 +23,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU"
       },
       {
+        "id": "goroutines",
         "title": "Goroutine"
       },
       {
+        "id": "version",
         "title": "Istio 버전"
       },
       {
+        "id": "memory",
         "title": "메모리 (MB)",
         "expressionLabels": [
           "alloc",
@@ -42,6 +46,7 @@
         ]
       },
       {
+        "id": "pilot_errors",
         "title": "Pilot 오류",
         "expressionLabels": [
           "cds reject",
@@ -52,15 +57,19 @@
         ]
       },
       {
+        "id": "proxy_push_time",
         "title": "프록시 푸시 시간 (백분위)"
       },
       {
+        "id": "pilot_pushes",
         "title": "Pilot 푸시"
       },
       {
+        "id": "sidecar_inj",
         "title": "사이드카 주입 성공"
       },
       {
+        "id": "ads",
         "title": "ADS 모니터링",
         "expressionLabels": [
           "xds",
@@ -69,6 +78,7 @@
         ]
       },
       {
+        "id": "validation",
         "title": "구성 검증",
         "expressionLabels": [
           "passed",
@@ -76,6 +86,7 @@
         ]
       },
       {
+        "id": "conflicts",
         "title": "Pilot 충돌",
         "expressionLabels": [
           "ol tcp/tcp",

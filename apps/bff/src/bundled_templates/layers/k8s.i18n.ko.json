@@ -20,30 +20,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_total",
         "title": "노드 총합"
       },
       {
+        "id": "namespace_total",
         "title": "네임스페이스 총합"
       },
       {
+        "id": "deployment_total",
         "title": "Deployment 총합"
       },
       {
+        "id": "statefulset_total",
         "title": "StatefulSet 총합"
       },
       {
+        "id": "daemonset_total",
         "title": "DaemonSet 총합"
       },
       {
+        "id": "service_total",
         "title": "서비스 총합"
       },
       {
+        "id": "pod_total",
         "title": "Pod 총합"
       },
       {
+        "id": "container_total",
         "title": "컨테이너 총합"
       },
       {
+        "id": "cpu_res",
         "title": "CPU 리소스",
         "tip": "클러스터 CPU 용량과 requests / limits / allocatable 비교 (밀리코어).",
         "expressionLabels": [
@@ -54,6 +63,7 @@
         ]
       },
       {
+        "id": "mem_res",
         "title": "메모리 리소스",
         "tip": "클러스터 메모리의 requests / allocatable / limits / total.",
         "expressionLabels": [
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "storage_res",
         "title": "스토리지 리소스",
         "tip": "클러스터의 임시 스토리지 총량과 할당 가능량 비교.",
         "expressionLabels": [
@@ -72,22 +83,23 @@
         ]
       },
       {
+        "id": "node_status",
         "title": "노드 상태",
         "tip": "각 노드의 Kubernetes 조건 중 현재 true 또는 unknown 상태 (Ready, *Pressure, …).",
         "tableHeaders": [
-          "노드 · 조건",
-          ""
+          "노드 · 조건"
         ]
       },
       {
+        "id": "deployment_status",
         "title": "Deployment 상태",
         "tip": "Available 조건을 보고하는 Deployment입니다.",
         "tableHeaders": [
-          "Deployment · 사용 가능",
-          ""
+          "Deployment · 사용 가능"
         ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Deployment 명세 복제본",
         "tip": "Deployment 별 원하는 복제본 수입니다.",
         "tableHeaders": [
@@ -96,46 +108,51 @@
         ]
       },
       {
+        "id": "service_pod_status",
         "title": "서비스 상태",
         "tip": "각 Kubernetes 서비스를 지원하는 Pod를 단계별 (Running / Pending / Failed / …) 로 표시합니다.",
         "tableHeaders": [
-          "서비스 · 단계",
-          ""
+          "서비스 · 단계"
         ]
       },
       {
+        "id": "pod_not_running",
         "title": "실행 중이 아닌 Pod",
         "tip": "Running 단계가 아닌 모든 Pod입니다.",
         "tableHeaders": [
-          "Pod · 상태",
-          ""
+          "Pod · 상태"
         ]
       },
       {
+        "id": "pod_waiting",
         "title": "대기 중인 Pod",
         "tip": "대기 상태에 있는 컨테이너를 사유별로 표시합니다.",
         "tableHeaders": [
-          "컨테이너 · Pod · 사유",
-          ""
+          "컨테이너 · Pod · 사유"
         ]
       }
     ],
     "instance": [
       {
+        "id": "node_status",
         "title": "노드 상태"
       },
       {
+        "id": "node_pod_total",
         "title": "노드의 Pod"
       },
       {
+        "id": "node_cpu_usage",
         "title": "노드 CPU 사용량",
         "tip": "밀리코어 단위의 CPU 사용량입니다."
       },
       {
+        "id": "node_pod_count",
         "title": "Pod 총합",
         "tip": "현재 이 노드에 스케줄된 Pod(모든 단계)."
       },
       {
+        "id": "node_cpu_resources",
         "title": "노드 CPU 리소스",
         "expressionLabels": [
           "전체",
@@ -145,9 +162,11 @@
         ]
       },
       {
+        "id": "node_memory_usage",
         "title": "노드 메모리 사용량"
       },
       {
+        "id": "node_memory_resources",
         "title": "노드 메모리 리소스",
         "expressionLabels": [
           "전체",
@@ -157,6 +176,7 @@
         ]
       },
       {
+        "id": "node_network_io",
         "title": "노드 네트워크 I/O",
         "expressionLabels": [
           "수신",
@@ -164,6 +184,7 @@
         ]
       },
       {
+        "id": "node_storage_resources",
         "title": "노드 스토리지 리소스",
         "expressionLabels": [
           "전체",

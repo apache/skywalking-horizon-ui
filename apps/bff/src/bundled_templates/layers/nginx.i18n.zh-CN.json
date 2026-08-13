@@ -8,39 +8,111 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "RPS" },
-      { "label": "5xx %" },
-      { "label": "4xx %" }
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" },
-      { "title": "HTTP 连接" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "4xx % / 分钟" },
-      { "title": "5xx % / 分钟" },
-      { "title": "错误日志数" }
+      {
+        "id": "rps",
+        "title": "HTTP 请求趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "conns",
+        "title": "HTTP 连接"
+      },
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx % / 分钟"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx % / 分钟"
+      },
+      {
+        "id": "errlog",
+        "title": "错误日志数"
+      }
     ],
     "instance": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" },
-      { "title": "HTTP 连接" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "4xx % / 分钟" },
-      { "title": "5xx % / 分钟" },
-      { "title": "错误日志数" }
+      {
+        "id": "rps",
+        "title": "HTTP 请求趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "conns",
+        "title": "HTTP 连接"
+      },
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx % / 分钟"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx % / 分钟"
+      },
+      {
+        "id": "errlog",
+        "title": "错误日志数"
+      }
     ],
     "endpoint": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "4xx % / 分钟" },
-      { "title": "5xx % / 分钟" }
+      {
+        "id": "rps",
+        "title": "HTTP 请求趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx % / 分钟"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx % / 分钟"
+      }
     ]
   }
 }

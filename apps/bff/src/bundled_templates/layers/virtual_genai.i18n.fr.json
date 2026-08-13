@@ -20,50 +20,65 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "Appels / min"
       },
       {
+        "id": "resp_time",
         "title": "Temps de réponse moyen"
       },
       {
+        "id": "sla",
         "title": "Taux de succès"
       },
       {
+        "id": "percentile",
         "title": "Centile de latence"
       },
       {
+        "id": "input_tokens_total",
         "title": "Tokens entrants"
       },
       {
+        "id": "output_tokens_total",
         "title": "Tokens sortants"
       },
       {
+        "id": "cost_total",
         "title": "Coût total estimé"
       },
       {
+        "id": "input_tokens",
         "title": "Tokens entrants moyens"
       },
       {
+        "id": "output_tokens",
         "title": "Tokens sortants moyens"
       },
       {
+        "id": "cost",
         "title": "Coût estimé moyen"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "Appels / min"
       },
       {
+        "id": "latency_avg",
         "title": "Latence moyenne"
       },
       {
+        "id": "sla",
         "title": "Taux de succès"
       },
       {
+        "id": "latency_percentile",
         "title": "Centile de latence"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "moy",
@@ -71,21 +86,27 @@
         ]
       },
       {
+        "id": "input_tokens_total",
         "title": "Tokens entrants"
       },
       {
+        "id": "output_tokens_total",
         "title": "Tokens sortants"
       },
       {
+        "id": "cost_total",
         "title": "Coût total estimé"
       },
       {
+        "id": "input_tokens",
         "title": "Tokens entrants moyens"
       },
       {
+        "id": "output_tokens",
         "title": "Tokens sortants moyens"
       },
       {
+        "id": "cost",
         "title": "Coût estimé moyen"
       }
     ]

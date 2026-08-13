@@ -20,86 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "throttled",
         "title": "Gedrosselte Anfragen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Drosselungs-Ereignisse",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Systemfehler",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
-        "title": "Benutzerfehler",
-        "expressions": [
-          null
-        ]
+        "id": "user_errors",
+        "title": "Benutzerfehler"
       },
       {
-        "title": "Conditional Check fehlgeschlagen",
-        "expressions": [
-          null
-        ]
+        "id": "cond_check_fail",
+        "title": "Conditional Check fehlgeschlagen"
       },
       {
-        "title": "Transaktionskonflikt",
-        "expressions": [
-          null
-        ]
+        "id": "txn_conflict",
+        "title": "Transaktionskonflikt"
       },
       {
+        "id": "read_usage",
         "title": "Lesekapazität (Einheit/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "provisioned",
           "verbraucht"
         ]
       },
       {
+        "id": "write_usage",
         "title": "Schreibkapazität (Einheit/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "provisioned",
           "verbraucht"
         ]
       },
       {
+        "id": "latency",
         "title": "Erfolgreiche Anfrage-Latenz (ms)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "get",
           "put",
@@ -108,31 +82,20 @@
         ]
       },
       {
-        "title": "TTL gelöschte Items",
-        "expressions": [
-          null
-        ]
+        "id": "ttl_deleted",
+        "title": "TTL gelöschte Items"
       },
       {
-        "title": "Scan zurückgegebene Items",
-        "expressions": [
-          null
-        ]
+        "id": "scan_items",
+        "title": "Scan zurückgegebene Items"
       },
       {
-        "title": "Query zurückgegebene Items",
-        "expressions": [
-          null
-        ]
+        "id": "query_items",
+        "title": "Query zurückgegebene Items"
       },
       {
+        "id": "account_max",
         "title": "Konto Max. Lesen / Schreiben",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "table-level reads",
           "table-level writes",
@@ -141,11 +104,8 @@
         ]
       },
       {
+        "id": "account_util",
         "title": "Konto-Kapazitätsauslastung",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
@@ -154,86 +114,60 @@
     ],
     "endpoint": [
       {
+        "id": "throttled",
         "title": "Gedrosselte Anfragen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Drosselungs-Ereignisse",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Systemfehler",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
-        "title": "Conditional Check fehlgeschlagen",
-        "expressions": [
-          null
-        ]
+        "id": "cond_check",
+        "title": "Conditional Check fehlgeschlagen"
       },
       {
-        "title": "Transaktionskonflikt",
-        "expressions": [
-          null
-        ]
+        "id": "txn_conflict",
+        "title": "Transaktionskonflikt"
       },
       {
-        "title": "TTL gelöschte Items",
-        "expressions": [
-          null
-        ]
+        "id": "ttl_deleted",
+        "title": "TTL gelöschte Items"
       },
       {
+        "id": "read_usage",
         "title": "Lesekapazität",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "provisioned",
           "verbraucht"
         ]
       },
       {
+        "id": "write_usage",
         "title": "Schreibkapazität",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "provisioned",
           "verbraucht"
         ]
       },
       {
+        "id": "latency",
         "title": "Erfolgreiche Anfrage-Latenz (ms)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "get",
           "put",
@@ -242,16 +176,12 @@
         ]
       },
       {
-        "title": "Scan zurückgegebene Items",
-        "expressions": [
-          null
-        ]
+        "id": "scan_items",
+        "title": "Scan zurückgegebene Items"
       },
       {
-        "title": "Query zurückgegebene Items",
-        "expressions": [
-          null
-        ]
+        "id": "query_items",
+        "title": "Query zurückgegebene Items"
       }
     ]
   },

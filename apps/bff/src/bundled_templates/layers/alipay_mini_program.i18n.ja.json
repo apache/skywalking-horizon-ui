@@ -20,47 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "アプリ起動所要時間",
         "tip": "Alipay コンテナからの概算コールド起動所要時間。"
       },
       {
+        "id": "first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "error_count",
         "title": "エラー件数"
       },
       {
+        "id": "request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "起動所要時間"
       },
       {
+        "id": "v_first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "v_request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "v_request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "ページ単位の起動所要時間"
       },
       {
+        "id": "ep_first_render",
         "title": "初回描画所要時間"
       },
       {
+        "id": "ep_request_cpm",
         "title": "リクエスト負荷"
       },
       {
+        "id": "ep_request_percentile",
         "title": "リクエスト所要時間パーセンタイル"
       }
     ]
