@@ -23,12 +23,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "l4_read",
         "title": "L4 읽기 패키지/분"
       },
       {
+        "id": "l4_write",
         "title": "L4 쓰기 패키지/분"
       },
       {
+        "id": "tcp_drop",
         "title": "TCP 드롭 / 분",
         "expressionLabels": [
           "read",
@@ -36,9 +39,11 @@
         ]
       },
       {
+        "id": "tcp_drop_reason",
         "title": "사유별 TCP 드롭"
       },
       {
+        "id": "http_load",
         "title": "HTTP 부하",
         "expressionLabels": [
           "호출",
@@ -46,9 +51,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "HTTP 시간"
       },
       {
+        "id": "http_status",
         "title": "HTTP non-2xx 상태",
         "expressionLabels": [
           "1xx",
@@ -58,6 +65,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS 부하",
         "expressionLabels": [
           "호출",
@@ -65,12 +73,15 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "DNS 시간"
       },
       {
+        "id": "dns_error",
         "title": "DNS 오류 / 분"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka 부하",
         "expressionLabels": [
           "호출",
@@ -78,20 +89,25 @@
         ]
       },
       {
+        "id": "kafka_duration",
         "title": "Kafka 시간"
       },
       {
+        "id": "kafka_error",
         "title": "Kafka 오류 / 분"
       }
     ],
     "instance": [
       {
+        "id": "l4_read",
         "title": "L4 읽기 패키지/분"
       },
       {
+        "id": "l4_write",
         "title": "L4 쓰기 패키지/분"
       },
       {
+        "id": "http_load",
         "title": "HTTP 부하",
         "expressionLabels": [
           "호출",
@@ -99,6 +115,7 @@
         ]
       },
       {
+        "id": "http_status",
         "title": "HTTP non-2xx 상태",
         "expressionLabels": [
           "1xx",
@@ -108,6 +125,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS 부하",
         "expressionLabels": [
           "호출",
@@ -115,9 +133,11 @@
         ]
       },
       {
+        "id": "dns_error",
         "title": "DNS 오류"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka 부하",
         "expressionLabels": [
           "호출",
@@ -127,6 +147,7 @@
     ],
     "endpoint": [
       {
+        "id": "http_load",
         "title": "HTTP 부하",
         "expressionLabels": [
           "호출",
@@ -134,9 +155,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "HTTP 시간"
       },
       {
+        "id": "http_status",
         "title": "HTTP non-2xx 상태",
         "expressionLabels": [
           "1xx",
@@ -146,6 +169,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS 부하",
         "expressionLabels": [
           "호출",
@@ -153,9 +177,11 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "DNS 시간"
       },
       {
+        "id": "dns_error",
         "title": "DNS 오류"
       }
     ]
@@ -163,31 +189,48 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "success",
         "label": "성공률 %"
       },
       {
+        "id": "respTime",
         "label": "지연 시간"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "HTTP RPM"
       },
       {
+        "id": "respTime",
         "label": "평균 지연 시간"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "평균 지연 시간" }
+        {
+          "id": "httpCpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "평균 지연 시간"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "평균 지연 시간" }
+        {
+          "id": "cpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "평균 지연 시간"
+        }
       ]
     }
   },

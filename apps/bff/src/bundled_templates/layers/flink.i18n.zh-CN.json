@@ -8,106 +8,241 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "运行中 Job" },
-      { "label": "TaskManager" },
-      { "label": "可用 Slot" },
-      { "label": "总 Slot" }
+      {
+        "label": "运行中 Job"
+      },
+      {
+        "label": "TaskManager"
+      },
+      {
+        "label": "可用 Slot"
+      },
+      {
+        "label": "总 Slot"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "运行中 Job" },
-      { "title": "TaskManager" },
-      { "title": "总 Slot" },
-      { "title": "可用 Slot" },
-      { "title": "JM JVM CPU 负载（%）" },
-      { "title": "JM JVM 线程数" },
-      { "title": "JM CPU 时间（ms）" },
       {
+        "id": "jobs",
+        "title": "运行中 Job"
+      },
+      {
+        "id": "task_mgrs",
+        "title": "TaskManager"
+      },
+      {
+        "id": "slots_total",
+        "title": "总 Slot"
+      },
+      {
+        "id": "slots_available",
+        "title": "可用 Slot"
+      },
+      {
+        "id": "cpu_load",
+        "title": "JM JVM CPU 负载（%）"
+      },
+      {
+        "id": "jm_threads",
+        "title": "JM JVM 线程数"
+      },
+      {
+        "id": "jm_cpu_time",
+        "title": "JM CPU 时间（ms）"
+      },
+      {
+        "id": "jm_mem_heap",
         "title": "JM Heap（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "jm_mem_nonheap",
         "title": "JM NonHeap（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "jm_metaspace",
         "title": "JM Metaspace（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "g1_young",
         "title": "G1 Young GC",
-        "expressionLabels": ["count", "time (ms)"]
+        "expressionLabels": [
+          "count",
+          "time (ms)"
+        ]
       },
       {
+        "id": "g1_old",
         "title": "G1 Old GC",
-        "expressionLabels": ["count", "time (ms)"]
+        "expressionLabels": [
+          "count",
+          "time (ms)"
+        ]
       },
       {
+        "id": "all_gc",
         "title": "全部 GC",
-        "expressionLabels": ["count", "time (ms)"]
+        "expressionLabels": [
+          "count",
+          "time (ms)"
+        ]
       },
-      { "title": "前 10 运行中 Job" }
+      {
+        "id": "top_running",
+        "title": "前 10 运行中 Job"
+      }
     ],
     "instance": [
-      { "title": "JVM CPU 负载（%）" },
-      { "title": "JVM 线程数" },
-      { "title": "CPU 时间（ms）" },
-      { "title": "反压状态" },
       {
+        "id": "cpu_load",
+        "title": "JVM CPU 负载（%）"
+      },
+      {
+        "id": "threads",
+        "title": "JVM 线程数"
+      },
+      {
+        "id": "cpu_time",
+        "title": "CPU 时间（ms）"
+      },
+      {
+        "id": "back_pressure",
+        "title": "反压状态"
+      },
+      {
+        "id": "mem_heap",
         "title": "Heap（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "mem_nonheap",
         "title": "NonHeap（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "mem_meta",
         "title": "Metaspace（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "records",
         "title": "记录 In / Out",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "bytes",
         "title": "字节 In / Out / 秒",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "netty",
         "title": "Netty 内存（MB）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "pool_usage",
         "title": "缓冲池使用率（%）",
-        "expressionLabels": ["in pool", "out pool"]
+        "expressionLabels": [
+          "in pool",
+          "out pool"
+        ]
       },
       {
+        "id": "back_pressure_time",
         "title": "反压时间（ms/s）",
-        "expressionLabels": ["soft bp", "hard bp", "idle", "busy"]
+        "expressionLabels": [
+          "soft bp",
+          "hard bp",
+          "idle",
+          "busy"
+        ]
       }
     ],
     "endpoint": [
-      { "title": "Job 运行时长（分钟）" },
-      { "title": "Job 重启时长（分钟）" },
-      { "title": "Job 取消时长（分钟）" },
-      { "title": "Job 重启次数" },
       {
+        "id": "running_time",
+        "title": "Job 运行时长（分钟）"
+      },
+      {
+        "id": "restarting_time",
+        "title": "Job 重启时长（分钟）"
+      },
+      {
+        "id": "cancelling_time",
+        "title": "Job 取消时长（分钟）"
+      },
+      {
+        "id": "restarts",
+        "title": "Job 重启次数"
+      },
+      {
+        "id": "checkpoints",
         "title": "Checkpoint",
-        "expressionLabels": ["total", "completed", "failed", "in-progress"]
+        "expressionLabels": [
+          "total",
+          "completed",
+          "failed",
+          "in-progress"
+        ]
       },
       {
+        "id": "checkpoint_last",
         "title": "上次 Checkpoint",
-        "expressionLabels": ["size (bytes)", "duration (ms)"]
+        "expressionLabels": [
+          "size (bytes)",
+          "duration (ms)"
+        ]
       },
-      { "title": "当前 Emit 事件时间 Lag（ms）" },
       {
+        "id": "emit_lag",
+        "title": "当前 Emit 事件时间 Lag（ms）"
+      },
+      {
+        "id": "records",
         "title": "记录 In / Out",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "bytes",
         "title": "字节 In / Out / 秒",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       }
     ]
   }

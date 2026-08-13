@@ -16,123 +16,74 @@
   "dashboards": {
     "service": [
       {
-        "title": "App-Last (PV)",
-        "expressions": [
-          null
-        ]
+        "id": "app_pv",
+        "title": "App-Last (PV)"
       },
       {
-        "title": "App-Fehlerrate",
-        "expressions": [
-          null
-        ]
+        "id": "app_error_rate",
+        "title": "App-Fehlerrate"
       },
       {
-        "title": "App-Fehleranzahl",
-        "expressions": [
-          null
-        ]
+        "id": "app_error_sum",
+        "title": "App-Fehleranzahl"
       },
       {
+        "id": "top_pages_pv",
         "title": "Top heiße Seiten",
         "tip": "Seiten sortiert nach Page Views, Fehlern und Fehlerrate.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "PV",
           "Fehler",
           "Fehlerrate"
-        ],
-        "expressionUnits": [
-          null,
-          null,
-          null
         ]
       },
       {
+        "id": "top_versions",
         "title": "Top-Versionen",
         "tip": "App-Versions-Aufschlüsselung — Last + Fehler + Fehlerrate.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "PV",
           "Fehler",
           "Fehlerrate"
-        ],
-        "expressionUnits": [
-          null,
-          null,
-          null
         ]
       }
     ],
     "instance": [
       {
-        "title": "Versions-PV",
-        "expressions": [
-          null
-        ]
+        "id": "ver_pv",
+        "title": "Versions-PV"
       },
       {
-        "title": "Versions-Fehlerrate",
-        "expressions": [
-          null
-        ]
+        "id": "ver_error_rate",
+        "title": "Versions-Fehlerrate"
       },
       {
-        "title": "Versions-Fehleranzahl",
-        "expressions": [
-          null
-        ]
+        "id": "ver_error_sum",
+        "title": "Versions-Fehleranzahl"
       }
     ],
     "endpoint": [
       {
+        "id": "page_fmp_percentile",
         "title": "First Meaningful Paint Perzentil",
-        "tip": "p50–p99 der FMP-Latenz für die ausgewählte Seite. Unter 1 s für p75 ist ein übliches Ziel.",
-        "expressions": [
-          null
-        ]
+        "tip": "p50–p99 der FMP-Latenz für die ausgewählte Seite. Unter 1 s für p75 ist ein übliches Ziel."
       },
       {
-        "title": "Seitenlade-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "page_load_percentile",
+        "title": "Seitenlade-Perzentil"
       },
       {
-        "title": "Time-to-Live Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "page_ttl_percentile",
+        "title": "Time-to-Live Perzentil"
       },
       {
-        "title": "First-Pack-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "page_first_pack_percentile",
+        "title": "First-Pack-Latenz-Perzentil"
       },
       {
+        "id": "page_performance",
         "title": "Seiten-Performance-Aufschlüsselung",
         "tip": "Durchschnittliche Zeit in jeder Phase des Seitenladens — Resolve, Redirect, DNS, TCP, TTFB, Transfer, DOM-Analyse, DOM-Bereit, FPT, voll geladen.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "dns",
           "redirect",
@@ -147,14 +98,9 @@
         ]
       },
       {
+        "id": "page_error_breakdown",
         "title": "Seitenfehler nach Typ",
         "tip": "Zähler für Resource- / JS- / AJAX- / unbekannte Fehler pro Minute.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "resource",
           "js",
@@ -163,13 +109,9 @@
         ]
       },
       {
+        "id": "web_vitals",
         "title": "Web Vitals",
         "tip": "Core Web Vitals — FMP, LCP, CLS (Mittel pro Minute). CLS wird durch 1000 geteilt, um es in den üblichen 0–1-Score-Bereich zu bringen.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "FMP (ms)",
           "LCP (ms)",
@@ -177,11 +119,9 @@
         ]
       },
       {
+        "id": "inp_percentile",
         "title": "Interaction-to-Next-Paint-Perzentil",
-        "tip": "INP — Reaktionsmetrik, die FID ersetzt.",
-        "expressions": [
-          null
-        ]
+        "tip": "INP — Reaktionsmetrik, die FID ersetzt."
       }
     ]
   },

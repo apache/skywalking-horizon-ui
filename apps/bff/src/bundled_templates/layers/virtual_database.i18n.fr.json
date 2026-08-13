@@ -20,21 +20,26 @@
   "dashboards": {
     "service": [
       {
+        "id": "traffic_line",
         "title": "Trafic d'accès",
         "tip": "Requêtes par minute vers la base virtuelle."
       },
       {
+        "id": "resp_time_line",
         "title": "Temps de réponse moyen"
       },
       {
+        "id": "sla_line",
         "title": "Taux de succès",
         "tip": "Pourcentage de requêtes ayant retourné sans lever d'exception."
       },
       {
+        "id": "percentile_line",
         "title": "Centile du temps de réponse",
         "tip": "Latence p50 / p75 / p90 / p95 / p99 — la queue de la distribution des temps d'accès."
       },
       {
+        "id": "slow_statements",
         "title": "Requêtes lentes",
         "tip": "Top 20 des statements les plus lents capturés. Chaque ligne est une exécution de statement unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       }

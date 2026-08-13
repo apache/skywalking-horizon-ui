@@ -7,19 +7,42 @@
   },
   "dashboards": {
     "instance": [
-      { "title": "追踪上下文创建 / 分钟" },
       {
+        "id": "tracing_created",
+        "title": "追踪上下文创建 / 分钟"
+      },
+      {
+        "id": "tracing_create_complete",
         "title": "追踪创建 + 完成 / 分钟",
-        "expressionLabels": ["created", "finished"]
+        "expressionLabels": [
+          "created",
+          "finished"
+        ]
       },
-      { "title": "Ignored 上下文创建 / 分钟" },
       {
-        "title": "Ignored 创建 + 完成 / 分钟",
-        "expressionLabels": ["created", "finished"]
+        "id": "ignored_created",
+        "title": "Ignored 上下文创建 / 分钟"
       },
-      { "title": "可能泄漏的上下文 / 分钟" },
-      { "title": "拦截器错误数 / 分钟" },
-      { "title": "追踪上下文执行时间（ms）" }
+      {
+        "id": "ignored_create_complete",
+        "title": "Ignored 创建 + 完成 / 分钟",
+        "expressionLabels": [
+          "created",
+          "finished"
+        ]
+      },
+      {
+        "id": "leaked",
+        "title": "可能泄漏的上下文 / 分钟"
+      },
+      {
+        "id": "interceptor_err",
+        "title": "拦截器错误数 / 分钟"
+      },
+      {
+        "id": "exec_time",
+        "title": "追踪上下文执行时间（ms）"
+      }
     ]
   }
 }

@@ -7,57 +7,148 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "RPM" },
-      { "label": "平均延迟" },
-      { "label": "输入 Token/分钟" },
-      { "label": "输出 Token/分钟" }
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均延迟"
+      },
+      {
+        "label": "输入 Token/分钟"
+      },
+      {
+        "label": "输出 Token/分钟"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "请求 RPM" },
-      { "title": "请求延迟平均" },
-      { "title": "输入 Token 速率" },
-      { "title": "输出 Token 速率" },
-      { "title": "请求延迟分位" },
       {
+        "id": "cpm",
+        "title": "请求 RPM"
+      },
+      {
+        "id": "latency_avg",
+        "title": "请求延迟平均"
+      },
+      {
+        "id": "input_tokens",
+        "title": "输入 Token 速率"
+      },
+      {
+        "id": "output_tokens",
+        "title": "输出 Token 速率"
+      },
+      {
+        "id": "latency_percentile",
+        "title": "请求延迟分位"
+      },
+      {
+        "id": "ttft",
         "title": "TTFT（首 Token 时间）",
-        "expressionLabels": ["avg", "percentile"]
+        "expressionLabels": [
+          "avg",
+          "percentile"
+        ]
       },
       {
+        "id": "tpot",
         "title": "TPOT（每输出 Token 时间）",
-        "expressionLabels": ["avg", "percentile"]
+        "expressionLabels": [
+          "avg",
+          "percentile"
+        ]
       },
-      { "title": "按 Provider 的 RPM" },
-      { "title": "按 Provider 的 Token" },
-      { "title": "按 Provider 的延迟平均" },
-      { "title": "按 Model 的 RPM" },
-      { "title": "按 Model 的 Token" },
-      { "title": "按 Model 的延迟平均" },
-      { "title": "按 Model 的 TTFT" },
-      { "title": "按 Model 的 TPOT" },
       {
+        "id": "provider_cpm",
+        "title": "按 Provider 的 RPM"
+      },
+      {
+        "id": "provider_tokens",
+        "title": "按 Provider 的 Token"
+      },
+      {
+        "id": "provider_latency",
+        "title": "按 Provider 的延迟平均"
+      },
+      {
+        "id": "model_cpm",
+        "title": "按 Model 的 RPM"
+      },
+      {
+        "id": "model_tokens",
+        "title": "按 Model 的 Token"
+      },
+      {
+        "id": "model_latency",
+        "title": "按 Model 的延迟平均"
+      },
+      {
+        "id": "model_ttft",
+        "title": "按 Model 的 TTFT"
+      },
+      {
+        "id": "model_tpot",
+        "title": "按 Model 的 TPOT"
+      },
+      {
+        "id": "mcp_cpm",
         "title": "MCP RPM",
         "tip": "Model Context Protocol — 使用时显示。"
       },
-      { "title": "MCP 平均延迟" },
-      { "title": "MCP 错误 RPM" },
-      { "title": "按方法的 MCP" },
-      { "title": "按后端的 MCP" }
-    ],
-    "instance": [
-      { "title": "请求 RPM" },
-      { "title": "请求延迟平均" },
-      { "title": "输入 Token 速率" },
-      { "title": "输出 Token 速率" },
-      { "title": "请求延迟分位" },
       {
-        "title": "TTFT",
-        "expressionLabels": ["avg", "percentile"]
+        "id": "mcp_latency",
+        "title": "MCP 平均延迟"
       },
       {
+        "id": "mcp_err",
+        "title": "MCP 错误 RPM"
+      },
+      {
+        "id": "mcp_method",
+        "title": "按方法的 MCP"
+      },
+      {
+        "id": "mcp_backend",
+        "title": "按后端的 MCP"
+      }
+    ],
+    "instance": [
+      {
+        "id": "cpm",
+        "title": "请求 RPM"
+      },
+      {
+        "id": "latency_avg",
+        "title": "请求延迟平均"
+      },
+      {
+        "id": "input_tokens",
+        "title": "输入 Token 速率"
+      },
+      {
+        "id": "output_tokens",
+        "title": "输出 Token 速率"
+      },
+      {
+        "id": "latency_percentile",
+        "title": "请求延迟分位"
+      },
+      {
+        "id": "ttft",
+        "title": "TTFT",
+        "expressionLabels": [
+          "avg",
+          "percentile"
+        ]
+      },
+      {
+        "id": "tpot",
         "title": "TPOT",
-        "expressionLabels": ["avg", "percentile"]
+        "expressionLabels": [
+          "avg",
+          "percentile"
+        ]
       }
     ]
   }

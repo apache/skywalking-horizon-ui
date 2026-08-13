@@ -20,6 +20,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "health",
         "title": "クラスタヘルス",
         "tableHeaders": [
           "ステータス",
@@ -27,50 +28,65 @@
         ]
       },
       {
+        "id": "nodes",
         "title": "ノード"
       },
       {
+        "id": "pending_tasks",
         "title": "保留中タスク"
       },
       {
+        "id": "primary_shards",
         "title": "Primary シャード"
       },
       {
+        "id": "shards_active",
         "title": "アクティブシャード"
       },
       {
+        "id": "shards_initializing",
         "title": "初期化中"
       },
       {
+        "id": "shards_relocating",
         "title": "再配置中"
       },
       {
+        "id": "shards_unassigned",
         "title": "未割当"
       },
       {
+        "id": "shards_delayed",
         "title": "遅延未割当"
       },
       {
+        "id": "breakers",
         "title": "発動した Breaker"
       },
       {
+        "id": "cluster_cpu",
         "title": "クラスタ CPU 平均"
       },
       {
+        "id": "cluster_jvm",
         "title": "JVM メモリ使用平均"
       },
       {
+        "id": "open_files",
         "title": "オープンファイル平均"
       }
     ],
     "instance": [
       {
+        "id": "cpu",
         "title": "プロセス CPU (%)"
       },
       {
+        "id": "os_cpu",
         "title": "OS CPU (%)"
       },
       {
+        "id": "load_avg",
         "title": "ロードアベレージ",
         "expressionLabels": [
           "1分",
@@ -79,6 +95,7 @@
         ]
       },
       {
+        "id": "jvm_mem",
         "title": "JVM メモリ (MB)",
         "expressionLabels": [
           "ヒープ使用中",
@@ -87,6 +104,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "件数",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "translog",
         "title": "Translog",
         "expressionLabels": [
           "操作",
@@ -101,6 +120,7 @@
         ]
       },
       {
+        "id": "breakers",
         "title": "Breaker",
         "expressionLabels": [
           "発動",
@@ -108,6 +128,7 @@
         ]
       },
       {
+        "id": "segments",
         "title": "セグメント",
         "expressionLabels": [
           "件数",
@@ -115,6 +136,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "ディスク使用量",
         "expressionLabels": [
           "GB",
@@ -122,6 +144,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "ネットワーク",
         "expressionLabels": [
           "送信",
@@ -129,11 +152,13 @@
         ]
       },
       {
+        "id": "open_files",
         "title": "オープンファイル"
       }
     ],
     "endpoint": [
       {
+        "id": "indexing_rate",
         "title": "インデックス作成レート",
         "expressionLabels": [
           "リクエスト",
@@ -141,6 +166,7 @@
         ]
       },
       {
+        "id": "search_rate",
         "title": "検索レート",
         "expressionLabels": [
           "リクエスト",
@@ -148,15 +174,19 @@
         ]
       },
       {
+        "id": "idx_size_all",
         "title": "インデックスサイズ (全シャード)"
       },
       {
+        "id": "idx_size_primary",
         "title": "インデックスサイズ (primary)"
       },
       {
+        "id": "docs_total",
         "title": "削除済みドキュメント"
       },
       {
+        "id": "docs",
         "title": "ドキュメント",
         "expressionLabels": [
           "全件",
@@ -164,6 +194,7 @@
         ]
       },
       {
+        "id": "search_time",
         "title": "リクエスト単位の平均検索時間 (s)",
         "expressionLabels": [
           "フェッチ",

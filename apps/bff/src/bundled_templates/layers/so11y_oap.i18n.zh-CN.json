@@ -7,72 +7,173 @@
   },
   "dashboards": {
     "instance": [
-      { "title": "CPU（%）" },
-      { "title": "JVM 内存（MB）" },
-      { "title": "GC 次数 / 分钟" },
-      { "title": "GC 时间（ms / 分钟）" },
-      { "title": "Buffer Pool（MB）" },
       {
+        "id": "cpu",
+        "title": "CPU（%）"
+      },
+      {
+        "id": "mem",
+        "title": "JVM 内存（MB）"
+      },
+      {
+        "id": "gc_count",
+        "title": "GC 次数 / 分钟"
+      },
+      {
+        "id": "gc_time",
+        "title": "GC 时间（ms / 分钟）"
+      },
+      {
+        "id": "buffer_pool",
+        "title": "Buffer Pool（MB）"
+      },
+      {
+        "id": "threads",
         "title": "线程数",
-        "expressionLabels": ["live", "peak", "daemon"]
+        "expressionLabels": [
+          "live",
+          "peak",
+          "daemon"
+        ]
       },
       {
+        "id": "thread_states",
         "title": "线程状态",
-        "expressionLabels": ["runnable", "timed-waiting", "blocked", "waiting"]
+        "expressionLabels": [
+          "runnable",
+          "timed-waiting",
+          "blocked",
+          "waiting"
+        ]
       },
       {
+        "id": "classes",
         "title": "类数量",
-        "expressionLabels": ["loaded", "unloaded total", "loaded total"]
+        "expressionLabels": [
+          "loaded",
+          "unloaded total",
+          "loaded total"
+        ]
       },
-      { "title": "聚合 / 分钟" },
       {
+        "id": "aggregation",
+        "title": "聚合 / 分钟"
+      },
+      {
+        "id": "persistence_counts",
         "title": "持久化次数 / 分钟",
-        "expressionLabels": ["prepare", "execute"]
+        "expressionLabels": [
+          "prepare",
+          "execute"
+        ]
       },
-      { "title": "持久化缓存 / 分钟" },
-      { "title": "持久化 Prepare 延迟（ms）" },
-      { "title": "持久化 Execute 延迟（ms）" },
-      { "title": "GraphQL 延迟（ms）" },
       {
+        "id": "persistence_cache",
+        "title": "持久化缓存 / 分钟"
+      },
+      {
+        "id": "persist_prepare_latency",
+        "title": "持久化 Prepare 延迟（ms）"
+      },
+      {
+        "id": "persist_execute_latency",
+        "title": "持久化 Execute 延迟（ms）"
+      },
+      {
+        "id": "graphql_latency",
+        "title": "GraphQL 延迟（ms）"
+      },
+      {
+        "id": "graphql_count",
         "title": "GraphQL 查询数",
-        "expressionLabels": ["queries", "errors"]
+        "expressionLabels": [
+          "queries",
+          "errors"
+        ]
       },
       {
+        "id": "trace_analysis",
         "title": "Trace 分析 / 分钟",
-        "expressionLabels": ["total", "errors"]
+        "expressionLabels": [
+          "total",
+          "errors"
+        ]
       },
-      { "title": "Trace 分析延迟（ms）" },
       {
+        "id": "trace_latency",
+        "title": "Trace 分析延迟（ms）"
+      },
+      {
+        "id": "mesh_analysis",
         "title": "Mesh 分析 / 分钟",
-        "expressionLabels": ["total", "errors"]
+        "expressionLabels": [
+          "total",
+          "errors"
+        ]
       },
-      { "title": "Mesh 分析延迟（ms）" },
       {
+        "id": "mesh_latency",
+        "title": "Mesh 分析延迟（ms）"
+      },
+      {
+        "id": "otel_received",
         "title": "OTel 接收 / 秒",
-        "expressionLabels": ["metrics", "logs", "spans"]
+        "expressionLabels": [
+          "metrics",
+          "logs",
+          "spans"
+        ]
       },
       {
+        "id": "k8s_als",
         "title": "K8s ALS",
-        "expressionLabels": ["count", "dropped", "streams", "err streams"]
+        "expressionLabels": [
+          "count",
+          "dropped",
+          "streams",
+          "err streams"
+        ]
       },
       {
+        "id": "watermark",
         "title": "Watermark 熔断器",
         "tip": "每个监听器累计 break + recover 计数。",
-        "expressionLabels": ["break", "recover"]
+        "expressionLabels": [
+          "break",
+          "recover"
+        ]
       },
       {
+        "id": "aggr_queue",
         "title": "聚合队列使用率（%）",
-        "expressionLabels": ["L1", "L2"]
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
       },
       {
+        "id": "banyandb_latency",
         "title": "BanyanDB 写延迟（ms）",
-        "expressionLabels": ["measure bulk", "stream bulk", "trace bulk", "stream single", "property"]
+        "expressionLabels": [
+          "measure bulk",
+          "stream bulk",
+          "trace bulk",
+          "stream single",
+          "property"
+        ]
       },
       {
+        "id": "es_latency",
         "title": "Elasticsearch 写延迟（ms）",
-        "expressionLabels": ["single", "bulk"]
+        "expressionLabels": [
+          "single",
+          "bulk"
+        ]
       },
-      { "title": "Zipkin Span 丢弃数" }
+      {
+        "id": "zipkin_drop",
+        "title": "Zipkin Span 丢弃数"
+      }
     ]
   }
 }

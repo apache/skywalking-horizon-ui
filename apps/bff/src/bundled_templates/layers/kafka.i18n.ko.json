@@ -20,24 +20,31 @@
   "dashboards": {
     "service": [
       {
+        "id": "partitions",
         "title": "파티션 수"
       },
       {
+        "id": "leaders",
         "title": "리더 수"
       },
       {
+        "id": "active_ctrl",
         "title": "활성 컨트롤러"
       },
       {
+        "id": "max_lag",
         "title": "최대 랙"
       },
       {
+        "id": "under_replicated",
         "title": "복제 부족 파티션"
       },
       {
+        "id": "offline",
         "title": "오프라인 파티션"
       },
       {
+        "id": "leader_election",
         "title": "리더 선출 비율",
         "expressionLabels": [
           "선출",
@@ -47,39 +54,51 @@
     ],
     "instance": [
       {
+        "id": "cpu",
         "title": "CPU 사용률"
       },
       {
+        "id": "msg_rate",
         "title": "수신 메시지 / s"
       },
       {
+        "id": "bytes_in",
         "title": "바이트 In / s"
       },
       {
+        "id": "bytes_out",
         "title": "바이트 Out / s"
       },
       {
+        "id": "req_rate",
         "title": "요청 / s"
       },
       {
+        "id": "purgatory",
         "title": "퍼거토리 크기"
       },
       {
+        "id": "isr_shrinks",
         "title": "ISR 축소/s"
       },
       {
+        "id": "isr_expands",
         "title": "ISR 확장/s"
       },
       {
+        "id": "mem_pct",
         "title": "메모리 사용량 (%)"
       },
       {
+        "id": "under_replicated",
         "title": "복제 부족 파티션"
       },
       {
+        "id": "under_min_isr",
         "title": "Min-ISR 미만 파티션"
       },
       {
+        "id": "partitions_leaders",
         "title": "파티션 + 리더",
         "expressionLabels": [
           "partition",
@@ -87,6 +106,7 @@
         ]
       },
       {
+        "id": "queue_times",
         "title": "큐 / 전송 시간",
         "expressionLabels": [
           "request q",
@@ -96,6 +116,7 @@
         ]
       },
       {
+        "id": "topic_rates",
         "title": "토픽 비율",
         "expressionLabels": [
           "produce req/s",
@@ -104,6 +125,7 @@
         ]
       },
       {
+        "id": "replication",
         "title": "복제",
         "expressionLabels": [
           "바이트 in",
@@ -111,9 +133,11 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC 수"
       },
       {
+        "id": "max_lag",
         "title": "최대 랙 (브로커)"
       }
     ]

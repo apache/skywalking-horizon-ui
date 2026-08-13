@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_count",
         "title": "노드 수"
       },
       {
+        "id": "failed_nodes",
         "title": "실패 노드"
       },
       {
+        "id": "namespace_count",
         "title": "네임스페이스 수"
       },
       {
+        "id": "service_count",
         "title": "EKS 서비스 수"
       },
       {
+        "id": "network_errors",
         "title": "클러스터 네트워크 오류",
         "expressionLabels": [
           "rx",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "network_dropped",
         "title": "클러스터 네트워크 드롭",
         "expressionLabels": [
           "rx",
@@ -48,38 +54,49 @@
     ],
     "endpoint": [
       {
+        "id": "pod_cpu",
         "title": "Pod CPU 사용률 (%)"
       },
       {
+        "id": "pod_mem",
         "title": "Pod 메모리 사용률 (%)"
       },
       {
+        "id": "pod_net_rx",
         "title": "Pod 네트워크 RX (KB/s)"
       },
       {
+        "id": "pod_net_rx_err",
         "title": "Pod RX 오류 / s"
       },
       {
+        "id": "pod_net_tx",
         "title": "Pod 네트워크 TX (KB/s)"
       },
       {
+        "id": "pod_net_tx_err",
         "title": "Pod TX 오류 / s"
       }
     ],
     "instance": [
       {
+        "id": "pods",
         "title": "Pod 수"
       },
       {
+        "id": "node_cpu",
         "title": "CPU 사용률 (%)"
       },
       {
+        "id": "node_mem",
         "title": "메모리 사용률 (%)"
       },
       {
+        "id": "node_fs",
         "title": "파일 시스템 사용률 (%)"
       },
       {
+        "id": "node_net_rx",
         "title": "네트워크 RX (KB/s)",
         "expressionLabels": [
           "바이트",
@@ -87,6 +104,7 @@
         ]
       },
       {
+        "id": "node_net_tx",
         "title": "네트워크 TX (KB/s)",
         "expressionLabels": [
           "바이트",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "디스크 I/O (B/s)",
         "expressionLabels": [
           "read",
@@ -101,9 +120,11 @@
         ]
       },
       {
+        "id": "pod_cpu",
         "title": "노드의 Pod CPU"
       },
       {
+        "id": "pod_mem",
         "title": "노드의 Pod 메모리"
       }
     ]

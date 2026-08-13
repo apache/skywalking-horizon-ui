@@ -6,29 +6,55 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "CPU %" },
-      { "label": "内存 MB" },
-      { "label": "虚拟内存 %" }
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "内存 MB"
+      },
+      {
+        "label": "虚拟内存 %"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "CPU 平均使用率（%）" },
       {
+        "id": "cpu",
+        "title": "CPU 平均使用率（%）"
+      },
+      {
+        "id": "memory",
         "title": "内存 RAM（MB）",
-        "expressionLabels": ["used", "total", "available"]
+        "expressionLabels": [
+          "used",
+          "total",
+          "available"
+        ]
       },
       {
+        "id": "virtual_memory",
         "title": "虚拟内存（MB）",
-        "expressionLabels": ["free", "total"]
+        "expressionLabels": [
+          "free",
+          "total"
+        ]
       },
       {
+        "id": "network_bandwidth",
         "title": "网络带宽（KB/s）",
-        "expressionLabels": ["receive", "transmit"]
+        "expressionLabels": [
+          "receive",
+          "transmit"
+        ]
       },
       {
+        "id": "disk",
         "title": "磁盘读/写（KB/s）",
-        "expressionLabels": ["read", "written"]
+        "expressionLabels": [
+          "read",
+          "written"
+        ]
       }
     ]
   }

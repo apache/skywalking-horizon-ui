@@ -20,47 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "Durée de lancement de l'app",
         "tip": "Durée approximative de lancement à froid depuis le conteneur Alipay."
       },
       {
+        "id": "first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "error_count",
         "title": "Nombre d'erreurs"
       },
       {
+        "id": "request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "request_percentile",
         "title": "Centile de durée de requête"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "Durée de lancement"
       },
       {
+        "id": "v_first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "v_request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "v_request_percentile",
         "title": "Centile de durée de requête"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "Durée de lancement sur la page"
       },
       {
+        "id": "ep_first_render",
         "title": "Durée du premier rendu"
       },
       {
+        "id": "ep_request_cpm",
         "title": "Charge de requêtes"
       },
       {
+        "id": "ep_request_percentile",
         "title": "Centile de durée de requête"
       }
     ]

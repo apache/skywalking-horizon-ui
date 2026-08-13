@@ -20,54 +20,70 @@
   "dashboards": {
     "service": [
       {
+        "id": "count",
         "title": "Conteo de peticiones"
       },
       {
+        "id": "err4xx",
         "title": "Conteo 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Conteo 5xx"
       },
       {
+        "id": "latency",
         "title": "Latencia media de petición"
       },
       {
+        "id": "integration_latency",
         "title": "Latencia media de integración",
         "tip": "Latencia entre el gateway y la integración backend."
       },
       {
+        "id": "data",
         "title": "Datos procesados (solo HTTP API)"
       },
       {
+        "id": "cache_hit",
         "title": "Tasa de aciertos de caché (solo REST API)"
       },
       {
+        "id": "cache_miss",
         "title": "Tasa de fallos de caché (solo REST API)"
       }
     ],
     "endpoint": [
       {
+        "id": "count",
         "title": "Conteo de peticiones"
       },
       {
+        "id": "err4xx",
         "title": "Conteo 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Conteo 5xx"
       },
       {
+        "id": "latency",
         "title": "Latencia media de petición"
       },
       {
+        "id": "integration_latency",
         "title": "Latencia media de integración"
       },
       {
+        "id": "data",
         "title": "Datos procesados"
       },
       {
+        "id": "cache_hit",
         "title": "Tasa de aciertos de caché"
       },
       {
+        "id": "cache_miss",
         "title": "Tasa de fallos de caché"
       }
     ]

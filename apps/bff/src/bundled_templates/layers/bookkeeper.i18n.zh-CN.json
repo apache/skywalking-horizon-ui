@@ -7,56 +7,120 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Ledger 数" },
-      { "label": "Entry 数" },
-      { "label": "可写目录" },
-      { "label": "目录使用" }
+      {
+        "label": "Ledger 数"
+      },
+      {
+        "label": "Entry 数"
+      },
+      {
+        "label": "可写目录"
+      },
+      {
+        "label": "目录使用"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Bookie Ledger 数" },
-      { "title": "Bookie Entry 数" },
-      { "title": "可写 Ledger 目录数" },
       {
+        "id": "ledgers",
+        "title": "Bookie Ledger 数"
+      },
+      {
+        "id": "entries",
+        "title": "Bookie Entry 数"
+      },
+      {
+        "id": "writable_dirs",
+        "title": "可写 Ledger 目录数"
+      },
+      {
+        "id": "write_cache",
         "title": "写缓存",
-        "expressionLabels": ["size (MB)", "entries"]
+        "expressionLabels": [
+          "size (MB)",
+          "entries"
+        ]
       },
       {
+        "id": "read_cache",
         "title": "读缓存",
-        "expressionLabels": ["size (MB)", "entries"]
+        "expressionLabels": [
+          "size (MB)",
+          "entries"
+        ]
       },
       {
+        "id": "io_rates",
         "title": "读 / 写速率（B/s）",
-        "expressionLabels": ["read", "write"]
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
       },
-      { "title": "Ledger 目录使用" }
+      {
+        "id": "dir_usage",
+        "title": "Ledger 目录使用"
+      }
     ],
     "instance": [
-      { "title": "JVM 内存池（MB）" },
       {
+        "id": "jvm_pool",
+        "title": "JVM 内存池（MB）"
+      },
+      {
+        "id": "jvm_mem",
         "title": "JVM 内存（MB）",
-        "expressionLabels": ["used", "committed", "init"]
+        "expressionLabels": [
+          "used",
+          "committed",
+          "init"
+        ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM 线程",
-        "expressionLabels": ["current", "daemon", "peak", "deadlocked"]
+        "expressionLabels": [
+          "current",
+          "daemon",
+          "peak",
+          "deadlocked"
+        ]
       },
       {
+        "id": "gc",
         "title": "GC",
-        "expressionLabels": ["seconds", "count"]
+        "expressionLabels": [
+          "seconds",
+          "count"
+        ]
       },
       {
+        "id": "thread_executor",
         "title": "线程执行器",
-        "expressionLabels": ["completed", "tasks completed", "rejected", "failed"]
+        "expressionLabels": [
+          "completed",
+          "tasks completed",
+          "rejected",
+          "failed"
+        ]
       },
       {
+        "id": "pooled_threads",
         "title": "线程池",
-        "expressionLabels": ["high-priority", "read"]
+        "expressionLabels": [
+          "high-priority",
+          "read"
+        ]
       },
       {
+        "id": "queue_size",
         "title": "线程池最大队列大小",
-        "expressionLabels": ["high-priority", "read"]
+        "expressionLabels": [
+          "high-priority",
+          "read"
+        ]
       }
     ]
   }

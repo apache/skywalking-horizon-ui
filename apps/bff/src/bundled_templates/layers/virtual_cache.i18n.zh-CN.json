@@ -6,31 +6,77 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "访问 RPM" },
-      { "label": "延迟" },
-      { "label": "p95" },
-      { "label": "错误率" }
+      {
+        "label": "访问 RPM"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "错误率"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "访问流量" },
-      { "title": "平均访问延迟" },
-      { "title": "访问成功率" },
-      { "title": "访问延迟分位" },
-      { "title": "读流量" },
-      { "title": "读平均延迟" },
-      { "title": "写流量" },
-      { "title": "写平均延迟" },
-      { "title": "读成功率" },
-      { "title": "写成功率" },
-      { "title": "读延迟分位" },
-      { "title": "写延迟分位" },
       {
+        "id": "access_cpm_line",
+        "title": "访问流量"
+      },
+      {
+        "id": "access_resp_line",
+        "title": "平均访问延迟"
+      },
+      {
+        "id": "access_sla_line",
+        "title": "访问成功率"
+      },
+      {
+        "id": "access_percentile",
+        "title": "访问延迟分位"
+      },
+      {
+        "id": "read_traffic",
+        "title": "读流量"
+      },
+      {
+        "id": "read_resp",
+        "title": "读平均延迟"
+      },
+      {
+        "id": "write_traffic",
+        "title": "写流量"
+      },
+      {
+        "id": "write_resp",
+        "title": "写平均延迟"
+      },
+      {
+        "id": "read_sla",
+        "title": "读成功率"
+      },
+      {
+        "id": "write_sla",
+        "title": "写成功率"
+      },
+      {
+        "id": "read_percentile",
+        "title": "读延迟分位"
+      },
+      {
+        "id": "write_percentile",
+        "title": "写延迟分位"
+      },
+      {
+        "id": "slow_read",
         "title": "慢读命令",
         "tip": "采集到的最慢的 10 条读命令。每行是单次执行 — 点击可复制，或点击行首的 Trace 图标跳转到原始 Trace（仅在该采样包含 Trace 时显示）。"
       },
       {
+        "id": "slow_write",
         "title": "慢写命令",
         "tip": "采集到的最慢的 10 条写命令。每行是单次执行 — 点击可复制，或点击行首的 Trace 图标跳转到原始 Trace（仅在该采样包含 Trace 时显示）。"
       }

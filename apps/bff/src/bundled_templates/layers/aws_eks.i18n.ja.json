@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_count",
         "title": "ノード数"
       },
       {
+        "id": "failed_nodes",
         "title": "失敗ノード"
       },
       {
+        "id": "namespace_count",
         "title": "ネームスペース数"
       },
       {
+        "id": "service_count",
         "title": "EKS サービス数"
       },
       {
+        "id": "network_errors",
         "title": "クラスタネットワークエラー",
         "expressionLabels": [
           "受信",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "network_dropped",
         "title": "クラスタネットワーク破棄",
         "expressionLabels": [
           "受信",
@@ -48,38 +54,49 @@
     ],
     "endpoint": [
       {
+        "id": "pod_cpu",
         "title": "Pod CPU 使用率 (%)"
       },
       {
+        "id": "pod_mem",
         "title": "Pod メモリ使用率 (%)"
       },
       {
+        "id": "pod_net_rx",
         "title": "Pod ネットワーク RX (KB/s)"
       },
       {
+        "id": "pod_net_rx_err",
         "title": "Pod RX エラー / s"
       },
       {
+        "id": "pod_net_tx",
         "title": "Pod ネットワーク TX (KB/s)"
       },
       {
+        "id": "pod_net_tx_err",
         "title": "Pod TX エラー / s"
       }
     ],
     "instance": [
       {
+        "id": "pods",
         "title": "Pod 数"
       },
       {
+        "id": "node_cpu",
         "title": "CPU 使用率 (%)"
       },
       {
+        "id": "node_mem",
         "title": "メモリ使用率 (%)"
       },
       {
+        "id": "node_fs",
         "title": "FS 使用率 (%)"
       },
       {
+        "id": "node_net_rx",
         "title": "ネットワーク RX (KB/s)",
         "expressionLabels": [
           "バイト",
@@ -87,6 +104,7 @@
         ]
       },
       {
+        "id": "node_net_tx",
         "title": "ネットワーク TX (KB/s)",
         "expressionLabels": [
           "バイト",
@@ -94,6 +112,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "ディスク IO (B/s)",
         "expressionLabels": [
           "読み取り",
@@ -101,9 +120,11 @@
         ]
       },
       {
+        "id": "pod_cpu",
         "title": "ノード上の Pod CPU"
       },
       {
+        "id": "pod_mem",
         "title": "ノード上の Pod メモリ"
       }
     ]

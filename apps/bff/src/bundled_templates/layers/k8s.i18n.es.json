@@ -18,30 +18,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_total",
         "title": "Total de nodos"
       },
       {
+        "id": "namespace_total",
         "title": "Total de namespaces"
       },
       {
+        "id": "deployment_total",
         "title": "Total de deployments"
       },
       {
+        "id": "statefulset_total",
         "title": "Total de StatefulSets"
       },
       {
+        "id": "daemonset_total",
         "title": "Total de DaemonSets"
       },
       {
+        "id": "service_total",
         "title": "Total de servicios"
       },
       {
+        "id": "pod_total",
         "title": "Total de pods"
       },
       {
+        "id": "container_total",
         "title": "Total de contenedores"
       },
       {
+        "id": "cpu_res",
         "expressionLabels": [
           "Capacidad",
           "Peticiones",
@@ -52,6 +61,7 @@
         "tip": "Capacidad de CPU del clúster vs requests / limits / asignable (millicores)."
       },
       {
+        "id": "mem_res",
         "title": "Recursos de memoria",
         "tip": "Memoria del clúster: requests / asignable / limits / total.",
         "expressionLabels": [
@@ -62,6 +72,7 @@
         ]
       },
       {
+        "id": "storage_res",
         "title": "Recursos de almacenamiento",
         "tip": "Almacenamiento efímero total del clúster vs asignable.",
         "expressionLabels": [
@@ -70,22 +81,23 @@
         ]
       },
       {
+        "id": "node_status",
         "title": "Estado del nodo",
         "tip": "Condiciones de Kubernetes por nodo actualmente verdaderas/desconocidas (Ready, *Pressure, …).",
         "tableHeaders": [
-          "Nodo · Condición",
-          null
+          "Nodo · Condición"
         ]
       },
       {
+        "id": "deployment_status",
         "title": "Estado del deployment",
         "tip": "Deployments que reportan la condición Available.",
         "tableHeaders": [
-          "Deployment · Disponible",
-          null
+          "Deployment · Disponible"
         ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Réplicas especificadas del deployment",
         "tip": "Conteo de réplicas deseado por deployment.",
         "tableHeaders": [
@@ -94,46 +106,51 @@
         ]
       },
       {
+        "id": "service_pod_status",
         "title": "Estado del servicio",
         "tip": "Pods que respaldan cada K8s Service, por fase (Running / Pending / Failed / …).",
         "tableHeaders": [
-          "Servicio · Fase",
-          null
+          "Servicio · Fase"
         ]
       },
       {
+        "id": "pod_not_running",
         "title": "Pods en estado no Running",
         "tip": "Pods en cualquier fase distinta de Running.",
         "tableHeaders": [
-          "Pod · Estado",
-          null
+          "Pod · Estado"
         ]
       },
       {
+        "id": "pod_waiting",
         "title": "Pods en estado Waiting",
         "tip": "Contenedores en estado de espera, por motivo.",
         "tableHeaders": [
-          "Contenedor · Pod · Motivo",
-          null
+          "Contenedor · Pod · Motivo"
         ]
       }
     ],
     "instance": [
       {
+        "id": "node_status",
         "title": "Estado del nodo"
       },
       {
+        "id": "node_pod_total",
         "title": "Pods en el nodo"
       },
       {
+        "id": "node_cpu_usage",
         "title": "Uso de CPU del nodo",
         "tip": "Uso de CPU en millicores."
       },
       {
+        "id": "node_pod_count",
         "title": "Total de pods",
         "tip": "Pods actualmente programados en este nodo (todas las fases)."
       },
       {
+        "id": "node_cpu_resources",
         "title": "Recursos de CPU del nodo",
         "expressionLabels": [
           "total",
@@ -143,9 +160,11 @@
         ]
       },
       {
+        "id": "node_memory_usage",
         "title": "Uso de memoria del nodo"
       },
       {
+        "id": "node_memory_resources",
         "title": "Recursos de memoria del nodo",
         "expressionLabels": [
           "total",
@@ -155,6 +174,7 @@
         ]
       },
       {
+        "id": "node_network_io",
         "title": "I/O de red del nodo",
         "expressionLabels": [
           "recepción",
@@ -162,6 +182,7 @@
         ]
       },
       {
+        "id": "node_storage_resources",
         "title": "Recursos de almacenamiento del nodo",
         "expressionLabels": [
           "total",

@@ -20,185 +20,127 @@
   "dashboards": {
     "service": [
       {
-        "title": "Anfrage-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "cpm",
+        "title": "Anfrage-RPM"
       },
       {
-        "title": "Mittlere Anfragelatenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency_avg",
+        "title": "Mittlere Anfragelatenz"
       },
       {
-        "title": "Input-Token-Rate",
-        "expressions": [
-          null
-        ]
+        "id": "input_tokens",
+        "title": "Input-Token-Rate"
       },
       {
-        "title": "Output-Token-Rate",
-        "expressions": [
-          null
-        ]
+        "id": "output_tokens",
+        "title": "Output-Token-Rate"
       },
       {
-        "title": "Anfragelatenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "latency_percentile",
+        "title": "Anfragelatenz-Perzentil"
       },
       {
+        "id": "ttft",
         "title": "TTFT (Zeit bis zum ersten Token)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "perzentil"
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT (Zeit pro Output-Token)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "perzentil"
         ]
       },
       {
-        "title": "RPM nach Anbieter",
-        "expressions": [
-          null
-        ]
+        "id": "provider_cpm",
+        "title": "RPM nach Anbieter"
       },
       {
-        "title": "Tokens nach Anbieter",
-        "expressions": [
-          null
-        ]
+        "id": "provider_tokens",
+        "title": "Tokens nach Anbieter"
       },
       {
-        "title": "Mittlere Latenz nach Anbieter",
-        "expressions": [
-          null
-        ]
+        "id": "provider_latency",
+        "title": "Mittlere Latenz nach Anbieter"
       },
       {
-        "title": "RPM nach Modell",
-        "expressions": [
-          null
-        ]
+        "id": "model_cpm",
+        "title": "RPM nach Modell"
       },
       {
-        "title": "Tokens nach Modell",
-        "expressions": [
-          null
-        ]
+        "id": "model_tokens",
+        "title": "Tokens nach Modell"
       },
       {
-        "title": "Mittlere Latenz nach Modell",
-        "expressions": [
-          null
-        ]
+        "id": "model_latency",
+        "title": "Mittlere Latenz nach Modell"
       },
       {
-        "title": "TTFT nach Modell",
-        "expressions": [
-          null
-        ]
+        "id": "model_ttft",
+        "title": "TTFT nach Modell"
       },
       {
-        "title": "TPOT nach Modell",
-        "expressions": [
-          null
-        ]
+        "id": "model_tpot",
+        "title": "TPOT nach Modell"
       },
       {
+        "id": "mcp_cpm",
         "title": "MCP-RPM",
-        "tip": "Model Context Protocol — wenn verwendet.",
-        "expressions": [
-          null
-        ]
+        "tip": "Model Context Protocol — wenn verwendet."
       },
       {
-        "title": "MCP mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "mcp_latency",
+        "title": "MCP mittlere Latenz"
       },
       {
-        "title": "MCP-Fehler-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "mcp_err",
+        "title": "MCP-Fehler-RPM"
       },
       {
-        "title": "MCP nach Methode",
-        "expressions": [
-          null
-        ]
+        "id": "mcp_method",
+        "title": "MCP nach Methode"
       },
       {
-        "title": "MCP nach Backend",
-        "expressions": [
-          null
-        ]
+        "id": "mcp_backend",
+        "title": "MCP nach Backend"
       }
     ],
     "instance": [
       {
-        "title": "Anfrage-RPM",
-        "expressions": [
-          null
-        ]
+        "id": "cpm",
+        "title": "Anfrage-RPM"
       },
       {
-        "title": "Mittlere Anfragelatenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency_avg",
+        "title": "Mittlere Anfragelatenz"
       },
       {
-        "title": "Input-Token-Rate",
-        "expressions": [
-          null
-        ]
+        "id": "input_tokens",
+        "title": "Input-Token-Rate"
       },
       {
-        "title": "Output-Token-Rate",
-        "expressions": [
-          null
-        ]
+        "id": "output_tokens",
+        "title": "Output-Token-Rate"
       },
       {
-        "title": "Anfragelatenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "latency_percentile",
+        "title": "Anfragelatenz-Perzentil"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "perzentil"
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "perzentil"

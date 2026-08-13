@@ -7,50 +7,125 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "DAG-Bag-Größe" },
-      { "label": "DAG-Gesamt-Parsezeit" },
-      { "label": "Freie Executor-Slots" },
-      { "label": "Geplante Slots" }
+      {
+        "label": "DAG-Bag-Größe"
+      },
+      {
+        "label": "DAG-Gesamt-Parsezeit"
+      },
+      {
+        "label": "Freie Executor-Slots"
+      },
+      {
+        "label": "Geplante Slots"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Ausführbare Tasks" },
-      { "title": "Laufende Tasks" },
-      { "title": "Geplante Slots" },
-      { "title": "Wartende Tasks" },
-      { "title": "Freie Executor-Slots" },
-      { "title": "DAG-Datei-Warteschlange" },
-      { "title": "DAG-Importfehler" },
-      { "title": "DAG-Bag-Größe" },
-      { "title": "DAG-Gesamt-Parsezeit" },
-      { "title": "DAG-Datei-Aktualisierungsfehler" },
-      { "title": "Asset-Updates" }
+      {
+        "id": "tasks_executable",
+        "title": "Ausführbare Tasks"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Laufende Tasks"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "Geplante Slots"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "Wartende Tasks"
+      },
+      {
+        "id": "open_slots",
+        "title": "Freie Executor-Slots"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "DAG-Datei-Warteschlange"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "DAG-Importfehler"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "DAG-Bag-Größe"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "DAG-Gesamt-Parsezeit"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "DAG-Datei-Aktualisierungsfehler"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset-Updates"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Pool frei / zurückgestellt / laufend",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "Laufende Tasks / geplante Slots",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "Scheduler-Heartbeat" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "Scheduler-Heartbeat"
+      },
+      {
+        "id": "executor_slots",
         "title": "Executor frei / wartend",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Asset-Updates" },
-      { "title": "Asset-ausgelöste DagRuns" },
-      { "title": "Triggerer-Heartbeat" },
       {
+        "id": "asset_updates",
+        "title": "Asset-Updates"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset-ausgelöste DagRuns"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Triggerer-Heartbeat"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "Laufende Trigger / freie Kapazität",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "Trigger blockiert / fehlgeschlagen / erfolgreich",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

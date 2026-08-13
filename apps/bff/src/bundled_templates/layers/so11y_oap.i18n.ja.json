@@ -4,21 +4,27 @@
   "dashboards": {
     "instance": [
       {
+        "id": "cpu",
         "title": "CPU (%)"
       },
       {
+        "id": "mem",
         "title": "JVM メモリ (MB)"
       },
       {
+        "id": "gc_count",
         "title": "GC 回数 / 分"
       },
       {
+        "id": "gc_time",
         "title": "GC 時間 (ms / 分)"
       },
       {
+        "id": "buffer_pool",
         "title": "バッファプール (MB)"
       },
       {
+        "id": "threads",
         "title": "スレッド数",
         "expressionLabels": [
           "ライブ",
@@ -27,6 +33,7 @@
         ]
       },
       {
+        "id": "thread_states",
         "title": "スレッド状態",
         "expressionLabels": [
           "runnable",
@@ -36,6 +43,7 @@
         ]
       },
       {
+        "id": "classes",
         "title": "クラス数",
         "expressionLabels": [
           "ロード済み",
@@ -44,9 +52,11 @@
         ]
       },
       {
+        "id": "aggregation",
         "title": "集約 / 分"
       },
       {
+        "id": "persistence_counts",
         "title": "永続化回数 / 分",
         "expressionLabels": [
           "prepare",
@@ -54,18 +64,23 @@
         ]
       },
       {
+        "id": "persistence_cache",
         "title": "永続キャッシュ / 分"
       },
       {
+        "id": "persist_prepare_latency",
         "title": "永続化 Prepare レイテンシ (ms)"
       },
       {
+        "id": "persist_execute_latency",
         "title": "永続化 Execute レイテンシ (ms)"
       },
       {
+        "id": "graphql_latency",
         "title": "GraphQL レイテンシ (ms)"
       },
       {
+        "id": "graphql_count",
         "title": "GraphQL クエリ数",
         "expressionLabels": [
           "クエリ",
@@ -73,6 +88,7 @@
         ]
       },
       {
+        "id": "trace_analysis",
         "title": "Trace 解析 / 分",
         "expressionLabels": [
           "合計",
@@ -80,9 +96,11 @@
         ]
       },
       {
+        "id": "trace_latency",
         "title": "Trace 解析レイテンシ (ms)"
       },
       {
+        "id": "mesh_analysis",
         "title": "Mesh 解析 / 分",
         "expressionLabels": [
           "合計",
@@ -90,9 +108,11 @@
         ]
       },
       {
+        "id": "mesh_latency",
         "title": "Mesh 解析レイテンシ (ms)"
       },
       {
+        "id": "otel_received",
         "title": "OTEL 受信 / s",
         "expressionLabels": [
           "メトリクス",
@@ -101,6 +121,7 @@
         ]
       },
       {
+        "id": "k8s_als",
         "title": "K8s ALS",
         "expressionLabels": [
           "件数",
@@ -110,6 +131,7 @@
         ]
       },
       {
+        "id": "watermark",
         "title": "Watermark サーキットブレーカー",
         "tip": "リスナー単位の break + recover 累積カウンタ。",
         "expressionLabels": [
@@ -118,6 +140,7 @@
         ]
       },
       {
+        "id": "aggr_queue",
         "title": "集約キュー使用率 (%)",
         "expressionLabels": [
           "L1",
@@ -125,6 +148,7 @@
         ]
       },
       {
+        "id": "banyandb_latency",
         "title": "BanyanDB 書き込みレイテンシ (ms)",
         "expressionLabels": [
           "measure bulk",
@@ -135,6 +159,7 @@
         ]
       },
       {
+        "id": "es_latency",
         "title": "Elasticsearch 書き込みレイテンシ (ms)",
         "expressionLabels": [
           "single",
@@ -142,6 +167,7 @@
         ]
       },
       {
+        "id": "zipkin_drop",
         "title": "Zipkin スパン破棄"
       }
     ]

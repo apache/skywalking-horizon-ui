@@ -104,7 +104,7 @@ The template's English strings — the layer `alias`, any `aliases.*`, `slots`, 
 pnpm --filter @skywalking-horizon-ui/bff i18n:seed
 ```
 
-This walks every bundled template and writes one `<your-key>.i18n.<locale>.json` per non-English locale (`de`, `es`, `fr`, `ja`, `ko`, `pt`, `zh-CN`), pre-filling shared widget vocabulary from the lexicon. Existing translations are preserved — only gaps are added. Fill the layer-specific prose you care about in each overlay (anything left blank falls back to English at render), then check for drift:
+This walks every bundled template and writes one `<your-key>.i18n.<locale>.json` per non-English locale (`de`, `es`, `fr`, `ja`, `ko`, `pt`, `zh-CN`), pre-filling shared widget vocabulary from the lexicon. Existing translations are preserved — only gaps are added, and each entry names the widget it translates, so re-running the seeder after you reorder a dashboard keeps every translation on its own widget. Fill the layer-specific prose you care about in each overlay (anything left blank falls back to English at render), then check for drift:
 
 ```sh
 pnpm --filter @skywalking-horizon-ui/bff i18n:validate

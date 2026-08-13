@@ -20,6 +20,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "throttled",
         "title": "スロットリクエスト",
         "expressionLabels": [
           "読み取り",
@@ -27,6 +28,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "スロットルイベント",
         "expressionLabels": [
           "読み取り",
@@ -34,6 +36,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "システムエラー",
         "expressionLabels": [
           "読み取り",
@@ -41,15 +44,19 @@
         ]
       },
       {
+        "id": "user_errors",
         "title": "ユーザーエラー"
       },
       {
+        "id": "cond_check_fail",
         "title": "条件付きチェック失敗"
       },
       {
+        "id": "txn_conflict",
         "title": "トランザクション競合"
       },
       {
+        "id": "read_usage",
         "title": "読み取りキャパシティ (unit/s)",
         "expressionLabels": [
           "プロビジョン",
@@ -57,6 +64,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "書き込みキャパシティ (unit/s)",
         "expressionLabels": [
           "プロビジョン",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "成功リクエストレイテンシ (ms)",
         "expressionLabels": [
           "get",
@@ -73,15 +82,19 @@
         ]
       },
       {
+        "id": "ttl_deleted",
         "title": "TTL 削除アイテム"
       },
       {
+        "id": "scan_items",
         "title": "Scan 返却アイテム"
       },
       {
+        "id": "query_items",
         "title": "Query 返却アイテム"
       },
       {
+        "id": "account_max",
         "title": "アカウント最大読み取り / 書き込み",
         "expressionLabels": [
           "テーブル単位読み取り",
@@ -91,6 +104,7 @@
         ]
       },
       {
+        "id": "account_util",
         "title": "アカウントキャパシティ使用率",
         "expressionLabels": [
           "読み取り",
@@ -100,6 +114,7 @@
     ],
     "endpoint": [
       {
+        "id": "throttled",
         "title": "スロットリクエスト",
         "expressionLabels": [
           "読み取り",
@@ -107,6 +122,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "スロットルイベント",
         "expressionLabels": [
           "読み取り",
@@ -114,6 +130,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "システムエラー",
         "expressionLabels": [
           "読み取り",
@@ -121,15 +138,19 @@
         ]
       },
       {
+        "id": "cond_check",
         "title": "条件付きチェック失敗"
       },
       {
+        "id": "txn_conflict",
         "title": "トランザクション競合"
       },
       {
+        "id": "ttl_deleted",
         "title": "TTL 削除アイテム"
       },
       {
+        "id": "read_usage",
         "title": "読み取りキャパシティ",
         "expressionLabels": [
           "プロビジョン",
@@ -137,6 +158,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "書き込みキャパシティ",
         "expressionLabels": [
           "プロビジョン",
@@ -144,6 +166,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "成功リクエストレイテンシ (ms)",
         "expressionLabels": [
           "get",
@@ -153,9 +176,11 @@
         ]
       },
       {
+        "id": "scan_items",
         "title": "Scan 返却アイテム"
       },
       {
+        "id": "query_items",
         "title": "Query 返却アイテム"
       }
     ]

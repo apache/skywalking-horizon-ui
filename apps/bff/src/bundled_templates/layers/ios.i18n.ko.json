@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_percentile",
         "title": "앱 실행 시간 백분위"
       },
       {
+        "id": "hang_percentile",
         "title": "행 타임 백분위"
       },
       {
+        "id": "hang_sum",
         "title": "행 타임 (합계)"
       },
       {
+        "id": "abnormal_exits",
         "title": "비정상 종료 (크래시)",
         "tip": "MetricKit은 포그라운드와 백그라운드 비정상 종료를 별도로 보고합니다.",
         "expressionLabels": [
@@ -37,17 +41,21 @@
         ]
       },
       {
+        "id": "oom_kills",
         "title": "OOM Kill 수",
         "tip": "백그라운드 OOM kill — iOS 시스템이 메모리 압박으로 앱을 종료한 횟수입니다."
       },
       {
+        "id": "peak_memory",
         "title": "최대 메모리"
       },
       {
+        "id": "scroll_hitch",
         "title": "스크롤 헛걸음 비율",
         "tip": "헛걸음으로 분류된 스크롤 프레임의 비율입니다 — 값이 클수록 UI가 끊깁니다."
       },
       {
+        "id": "network_transfer",
         "title": "네트워크 전송",
         "tip": "WiFi 와 셀룰러의 송수신 바이트입니다.",
         "expressionLabels": [
@@ -58,6 +66,7 @@
         ]
       },
       {
+        "id": "outbound_http",
         "title": "아웃바운드 HTTP",
         "tip": "앱이 백엔드에 호출하는 트래픽 — 로드, 지연 시간, 성공률.",
         "expressionLabels": [
@@ -69,12 +78,15 @@
     ],
     "instance": [
       {
+        "id": "instance_launch_p",
         "title": "실행 시간 백분위"
       },
       {
+        "id": "instance_hang_p",
         "title": "행 타임 백분위"
       },
       {
+        "id": "instance_crashes",
         "title": "비정상 종료",
         "expressionLabels": [
           "포그라운드",
@@ -82,12 +94,15 @@
         ]
       },
       {
+        "id": "instance_oom",
         "title": "OOM Kill 수"
       },
       {
+        "id": "instance_peak_mem",
         "title": "최대 메모리"
       },
       {
+        "id": "instance_outbound",
         "title": "아웃바운드 HTTP",
         "expressionLabels": [
           "RPM",
@@ -98,15 +113,19 @@
     ],
     "endpoint": [
       {
+        "id": "ep_cpm",
         "title": "아웃바운드 부하"
       },
       {
+        "id": "ep_resp",
         "title": "아웃바운드 평균 지연 시간"
       },
       {
+        "id": "ep_sla",
         "title": "아웃바운드 성공률"
       },
       {
+        "id": "ep_percentile",
         "title": "아웃바운드 지연 시간 백분위"
       }
     ]

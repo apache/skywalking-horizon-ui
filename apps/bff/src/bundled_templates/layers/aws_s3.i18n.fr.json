@@ -20,33 +20,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "all_req",
         "title": "Nombre total de requêtes"
       },
       {
+        "id": "get_req",
         "title": "Nombre de requêtes GET"
       },
       {
+        "id": "put_req",
         "title": "Nombre de requêtes PUT"
       },
       {
+        "id": "delete_req",
         "title": "Nombre de requêtes DELETE"
       },
       {
+        "id": "err4xx",
         "title": "Nombre de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Nombre de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latence moyenne des requêtes"
       },
       {
+        "id": "first_byte_latency",
         "title": "Latence moyenne du premier octet"
       },
       {
+        "id": "downloaded",
         "title": "Téléchargés (Ko)"
       },
       {
+        "id": "uploaded",
         "title": "Téléversés (Ko)"
       }
     ]

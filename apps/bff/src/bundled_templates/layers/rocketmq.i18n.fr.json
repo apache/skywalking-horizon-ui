@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "today_produced",
         "title": "Produits aujourd'hui"
       },
       {
+        "id": "today_consumed",
         "title": "Consommés aujourd'hui"
       },
       {
+        "id": "yesterday_produced",
         "title": "Produits hier"
       },
       {
+        "id": "yesterday_consumed",
         "title": "Consommés hier"
       },
       {
+        "id": "tps",
         "title": "TPS producer / consumer",
         "expressionLabels": [
           "producteur",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "Taille de message producer / consumer (Mo)",
         "expressionLabels": [
           "produits",
@@ -46,21 +52,27 @@
         ]
       },
       {
+        "id": "consumer_lag",
         "title": "Latence consumer max"
       },
       {
+        "id": "commitlog_ratio_total",
         "title": "Ratio disque CommitLog max (%)"
       },
       {
+        "id": "topic_count",
         "title": "Topics"
       },
       {
+        "id": "broker_count",
         "title": "Brokers"
       },
       {
+        "id": "commitlog_ratio",
         "title": "Ratio disque du CommitLog (%)"
       },
       {
+        "id": "queue_wait",
         "title": "Attente en tête de file du ThreadPool (ms)",
         "expressionLabels": [
           "pull",
@@ -70,32 +82,41 @@
     ],
     "instance": [
       {
+        "id": "produce_tps",
         "title": "TPS de production"
       },
       {
+        "id": "consume_qps",
         "title": "QPS de consommation"
       },
       {
+        "id": "producer_size",
         "title": "Taille de message producer (Mo)"
       },
       {
+        "id": "consumer_size",
         "title": "Taille des messages consumer (Mo)"
       }
     ],
     "endpoint": [
       {
+        "id": "max_msg_producer_total",
         "title": "Taille max. de message producteur (Mo)"
       },
       {
+        "id": "max_msg_consumer_total",
         "title": "Taille max. de message consommateur (Mo)"
       },
       {
+        "id": "consumer_groups",
         "title": "Nombre de groupes de consumers"
       },
       {
+        "id": "brokers",
         "title": "Nombre de brokers"
       },
       {
+        "id": "tps",
         "title": "TPS par groupe producteur / consommateur",
         "expressionLabels": [
           "producteur",
@@ -103,6 +124,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "Taille des messages (Mo)",
         "expressionLabels": [
           "produits",
@@ -110,6 +132,7 @@
         ]
       },
       {
+        "id": "offsets",
         "title": "Offsets producer / consumer",
         "expressionLabels": [
           "producteur",
@@ -117,10 +140,12 @@
         ]
       },
       {
+        "id": "backlog",
         "title": "Messages en attente",
         "tip": "Offset producer moins offset du groupe consumer — le lag du topic."
       },
       {
+        "id": "consumer_latency",
         "title": "Latence des consumers (s)"
       }
     ]

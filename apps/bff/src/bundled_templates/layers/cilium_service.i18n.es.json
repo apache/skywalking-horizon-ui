@@ -18,31 +18,48 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "success",
         "label": "Éxito %"
       },
       {
+        "id": "respTime",
         "label": "Latencia"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM HTTP"
       },
       {
+        "id": "respTime",
         "label": "Latencia media"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM HTTP" },
-        { "label": "Latencia media" }
+        {
+          "id": "httpCpm",
+          "label": "RPM HTTP"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "Latencia media"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM HTTP" },
-        { "label": "Latencia media" }
+        {
+          "id": "cpm",
+          "label": "RPM HTTP"
+        },
+        {
+          "id": "respTime",
+          "label": "Latencia media"
+        }
       ]
     }
   },
@@ -59,12 +76,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "l4_read",
         "title": "Paquetes L4 de lectura/min"
       },
       {
+        "id": "l4_write",
         "title": "Paquetes L4 de escritura/min"
       },
       {
+        "id": "tcp_drop",
         "title": "TCP Drop / min",
         "expressionLabels": [
           "lectura",
@@ -72,9 +92,11 @@
         ]
       },
       {
+        "id": "tcp_drop_reason",
         "title": "TCP Drop por motivo"
       },
       {
+        "id": "http_load",
         "title": "Carga HTTP",
         "expressionLabels": [
           "llamadas",
@@ -82,9 +104,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "Duración HTTP"
       },
       {
+        "id": "http_status",
         "title": "Estado HTTP no-2xx",
         "expressionLabels": [
           "1xx",
@@ -94,6 +118,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Carga DNS",
         "expressionLabels": [
           "llamadas",
@@ -101,12 +126,15 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "Duración DNS"
       },
       {
+        "id": "dns_error",
         "title": "Errores DNS / min"
       },
       {
+        "id": "kafka_load",
         "title": "Carga de Kafka",
         "expressionLabels": [
           "llamadas",
@@ -114,20 +142,25 @@
         ]
       },
       {
+        "id": "kafka_duration",
         "title": "Duración de Kafka"
       },
       {
+        "id": "kafka_error",
         "title": "Errores de Kafka / min"
       }
     ],
     "instance": [
       {
+        "id": "l4_read",
         "title": "Paquetes L4 de lectura/min"
       },
       {
+        "id": "l4_write",
         "title": "Paquetes L4 de escritura/min"
       },
       {
+        "id": "http_load",
         "title": "Carga HTTP",
         "expressionLabels": [
           "llamadas",
@@ -135,6 +168,7 @@
         ]
       },
       {
+        "id": "http_status",
         "title": "Estado HTTP no-2xx",
         "expressionLabels": [
           "1xx",
@@ -144,6 +178,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Carga DNS",
         "expressionLabels": [
           "llamadas",
@@ -151,9 +186,11 @@
         ]
       },
       {
+        "id": "dns_error",
         "title": "Errores DNS"
       },
       {
+        "id": "kafka_load",
         "title": "Carga de Kafka",
         "expressionLabels": [
           "llamadas",
@@ -163,6 +200,7 @@
     ],
     "endpoint": [
       {
+        "id": "http_load",
         "title": "Carga HTTP",
         "expressionLabels": [
           "llamadas",
@@ -170,9 +208,11 @@
         ]
       },
       {
+        "id": "http_duration",
         "title": "Duración HTTP"
       },
       {
+        "id": "http_status",
         "title": "Estado HTTP no-2xx",
         "expressionLabels": [
           "1xx",
@@ -182,6 +222,7 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "Carga DNS",
         "expressionLabels": [
           "llamadas",
@@ -189,9 +230,11 @@
         ]
       },
       {
+        "id": "dns_duration",
         "title": "Duración DNS"
       },
       {
+        "id": "dns_error",
         "title": "Errores DNS"
       }
     ]

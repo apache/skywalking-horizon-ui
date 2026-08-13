@@ -23,33 +23,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "all_req",
         "title": "Contagem total de requisições"
       },
       {
+        "id": "get_req",
         "title": "Contagem de requisições GET"
       },
       {
+        "id": "put_req",
         "title": "Contagem de requisições PUT"
       },
       {
+        "id": "delete_req",
         "title": "Contagem de requisições DELETE"
       },
       {
+        "id": "err4xx",
         "title": "Contagem de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Contagem de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latência média da requisição"
       },
       {
+        "id": "first_byte_latency",
         "title": "Latência média do primeiro byte"
       },
       {
+        "id": "downloaded",
         "title": "Baixado (KB)"
       },
       {
+        "id": "uploaded",
         "title": "Enviado (KB)"
       }
     ]

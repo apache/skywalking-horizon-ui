@@ -3,9 +3,11 @@
   "description": "Santé des services entre couches : services tracés ainsi que bases de données / caches / files d'attente / backends GenAI virtuels, plus la capacité Kubernetes sous-jacente.",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "Services"
     },
     {
+      "id": "tile_general",
       "title": "Services généraux",
       "tip": "Services applicatifs tracés sur la couche General.",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "tile_db",
       "title": "Bases de données virtuelles",
       "tip": "Bases de données backend observées via des spans côté client.",
       "kpis": [
@@ -36,6 +39,7 @@
       ]
     },
     {
+      "id": "tile_cache",
       "title": "Caches virtuels",
       "tip": "Caches (Redis / Memcached / …) observés via des spans côté client.",
       "kpis": [
@@ -51,6 +55,7 @@
       ]
     },
     {
+      "id": "tile_mq",
       "title": "Files de messages virtuelles",
       "tip": "Files de messages observées via les spans de consommation et de production.",
       "kpis": [
@@ -66,6 +71,7 @@
       ]
     },
     {
+      "id": "tile_genai",
       "title": "GenAI virtuel",
       "tip": "Backends GenAI observés via des spans clients instrumentés.",
       "kpis": [
@@ -81,20 +87,25 @@
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "Topologie & alertes actives"
     },
     {
+      "id": "svc_topo",
       "title": "Topologie des services généraux",
       "tip": "Carte des services en direct — même rendu que l'onglet Topologie par couche, sans la barre latérale de détail."
     },
     {
+      "id": "svc_alarms",
       "title": "Alertes actives",
       "tip": "Alertes actuellement déclenchées sur des services rapportés par un agent."
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "Capacité et utilisation du cluster",
       "tip": "Nœuds / namespaces / workloads, plus l'utilisation CPU, mémoire et stockage au niveau du cluster.",
       "kpis": [

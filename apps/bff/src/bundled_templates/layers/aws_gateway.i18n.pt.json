@@ -24,54 +24,70 @@
   "dashboards": {
     "service": [
       {
+        "id": "count",
         "title": "Contagem de requisições"
       },
       {
+        "id": "err4xx",
         "title": "Contagem de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Contagem de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latência média da requisição"
       },
       {
+        "id": "integration_latency",
         "title": "Latência média da integração",
         "tip": "Latência entre o gateway e a integração backend."
       },
       {
+        "id": "data",
         "title": "Dados processados (apenas HTTP API)"
       },
       {
+        "id": "cache_hit",
         "title": "Taxa de cache hit (apenas REST API)"
       },
       {
+        "id": "cache_miss",
         "title": "Taxa de cache miss (apenas REST API)"
       }
     ],
     "endpoint": [
       {
+        "id": "count",
         "title": "Contagem de requisições"
       },
       {
+        "id": "err4xx",
         "title": "Contagem de 4xx"
       },
       {
+        "id": "err5xx",
         "title": "Contagem de 5xx"
       },
       {
+        "id": "latency",
         "title": "Latência média da requisição"
       },
       {
+        "id": "integration_latency",
         "title": "Latência média da integração"
       },
       {
+        "id": "data",
         "title": "Dados processados"
       },
       {
+        "id": "cache_hit",
         "title": "Taxa de cache hit"
       },
       {
+        "id": "cache_miss",
         "title": "Taxa de cache miss"
       }
     ]

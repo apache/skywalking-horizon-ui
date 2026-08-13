@@ -17,73 +17,95 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "conns",
         "title": "HTTP 연결"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 분"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 분"
       },
       {
+        "id": "errlog",
         "title": "오류 로그 수"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "conns",
         "title": "HTTP 연결"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 분"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 분"
       },
       {
+        "id": "errlog",
         "title": "오류 로그 수"
       }
     ],
     "endpoint": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / 분"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / 분"
       }
     ]

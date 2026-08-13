@@ -20,90 +20,62 @@
   "dashboards": {
     "service": [
       {
-        "title": "Zugriffs-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "access_cpm_line",
+        "title": "Zugriffs-Traffic"
       },
       {
-        "title": "Mittlere Zugriffslatenz",
-        "expressions": [
-          null
-        ]
+        "id": "access_resp_line",
+        "title": "Mittlere Zugriffslatenz"
       },
       {
-        "title": "Zugriffs-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "access_sla_line",
+        "title": "Zugriffs-Erfolgsrate"
       },
       {
-        "title": "Zugriffs-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "access_percentile",
+        "title": "Zugriffs-Latenz-Perzentil"
       },
       {
-        "title": "Lese-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "read_traffic",
+        "title": "Lese-Traffic"
       },
       {
-        "title": "Lesen mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "read_resp",
+        "title": "Lesen mittlere Latenz"
       },
       {
-        "title": "Schreib-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "write_traffic",
+        "title": "Schreib-Traffic"
       },
       {
-        "title": "Schreiben mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "write_resp",
+        "title": "Schreiben mittlere Latenz"
       },
       {
-        "title": "Lese-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "read_sla",
+        "title": "Lese-Erfolgsrate"
       },
       {
-        "title": "Schreib-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "write_sla",
+        "title": "Schreib-Erfolgsrate"
       },
       {
-        "title": "Lese-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "read_percentile",
+        "title": "Lese-Latenz-Perzentil"
       },
       {
-        "title": "Schreib-Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "write_percentile",
+        "title": "Schreib-Latenz-Perzentil"
       },
       {
+        "id": "slow_read",
         "title": "Langsame Lesebefehle",
-        "tip": "Top 10 langsamste erfasste Lesebefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 10 langsamste erfasste Lesebefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält)."
       },
       {
+        "id": "slow_write",
         "title": "Langsame Schreibbefehle",
-        "tip": "Top 10 langsamste erfasste Schreibbefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 10 langsamste erfasste Schreibbefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält)."
       }
     ]
   },

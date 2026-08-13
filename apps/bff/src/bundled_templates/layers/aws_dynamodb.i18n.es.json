@@ -20,6 +20,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "throttled",
         "title": "Peticiones throttled",
         "expressionLabels": [
           "lectura",
@@ -27,6 +28,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Eventos de throttling",
         "expressionLabels": [
           "lectura",
@@ -34,6 +36,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Errores del sistema",
         "expressionLabels": [
           "lectura",
@@ -41,15 +44,19 @@
         ]
       },
       {
+        "id": "user_errors",
         "title": "Errores del usuario"
       },
       {
+        "id": "cond_check_fail",
         "title": "Verificación condicional fallida"
       },
       {
+        "id": "txn_conflict",
         "title": "Conflicto de transacción"
       },
       {
+        "id": "read_usage",
         "title": "Capacidad de lectura (unidad/s)",
         "expressionLabels": [
           "aprovisionado",
@@ -57,6 +64,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "Capacidad de escritura (unidad/s)",
         "expressionLabels": [
           "aprovisionado",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "Latencia de peticiones exitosas (ms)",
         "expressionLabels": [
           "get",
@@ -73,15 +82,19 @@
         ]
       },
       {
+        "id": "ttl_deleted",
         "title": "Items eliminados por TTL"
       },
       {
+        "id": "scan_items",
         "title": "Items devueltos por scan"
       },
       {
+        "id": "query_items",
         "title": "Items devueltos por la consulta"
       },
       {
+        "id": "account_max",
         "title": "Lecturas / escrituras máximas de la cuenta",
         "expressionLabels": [
           "lecturas a nivel tabla",
@@ -91,6 +104,7 @@
         ]
       },
       {
+        "id": "account_util",
         "title": "Utilización de capacidad de la cuenta",
         "expressionLabels": [
           "lectura",
@@ -100,6 +114,7 @@
     ],
     "endpoint": [
       {
+        "id": "throttled",
         "title": "Peticiones throttled",
         "expressionLabels": [
           "lectura",
@@ -107,6 +122,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Eventos de throttling",
         "expressionLabels": [
           "lectura",
@@ -114,6 +130,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Errores del sistema",
         "expressionLabels": [
           "lectura",
@@ -121,15 +138,19 @@
         ]
       },
       {
+        "id": "cond_check",
         "title": "Verificación condicional fallida"
       },
       {
+        "id": "txn_conflict",
         "title": "Conflicto de transacción"
       },
       {
+        "id": "ttl_deleted",
         "title": "Items eliminados por TTL"
       },
       {
+        "id": "read_usage",
         "title": "Capacidad de lectura",
         "expressionLabels": [
           "aprovisionado",
@@ -137,6 +158,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "Capacidad de escritura",
         "expressionLabels": [
           "aprovisionado",
@@ -144,6 +166,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "Latencia de peticiones exitosas (ms)",
         "expressionLabels": [
           "get",
@@ -153,9 +176,11 @@
         ]
       },
       {
+        "id": "scan_items",
         "title": "Items devueltos por scan"
       },
       {
+        "id": "query_items",
         "title": "Items devueltos por la consulta"
       }
     ]

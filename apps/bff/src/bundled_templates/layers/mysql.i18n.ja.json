@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "tps",
         "title": "TPS"
       },
       {
+        "id": "slow_qps",
         "title": "低速クエリ / s"
       },
       {
+        "id": "conn_errors",
         "title": "接続エラー",
         "tip": "内部 vs 最大接続数による拒否。",
         "expressionLabels": [
@@ -37,6 +41,7 @@
         ]
       },
       {
+        "id": "commands",
         "title": "コマンド傾向",
         "tip": "コマンド単位の影響行数レート (select / insert / update / delete)。",
         "expressionLabels": [
@@ -47,6 +52,7 @@
         ]
       },
       {
+        "id": "threads",
         "title": "スレッド",
         "expressionLabels": [
           "接続済み",
@@ -56,24 +62,30 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "低速ステートメント",
         "tip": "クラスタ全体で捕捉された低速ステートメント上位 20。"
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "稼働時間"
       },
       {
+        "id": "max_conns",
         "title": "最大接続数"
       },
       {
+        "id": "buffer_pool",
         "title": "InnoDB バッファプール"
       },
       {
+        "id": "thread_cache",
         "title": "スレッドキャッシュサイズ"
       },
       {
+        "id": "instance_qps_tps",
         "title": "QPS / TPS",
         "expressionLabels": [
           "QPS",
@@ -81,9 +93,11 @@
         ]
       },
       {
+        "id": "instance_slow_queries",
         "title": "低速クエリ / s"
       },
       {
+        "id": "instance_commands",
         "title": "コマンド傾向",
         "expressionLabels": [
           "select",
@@ -93,6 +107,7 @@
         ]
       },
       {
+        "id": "instance_threads",
         "title": "スレッド",
         "expressionLabels": [
           "接続済み",
@@ -102,6 +117,7 @@
         ]
       },
       {
+        "id": "instance_connects",
         "title": "接続",
         "expressionLabels": [
           "利用可能",
@@ -109,6 +125,7 @@
         ]
       },
       {
+        "id": "instance_conn_errors",
         "title": "接続エラー",
         "expressionLabels": [
           "内部",

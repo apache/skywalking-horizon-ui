@@ -49,6 +49,14 @@ export type {
   VisibleWhen,
 } from './dashboard.js';
 export { walkWidgets, findWidgetById, collectWidgetIds } from './dashboard.js';
+export {
+  mergeLocalizedNode,
+  stampOverlayIds,
+  alignOverlayToSource,
+  canonicalizeOverlay,
+  idAddressableIds,
+  indexOverlayById,
+} from './template-i18n.js';
 export type {
   TopologyMetricDef,
   TopologyConfig,

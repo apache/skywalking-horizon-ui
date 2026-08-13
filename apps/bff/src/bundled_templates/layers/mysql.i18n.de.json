@@ -20,44 +20,30 @@
   "dashboards": {
     "service": [
       {
-        "title": "QPS",
-        "expressions": [
-          null
-        ]
+        "id": "qps",
+        "title": "QPS"
       },
       {
-        "title": "TPS",
-        "expressions": [
-          null
-        ]
+        "id": "tps",
+        "title": "TPS"
       },
       {
-        "title": "Langsame Queries / s",
-        "expressions": [
-          null
-        ]
+        "id": "slow_qps",
+        "title": "Langsame Queries / s"
       },
       {
+        "id": "conn_errors",
         "title": "Verbindungsfehler",
         "tip": "Interne vs. Max-Connection-Rejects.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "intern",
           "max-verbindungen"
         ]
       },
       {
+        "id": "commands",
         "title": "Befehls-Trend",
         "tip": "Rate der betroffenen Zeilen pro Befehl (select / insert / update / delete).",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "select",
           "insert",
@@ -66,13 +52,8 @@
         ]
       },
       {
+        "id": "threads",
         "title": "Threads",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "verbunden",
           "läuft",
@@ -81,63 +62,43 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "Langsame Anweisungen",
-        "tip": "Top 20 langsamste erfasste Anweisungen im Cluster.",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 20 langsamste erfasste Anweisungen im Cluster."
       }
     ],
     "instance": [
       {
-        "title": "Uptime",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Uptime"
       },
       {
-        "title": "Max. Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "max_conns",
+        "title": "Max. Verbindungen"
       },
       {
-        "title": "InnoDB Buffer Pool",
-        "expressions": [
-          null
-        ]
+        "id": "buffer_pool",
+        "title": "InnoDB Buffer Pool"
       },
       {
-        "title": "Thread-Cache-Größe",
-        "expressions": [
-          null
-        ]
+        "id": "thread_cache",
+        "title": "Thread-Cache-Größe"
       },
       {
+        "id": "instance_qps_tps",
         "title": "QPS / TPS",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "QPS",
           "TPS"
         ]
       },
       {
-        "title": "Langsame Queries / s",
-        "expressions": [
-          null
-        ]
+        "id": "instance_slow_queries",
+        "title": "Langsame Queries / s"
       },
       {
+        "id": "instance_commands",
         "title": "Befehls-Trend",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "select",
           "insert",
@@ -146,13 +107,8 @@
         ]
       },
       {
+        "id": "instance_threads",
         "title": "Threads",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "verbunden",
           "läuft",
@@ -161,22 +117,16 @@
         ]
       },
       {
+        "id": "instance_connects",
         "title": "Verbindungen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "verfügbar",
           "abgebrochen"
         ]
       },
       {
+        "id": "instance_conn_errors",
         "title": "Verbindungsfehler",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "intern",
           "max-verbindungen"

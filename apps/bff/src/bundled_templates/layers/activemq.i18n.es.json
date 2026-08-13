@@ -25,18 +25,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "load",
         "title": "Load average del sistema"
       },
       {
+        "id": "threads",
         "title": "Conteo de hilos"
       },
       {
+        "id": "heap_used",
         "title": "Heap usado (MB)"
       },
       {
+        "id": "heap_max",
         "title": "Heap máx (MB)"
       },
       {
+        "id": "enqueue_dequeue",
         "title": "Enqueue / dequeue / dispatch /s",
         "expressionLabels": [
           "enqueue",
@@ -45,9 +50,11 @@
         ]
       },
       {
+        "id": "expired_rate",
         "title": "Expirados /s"
       },
       {
+        "id": "enqueue_time",
         "title": "Tiempo de enqueue",
         "expressionLabels": [
           "media",
@@ -55,6 +62,7 @@
         ]
       },
       {
+        "id": "gc_counts",
         "title": "Conteo de GC (G1+Parallel)",
         "expressionLabels": [
           "old",
@@ -62,6 +70,7 @@
         ]
       },
       {
+        "id": "gc_time",
         "title": "Tiempo de GC (ms)",
         "expressionLabels": [
           "old",
@@ -71,25 +80,31 @@
     ],
     "instance": [
       {
+        "id": "connections_card",
         "title": "Conexiones",
         "tip": "Conexiones TCP/JMS actuales a este broker."
       },
       {
+        "id": "producer_count_card",
         "title": "Conteo de productores",
         "tip": "Sesiones de productor activas en este broker."
       },
       {
+        "id": "consumer_count_card",
         "title": "Conteo de consumidores",
         "tip": "Sesiones de consumidor activas en este broker."
       },
       {
+        "id": "uptime_card",
         "title": "Uptime",
         "tip": "Uptime del broker en horas desde el último reinicio."
       },
       {
+        "id": "connections_line",
         "title": "Conexiones (tendencia)"
       },
       {
+        "id": "enqueue_dequeue_line",
         "title": "Conteo de enqueue / dequeue",
         "tip": "Enqueue + dequeue por minuto en todos los destinos de este broker.",
         "expressionLabels": [
@@ -98,6 +113,7 @@
         ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "Incremento de productores / consumidores",
         "tip": "Sesiones de productor + consumidor nuevas abiertas por minuto.",
         "expressionLabels": [
@@ -106,32 +122,40 @@
         ]
       },
       {
+        "id": "memory_usage_line",
         "title": "Uso de memoria",
         "tip": "Uso de memoria agregado en todos los destinos (MB)."
       },
       {
+        "id": "memory_limit_line",
         "title": "Límite de memoria",
         "tip": "Tope de memoria configurado en todos los destinos (GB)."
       },
       {
+        "id": "message_size_line",
         "title": "Tamaño medio de mensaje",
         "tip": "Tamaño medio de mensaje en todos los destinos."
       }
     ],
     "endpoint": [
       {
+        "id": "producer",
         "title": "Conteo de productores"
       },
       {
+        "id": "consumer",
         "title": "Conteo de consumidores"
       },
       {
+        "id": "queue_size",
         "title": "Tamaño de cola"
       },
       {
+        "id": "memory",
         "title": "Uso de memoria (MB)"
       },
       {
+        "id": "messages",
         "title": "Conteo de mensajes",
         "expressionLabels": [
           "enqueue",
@@ -142,6 +166,7 @@
         ]
       },
       {
+        "id": "enqueue_time",
         "title": "Tiempo de enqueue (s)",
         "expressionLabels": [
           "media",

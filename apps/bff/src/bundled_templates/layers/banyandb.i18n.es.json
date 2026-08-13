@@ -23,30 +23,37 @@
   "dashboards": {
     "service": [
       {
+        "id": "cluster_write_kpi",
         "title": "Tasa de escritura",
         "tip": "Escrituras por segundo en todo el clúster a través de los modelos de datos measure + stream + trace."
       },
       {
+        "id": "cluster_query_kpi",
         "title": "Tasa de consultas",
         "tip": "Llamadas de consulta gRPC por segundo en todo el clúster, vistas en la puerta de entrada del liaison."
       },
       {
+        "id": "cluster_error_kpi",
         "title": "Tasa de errores",
         "tip": "Errores por minuto en todo el clúster (gRPC + registry + stream-msg + publish + sync-loop). Su ausencia se representa como 0 en un clúster saludable."
       },
       {
+        "id": "cluster_cpu_kpi",
         "title": "Núcleos de CPU",
         "tip": "Total de núcleos de CPU visibles en los contenedores del clúster."
       },
       {
+        "id": "cluster_mem_kpi",
         "title": "Memoria usada",
         "tip": "Memoria total usada en todo el clúster."
       },
       {
+        "id": "cluster_disk_kpi",
         "title": "Disco usado",
         "tip": "Total de bytes en disco usados en las rutas de datos del clúster."
       },
       {
+        "id": "cluster_throughput",
         "title": "Rendimiento del clúster",
         "tip": "Tasa de escritura vs consulta a lo largo del tiempo.",
         "expressionLabels": [
@@ -55,19 +62,27 @@
         ]
       },
       {
+        "id": "cluster_errors",
         "title": "Errores del clúster / min"
       },
       {
+        "id": "containers_by_role",
         "title": "Contenedores por rol",
-        "tip": "Conteo de contenedores activos por rol (data / liaison), derivado del gauge de uptime del sistema. El sidecar de lifecycle no ejecuta ningún colector de sistema, por lo que nunca aparece aquí."
+        "tip": "Conteo de contenedores activos por rol (data / liaison), derivado del gauge de uptime del sistema. El sidecar de lifecycle no ejecuta ningún colector de sistema, por lo que nunca aparece aquí.",
+        "tableHeaders": [
+          null,
+          "Contenedores"
+        ]
       }
     ],
     "instance": [
       {
+        "id": "lifecycle_last_run",
         "title": "Tiempo desde la última sincronización",
         "tip": "Tiempo transcurrido desde que comenzó el último ciclo de migración, p. ej. \"5m 20s ago\". Aparece una vez ejecutado el primer ciclo de migración."
       },
       {
+        "id": "lifecycle_last_run_success",
         "title": "Última sincronización",
         "valueMap": {
           "0": "Fallido",
@@ -75,24 +90,30 @@
         }
       },
       {
+        "id": "lifecycle_cycles",
         "title": "Ciclos de migración",
         "tip": "Ciclos acumulados de migración de niveles ejecutados por el sidecar de lifecycle."
       },
       {
+        "id": "cpu_usage",
         "title": "Uso de CPU",
         "tip": "Consumo de CPU del proceso en núcleos."
       },
       {
+        "id": "rss_memory",
         "title": "Memoria residente"
       },
       {
+        "id": "goroutines",
         "title": "Goroutines"
       },
       {
+        "id": "gc_pause",
         "title": "Pausa de GC (media)",
         "tip": "Pausa media de GC de Go por ciclo."
       },
       {
+        "id": "go_heap",
         "title": "Heap de Go",
         "expressionLabels": [
           "en uso",
@@ -100,20 +121,25 @@
         ]
       },
       {
+        "id": "go_alloc_rate",
         "title": "Tasa de asignación de Go"
       },
       {
+        "id": "node_uptime",
         "title": "Uptime",
         "tip": "Días desde que el nodo arrancó. Ausente en el sidecar de lifecycle (sin colector de sistema)."
       },
       {
+        "id": "system_memory_percent",
         "title": "Memoria del sistema usada"
       },
       {
+        "id": "disk_usage_percent",
         "title": "Uso de disco",
         "tip": "Usado / total en las rutas de datos del nodo."
       },
       {
+        "id": "disk_space",
         "title": "Disco usado / total",
         "tip": "Uso por ruta de datos, frente a la capacidad total del sistema de archivos. Las rutas que comparten un sistema de archivos muestran cifras idénticas.",
         "expressionLabels": [
@@ -122,6 +148,7 @@
         ]
       },
       {
+        "id": "network_io",
         "title": "I/O de red",
         "tip": "Rendimiento de recepción / envío por interfaz.",
         "expressionLabels": [
@@ -130,63 +157,79 @@
         ]
       },
       {
+        "id": "liaison_query_rate",
         "title": "Tasa de consultas por servicio",
         "tip": "Llamadas de consulta gRPC/s desglosadas por servicio del modelo de datos de BanyanDB (measure / stream / trace / property)."
       },
       {
+        "id": "liaison_grpc_errors",
         "title": "Errores gRPC / min",
         "tip": "Suma de errores gRPC total + registry + stream-msg. Registrados de forma diferida — su ausencia se representa como 0 en un liaison saludable."
       },
       {
+        "id": "liaison_registry_ops",
         "title": "Ops de registry / s",
         "tip": "Operaciones del schema-registry por segundo vistas en la puerta de entrada del liaison."
       },
       {
+        "id": "liaison_write_rate",
         "title": "Tasa de escritura",
         "tip": "Escrituras/s vistas en la puerta de entrada del liaison a través de los tres modelos de datos."
       },
       {
+        "id": "liaison_publish_throughput",
         "title": "Rendimiento de publish",
         "tip": "Pipeline de publish de nivel 2 (liaison → data), desglosado por operación."
       },
       {
+        "id": "liaison_publish_latency",
         "title": "Latencia p99 de publish",
         "tip": "Latencia p99 de envío del pipeline de publish de nivel 2, por operación."
       },
       {
+        "id": "liaison_publish_bytes",
         "title": "Bytes de part-sync"
       },
       {
+        "id": "liaison_wqueue",
         "title": "Cola de escritura pendiente",
         "tip": "Profundidad del buffer de escritura del liaison: registros almacenados en la puerta de entrada antes del publish."
       },
       {
+        "id": "liaison_publish_batch_throughput",
         "title": "Rendimiento de batch de publish",
         "tip": "Batches publicados/s por operación. Oculto hasta que el clúster emita métricas de batch."
       },
       {
+        "id": "liaison_publish_batch_latency",
         "title": "p99 de batch de publish"
       },
       {
+        "id": "data_total",
         "title": "Elementos de datos almacenados",
         "tip": "Total de elementos de archivo almacenados a través de measure + stream + trace."
       },
       {
+        "id": "data_wqueue",
         "title": "Cola de escritura (wqueue)",
         "tip": "Cola de escritura del nodo data: registros pendientes, parts de archivo en disco, parts en memoria."
       },
       {
+        "id": "data_merge_rate",
         "title": "Tasa de bucle de merge"
       },
       {
+        "id": "data_merge_latency",
         "title": "Latencia de merge de archivos",
         "tip": "Latencia media de merge de archivos en disco por bucle de merge."
       },
       {
+        "id": "data_merge_partitions",
         "title": "Parts de merge / bucle",
         "tip": "Parts fusionados de media por bucle de merge en disco."
       },
       {
+        "id": "data_index_rate",
         "title": "Tasa de índice invertido",
         "tip": "Actualizaciones del índice de series y búsquedas de términos por segundo (almacenamiento de measure + stream + tst de stream).",
         "expressionLabels": [
@@ -197,6 +240,7 @@
         ]
       },
       {
+        "id": "data_index_docs",
         "title": "Documentos del índice",
         "tip": "Total de documentos del índice invertido (proxy de series).",
         "expressionLabels": [
@@ -205,13 +249,16 @@
         ]
       },
       {
+        "id": "data_subscribe_throughput",
         "title": "Rendimiento de subscribe",
         "tip": "Rendimiento de la cola del lado de subscribe por operación (query / file-sync / batch-write / control)."
       },
       {
+        "id": "data_subscribe_latency",
         "title": "Latencia p99 de subscribe"
       },
       {
+        "id": "data_retention",
         "title": "Uso de disco de retención",
         "tip": "Porcentaje de uso de disco de retención por modelo de datos.",
         "expressionLabels": [
@@ -221,164 +268,204 @@
         ]
       },
       {
+        "id": "data_subscribe_message_throughput",
         "title": "Rendimiento de mensajes de subscribe",
         "tip": "Tasa de procesamiento por registro que el suscriptor extrae de los batches."
       }
     ],
     "endpoint": [
       {
+        "id": "measure_write_rate",
         "title": "Measure Write / s",
         "tip": "Escrituras por segundo para este grupo (contador de escrituras por modelo de datos)."
       },
       {
+        "id": "measure_query_latency",
         "title": "Latencia de consulta de Measure",
         "tip": "Latencia media de consulta del liaison para este grupo."
       },
       {
+        "id": "measure_total_data",
         "title": "Datos totales de Measure",
         "tip": "Elementos de datos almacenados actualmente para este grupo."
       },
       {
+        "id": "measure_merge_rate",
         "title": "Tasa de merge de Measure",
         "tip": "Iteraciones del bucle de merge de archivos por minuto."
       },
       {
+        "id": "measure_merge_latency",
         "title": "Latencia de merge de Measure",
         "tip": "Latencia media de merge de archivos por bucle de merge."
       },
       {
+        "id": "measure_merge_partitions",
         "title": "Particiones de merge de Measure",
         "tip": "Media de parts fusionados por bucle de merge de archivos."
       },
       {
+        "id": "measure_series_write_rate",
         "title": "Measure Series Write / s",
         "tip": "Actualizaciones del índice invertido por segundo (proxy de escritura de series)."
       },
       {
+        "id": "measure_term_search_rate",
         "title": "Measure Term Search / s",
         "tip": "Invocaciones de búsqueda de términos del índice invertido por segundo (presión de lectura del índice)."
       },
       {
+        "id": "measure_total_series",
         "title": "Total de series de Measure",
         "tip": "Total de documentos del índice invertido (proxy de series) para este grupo."
       },
       {
+        "id": "stream_write_rate",
         "title": "Stream Write / s",
         "tip": "Escrituras por segundo para este grupo (contador de escrituras por modelo de datos)."
       },
       {
+        "id": "stream_query_latency",
         "title": "Latencia de consulta de Stream",
         "tip": "Latencia media de consulta del liaison para este grupo."
       },
       {
+        "id": "stream_total_data",
         "title": "Datos totales de Stream",
         "tip": "Elementos de datos almacenados actualmente para este grupo."
       },
       {
+        "id": "stream_merge_rate",
         "title": "Tasa de merge de Stream",
         "tip": "Iteraciones del bucle de merge de archivos por minuto."
       },
       {
+        "id": "stream_merge_latency",
         "title": "Latencia de merge de Stream",
         "tip": "Latencia media de merge de archivos por bucle de merge."
       },
       {
+        "id": "stream_merge_partitions",
         "title": "Particiones de merge de Stream",
         "tip": "Media de parts fusionados por bucle de merge de archivos."
       },
       {
+        "id": "stream_series_write_rate",
         "title": "Stream Series Write / s",
         "tip": "Actualizaciones del índice invertido por segundo (proxy de escritura de series)."
       },
       {
+        "id": "stream_tst_index_write_rate",
         "title": "Stream TST Index Write / s",
         "tip": "Actualizaciones del índice invertido del ámbito tst de stream por segundo (distinto del índice de series del ámbito de almacenamiento)."
       },
       {
+        "id": "stream_term_search_rate",
         "title": "Stream Term Search / s",
         "tip": "Invocaciones de búsqueda de términos del índice invertido por segundo (presión de lectura del índice)."
       },
       {
+        "id": "stream_total_series",
         "title": "Total de series de Stream",
         "tip": "Total de documentos del índice invertido (proxy de series) para este grupo."
       },
       {
+        "id": "stream_tst_total_series",
         "title": "Total de series TST de Stream",
         "tip": "Total de documentos del índice del ámbito tst de stream (distinto del índice de series del ámbito de almacenamiento)."
       },
       {
+        "id": "trace_write_rate",
         "title": "Trace Write / s",
         "tip": "Escrituras por segundo para este grupo (contador de escrituras por modelo de datos)."
       },
       {
+        "id": "trace_query_latency",
         "title": "Latencia de consulta de Trace",
         "tip": "Latencia media de consulta del liaison para este grupo."
       },
       {
+        "id": "trace_total_data",
         "title": "Datos totales de Trace",
         "tip": "Elementos de datos almacenados actualmente para este grupo."
       },
       {
+        "id": "trace_merge_rate",
         "title": "Tasa de merge de Trace",
         "tip": "Iteraciones del bucle de merge de archivos por minuto."
       },
       {
+        "id": "trace_merge_latency",
         "title": "Latencia de merge de Trace",
         "tip": "Latencia media de merge de archivos por bucle de merge."
       },
       {
+        "id": "trace_merge_partitions",
         "title": "Particiones de merge de Trace",
         "tip": "Media de parts fusionados por bucle de merge de archivos."
       },
       {
+        "id": "trace_series_write_rate",
         "title": "Trace Series Write / s",
         "tip": "Actualizaciones del índice invertido por segundo (proxy de escritura de series)."
       },
       {
+        "id": "trace_term_search_rate",
         "title": "Trace Term Search / s",
         "tip": "Invocaciones de búsqueda de términos del índice invertido por segundo (presión de lectura del índice)."
       },
       {
+        "id": "trace_total_series",
         "title": "Total de series de Trace",
         "tip": "Total de documentos del índice invertido (proxy de series) para este grupo."
       },
       {
+        "id": "property_index_write_rate",
         "title": "Property Index Write / s",
         "tip": "Actualizaciones del índice invertido del registry de property por segundo (señal de escritura de property)."
       },
       {
+        "id": "property_index_merge_rate",
         "title": "Tasa de merge del índice de Property",
         "tip": "Merges de segmentos del índice invertido de property por minuto (property no tiene bucle de merge de tst)."
       },
       {
+        "id": "property_index_merge_latency",
         "title": "Latencia de merge del índice de Property",
         "tip": "Latencia media de merge del índice invertido de property."
       },
       {
+        "id": "property_term_search_rate",
         "title": "Property Term Search / s",
         "tip": "Invocaciones de búsqueda de términos de property por segundo: property se lee por la vía de registry/búsqueda de términos, no por el método de consulta del liaison, así que esta es su señal de carga de lectura."
       },
       {
+        "id": "property_total_series",
         "title": "Total de series de Property",
         "tip": "Total de documentos del índice invertido de property para este grupo."
       },
       {
+        "id": "group_queue_throughput",
         "title": "Rendimiento de subscribe",
         "tip": "Mensajes de la cola del lado de subscribe por segundo para este grupo, por operación."
       },
       {
+        "id": "group_queue_latency",
         "title": "p99 de publish",
         "tip": "Latencia p99 de la cola del lado de publish para este grupo."
       },
       {
+        "id": "group_queue_batch_throughput",
         "title": "Rendimiento de batch",
         "tip": "Tasa de batches de escritura por group, por operación."
       },
       {
+        "id": "group_queue_message_throughput",
         "title": "Rendimiento de mensajes",
         "tip": "Tasa por registro por group, por operación."
       },
       {
+        "id": "group_publish_bytes",
         "title": "Bytes de part-sync / s"
       }
     ]

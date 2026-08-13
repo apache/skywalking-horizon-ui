@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "tps",
         "title": "TPS"
       },
       {
+        "id": "slow_qps",
         "title": "Requêtes lentes / s"
       },
       {
+        "id": "conn_errors",
         "title": "Erreurs de connexion",
         "tip": "Rejets internes vs connexions max.",
         "expressionLabels": [
@@ -37,6 +41,7 @@
         ]
       },
       {
+        "id": "commands",
         "title": "Tendance des commandes",
         "tip": "Taux de lignes affectées par commande (select / insert / update / delete).",
         "expressionLabels": [
@@ -47,6 +52,7 @@
         ]
       },
       {
+        "id": "threads",
         "title": "Threads",
         "expressionLabels": [
           "connectées",
@@ -56,24 +62,30 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "Requêtes lentes",
         "tip": "Top 20 des statements les plus lents capturés sur l'ensemble du cluster."
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "Disponibilité"
       },
       {
+        "id": "max_conns",
         "title": "Connexions max"
       },
       {
+        "id": "buffer_pool",
         "title": "Buffer Pool InnoDB"
       },
       {
+        "id": "thread_cache",
         "title": "Taille du thread cache"
       },
       {
+        "id": "instance_qps_tps",
         "title": "QPS / TPS",
         "expressionLabels": [
           "QPS",
@@ -81,9 +93,11 @@
         ]
       },
       {
+        "id": "instance_slow_queries",
         "title": "Requêtes lentes / s"
       },
       {
+        "id": "instance_commands",
         "title": "Tendance des commandes",
         "expressionLabels": [
           "select",
@@ -93,6 +107,7 @@
         ]
       },
       {
+        "id": "instance_threads",
         "title": "Threads",
         "expressionLabels": [
           "connectées",
@@ -102,6 +117,7 @@
         ]
       },
       {
+        "id": "instance_connects",
         "title": "Connexions",
         "expressionLabels": [
           "disponible",
@@ -109,6 +125,7 @@
         ]
       },
       {
+        "id": "instance_conn_errors",
         "title": "Erreurs de connexion",
         "expressionLabels": [
           "interne",

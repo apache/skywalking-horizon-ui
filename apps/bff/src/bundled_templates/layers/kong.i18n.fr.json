@@ -20,30 +20,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "kong_latency",
         "title": "Latence Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latence des requêtes"
       },
       {
+        "id": "upstream_latency",
         "title": "Latence upstream"
       },
       {
+        "id": "conns",
         "title": "Connexions Nginx"
       },
       {
+        "id": "timers",
         "title": "Timers Nginx"
       },
       {
+        "id": "datastore",
         "title": "Datastore accessible",
         "tableHeaders": [
           "Instance",
@@ -51,58 +60,75 @@
         ]
       },
       {
+        "id": "nginx_errors",
         "title": "Erreurs de métriques Nginx"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "kong_latency",
         "title": "Latence Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latence des requêtes"
       },
       {
+        "id": "upstream_latency",
         "title": "Latence upstream"
       },
       {
+        "id": "datastore",
         "title": "Datastore accessible"
       },
       {
+        "id": "conns",
         "title": "Connexions Nginx"
       },
       {
+        "id": "timers",
         "title": "Timers Nginx"
       },
       {
+        "id": "shared_mem",
         "title": "Utilisation de la mémoire partagée"
       },
       {
+        "id": "lua_vm",
         "title": "Utilisation de la VM Lua worker"
       }
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante totale"
       },
       {
+        "id": "kong_latency",
         "title": "Latence Kong"
       },
       {
+        "id": "req_latency",
         "title": "Latence des requêtes"
       },
       {
+        "id": "upstream_latency",
         "title": "Latence upstream"
       }
     ]

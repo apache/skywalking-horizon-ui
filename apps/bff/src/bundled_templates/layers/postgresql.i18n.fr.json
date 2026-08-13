@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "rows_fetched",
         "title": "Lignes récupérées / s"
       },
       {
+        "id": "rows_inserted",
         "title": "Lignes insérées / s"
       },
       {
+        "id": "rows_updated",
         "title": "Lignes mises à jour / s"
       },
       {
+        "id": "rows_deleted",
         "title": "Lignes supprimées / s"
       },
       {
+        "id": "rows_returned",
         "title": "Lignes retournées / s"
       },
       {
+        "id": "temp_files",
         "title": "Fichiers temporaires / s"
       },
       {
+        "id": "cache_hit",
         "title": "Taux de hit du cache"
       },
       {
+        "id": "txn_rates",
         "title": "Transactions / s",
         "tip": "Engagés vs rollback.",
         "expressionLabels": [
@@ -49,6 +57,7 @@
         ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "Conflits + deadlocks / s",
         "expressionLabels": [
           "conflits",
@@ -56,6 +65,7 @@
         ]
       },
       {
+        "id": "sessions",
         "title": "Sessions",
         "expressionLabels": [
           "actifs",
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "buffers",
         "title": "Buffers / s",
         "tip": "Activité buffer checkpoint / clean / fsync / alloc / backend.",
         "expressionLabels": [
@@ -75,6 +86,7 @@
         ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "Statistiques de checkpoint / s",
         "expressionLabels": [
           "planifié",
@@ -84,33 +96,42 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "Requêtes lentes",
         "tip": "Top 20 des statements les plus lents capturés."
       }
     ],
     "instance": [
       {
+        "id": "shared_buffers",
         "title": "Buffers partagés"
       },
       {
+        "id": "effective_cache",
         "title": "Cache effectif"
       },
       {
+        "id": "work_mem",
         "title": "Work Mem"
       },
       {
+        "id": "max_wal_size",
         "title": "Taille WAL max"
       },
       {
+        "id": "instance_fetched",
         "title": "Lignes récupérées / s"
       },
       {
+        "id": "instance_inserted",
         "title": "Lignes insérées / s"
       },
       {
+        "id": "instance_cache_hit",
         "title": "Taux de hit du cache"
       },
       {
+        "id": "instance_sessions",
         "title": "Sessions",
         "expressionLabels": [
           "actifs",
@@ -119,6 +140,7 @@
         ]
       },
       {
+        "id": "instance_conflicts",
         "title": "Conflits + deadlocks / s",
         "expressionLabels": [
           "conflits",

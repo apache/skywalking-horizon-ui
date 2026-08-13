@@ -20,242 +20,162 @@
   "dashboards": {
     "service": [
       {
-        "title": "Laufende Jobs",
-        "expressions": [
-          null
-        ]
+        "id": "jobs",
+        "title": "Laufende Jobs"
       },
       {
-        "title": "TaskManagers",
-        "expressions": [
-          null
-        ]
+        "id": "task_mgrs",
+        "title": "TaskManagers"
       },
       {
-        "title": "Slots gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "slots_total",
+        "title": "Slots gesamt"
       },
       {
-        "title": "Slots verfügbar",
-        "expressions": [
-          null
-        ]
+        "id": "slots_available",
+        "title": "Slots verfügbar"
       },
       {
-        "title": "JM JVM-CPU-Last (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu_load",
+        "title": "JM JVM-CPU-Last (%)"
       },
       {
-        "title": "JM JVM-Thread-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "jm_threads",
+        "title": "JM JVM-Thread-Anzahl"
       },
       {
-        "title": "JM CPU-Zeit (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "jm_cpu_time",
+        "title": "JM CPU-Zeit (ms)"
       },
       {
+        "id": "jm_mem_heap",
         "title": "JM Heap (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "jm_mem_nonheap",
         "title": "JM NonHeap (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "jm_metaspace",
         "title": "JM Metaspace (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "g1_young",
         "title": "G1 Young GC",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "zeit (ms)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "g1_old",
         "title": "G1 Old GC",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "zeit (ms)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "all_gc",
         "title": "Alle GC",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "zeit (ms)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
-        "title": "Top 10 laufende Jobs",
-        "expressions": [
-          null
-        ]
+        "id": "top_running",
+        "title": "Top 10 laufende Jobs"
       }
     ],
     "instance": [
       {
-        "title": "JVM-CPU-Last (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu_load",
+        "title": "JVM-CPU-Last (%)"
       },
       {
-        "title": "JVM-Thread-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "threads",
+        "title": "JVM-Thread-Anzahl"
       },
       {
-        "title": "CPU-Zeit (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu_time",
+        "title": "CPU-Zeit (ms)"
       },
       {
-        "title": "Backpressure",
-        "expressions": [
-          null
-        ]
+        "id": "back_pressure",
+        "title": "Backpressure"
       },
       {
+        "id": "mem_heap",
         "title": "Heap (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "mem_nonheap",
         "title": "NonHeap (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "mem_meta",
         "title": "Metaspace (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "records",
         "title": "Records Ein / Aus",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "bytes",
         "title": "Bytes ein / aus / s",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "netty",
         "title": "Netty-Speicher (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "verfügbar"
         ]
       },
       {
+        "id": "pool_usage",
         "title": "Pool-Auslastung (%)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "im pool",
           "aus pool"
         ]
       },
       {
+        "id": "back_pressure_time",
         "title": "Backpressure-Zeit (ms/s)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "soft bp",
           "hard bp",
@@ -266,37 +186,24 @@
     ],
     "endpoint": [
       {
-        "title": "Job-Laufzeit (min)",
-        "expressions": [
-          null
-        ]
+        "id": "running_time",
+        "title": "Job-Laufzeit (min)"
       },
       {
-        "title": "Job-Restart-Zeit (min)",
-        "expressions": [
-          null
-        ]
+        "id": "restarting_time",
+        "title": "Job-Restart-Zeit (min)"
       },
       {
-        "title": "Job-Cancel-Zeit (min)",
-        "expressions": [
-          null
-        ]
+        "id": "cancelling_time",
+        "title": "Job-Cancel-Zeit (min)"
       },
       {
-        "title": "Job-Neustarts",
-        "expressions": [
-          null
-        ]
+        "id": "restarts",
+        "title": "Job-Neustarts"
       },
       {
+        "id": "checkpoints",
         "title": "Checkpoints",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "abgeschlossen",
@@ -305,43 +212,28 @@
         ]
       },
       {
+        "id": "checkpoint_last",
         "title": "Letzter Checkpoint",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "größe (bytes)",
           "dauer (ms)"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
-        "title": "Aktueller Emit-Event-Time-Lag (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "emit_lag",
+        "title": "Aktueller Emit-Event-Time-Lag (ms)"
       },
       {
+        "id": "records",
         "title": "Records Ein / Aus",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "bytes",
         "title": "Bytes ein / aus / s",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"

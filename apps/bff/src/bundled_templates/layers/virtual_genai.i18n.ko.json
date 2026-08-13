@@ -20,50 +20,65 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "호출 / 분"
       },
       {
+        "id": "resp_time",
         "title": "평균 응답 시간"
       },
       {
+        "id": "sla",
         "title": "성공률"
       },
       {
+        "id": "percentile",
         "title": "지연 시간 백분위"
       },
       {
+        "id": "input_tokens_total",
         "title": "입력 토큰"
       },
       {
+        "id": "output_tokens_total",
         "title": "출력 토큰"
       },
       {
+        "id": "cost_total",
         "title": "총 추정 비용"
       },
       {
+        "id": "input_tokens",
         "title": "평균 입력 토큰"
       },
       {
+        "id": "output_tokens",
         "title": "평균 출력 토큰"
       },
       {
+        "id": "cost",
         "title": "평균 추정 비용"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "호출 / 분"
       },
       {
+        "id": "latency_avg",
         "title": "평균 지연 시간"
       },
       {
+        "id": "sla",
         "title": "성공률"
       },
       {
+        "id": "latency_percentile",
         "title": "지연 시간 백분위"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "평균",
@@ -71,21 +86,27 @@
         ]
       },
       {
+        "id": "input_tokens_total",
         "title": "입력 토큰"
       },
       {
+        "id": "output_tokens_total",
         "title": "출력 토큰"
       },
       {
+        "id": "cost_total",
         "title": "총 추정 비용"
       },
       {
+        "id": "input_tokens",
         "title": "평균 입력 토큰"
       },
       {
+        "id": "output_tokens",
         "title": "평균 출력 토큰"
       },
       {
+        "id": "cost",
         "title": "평균 추정 비용"
       }
     ]

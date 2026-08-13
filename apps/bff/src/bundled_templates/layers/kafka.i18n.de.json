@@ -20,47 +20,32 @@
   "dashboards": {
     "service": [
       {
-        "title": "Partition-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "partitions",
+        "title": "Partition-Anzahl"
       },
       {
-        "title": "Leader-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "leaders",
+        "title": "Leader-Anzahl"
       },
       {
-        "title": "Aktive Controller",
-        "expressions": [
-          null
-        ]
+        "id": "active_ctrl",
+        "title": "Aktive Controller"
       },
       {
-        "title": "Max. Lag",
-        "expressions": [
-          null
-        ]
+        "id": "max_lag",
+        "title": "Max. Lag"
       },
       {
-        "title": "Unter-replizierte Partitionen",
-        "expressions": [
-          null
-        ]
+        "id": "under_replicated",
+        "title": "Unter-replizierte Partitionen"
       },
       {
-        "title": "Offline-Partitionen",
-        "expressions": [
-          null
-        ]
+        "id": "offline",
+        "title": "Offline-Partitionen"
       },
       {
+        "id": "leader_election",
         "title": "Leader-Wahlrate",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "wahlen",
           "unclean"
@@ -69,90 +54,60 @@
     ],
     "instance": [
       {
-        "title": "CPU-Nutzung",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU-Nutzung"
       },
       {
-        "title": "Eingehende Nachrichten / s",
-        "expressions": [
-          null
-        ]
+        "id": "msg_rate",
+        "title": "Eingehende Nachrichten / s"
       },
       {
-        "title": "Bytes ein / s",
-        "expressions": [
-          null
-        ]
+        "id": "bytes_in",
+        "title": "Bytes ein / s"
       },
       {
-        "title": "Bytes aus / s",
-        "expressions": [
-          null
-        ]
+        "id": "bytes_out",
+        "title": "Bytes aus / s"
       },
       {
-        "title": "Anfragen / s",
-        "expressions": [
-          null
-        ]
+        "id": "req_rate",
+        "title": "Anfragen / s"
       },
       {
-        "title": "Purgatory-Größe",
-        "expressions": [
-          null
-        ]
+        "id": "purgatory",
+        "title": "Purgatory-Größe"
       },
       {
-        "title": "ISR-Shrink/s",
-        "expressions": [
-          null
-        ]
+        "id": "isr_shrinks",
+        "title": "ISR-Shrink/s"
       },
       {
-        "title": "ISR-Expand/s",
-        "expressions": [
-          null
-        ]
+        "id": "isr_expands",
+        "title": "ISR-Expand/s"
       },
       {
-        "title": "Speichernutzung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "mem_pct",
+        "title": "Speichernutzung (%)"
       },
       {
-        "title": "Unter-replizierte Partitionen",
-        "expressions": [
-          null
-        ]
+        "id": "under_replicated",
+        "title": "Unter-replizierte Partitionen"
       },
       {
-        "title": "Unter Min-ISR Partitionen",
-        "expressions": [
-          null
-        ]
+        "id": "under_min_isr",
+        "title": "Unter Min-ISR Partitionen"
       },
       {
+        "id": "partitions_leaders",
         "title": "Partitionen + Leader",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "partitionen",
           "leader"
         ]
       },
       {
+        "id": "queue_times",
         "title": "Queue- / Sende-Zeiten",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "request q",
           "response q",
@@ -161,12 +116,8 @@
         ]
       },
       {
+        "id": "topic_rates",
         "title": "Topic-Raten",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "produce req/s",
           "fetch req/s",
@@ -174,27 +125,20 @@
         ]
       },
       {
+        "id": "replication",
         "title": "Replikation",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes ein",
           "bytes aus"
         ]
       },
       {
-        "title": "GC-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "gc",
+        "title": "GC-Anzahl"
       },
       {
-        "title": "Max. Lag (Broker)",
-        "expressions": [
-          null
-        ]
+        "id": "max_lag",
+        "title": "Max. Lag (Broker)"
       }
     ]
   },

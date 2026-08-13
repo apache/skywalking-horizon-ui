@@ -7,55 +7,143 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "分区数" },
-      { "label": "下线分区" },
-      { "label": "最大 Lag" },
-      { "label": "Leader 数" }
+      {
+        "label": "分区数"
+      },
+      {
+        "label": "下线分区"
+      },
+      {
+        "label": "最大 Lag"
+      },
+      {
+        "label": "Leader 数"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "分区数" },
-      { "title": "Leader 数" },
-      { "title": "活跃 Controller" },
-      { "title": "最大 Lag" },
-      { "title": "副本不足分区" },
-      { "title": "下线分区" },
       {
+        "id": "partitions",
+        "title": "分区数"
+      },
+      {
+        "id": "leaders",
+        "title": "Leader 数"
+      },
+      {
+        "id": "active_ctrl",
+        "title": "活跃 Controller"
+      },
+      {
+        "id": "max_lag",
+        "title": "最大 Lag"
+      },
+      {
+        "id": "under_replicated",
+        "title": "副本不足分区"
+      },
+      {
+        "id": "offline",
+        "title": "下线分区"
+      },
+      {
+        "id": "leader_election",
         "title": "Leader 选举速率",
-        "expressionLabels": ["elections", "unclean"]
+        "expressionLabels": [
+          "elections",
+          "unclean"
+        ]
       }
     ],
     "instance": [
-      { "title": "CPU 使用" },
-      { "title": "入站消息 / 秒" },
-      { "title": "入站字节 / 秒" },
-      { "title": "出站字节 / 秒" },
-      { "title": "请求 / 秒" },
-      { "title": "Purgatory 大小" },
-      { "title": "ISR 收缩/秒" },
-      { "title": "ISR 扩张/秒" },
-      { "title": "内存使用率（%）" },
-      { "title": "副本不足分区" },
-      { "title": "低于 Min-ISR 分区" },
       {
+        "id": "cpu",
+        "title": "CPU 使用"
+      },
+      {
+        "id": "msg_rate",
+        "title": "入站消息 / 秒"
+      },
+      {
+        "id": "bytes_in",
+        "title": "入站字节 / 秒"
+      },
+      {
+        "id": "bytes_out",
+        "title": "出站字节 / 秒"
+      },
+      {
+        "id": "req_rate",
+        "title": "请求 / 秒"
+      },
+      {
+        "id": "purgatory",
+        "title": "Purgatory 大小"
+      },
+      {
+        "id": "isr_shrinks",
+        "title": "ISR 收缩/秒"
+      },
+      {
+        "id": "isr_expands",
+        "title": "ISR 扩张/秒"
+      },
+      {
+        "id": "mem_pct",
+        "title": "内存使用率（%）"
+      },
+      {
+        "id": "under_replicated",
+        "title": "副本不足分区"
+      },
+      {
+        "id": "under_min_isr",
+        "title": "低于 Min-ISR 分区"
+      },
+      {
+        "id": "partitions_leaders",
         "title": "分区 + Leader",
-        "expressionLabels": ["partitions", "leaders"]
+        "expressionLabels": [
+          "partitions",
+          "leaders"
+        ]
       },
       {
+        "id": "queue_times",
         "title": "队列 / 发送耗时",
-        "expressionLabels": ["request q", "response q", "response send", "remote"]
+        "expressionLabels": [
+          "request q",
+          "response q",
+          "response send",
+          "remote"
+        ]
       },
       {
+        "id": "topic_rates",
         "title": "Topic 速率",
-        "expressionLabels": ["produce req/s", "fetch req/s", "bytes-in/s"]
+        "expressionLabels": [
+          "produce req/s",
+          "fetch req/s",
+          "bytes-in/s"
+        ]
       },
       {
+        "id": "replication",
         "title": "复制",
-        "expressionLabels": ["bytes in", "bytes out"]
+        "expressionLabels": [
+          "bytes in",
+          "bytes out"
+        ]
       },
-      { "title": "GC 次数" },
-      { "title": "最大 Lag（broker）" }
+      {
+        "id": "gc",
+        "title": "GC 次数"
+      },
+      {
+        "id": "max_lag",
+        "title": "最大 Lag（broker）"
+      }
     ]
   }
 }

@@ -4,21 +4,27 @@
   "dashboards": {
     "service": [
       {
+        "id": "conns",
         "title": "Nombre de connexions"
       },
       {
+        "id": "cpu",
         "title": "CPU (%)"
       },
       {
+        "id": "queue_used",
         "title": "File utilisée"
       },
       {
+        "id": "receive",
         "title": "Événements reçus"
       },
       {
+        "id": "fetch",
         "title": "Événements fetch"
       },
       {
+        "id": "queue_io",
         "title": "File entrée / sortie",
         "expressionLabels": [
           "entrée",

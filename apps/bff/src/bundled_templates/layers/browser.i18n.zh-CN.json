@@ -7,56 +7,124 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "页面浏览量" },
-      { "label": "错误率" },
-      { "label": "错误" }
+      {
+        "label": "页面浏览量"
+      },
+      {
+        "label": "错误率"
+      },
+      {
+        "label": "错误"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "应用负载（PV）" },
-      { "title": "应用错误率" },
-      { "title": "应用错误数" },
       {
-        "title": "热门页面",
-        "tip": "按页面浏览量、错误数与错误率排名的页面。",
-        "expressionLabels": ["PV", "错误", "错误率"]
+        "id": "app_pv",
+        "title": "应用负载（PV）"
       },
       {
+        "id": "app_error_rate",
+        "title": "应用错误率"
+      },
+      {
+        "id": "app_error_sum",
+        "title": "应用错误数"
+      },
+      {
+        "id": "top_pages_pv",
+        "title": "热门页面",
+        "tip": "按页面浏览量、错误数与错误率排名的页面。",
+        "expressionLabels": [
+          "PV",
+          "错误",
+          "错误率"
+        ]
+      },
+      {
+        "id": "top_versions",
         "title": "热门版本",
         "tip": "按版本统计的负载 + 错误 + 错误率。",
-        "expressionLabels": ["PV", "错误", "错误率"]
+        "expressionLabels": [
+          "PV",
+          "错误",
+          "错误率"
+        ]
       }
     ],
     "instance": [
-      { "title": "版本 PV" },
-      { "title": "版本错误率" },
-      { "title": "版本错误数" }
+      {
+        "id": "ver_pv",
+        "title": "版本 PV"
+      },
+      {
+        "id": "ver_error_rate",
+        "title": "版本错误率"
+      },
+      {
+        "id": "ver_error_sum",
+        "title": "版本错误数"
+      }
     ],
     "endpoint": [
       {
+        "id": "page_fmp_percentile",
         "title": "首屏渲染（FMP）分位",
         "tip": "所选页面 FMP 延迟的 p50–p99。常见目标是 p75 低于 1 秒。"
       },
-      { "title": "页面加载分位" },
-      { "title": "存活时长分位" },
-      { "title": "首包延迟分位" },
       {
+        "id": "page_load_percentile",
+        "title": "页面加载分位"
+      },
+      {
+        "id": "page_ttl_percentile",
+        "title": "存活时长分位"
+      },
+      {
+        "id": "page_first_pack_percentile",
+        "title": "首包延迟分位"
+      },
+      {
+        "id": "page_performance",
         "title": "页面性能分解",
         "tip": "页面加载各阶段的平均耗时 — resolve、redirect、DNS、TCP、TTFB、传输、DOM 分析、DOM Ready、FPT、完整加载。",
-        "expressionLabels": ["dns", "redirect", "tcp", "ttfb", "transfer", "dom analysis", "dom ready", "fpt", "load", "resource"]
+        "expressionLabels": [
+          "dns",
+          "redirect",
+          "tcp",
+          "ttfb",
+          "transfer",
+          "dom analysis",
+          "dom ready",
+          "fpt",
+          "load",
+          "resource"
+        ]
       },
       {
+        "id": "page_error_breakdown",
         "title": "按类型的页面错误",
         "tip": "Resource / JS / AJAX / 未知错误每分钟计数。",
-        "expressionLabels": ["resource", "js", "ajax", "unknown"]
+        "expressionLabels": [
+          "resource",
+          "js",
+          "ajax",
+          "unknown"
+        ]
       },
       {
+        "id": "web_vitals",
         "title": "Web Vitals",
         "tip": "核心 Web Vitals — FMP、LCP、CLS（每分钟平均值）。CLS 除以 1000 以归一化到典型 0–1 评分范围。",
-        "expressionLabels": ["FMP (ms)", "LCP (ms)", "CLS"]
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
       },
       {
+        "id": "inp_percentile",
         "title": "Interaction to Next Paint 分位",
         "tip": "INP — 替代 FID 的响应性指标。"
       }

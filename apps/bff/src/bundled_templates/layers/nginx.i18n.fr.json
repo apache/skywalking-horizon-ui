@@ -17,73 +17,95 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "conns",
         "title": "Connexions HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       },
       {
+        "id": "errlog",
         "title": "Nombre de logs d'erreur"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "conns",
         "title": "Connexions HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       },
       {
+        "id": "errlog",
         "title": "Nombre de logs d'erreur"
       }
     ],
     "endpoint": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       }
     ]

@@ -2,146 +2,173 @@
   "alias": "普通应用",
   "layer-header": {
     "columns": [
-      { "label": "RPM" },
-      { "label": "Apdex" },
-      { "label": "错误率" }
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "错误率"
+      }
     ]
   },
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "前 20 API",
         "tip": "所选服务下的 Top 端点列表。切换标签可按流量、响应时间或最差成功率重新排序。",
-        "expressionLabels": ["流量", "慢请求", "成功率"]
+        "expressionLabels": [
+          "流量",
+          "慢请求",
+          "成功率"
+        ]
       },
-      { "title": "流量" },
-      { "title": "错误率" },
-      { "title": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" },
       {
+        "id": "traffic_line",
+        "title": "流量"
+      },
+      {
+        "id": "err_line",
+        "title": "错误率"
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "用户满意度评分，取值范围 0 – 1。"
+      },
+      {
+        "id": "percentile_line",
         "title": "响应时间分位",
         "tip": "p50 / p75 / p90 / p95 / p99 延迟 — 即响应时间分布的长尾。"
       },
-      { "title": "平均响应时间" },
       {
-        "title": "MQ 消费速率 + 延迟",
-        "tip": "左轴为数量，右轴为延迟。",
-        "expressionLabels": ["数量", "延迟"]
+        "id": "resp_time_line",
+        "title": "平均响应时间"
       },
       {
+        "id": "mq_combined",
+        "title": "MQ 消费速率 + 延迟",
+        "tip": "左轴为数量，右轴为延迟。",
+        "expressionLabels": [
+          "数量",
+          "延迟"
+        ]
+      },
+      {
+        "id": "top_instance_load",
         "title": "按负载排名的前 10 实例",
         "tip": "按所选服务下各实例的流量排序。"
       },
       {
+        "id": "top_instance_slow",
         "title": "前 10 最慢实例",
         "tip": "按所选服务下各实例的平均响应时间排序。"
       },
       {
+        "id": "top_instance_sla",
         "title": "按成功率排名的前 10 实例",
         "tip": "top_n(service_instance_sla,10,asc)/100 — 最差优先。"
       },
       {
+        "id": "slow_statements",
         "title": "慢数据库语句",
         "tip": "针对此服务采集到的最慢的前 20 条数据库语句。来源为 top_n_service_database_statement。当 OAP 在该窗口内未采集到任何语句时显示 `no data`。"
       }
     ],
     "instance": [
-      { "title": "服务实例负载", "tip": "针对所选实例每分钟的调用次数。" },
-      { "title": "服务实例延迟" },
-      { "title": "服务实例成功率" },
       {
+        "id": "instance_cpm_line",
+        "title": "服务实例负载",
+        "tip": "针对所选实例每分钟的调用次数。"
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "服务实例延迟"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "服务实例成功率"
+      },
+      {
+        "id": "nodejs_process_cpu",
         "title": "进程 CPU",
-        "tip": "Node.js agent：进程 CPU（用户态 + 内核态），按采集间隔统计（%）。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：进程 CPU（用户态 + 内核态），按采集间隔统计（%）。"
       },
       {
+        "id": "nodejs_heap_used",
         "title": "V8 堆已用",
-        "tip": "Node.js agent：V8 堆已用内存（process.memoryUsage().heapUsed），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 堆已用内存（process.memoryUsage().heapUsed），单位 MB。"
       },
       {
+        "id": "nodejs_heap_total",
         "title": "V8 堆总量",
-        "tip": "Node.js agent：V8 堆已分配总量（process.memoryUsage().heapTotal），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 堆已分配总量（process.memoryUsage().heapTotal），单位 MB。"
       },
       {
+        "id": "nodejs_heap_limit",
         "title": "V8 堆上限",
-        "tip": "Node.js agent：V8 最大堆大小（v8.getHeapStatistics().heap_size_limit），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 最大堆大小（v8.getHeapStatistics().heap_size_limit），单位 MB。"
       },
       {
+        "id": "nodejs_rss",
         "title": "进程 RSS",
-        "tip": "Node.js agent：常驻内存集（process.memoryUsage().rss），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：常驻内存集（process.memoryUsage().rss），单位 MB。"
       },
       {
+        "id": "nodejs_external_memory",
         "title": "外部内存",
-        "tip": "Node.js agent：绑定到 V8 的 C++ 对象（process.memoryUsage().external），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：绑定到 V8 的 C++ 对象（process.memoryUsage().external），单位 MB。"
       },
       {
+        "id": "nodejs_array_buffers",
         "title": "数组缓冲区",
-        "tip": "Node.js agent：ArrayBuffer / SharedArrayBuffer 内存（process.memoryUsage().arrayBuffers），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：ArrayBuffer / SharedArrayBuffer 内存（process.memoryUsage().arrayBuffers），单位 MB。"
       },
       {
+        "id": "nodejs_uptime",
         "title": "进程运行时间",
-        "tip": "Node.js agent：进程启动至今的天数（process.uptime()）。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：进程启动至今的天数（process.uptime()）。"
       },
       {
+        "id": "nodejs_peak_malloced_memory",
         "title": "峰值 malloc 内存",
-        "tip": "Node.js agent：V8 峰值 malloc 内存（v8.getHeapStatistics().peak_malloced_memory），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 峰值 malloc 内存（v8.getHeapStatistics().peak_malloced_memory），单位 MB。"
       },
       {
+        "id": "nodejs_malloced_memory",
         "title": "malloc 内存",
-        "tip": "Node.js agent：V8 当前 malloc 内存（v8.getHeapStatistics().malloced_memory），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 当前 malloc 内存（v8.getHeapStatistics().malloced_memory），单位 MB。"
       },
       {
+        "id": "nodejs_old_space_used",
         "title": "老生代已用",
-        "tip": "Node.js agent：V8 老生代堆已用（v8.getHeapSpaceStatistics old_space），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 老生代堆已用（v8.getHeapSpaceStatistics old_space），单位 MB。"
       },
       {
+        "id": "nodejs_new_space_used",
         "title": "新生代已用",
-        "tip": "Node.js agent：V8 新生代堆已用（v8.getHeapSpaceStatistics new_space），单位 MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js agent：V8 新生代堆已用（v8.getHeapSpaceStatistics new_space），单位 MB。"
       },
       {
+        "id": "jvm_cpu",
         "title": "JVM CPU",
         "tip": "由 agent 上报的 JVM CPU。仅当实例为 JVM 时显示。"
       },
       {
+        "id": "jvm_memory",
         "title": "JVM 内存",
         "tip": "Heap / 非 Heap 的已用 + 最大值，单位 MB。",
-        "expressionLabels": ["heap", "heap max", "non-heap", "non-heap max"]
+        "expressionLabels": [
+          "heap",
+          "heap max",
+          "non-heap",
+          "non-heap max"
+        ]
       },
       {
+        "id": "jvm_memory_detail",
         "title": "JVM 内存明细",
         "tip": "各内存池已用大小，单位 MB。覆盖 code cache、young / old / survivor / permgen / metaspace，以及新版 JVM 引入的 JIT codeheap 子池（Z heap、compressed class space、分段 codeheap）。JVM 未暴露的池保持为 0。",
         "expressionLabels": [
@@ -159,164 +186,356 @@
         ]
       },
       {
+        "id": "jvm_thread_count",
         "title": "JVM 线程数",
-        "expressionLabels": ["live", "daemon", "peak"]
+        "expressionLabels": [
+          "live",
+          "daemon",
+          "peak"
+        ]
       },
       {
+        "id": "jvm_thread_state",
         "title": "JVM 线程状态数",
         "tip": "按 JVM 状态划分的线程数（runnable / blocked / waiting / timed-waiting）。",
-        "expressionLabels": ["runnable", "blocked", "waiting", "timed-waiting"]
+        "expressionLabels": [
+          "runnable",
+          "blocked",
+          "waiting",
+          "timed-waiting"
+        ]
       },
       {
+        "id": "jvm_gc_time",
         "title": "JVM GC 时间",
-        "expressionLabels": ["young", "old", "normal"]
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
       },
       {
+        "id": "jvm_gc_count",
         "title": "JVM GC 次数",
-        "expressionLabels": ["young", "old", "normal"]
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
       },
       {
+        "id": "jvm_class_count",
         "title": "JVM 类数量",
-        "expressionLabels": ["loaded", "total loaded", "total unloaded"]
+        "expressionLabels": [
+          "loaded",
+          "total loaded",
+          "total unloaded"
+        ]
       },
       {
+        "id": "clr_cpu",
         "title": "CLR CPU",
         "tip": "仅 .NET：当实例上报 CLR 指标时显示。"
       },
       {
+        "id": "clr_thread",
         "title": "CLR 线程",
-        "expressionLabels": ["worker available", "completion-port available", "completion-port max"]
+        "expressionLabels": [
+          "worker available",
+          "completion-port available",
+          "completion-port max"
+        ]
       },
-      { "title": "CLR Heap 内存" },
       {
+        "id": "clr_heap",
+        "title": "CLR Heap 内存"
+      },
+      {
+        "id": "clr_gc",
         "title": "CLR GC",
-        "expressionLabels": ["gen 0", "gen 1", "gen 2"]
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
       },
       {
+        "id": "sleuth_http_req_count",
         "title": "Spring HTTP 请求数",
         "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests 计数器。"
       },
-      { "title": "Spring HTTP 请求耗时" },
-      { "title": "Spring 实例 CPU 使用率" },
-      { "title": "Spring OS CPU 使用率" },
-      { "title": "Spring OS 系统负载" },
       {
+        "id": "sleuth_http_req_duration",
+        "title": "Spring HTTP 请求耗时"
+      },
+      {
+        "id": "sleuth_proc_cpu",
+        "title": "Spring 实例 CPU 使用率"
+      },
+      {
+        "id": "sleuth_os_cpu",
+        "title": "Spring OS CPU 使用率"
+      },
+      {
+        "id": "sleuth_os_load",
+        "title": "Spring OS 系统负载"
+      },
+      {
+        "id": "sleuth_proc_files",
         "title": "Spring OS 进程文件数",
-        "expressionLabels": ["open", "max"]
+        "expressionLabels": [
+          "open",
+          "max"
+        ]
       },
-      { "title": "Spring JVM GC 暂停时长" },
       {
+        "id": "sleuth_jvm_gc_pause",
+        "title": "Spring JVM GC 暂停时长"
+      },
+      {
+        "id": "sleuth_jvm_memory",
         "title": "Spring JVM 内存",
-        "expressionLabels": ["used", "max"]
+        "expressionLabels": [
+          "used",
+          "max"
+        ]
       },
       {
+        "id": "sleuth_jvm_thread",
         "title": "Spring JVM 线程",
-        "expressionLabels": ["live", "daemon", "peak"]
+        "expressionLabels": [
+          "live",
+          "daemon",
+          "peak"
+        ]
       },
       {
+        "id": "sleuth_jvm_classes",
         "title": "Spring JVM 类",
-        "expressionLabels": ["loaded", "unloaded"]
+        "expressionLabels": [
+          "loaded",
+          "unloaded"
+        ]
       },
       {
+        "id": "sleuth_datasource",
         "title": "Spring 数据库连接池",
         "tip": "HikariCP / Spring Boot 数据源指标 — 各连接池的连接数。"
       },
       {
+        "id": "sleuth_thread_pool",
         "title": "Spring 线程池",
         "tip": "Spring Boot 线程池 meter — 每个 executor 的活动、排队、最大线程数。"
       },
       {
+        "id": "sleuth_jdbc",
         "title": "Spring JDBC 连接",
-        "expressionLabels": ["active", "idle", "max"]
+        "expressionLabels": [
+          "active",
+          "idle",
+          "max"
+        ]
       },
       {
+        "id": "sleuth_tomcat",
         "title": "Spring Tomcat 会话",
-        "expressionLabels": ["active", "max", "rejected"]
+        "expressionLabels": [
+          "active",
+          "max",
+          "rejected"
+        ]
       },
       {
+        "id": "go_goroutines",
         "title": "Golang Goroutines / OS 线程",
         "tip": "Golang agent：活跃 goroutine 数量 + 底层 OS 线程数。",
-        "expressionLabels": ["goroutines", "OS threads"]
+        "expressionLabels": [
+          "goroutines",
+          "OS threads"
+        ]
       },
-      { "title": "Golang GC 暂停时间（每分钟）" },
-      { "title": "Golang GC 次数（每分钟）" },
-      { "title": "Golang Heap 分配（每分钟）" },
-      { "title": "Golang Goroutine 调度时间" },
-      { "title": "Golang GC 释放（每分钟）" },
-      { "title": "Golang 分配大小（每分钟）" },
-      { "title": "Golang 释放大小（每分钟）" },
-      { "title": "Golang Heap 对象数" },
-      { "title": "Golang Heap" },
-      { "title": "Golang Metadata Mspan" },
-      { "title": "Golang Metadata Mcache" },
-      { "title": "Golang GC 目标大小" },
-      { "title": "Golang CGO 调用（每分钟）" },
       {
+        "id": "go_gc_pause",
+        "title": "Golang GC 暂停时间（每分钟）"
+      },
+      {
+        "id": "go_gc_count",
+        "title": "Golang GC 次数（每分钟）"
+      },
+      {
+        "id": "go_heap_alloc",
+        "title": "Golang Heap 分配（每分钟）"
+      },
+      {
+        "id": "go_sched_lat",
+        "title": "Golang Goroutine 调度时间"
+      },
+      {
+        "id": "go_heap_frees",
+        "title": "Golang GC 释放（每分钟）"
+      },
+      {
+        "id": "go_alloc_size",
+        "title": "Golang 分配大小（每分钟）"
+      },
+      {
+        "id": "go_free_size",
+        "title": "Golang 释放大小（每分钟）"
+      },
+      {
+        "id": "go_heap_objects",
+        "title": "Golang Heap 对象数"
+      },
+      {
+        "id": "go_heap",
+        "title": "Golang Heap"
+      },
+      {
+        "id": "go_mspan",
+        "title": "Golang Metadata Mspan"
+      },
+      {
+        "id": "go_mcache",
+        "title": "Golang Metadata Mcache"
+      },
+      {
+        "id": "go_gc_goal",
+        "title": "Golang GC 目标大小"
+      },
+      {
+        "id": "go_cgo",
+        "title": "Golang CGO 调用（每分钟）"
+      },
+      {
+        "id": "pvm_cpu",
         "title": "Python CPU 使用率",
         "tip": "Python（PVM）agent：主机 vs 进程 CPU。",
-        "expressionLabels": ["host", "process"]
+        "expressionLabels": [
+          "host",
+          "process"
+        ]
       },
       {
+        "id": "pvm_mem",
         "title": "Python 内存使用率",
-        "expressionLabels": ["host", "process"]
+        "expressionLabels": [
+          "host",
+          "process"
+        ]
       },
-      { "title": "Python 线程数" },
       {
+        "id": "pvm_threads",
+        "title": "Python 线程数"
+      },
+      {
+        "id": "pvm_gc",
         "title": "Python GC 次数",
-        "expressionLabels": ["gen 0", "gen 1", "gen 2"]
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
       },
-      { "title": "Python GC 时间" },
       {
+        "id": "pvm_gc_time",
+        "title": "Python GC 时间"
+      },
+      {
+        "id": "ruby_cpu",
         "title": "Ruby CPU 使用率",
         "tip": "Ruby agent：进程 CPU 百分比。"
       },
-      { "title": "Ruby 内存（RSS）" },
-      { "title": "Ruby 内存使用率" },
       {
+        "id": "ruby_mem_rss",
+        "title": "Ruby 内存（RSS）"
+      },
+      {
+        "id": "ruby_mem_usage",
+        "title": "Ruby 内存使用率"
+      },
+      {
+        "id": "ruby_threads",
         "title": "Ruby 线程状态",
-        "expressionLabels": ["active", "running"]
+        "expressionLabels": [
+          "active",
+          "running"
+        ]
       },
       {
+        "id": "ruby_gc",
         "title": "Ruby GC 次数",
-        "expressionLabels": ["total", "minor", "major"]
+        "expressionLabels": [
+          "total",
+          "minor",
+          "major"
+        ]
       },
-      { "title": "Ruby GC 时间" },
-      { "title": "Ruby Heap 使用率" },
       {
+        "id": "ruby_gc_time",
+        "title": "Ruby GC 时间"
+      },
+      {
+        "id": "ruby_heap_usage",
+        "title": "Ruby Heap 使用率"
+      },
+      {
+        "id": "ruby_heap_slots",
         "title": "Ruby Heap Slots",
-        "expressionLabels": ["live", "available"]
+        "expressionLabels": [
+          "live",
+          "available"
+        ]
       },
       {
+        "id": "php_cpu",
         "title": "PHP CPU 使用率",
         "tip": "PHP agent：父 PHP 进程 (getppid()) CPU 使用率 (%)，经 /proc 采样。"
       },
       {
+        "id": "php_mem",
         "title": "PHP 内存使用",
         "tip": "PHP agent：父 PHP 进程 (getppid()) 常驻内存 (MB, /proc VmRSS)。"
       },
       {
+        "id": "php_mem_peak",
         "title": "PHP 内存峰值",
         "tip": "PHP agent：父 PHP 进程 (getppid()) 峰值常驻内存 (MB, /proc VmHWM)。"
       },
       {
+        "id": "php_vmsize",
         "title": "PHP 虚拟内存",
         "tip": "PHP agent：父 PHP 进程 (getppid()) 虚拟内存 (MB, /proc VmSize)。"
       },
       {
+        "id": "php_threads",
         "title": "PHP 线程数",
         "tip": "PHP agent：父 PHP 进程 (getppid()) OS 线程数 (/proc Threads)。"
       },
       {
+        "id": "php_open_fds",
         "title": "PHP 打开 FD 数",
         "tip": "PHP agent：父 PHP 进程 (getppid()) 打开的文件描述符数 (/proc/pid/fd)。"
       }
     ],
     "endpoint": [
-      { "title": "流量" },
-      { "title": "响应时间" },
-      { "title": "成功率" },
-      { "title": "响应时间分位" },
       {
+        "id": "endpoint_cpm_line",
+        "title": "流量"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "响应时间"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "成功率"
+      },
+      {
+        "id": "endpoint_percentile",
+        "title": "响应时间分位"
+      },
+      {
+        "id": "endpoint_mq_consume_latency",
         "title": "MQ 平均消费延迟",
         "tip": "端点维度的消费延迟 — 仅对承担消息队列流量的端点有数据。"
       }
@@ -324,53 +543,140 @@
   },
   "topology": {
     "nodeMetrics": [
-      { "label": "RPM" },
-      { "label": "SLA" },
-      { "label": "延迟" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "延迟"
+      }
     ],
     "linkServerMetrics": [
-      { "label": "RPM" },
-      { "label": "平均响应时间" },
-      { "label": "p95" },
-      { "label": "SLA" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "p95",
+        "label": "p95"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
     ],
     "linkClientMetrics": [
-      { "label": "RPM" },
-      { "label": "平均响应时间" },
-      { "label": "p95" },
-      { "label": "SLA" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "p95",
+        "label": "p95"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "延迟" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "延迟"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "平均响应时间" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均响应时间"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "平均响应时间" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均响应时间"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },
   "endpointDependency": {
     "nodeMetrics": [
-      { "label": "RPM" },
-      { "label": "SLA" },
-      { "label": "延迟" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "延迟"
+      }
     ],
     "linkMetrics": [
-      { "label": "RPM" },
-      { "label": "平均响应时间" },
-      { "label": "p95" },
-      { "label": "SLA" }
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "p95",
+        "label": "p95"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
     ]
   },
   "slots": {

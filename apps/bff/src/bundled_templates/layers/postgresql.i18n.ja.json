@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "rows_fetched",
         "title": "取得行 / s"
       },
       {
+        "id": "rows_inserted",
         "title": "挿入行 / s"
       },
       {
+        "id": "rows_updated",
         "title": "更新行 / s"
       },
       {
+        "id": "rows_deleted",
         "title": "削除行 / s"
       },
       {
+        "id": "rows_returned",
         "title": "返却行 / s"
       },
       {
+        "id": "temp_files",
         "title": "一時ファイル / s"
       },
       {
+        "id": "cache_hit",
         "title": "キャッシュヒット率"
       },
       {
+        "id": "txn_rates",
         "title": "トランザクション / s",
         "tip": "コミット vs ロールバック。",
         "expressionLabels": [
@@ -49,6 +57,7 @@
         ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "競合 + デッドロック / s",
         "expressionLabels": [
           "競合",
@@ -56,6 +65,7 @@
         ]
       },
       {
+        "id": "sessions",
         "title": "セッション",
         "expressionLabels": [
           "アクティブ",
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "buffers",
         "title": "バッファ / s",
         "tip": "Checkpoint / clean / fsync / alloc / backend バッファアクティビティ。",
         "expressionLabels": [
@@ -75,6 +86,7 @@
         ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "チェックポイント統計 / s",
         "expressionLabels": [
           "timed",
@@ -84,33 +96,42 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "低速ステートメント",
         "tip": "捕捉された低速ステートメント上位 20。"
       }
     ],
     "instance": [
       {
+        "id": "shared_buffers",
         "title": "Shared Buffer"
       },
       {
+        "id": "effective_cache",
         "title": "実効キャッシュ"
       },
       {
+        "id": "work_mem",
         "title": "Work Mem"
       },
       {
+        "id": "max_wal_size",
         "title": "WAL 最大サイズ"
       },
       {
+        "id": "instance_fetched",
         "title": "取得行 / s"
       },
       {
+        "id": "instance_inserted",
         "title": "挿入行 / s"
       },
       {
+        "id": "instance_cache_hit",
         "title": "キャッシュヒット率"
       },
       {
+        "id": "instance_sessions",
         "title": "セッション",
         "expressionLabels": [
           "アクティブ",
@@ -119,6 +140,7 @@
         ]
       },
       {
+        "id": "instance_conflicts",
         "title": "競合 + デッドロック / s",
         "expressionLabels": [
           "競合",

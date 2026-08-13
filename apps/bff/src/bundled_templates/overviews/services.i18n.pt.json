@@ -3,9 +3,11 @@
   "description": "Saúde dos serviços entre camadas: serviços rastreados junto com bancos de dados / caches / filas de mensagens / backends de GenAI virtuais, além da capacidade subjacente do Kubernetes.",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "Serviços"
     },
     {
+      "id": "tile_general",
       "title": "Serviços gerais",
       "tip": "Serviços de aplicação rastreados na camada General.",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "tile_db",
       "title": "Bancos de dados virtuais",
       "tip": "Bancos de dados observados por meio de spans do lado do cliente.",
       "kpis": [
@@ -36,6 +39,7 @@
       ]
     },
     {
+      "id": "tile_cache",
       "title": "Caches virtuais",
       "tip": "Caches (Redis / Memcached / …) observados por meio de spans do lado do cliente.",
       "kpis": [
@@ -51,6 +55,7 @@
       ]
     },
     {
+      "id": "tile_mq",
       "title": "Filas de mensagens virtuais",
       "tip": "Filas de mensagens observadas por meio de spans de consumo + produção.",
       "kpis": [
@@ -66,6 +71,7 @@
       ]
     },
     {
+      "id": "tile_genai",
       "title": "GenAI virtual",
       "tip": "Backends de GenAI observados por meio de spans instrumentados do cliente.",
       "kpis": [
@@ -81,20 +87,25 @@
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "Topologia e alarmes ativos"
     },
     {
+      "id": "svc_topo",
       "title": "Topologia de serviços gerais",
       "tip": "Mapa de serviços em tempo real — o mesmo renderizador da aba Topologia por camada, sem o painel lateral de detalhes."
     },
     {
+      "id": "svc_alarms",
       "title": "Alarmes ativos",
       "tip": "Alarmes atualmente disparados em serviços reportados por agente."
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "Capacidade e utilização do cluster",
       "tip": "Nós / namespaces / workloads e o uso de CPU, memória e disco em todo o cluster.",
       "kpis": [

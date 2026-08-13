@@ -23,206 +23,138 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "Top 20 APIs",
         "tip": "Top-Endpunkte unter dem ausgewählten Dienst. Tabs wechseln, um nach Traffic, Antwortzeit oder schlechtester Erfolgsrate neu zu sortieren.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "Traffic",
           "Langsam",
           "Erfolgsrate"
-        ],
-        "expressionUnits": [
-          null,
-          null,
-          null
         ]
       },
       {
+        "id": "traffic_line",
         "title": "Traffic",
-        "tip": "Mesh-weite Anfragen pro Minute, beobachtet von Envoy-Sidecars.",
-        "expressions": [
-          null
-        ]
+        "tip": "Mesh-weite Anfragen pro Minute, beobachtet von Envoy-Sidecars."
       },
       {
-        "title": "Fehlerrate",
-        "expressions": [
-          null
-        ]
+        "id": "err_line",
+        "title": "Fehlerrate"
       },
       {
+        "id": "apdex_line",
         "title": "Apdex",
-        "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1.",
-        "expressions": [
-          null
-        ]
+        "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
       },
       {
-        "title": "Mittlere Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit"
       },
       {
+        "id": "percentile_line",
         "title": "Antwortzeit-Perzentil",
-        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Antwortzeit-Verteilung.",
-        "expressions": [
-          null
-        ]
+        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Antwortzeit-Verteilung."
       },
       {
+        "id": "throughput_line",
         "title": "Service-Durchsatz",
         "tip": "Bytes pro Minute durch den Sidecar — gesendet + empfangen.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "gesendet"
         ]
       },
       {
+        "id": "sidecar_internal_latency",
         "title": "Sidecar-interne Latenz",
         "tip": "Envoy-interne Request- + Response-Latenz, in Nanosekunden. Nützlich bei Verdacht auf Sidecar-Overhead.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anfrage",
           "antwort"
         ]
       },
       {
+        "id": "top_instances",
         "title": "Top 10 Sidecars",
         "tip": "Sortiert über die Sidecar-Instanzen des ausgewählten Dienstes.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "Traffic",
           "Langsam",
           "Erfolgsrate"
-        ],
-        "expressionUnits": [
-          null,
-          null,
-          null
         ]
       }
     ],
     "instance": [
       {
+        "id": "instance_cpm_line",
         "title": "Sidecar-Last",
-        "tip": "Aufrufe pro Minute gegen die ausgewählte Sidecar-Instanz.",
-        "expressions": [
-          null
-        ]
+        "tip": "Aufrufe pro Minute gegen die ausgewählte Sidecar-Instanz."
       },
       {
-        "title": "Sidecar-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "instance_resp_line",
+        "title": "Sidecar-Latenz"
       },
       {
-        "title": "Sidecar-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "instance_sla_line",
+        "title": "Sidecar-Erfolgsrate"
       },
       {
+        "id": "instance_throughput",
         "title": "Sidecar-Durchsatz",
         "tip": "Bytes durch den Sidecar — empfangen + gesendet.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "gesendet"
         ]
       },
       {
+        "id": "instance_sidecar_internal_latency",
         "title": "Sidecar-interne Latenz",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anfrage",
           "antwort"
         ]
       },
       {
+        "id": "envoy_up_rq_active",
         "title": "Envoy Upstream-Anfragen aktiv",
-        "tip": "In Bearbeitung befindliche Upstream-Anfragen pro Cluster. Wird für Envoy-instrumentierte Sidecars angezeigt.",
-        "expressions": [
-          null
-        ]
+        "tip": "In Bearbeitung befindliche Upstream-Anfragen pro Cluster. Wird für Envoy-instrumentierte Sidecars angezeigt."
       },
       {
+        "id": "envoy_up_rq_incr",
         "title": "Envoy Upstream-Anfragen-Zuwachs",
-        "tip": "Pro Minute hinzugefügte Upstream-Anfragen.",
-        "expressions": [
-          null
-        ]
+        "tip": "Pro Minute hinzugefügte Upstream-Anfragen."
       },
       {
+        "id": "envoy_up_rq_pending_active",
         "title": "Envoy Upstream Pending aktiv",
-        "tip": "Ausstehende Upstream-Anfragen — Indikator für Connection-Pool-Backpressure.",
-        "expressions": [
-          null
-        ]
+        "tip": "Ausstehende Upstream-Anfragen — Indikator für Connection-Pool-Backpressure."
       },
       {
-        "title": "Envoy Upstream-Verbindungen aktiv",
-        "expressions": [
-          null
-        ]
+        "id": "envoy_up_cx_active",
+        "title": "Envoy Upstream-Verbindungen aktiv"
       },
       {
-        "title": "Envoy Upstream-Verbindungs-Zuwachs",
-        "expressions": [
-          null
-        ]
+        "id": "envoy_up_cx_incr",
+        "title": "Envoy Upstream-Verbindungs-Zuwachs"
       },
       {
+        "id": "envoy_membership_healthy",
         "title": "Envoy Cluster Healthy Membership",
-        "tip": "Gesunde Upstream-Mitglieder pro Cluster — ein nennenswerter Rückgang signalisiert Upstream-Fluktuation.",
-        "expressions": [
-          null
-        ]
+        "tip": "Gesunde Upstream-Mitglieder pro Cluster — ein nennenswerter Rückgang signalisiert Upstream-Fluktuation."
       },
       {
+        "id": "envoy_connections",
         "title": "Envoy Gesamtverbindungen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "parent"
         ]
       },
       {
+        "id": "envoy_heap_memory",
         "title": "Envoy Heap-Speicher",
         "tip": "Envoy-Speichernutzung. Heap vs. physisch, zugewiesen vs. max, in MB.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "heap used",
           "heap max",
@@ -233,56 +165,40 @@
         ]
       },
       {
+        "id": "envoy_worker_threads",
         "title": "Envoy Worker-Threads",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "live",
           "max"
         ]
       },
       {
+        "id": "envoy_bug_failures",
         "title": "Envoy-Bug-Failures",
-        "tip": "Envoys eigener Assertion- / Bug-Zähler. Sollte in gesunden Clustern null sein.",
-        "expressions": [
-          null
-        ]
+        "tip": "Envoys eigener Assertion- / Bug-Zähler. Sollte in gesunden Clustern null sein."
       }
     ],
     "endpoint": [
       {
-        "title": "Endpoint-Traffic",
-        "expressions": [
-          null
-        ]
+        "id": "endpoint_cpm_line",
+        "title": "Endpoint-Traffic"
       },
       {
-        "title": "Endpoint mittlere Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "endpoint_resp_line",
+        "title": "Endpoint mittlere Antwortzeit"
       },
       {
-        "title": "Endpoint-Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "id": "endpoint_sla_line",
+        "title": "Endpoint-Erfolgsrate"
       },
       {
-        "title": "Endpoint-Antwortzeit-Perzentil",
-        "expressions": [
-          null
-        ]
+        "id": "endpoint_percentile",
+        "title": "Endpoint-Antwortzeit-Perzentil"
       },
       {
+        "id": "endpoint_sidecar_internal_latency",
         "title": "Sidecar-interne Latenz (Endpoint-Scope)",
         "tip": "Envoy-interne Request- + Response-Latenz auf diesem Endpoint, in Nanosekunden.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anfrage",
           "antwort"
@@ -293,60 +209,104 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "Latenz"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Mittlere Antwortzeit"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Mittlere Antwortzeit"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "Latenz" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "Latenz"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "Mittlere Antwortzeit" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Mittlere Antwortzeit"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "Mittlere Antwortzeit" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Mittlere Antwortzeit"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },

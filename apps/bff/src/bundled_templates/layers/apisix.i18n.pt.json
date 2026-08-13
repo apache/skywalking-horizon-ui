@@ -25,48 +25,62 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendência de requisições HTTP"
       },
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "latency",
         "title": "Latência HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexões HTTP"
       },
       {
+        "id": "status_unmatched",
         "title": "Tendência de status sem correspondência",
         "tip": "Requisições sem rota APISIX correspondente."
       },
       {
+        "id": "latency_unmatched",
         "title": "Latência sem correspondência"
       },
       {
+        "id": "bandwidth_unmatched",
         "title": "Largura de banda sem correspondência"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendência de requisições HTTP"
       },
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "latency",
         "title": "Latência HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexões HTTP"
       },
       {
+        "id": "shared_dict",
         "title": "Dicionário compartilhado",
         "tip": "Capacidade vs espaço livre.",
         "expressionLabels": [
@@ -75,15 +89,18 @@
         ]
       },
       {
+        "id": "etcd_total",
         "title": "etcd acessível"
       },
       {
+        "id": "etcd",
         "title": "etcd índices",
         "expressionLabels": [
           "índices"
         ]
       },
       {
+        "id": "unmatched",
         "title": "Tráfego sem correspondência",
         "tip": "Status + latência + largura de banda para requisições sem rota correspondente.",
         "expressionLabels": [
@@ -95,12 +112,15 @@
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "Tendência de status HTTP"
       },
       {
+        "id": "latency",
         "title": "Latência HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Largura de banda HTTP"
       }
     ]

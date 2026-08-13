@@ -25,66 +25,85 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "Duração da inicialização do app"
       },
       {
+        "id": "first_render",
         "title": "Duração da primeira renderização"
       },
       {
+        "id": "package_load",
         "title": "Duração do carregamento do pacote",
         "tip": "Tempo para baixar + parsear o bundle do pacote do mini programa."
       },
       {
+        "id": "error_count",
         "title": "Contagem de erros"
       },
       {
+        "id": "route_duration",
         "title": "Duração da rota",
         "tip": "Tempo gasto em transições de rota de página do mini programa."
       },
       {
+        "id": "script_duration",
         "title": "Duração do script"
       },
       {
+        "id": "request_cpm",
         "title": "Carga de requisições"
       },
       {
+        "id": "request_percentile",
         "title": "Percentil de duração das requisições"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "Duração da inicialização"
       },
       {
+        "id": "v_first_render",
         "title": "Duração da primeira renderização"
       },
       {
+        "id": "v_package_load",
         "title": "Duração do carregamento do pacote"
       },
       {
+        "id": "v_request_cpm",
         "title": "Carga de requisições"
       },
       {
+        "id": "v_route_duration",
         "title": "Duração da rota"
       },
       {
+        "id": "v_script_duration",
         "title": "Duração do script"
       },
       {
+        "id": "v_request_percentile",
         "title": "Percentil de duração das requisições"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "Duração da inicialização na página"
       },
       {
+        "id": "ep_first_render",
         "title": "Duração da primeira renderização"
       },
       {
+        "id": "ep_request_cpm",
         "title": "Carga de requisições"
       },
       {
+        "id": "ep_request_percentile",
         "title": "Percentil de duração das requisições"
       }
     ]

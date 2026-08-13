@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "jobs",
         "title": "실행 중인 잡"
       },
       {
+        "id": "task_mgrs",
         "title": "TaskManager"
       },
       {
+        "id": "slots_total",
         "title": "총 슬롯"
       },
       {
+        "id": "slots_available",
         "title": "사용 가능한 슬롯"
       },
       {
+        "id": "cpu_load",
         "title": "JM JVM CPU 부하 (%)"
       },
       {
+        "id": "jm_threads",
         "title": "JM JVM 스레드 수"
       },
       {
+        "id": "jm_cpu_time",
         "title": "JM CPU 시간 (ms)"
       },
       {
+        "id": "jm_mem_heap",
         "title": "JM Heap (MB)",
         "expressionLabels": [
           "사용",
@@ -48,6 +56,7 @@
         ]
       },
       {
+        "id": "jm_mem_nonheap",
         "title": "JM NonHeap (MB)",
         "expressionLabels": [
           "사용",
@@ -55,6 +64,7 @@
         ]
       },
       {
+        "id": "jm_metaspace",
         "title": "JM Metaspace (MB)",
         "expressionLabels": [
           "사용",
@@ -62,6 +72,7 @@
         ]
       },
       {
+        "id": "g1_young",
         "title": "G1 Young GC",
         "expressionLabels": [
           "count",
@@ -69,6 +80,7 @@
         ]
       },
       {
+        "id": "g1_old",
         "title": "G1 Old GC",
         "expressionLabels": [
           "count",
@@ -76,6 +88,7 @@
         ]
       },
       {
+        "id": "all_gc",
         "title": "전체 GC",
         "expressionLabels": [
           "count",
@@ -83,23 +96,29 @@
         ]
       },
       {
+        "id": "top_running",
         "title": "실행 중인 잡 상위 10"
       }
     ],
     "instance": [
       {
+        "id": "cpu_load",
         "title": "JVM CPU 부하 (%)"
       },
       {
+        "id": "threads",
         "title": "JVM 스레드 수"
       },
       {
+        "id": "cpu_time",
         "title": "CPU 시간 (ms)"
       },
       {
+        "id": "back_pressure",
         "title": "백 프레셔"
       },
       {
+        "id": "mem_heap",
         "title": "Heap (MB)",
         "expressionLabels": [
           "사용",
@@ -107,6 +126,7 @@
         ]
       },
       {
+        "id": "mem_nonheap",
         "title": "NonHeap (MB)",
         "expressionLabels": [
           "사용",
@@ -114,6 +134,7 @@
         ]
       },
       {
+        "id": "mem_meta",
         "title": "Metaspace (MB)",
         "expressionLabels": [
           "사용",
@@ -121,6 +142,7 @@
         ]
       },
       {
+        "id": "records",
         "title": "레코드 In / Out",
         "expressionLabels": [
           "입력",
@@ -128,6 +150,7 @@
         ]
       },
       {
+        "id": "bytes",
         "title": "바이트 In / Out / s",
         "expressionLabels": [
           "입력",
@@ -135,6 +158,7 @@
         ]
       },
       {
+        "id": "netty",
         "title": "Netty 메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -142,6 +166,7 @@
         ]
       },
       {
+        "id": "pool_usage",
         "title": "풀 사용률 (%)",
         "expressionLabels": [
           "풀 내",
@@ -149,6 +174,7 @@
         ]
       },
       {
+        "id": "back_pressure_time",
         "title": "백 프레셔 시간 (ms/s)",
         "expressionLabels": [
           "soft bp",
@@ -160,18 +186,23 @@
     ],
     "endpoint": [
       {
+        "id": "running_time",
         "title": "잡 실행 시간 (분)"
       },
       {
+        "id": "restarting_time",
         "title": "잡 재시작 시간 (분)"
       },
       {
+        "id": "cancelling_time",
         "title": "잡 취소 시간 (분)"
       },
       {
+        "id": "restarts",
         "title": "잡 재시작"
       },
       {
+        "id": "checkpoints",
         "title": "체크포인트",
         "expressionLabels": [
           "전체",
@@ -181,6 +212,7 @@
         ]
       },
       {
+        "id": "checkpoint_last",
         "title": "마지막 체크포인트",
         "expressionLabels": [
           "크기 (바이트)",
@@ -188,9 +220,11 @@
         ]
       },
       {
+        "id": "emit_lag",
         "title": "현재 Emit Event Time Lag (ms)"
       },
       {
+        "id": "records",
         "title": "레코드 In / Out",
         "expressionLabels": [
           "입력",
@@ -198,6 +232,7 @@
         ]
       },
       {
+        "id": "bytes",
         "title": "바이트 In / Out / s",
         "expressionLabels": [
           "입력",

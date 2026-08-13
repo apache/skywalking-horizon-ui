@@ -23,6 +23,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "上位 20 API",
         "tip": "選択中サービス配下の上位エンドポイント。タブを切り替えてトラフィック、応答時間、最悪成功率で再ランク付け。",
         "expressionLabels": [
@@ -32,24 +33,30 @@
         ]
       },
       {
+        "id": "traffic_line",
         "title": "トラフィック",
         "tip": "Envoy Sidecar が観測した Mesh 全体の 1分あたりリクエスト数。"
       },
       {
+        "id": "err_line",
         "title": "エラー率"
       },
       {
+        "id": "apdex_line",
         "title": "Apdex",
         "tip": "0 – 1 スケールのユーザー満足度スコア。"
       },
       {
+        "id": "resp_time_line",
         "title": "平均応答時間"
       },
       {
+        "id": "percentile_line",
         "title": "応答時間パーセンタイル",
         "tip": "p50 / p75 / p90 / p95 / p99 レイテンシ — 応答時間分布のテール。"
       },
       {
+        "id": "throughput_line",
         "title": "サービススループット",
         "tip": "Sidecar を通過する 1分あたりのバイト — 送信 + 受信。",
         "expressionLabels": [
@@ -58,6 +65,7 @@
         ]
       },
       {
+        "id": "sidecar_internal_latency",
         "title": "Sidecar 内部レイテンシ",
         "tip": "Envoy 内部のリクエスト + レスポンスレイテンシ（ナノ秒）。Sidecar オーバーヘッドが疑われる際に有用。",
         "expressionLabels": [
@@ -66,6 +74,7 @@
         ]
       },
       {
+        "id": "top_instances",
         "title": "上位 10 Sidecar",
         "tip": "選択中サービスの Sidecar インスタンス全体でランク付け。",
         "expressionLabels": [
@@ -77,16 +86,20 @@
     ],
     "instance": [
       {
+        "id": "instance_cpm_line",
         "title": "Sidecar 負荷",
         "tip": "選択中の Sidecar インスタンスに対する 1分あたりのコール数。"
       },
       {
+        "id": "instance_resp_line",
         "title": "Sidecar レイテンシ"
       },
       {
+        "id": "instance_sla_line",
         "title": "Sidecar 成功率"
       },
       {
+        "id": "instance_throughput",
         "title": "Sidecar スループット",
         "tip": "Sidecar を通過するバイト — 受信 + 送信。",
         "expressionLabels": [
@@ -95,6 +108,7 @@
         ]
       },
       {
+        "id": "instance_sidecar_internal_latency",
         "title": "Sidecar 内部レイテンシ",
         "expressionLabels": [
           "リクエスト",
@@ -102,28 +116,35 @@
         ]
       },
       {
+        "id": "envoy_up_rq_active",
         "title": "Envoy アップストリームリクエストアクティブ",
         "tip": "クラスタ単位の処理中アップストリームリクエスト。Envoy 計装の Sidecar で描画。"
       },
       {
+        "id": "envoy_up_rq_incr",
         "title": "Envoy アップストリームリクエスト増分",
         "tip": "1分あたりに追加されたアップストリームリクエスト数。"
       },
       {
+        "id": "envoy_up_rq_pending_active",
         "title": "Envoy アップストリーム保留アクティブ",
         "tip": "保留中のアップストリームリクエスト — 接続プールのバックプレッシャーを示す。"
       },
       {
+        "id": "envoy_up_cx_active",
         "title": "Envoy アップストリーム接続アクティブ"
       },
       {
+        "id": "envoy_up_cx_incr",
         "title": "Envoy アップストリーム接続増分"
       },
       {
+        "id": "envoy_membership_healthy",
         "title": "Envoy クラスタ正常メンバーシップ",
         "tip": "クラスタ単位の正常アップストリームメンバー — 大きな低下はアップストリームの不安定さを示す。"
       },
       {
+        "id": "envoy_connections",
         "title": "Envoy 合計接続",
         "expressionLabels": [
           "合計",
@@ -131,6 +152,7 @@
         ]
       },
       {
+        "id": "envoy_heap_memory",
         "title": "Envoy ヒープメモリ",
         "tip": "Envoy メモリ使用量。ヒープ vs 物理、アロケート vs 最大 (MB)。",
         "expressionLabels": [
@@ -143,6 +165,7 @@
         ]
       },
       {
+        "id": "envoy_worker_threads",
         "title": "Envoy ワーカースレッド",
         "expressionLabels": [
           "ライブ",
@@ -150,24 +173,30 @@
         ]
       },
       {
+        "id": "envoy_bug_failures",
         "title": "Envoy Bug Failures",
         "tip": "Envoy 自身のアサーション / Bug カウンタ。正常クラスタではゼロのはず。"
       }
     ],
     "endpoint": [
       {
+        "id": "endpoint_cpm_line",
         "title": "エンドポイントトラフィック"
       },
       {
+        "id": "endpoint_resp_line",
         "title": "エンドポイント平均応答時間"
       },
       {
+        "id": "endpoint_sla_line",
         "title": "エンドポイント成功率"
       },
       {
+        "id": "endpoint_percentile",
         "title": "エンドポイント応答時間パーセンタイル"
       },
       {
+        "id": "endpoint_sidecar_internal_latency",
         "title": "Sidecar 内部レイテンシ (エンドポイントスコープ)",
         "tip": "このエンドポイントでの Envoy 内部のリクエスト + レスポンスレイテンシ（ナノ秒）。",
         "expressionLabels": [
@@ -180,60 +209,104 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "レイテンシ"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "レイテンシ" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "レイテンシ"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },

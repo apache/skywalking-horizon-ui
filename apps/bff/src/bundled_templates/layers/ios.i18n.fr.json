@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_percentile",
         "title": "Centile du temps de lancement de l'app"
       },
       {
+        "id": "hang_percentile",
         "title": "Centile du temps de gel"
       },
       {
+        "id": "hang_sum",
         "title": "Temps de gel (somme)"
       },
       {
+        "id": "abnormal_exits",
         "title": "Sorties anormales (crashes)",
         "tip": "MetricKit remonte séparément les sorties anormales en premier plan et en arrière-plan.",
         "expressionLabels": [
@@ -37,17 +41,21 @@
         ]
       },
       {
+        "id": "oom_kills",
         "title": "Nombre de kills OOM",
         "tip": "Kills OOM en arrière-plan — le système iOS termine l'app sous pression mémoire."
       },
       {
+        "id": "peak_memory",
         "title": "Mémoire pic"
       },
       {
+        "id": "scroll_hitch",
         "title": "Ratio de scroll hitch",
         "tip": "Pourcentage de frames de scroll classés en hitch — plus c'est élevé, plus l'interface est saccadée."
       },
       {
+        "id": "network_transfer",
         "title": "Transfert réseau",
         "tip": "Octets en wifi vs cellulaire, entrants + sortants.",
         "expressionLabels": [
@@ -58,6 +66,7 @@
         ]
       },
       {
+        "id": "outbound_http",
         "title": "HTTP sortant",
         "tip": "Appels effectués par l'app vers les backends — charge, latence, taux de succès.",
         "expressionLabels": [
@@ -69,12 +78,15 @@
     ],
     "instance": [
       {
+        "id": "instance_launch_p",
         "title": "Centile du temps de lancement"
       },
       {
+        "id": "instance_hang_p",
         "title": "Centile du temps de gel"
       },
       {
+        "id": "instance_crashes",
         "title": "Sorties anormales",
         "expressionLabels": [
           "premier plan",
@@ -82,12 +94,15 @@
         ]
       },
       {
+        "id": "instance_oom",
         "title": "Nombre de kills OOM"
       },
       {
+        "id": "instance_peak_mem",
         "title": "Mémoire pic"
       },
       {
+        "id": "instance_outbound",
         "title": "HTTP sortant",
         "expressionLabels": [
           "RPM",
@@ -98,15 +113,19 @@
     ],
     "endpoint": [
       {
+        "id": "ep_cpm",
         "title": "Charge sortante"
       },
       {
+        "id": "ep_resp",
         "title": "Latence moyenne sortante"
       },
       {
+        "id": "ep_sla",
         "title": "Taux de succès sortant"
       },
       {
+        "id": "ep_percentile",
         "title": "Centile de latence sortante"
       }
     ]

@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "topics",
         "title": "Topic 合計"
       },
       {
+        "id": "subs",
         "title": "サブスクリプション"
       },
       {
+        "id": "producers",
         "title": "プロデューサー"
       },
       {
+        "id": "consumers",
         "title": "コンシューマー"
       },
       {
+        "id": "msg_rate",
         "title": "メッセージレート",
         "expressionLabels": [
           "入",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "throughput",
         "title": "スループット",
         "expressionLabels": [
           "入",
@@ -46,6 +52,7 @@
         ]
       },
       {
+        "id": "storage_rw",
         "title": "ストレージ読み取り/書き込みレート",
         "expressionLabels": [
           "読み取り",
@@ -53,6 +60,7 @@
         ]
       },
       {
+        "id": "storage_size",
         "title": "ストレージサイズ (MB)",
         "expressionLabels": [
           "物理",
@@ -62,27 +70,35 @@
     ],
     "instance": [
       {
+        "id": "active_conns",
         "title": "アクティブ接続"
       },
       {
+        "id": "total_conns",
         "title": "合計接続"
       },
       {
+        "id": "conn_fail",
         "title": "接続作成失敗"
       },
       {
+        "id": "conn_success",
         "title": "接続作成成功"
       },
       {
+        "id": "conn_closed",
         "title": "接続クローズ"
       },
       {
+        "id": "jvm_buffer",
         "title": "JVM バッファプール (MB)"
       },
       {
+        "id": "jvm_pool",
         "title": "JVM メモリプール使用中 (MB)"
       },
       {
+        "id": "jvm_mem",
         "title": "JVM メモリ (MB)",
         "expressionLabels": [
           "使用中",
@@ -91,6 +107,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM スレッド",
         "expressionLabels": [
           "現在",
@@ -100,6 +117,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "秒",

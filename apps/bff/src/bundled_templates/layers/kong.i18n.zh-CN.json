@@ -8,47 +8,134 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "RPS" },
-      { "label": "200/秒" },
-      { "label": "404/秒" },
-      { "label": "500/秒" }
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/秒"
+      },
+      {
+        "label": "404/秒"
+      },
+      {
+        "label": "500/秒"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "HTTP 带宽" },
-      { "title": "Kong 延迟" },
-      { "title": "请求延迟" },
-      { "title": "上游延迟" },
-      { "title": "Nginx 连接" },
-      { "title": "Nginx 定时器" },
       {
-        "title": "数据存储可达性",
-        "tableHeaders": ["实例", "可达"]
+        "id": "rps",
+        "title": "HTTP 请求趋势"
       },
-      { "title": "Nginx 指标错误" }
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "kong_latency",
+        "title": "Kong 延迟"
+      },
+      {
+        "id": "req_latency",
+        "title": "请求延迟"
+      },
+      {
+        "id": "upstream_latency",
+        "title": "上游延迟"
+      },
+      {
+        "id": "conns",
+        "title": "Nginx 连接"
+      },
+      {
+        "id": "timers",
+        "title": "Nginx 定时器"
+      },
+      {
+        "id": "datastore",
+        "title": "数据存储可达性",
+        "tableHeaders": [
+          "实例",
+          "可达"
+        ]
+      },
+      {
+        "id": "nginx_errors",
+        "title": "Nginx 指标错误"
+      }
     ],
     "instance": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "HTTP 带宽" },
-      { "title": "Kong 延迟" },
-      { "title": "请求延迟" },
-      { "title": "上游延迟" },
-      { "title": "数据存储可达性" },
-      { "title": "Nginx 连接" },
-      { "title": "Nginx 定时器" },
-      { "title": "共享内存使用率" },
-      { "title": "Worker Lua VM 使用" }
+      {
+        "id": "rps",
+        "title": "HTTP 请求趋势"
+      },
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "kong_latency",
+        "title": "Kong 延迟"
+      },
+      {
+        "id": "req_latency",
+        "title": "请求延迟"
+      },
+      {
+        "id": "upstream_latency",
+        "title": "上游延迟"
+      },
+      {
+        "id": "datastore",
+        "title": "数据存储可达性"
+      },
+      {
+        "id": "conns",
+        "title": "Nginx 连接"
+      },
+      {
+        "id": "timers",
+        "title": "Nginx 定时器"
+      },
+      {
+        "id": "shared_mem",
+        "title": "共享内存使用率"
+      },
+      {
+        "id": "lua_vm",
+        "title": "Worker Lua VM 使用"
+      }
     ],
     "endpoint": [
-      { "title": "HTTP 状态趋势" },
-      { "title": "总带宽" },
-      { "title": "Kong 延迟" },
-      { "title": "请求延迟" },
-      { "title": "上游延迟" }
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "bandwidth",
+        "title": "总带宽"
+      },
+      {
+        "id": "kong_latency",
+        "title": "Kong 延迟"
+      },
+      {
+        "id": "req_latency",
+        "title": "请求延迟"
+      },
+      {
+        "id": "upstream_latency",
+        "title": "上游延迟"
+      }
     ]
   }
 }

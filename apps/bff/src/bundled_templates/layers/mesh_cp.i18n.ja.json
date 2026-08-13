@@ -23,15 +23,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU"
       },
       {
+        "id": "goroutines",
         "title": "Goroutine"
       },
       {
+        "id": "version",
         "title": "Istio バージョン"
       },
       {
+        "id": "memory",
         "title": "メモリ (MB)",
         "expressionLabels": [
           "アロケート",
@@ -42,6 +46,7 @@
         ]
       },
       {
+        "id": "pilot_errors",
         "title": "Pilot エラー",
         "expressionLabels": [
           "CDS 拒否",
@@ -52,15 +57,19 @@
         ]
       },
       {
+        "id": "proxy_push_time",
         "title": "Proxy Push 時間 (パーセンタイル)"
       },
       {
+        "id": "pilot_pushes",
         "title": "Pilot プッシュ"
       },
       {
+        "id": "sidecar_inj",
         "title": "Sidecar Injection 成功"
       },
       {
+        "id": "ads",
         "title": "ADS モニタリング",
         "expressionLabels": [
           "xDS",
@@ -69,6 +78,7 @@
         ]
       },
       {
+        "id": "validation",
         "title": "設定検証",
         "expressionLabels": [
           "通過",
@@ -76,6 +86,7 @@
         ]
       },
       {
+        "id": "conflicts",
         "title": "Pilot 競合",
         "expressionLabels": [
           "ol tcp/tcp",

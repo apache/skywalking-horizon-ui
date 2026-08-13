@@ -20,47 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_duration",
         "title": "앱 실행 시간",
         "tip": "알리페이 컨테이너의 대략적인 콜드 런치 시간입니다."
       },
       {
+        "id": "first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "error_count",
         "title": "오류 수"
       },
       {
+        "id": "request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "request_percentile",
         "title": "요청 시간 백분위"
       }
     ],
     "instance": [
       {
+        "id": "v_launch",
         "title": "실행 시간"
       },
       {
+        "id": "v_first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "v_request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "v_request_percentile",
         "title": "요청 시간 백분위"
       }
     ],
     "endpoint": [
       {
+        "id": "ep_launch",
         "title": "페이지의 실행 시간"
       },
       {
+        "id": "ep_first_render",
         "title": "최초 렌더 시간"
       },
       {
+        "id": "ep_request_cpm",
         "title": "요청 부하"
       },
       {
+        "id": "ep_request_percentile",
         "title": "요청 시간 백분위"
       }
     ]

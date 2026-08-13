@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "load",
         "title": "システムロードアベレージ"
       },
       {
+        "id": "threads",
         "title": "スレッド数"
       },
       {
+        "id": "heap_used",
         "title": "ヒープ使用中 (MB)"
       },
       {
+        "id": "heap_max",
         "title": "ヒープ最大 (MB)"
       },
       {
+        "id": "enqueue_dequeue",
         "title": "エンキュー / デキュー / ディスパッチ /s",
         "expressionLabels": [
           "エンキュー",
@@ -40,9 +45,11 @@
         ]
       },
       {
+        "id": "expired_rate",
         "title": "期限切れ /s"
       },
       {
+        "id": "enqueue_time",
         "title": "エンキュー時間",
         "expressionLabels": [
           "平均",
@@ -50,6 +57,7 @@
         ]
       },
       {
+        "id": "gc_counts",
         "title": "GC 回数 (G1+Parallel)",
         "expressionLabels": [
           "old",
@@ -57,6 +65,7 @@
         ]
       },
       {
+        "id": "gc_time",
         "title": "GC 時間 (ms)",
         "expressionLabels": [
           "old",
@@ -66,25 +75,31 @@
     ],
     "instance": [
       {
+        "id": "connections_card",
         "title": "接続",
         "tip": "この Broker への現在の TCP/JMS 接続数。"
       },
       {
+        "id": "producer_count_card",
         "title": "プロデューサー数",
         "tip": "この Broker のアクティブなプロデューサーセッション。"
       },
       {
+        "id": "consumer_count_card",
         "title": "コンシューマー数",
         "tip": "この Broker のアクティブなコンシューマーセッション。"
       },
       {
+        "id": "uptime_card",
         "title": "稼働時間",
         "tip": "前回の再起動からの Broker 稼働時間（時間単位）。"
       },
       {
+        "id": "connections_line",
         "title": "接続 (傾向)"
       },
       {
+        "id": "enqueue_dequeue_line",
         "title": "エンキュー / デキュー件数",
         "tip": "この Broker の宛先全体での 1分あたりエンキュー + デキュー。",
         "expressionLabels": [
@@ -93,6 +108,7 @@
         ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "プロデューサー / コンシューマー増分",
         "tip": "1分あたりに開かれた新規プロデューサー + コンシューマーセッション。",
         "expressionLabels": [
@@ -101,32 +117,40 @@
         ]
       },
       {
+        "id": "memory_usage_line",
         "title": "メモリ使用率",
         "tip": "宛先全体のメモリ使用量合計 (MB)。"
       },
       {
+        "id": "memory_limit_line",
         "title": "メモリ上限",
         "tip": "宛先全体の設定メモリ上限 (GB)。"
       },
       {
+        "id": "message_size_line",
         "title": "平均メッセージサイズ",
         "tip": "宛先全体での平均メッセージサイズ。"
       }
     ],
     "endpoint": [
       {
+        "id": "producer",
         "title": "プロデューサー数"
       },
       {
+        "id": "consumer",
         "title": "コンシューマー数"
       },
       {
+        "id": "queue_size",
         "title": "キューサイズ"
       },
       {
+        "id": "memory",
         "title": "メモリ使用量 (MB)"
       },
       {
+        "id": "messages",
         "title": "メッセージ数",
         "expressionLabels": [
           "エンキュー",
@@ -137,6 +161,7 @@
         ]
       },
       {
+        "id": "enqueue_time",
         "title": "エンキュー時間 (s)",
         "expressionLabels": [
           "平均",

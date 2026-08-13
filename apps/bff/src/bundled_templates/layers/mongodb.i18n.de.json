@@ -20,74 +20,52 @@
   "dashboards": {
     "service": [
       {
-        "title": "Cluster-Uptime (Tage)",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Cluster-Uptime (Tage)"
       },
       {
-        "title": "Datenmenge (GB)",
-        "expressions": [
-          null
-        ]
+        "id": "data_size",
+        "title": "Datenmenge (GB)"
       },
       {
-        "title": "Sammlungs-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "coll_count",
+        "title": "Sammlungs-Anzahl"
       },
       {
-        "title": "Objektanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "obj_count",
+        "title": "Objektanzahl"
       },
       {
-        "title": "Dokument-QPS",
-        "expressions": [
-          null
-        ]
+        "id": "doc_qps",
+        "title": "Dokument-QPS"
       },
       {
-        "title": "Operations-QPS",
-        "expressions": [
-          null
-        ]
+        "id": "op_qps",
+        "title": "Operations-QPS"
       },
       {
-        "title": "Gesamtverbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "Gesamtverbindungen"
       },
       {
-        "title": "Cursor gesamt",
-        "expressions": [
-          null
-        ]
+        "id": "cursors",
+        "title": "Cursor gesamt"
       },
       {
-        "title": "Replication-Lag (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "repl_lag",
+        "title": "Replication-Lag (ms)"
       },
       {
+        "id": "db_data_size",
         "title": "DB-Gesamtdaten (GB)",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Datenbank",
           "Daten (GB)"
         ]
       },
       {
+        "id": "db_index_size",
         "title": "DB-Gesamtindex (GB)",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Datenbank",
           "Index (GB)"
@@ -96,85 +74,60 @@
     ],
     "instance": [
       {
-        "title": "Uptime (Tage)",
-        "expressions": [
-          null
-        ]
+        "id": "uptime",
+        "title": "Uptime (Tage)"
       },
       {
-        "title": "QPS",
-        "expressions": [
-          null
-        ]
+        "id": "qps",
+        "title": "QPS"
       },
       {
+        "id": "rs_state",
         "title": "ReplSet-Status",
-        "expressions": [
-          null
-        ],
         "tableHeaders": [
           "Knoten",
           "ReplSet-Status"
         ]
       },
       {
-        "title": "Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "Verbindungen"
       },
       {
-        "title": "CPU-Nutzung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU-Nutzung (%)"
       },
       {
-        "title": "Speichernutzung",
-        "expressions": [
-          null
-        ]
+        "id": "mem",
+        "title": "Speichernutzung"
       },
       {
+        "id": "mem_free",
         "title": "Freier Speicher (GB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mem",
           "swap"
         ]
       },
       {
+        "id": "disk",
         "title": "Festplatte (GB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "gesamt"
         ]
       },
       {
+        "id": "network",
         "title": "Netzwerk (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "ein",
           "aus"
         ]
       },
       {
+        "id": "active_clients",
         "title": "Aktive Clients",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "schreiber",
@@ -182,50 +135,36 @@
         ]
       },
       {
-        "title": "Dokument-QPS",
-        "expressions": [
-          null
-        ]
+        "id": "doc_qps",
+        "title": "Dokument-QPS"
       },
       {
-        "title": "Operations-QPS",
-        "expressions": [
-          null
-        ]
+        "id": "op_qps",
+        "title": "Operations-QPS"
       },
       {
-        "title": "Op-Latenz (µs)",
-        "expressions": [
-          null
-        ]
+        "id": "op_latency",
+        "title": "Op-Latenz (µs)"
       },
       {
+        "id": "transactions",
         "title": "Transaktionen",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aktiv",
           "inaktiv"
         ]
       },
       {
+        "id": "repl_buffer",
         "title": "Repl Buffer",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "größe (MB)"
         ]
       },
       {
-        "title": "Queue-Operationen",
-        "expressions": [
-          null
-        ]
+        "id": "queued_op",
+        "title": "Queue-Operationen"
       }
     ]
   },

@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "topics",
         "title": "Total topics"
       },
       {
+        "id": "subs",
         "title": "Abonnements"
       },
       {
+        "id": "producers",
         "title": "Producers"
       },
       {
+        "id": "consumers",
         "title": "Consumers"
       },
       {
+        "id": "msg_rate",
         "title": "Débit de messages",
         "expressionLabels": [
           "entrant",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "throughput",
         "title": "Débit",
         "expressionLabels": [
           "entrant",
@@ -46,6 +52,7 @@
         ]
       },
       {
+        "id": "storage_rw",
         "title": "Débit de lecture/écriture du stockage",
         "expressionLabels": [
           "lecture",
@@ -53,6 +60,7 @@
         ]
       },
       {
+        "id": "storage_size",
         "title": "Taille de stockage (Mo)",
         "expressionLabels": [
           "physique",
@@ -62,27 +70,35 @@
     ],
     "instance": [
       {
+        "id": "active_conns",
         "title": "Connexions actives"
       },
       {
+        "id": "total_conns",
         "title": "Connexions totales"
       },
       {
+        "id": "conn_fail",
         "title": "Échecs de création de connexion"
       },
       {
+        "id": "conn_success",
         "title": "Succès de création de connexion"
       },
       {
+        "id": "conn_closed",
         "title": "Connexion fermée"
       },
       {
+        "id": "jvm_buffer",
         "title": "Buffer Pool JVM (Mo)"
       },
       {
+        "id": "jvm_pool",
         "title": "Pool mémoire JVM utilisé (Mo)"
       },
       {
+        "id": "jvm_mem",
         "title": "Mémoire JVM (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -91,6 +107,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "Threads JVM",
         "expressionLabels": [
           "courant",
@@ -100,6 +117,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "secondes",

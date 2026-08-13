@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "ledgers",
         "title": "Bookie Ledger"
       },
       {
+        "id": "entries",
         "title": "Bookie Entry"
       },
       {
+        "id": "writable_dirs",
         "title": "書き込み可能 Ledger ディレクトリ"
       },
       {
+        "id": "write_cache",
         "title": "書き込みキャッシュ",
         "expressionLabels": [
           "サイズ (MB)",
@@ -36,6 +40,7 @@
         ]
       },
       {
+        "id": "read_cache",
         "title": "読み取りキャッシュ",
         "expressionLabels": [
           "サイズ (MB)",
@@ -43,6 +48,7 @@
         ]
       },
       {
+        "id": "io_rates",
         "title": "読み取り / 書き込みレート (B/s)",
         "expressionLabels": [
           "読み取り",
@@ -50,14 +56,17 @@
         ]
       },
       {
+        "id": "dir_usage",
         "title": "Ledger ディレクトリ使用量"
       }
     ],
     "instance": [
       {
+        "id": "jvm_pool",
         "title": "JVM メモリプール (MB)"
       },
       {
+        "id": "jvm_mem",
         "title": "JVM メモリ (MB)",
         "expressionLabels": [
           "使用中",
@@ -66,6 +75,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM スレッド",
         "expressionLabels": [
           "現在",
@@ -75,6 +85,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "秒",
@@ -82,6 +93,7 @@
         ]
       },
       {
+        "id": "thread_executor",
         "title": "Thread Executor",
         "expressionLabels": [
           "完了",
@@ -91,6 +103,7 @@
         ]
       },
       {
+        "id": "pooled_threads",
         "title": "プールスレッド",
         "expressionLabels": [
           "高優先度",
@@ -98,6 +111,7 @@
         ]
       },
       {
+        "id": "queue_size",
         "title": "プール最大キューサイズ",
         "expressionLabels": [
           "高優先度",

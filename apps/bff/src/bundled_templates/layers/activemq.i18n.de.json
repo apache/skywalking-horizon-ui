@@ -20,36 +20,24 @@
   "dashboards": {
     "service": [
       {
-        "title": "Systemlast Mittel",
-        "expressions": [
-          null
-        ]
+        "id": "load",
+        "title": "Systemlast Mittel"
       },
       {
-        "title": "Thread-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "threads",
+        "title": "Thread-Anzahl"
       },
       {
-        "title": "Heap genutzt (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "heap_used",
+        "title": "Heap genutzt (MB)"
       },
       {
-        "title": "Heap max (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "heap_max",
+        "title": "Heap max (MB)"
       },
       {
+        "id": "enqueue_dequeue",
         "title": "Enqueue / Dequeue / Dispatch /s",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "enqueue",
           "dequeue",
@@ -57,39 +45,28 @@
         ]
       },
       {
-        "title": "Abgelaufen /s",
-        "expressions": [
-          null
-        ]
+        "id": "expired_rate",
+        "title": "Abgelaufen /s"
       },
       {
+        "id": "enqueue_time",
         "title": "Enqueue-Zeit",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "max"
         ]
       },
       {
+        "id": "gc_counts",
         "title": "GC-Anzahl (G1+Parallel)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "old",
           "young"
         ]
       },
       {
+        "id": "gc_time",
         "title": "GC-Zeit (ms)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "old",
           "young"
@@ -98,119 +75,83 @@
     ],
     "instance": [
       {
+        "id": "connections_card",
         "title": "Verbindungen",
-        "tip": "Aktuelle TCP/JMS-Verbindungen zu diesem Broker.",
-        "expressions": [
-          null
-        ]
+        "tip": "Aktuelle TCP/JMS-Verbindungen zu diesem Broker."
       },
       {
+        "id": "producer_count_card",
         "title": "Producer-Anzahl",
-        "tip": "Aktive Erzeuger-Sitzungen auf diesem Broker.",
-        "expressions": [
-          null
-        ]
+        "tip": "Aktive Erzeuger-Sitzungen auf diesem Broker."
       },
       {
+        "id": "consumer_count_card",
         "title": "Consumer-Anzahl",
-        "tip": "Aktive Verbraucher-Sitzungen auf diesem Broker.",
-        "expressions": [
-          null
-        ]
+        "tip": "Aktive Verbraucher-Sitzungen auf diesem Broker."
       },
       {
+        "id": "uptime_card",
         "title": "Uptime",
-        "tip": "Broker-Uptime in Stunden seit letztem Neustart.",
-        "expressions": [
-          null
-        ]
+        "tip": "Broker-Uptime in Stunden seit letztem Neustart."
       },
       {
-        "title": "Verbindungen (Trend)",
-        "expressions": [
-          null
-        ]
+        "id": "connections_line",
+        "title": "Verbindungen (Trend)"
       },
       {
+        "id": "enqueue_dequeue_line",
         "title": "Enqueue / Dequeue Anzahl",
         "tip": "Enqueue + Dequeue pro Minute über alle Ziele auf diesem Broker.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "enqueue",
           "dequeue"
         ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "Producer / Consumer Zuwachs",
         "tip": "Pro Minute neu geöffnete Producer- + Consumer-Sitzungen.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "neue producers",
           "neue consumers"
         ]
       },
       {
+        "id": "memory_usage_line",
         "title": "Speichernutzung",
-        "tip": "Aggregierte Speichernutzung über alle Ziele (MB).",
-        "expressions": [
-          null
-        ]
+        "tip": "Aggregierte Speichernutzung über alle Ziele (MB)."
       },
       {
+        "id": "memory_limit_line",
         "title": "Speicher-Limit",
-        "tip": "Konfigurierte Speicher-Obergrenze über alle Ziele (GB).",
-        "expressions": [
-          null
-        ]
+        "tip": "Konfigurierte Speicher-Obergrenze über alle Ziele (GB)."
       },
       {
+        "id": "message_size_line",
         "title": "Mittlere Nachrichtengröße",
-        "tip": "Durchschnittliche Nachrichtengröße über alle Ziele.",
-        "expressions": [
-          null
-        ]
+        "tip": "Durchschnittliche Nachrichtengröße über alle Ziele."
       }
     ],
     "endpoint": [
       {
-        "title": "Producer-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "producer",
+        "title": "Producer-Anzahl"
       },
       {
-        "title": "Consumer-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "consumer",
+        "title": "Consumer-Anzahl"
       },
       {
-        "title": "Queue-Größe",
-        "expressions": [
-          null
-        ]
+        "id": "queue_size",
+        "title": "Queue-Größe"
       },
       {
-        "title": "Speichernutzung (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "memory",
+        "title": "Speichernutzung (MB)"
       },
       {
+        "id": "messages",
         "title": "Nachrichtenanzahl",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "enqueue",
           "dequeue",
@@ -220,11 +161,8 @@
         ]
       },
       {
+        "id": "enqueue_time",
         "title": "Enqueue-Zeit (s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "max"

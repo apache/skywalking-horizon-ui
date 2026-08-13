@@ -18,18 +18,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "today_produced",
         "title": "Producido hoy"
       },
       {
+        "id": "today_consumed",
         "title": "Consumido hoy"
       },
       {
+        "id": "yesterday_produced",
         "title": "Producido ayer"
       },
       {
+        "id": "yesterday_consumed",
         "title": "Consumido ayer"
       },
       {
+        "id": "tps",
         "title": "TPS productor / consumidor",
         "expressionLabels": [
           "productor",
@@ -37,6 +42,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "Tamaño de mensaje productor / consumidor (MB)",
         "expressionLabels": [
           "producidos",
@@ -44,21 +50,27 @@
         ]
       },
       {
+        "id": "consumer_lag",
         "title": "Latencia máxima del consumidor"
       },
       {
+        "id": "commitlog_ratio_total",
         "title": "Ratio máximo de disco de CommitLog (%)"
       },
       {
+        "id": "topic_count",
         "title": "Topics"
       },
       {
+        "id": "broker_count",
         "title": "Brokers"
       },
       {
+        "id": "commitlog_ratio",
         "title": "Ratio de disco de CommitLog (%)"
       },
       {
+        "id": "queue_wait",
         "title": "Espera en cabeza de cola del ThreadPool (ms)",
         "expressionLabels": [
           "pull",
@@ -68,32 +80,41 @@
     ],
     "instance": [
       {
+        "id": "produce_tps",
         "title": "TPS de producción"
       },
       {
+        "id": "consume_qps",
         "title": "QPS de consumo"
       },
       {
+        "id": "producer_size",
         "title": "Tamaño de mensaje del productor (MB)"
       },
       {
+        "id": "consumer_size",
         "title": "Tamaño de mensaje del consumidor (MB)"
       }
     ],
     "endpoint": [
       {
+        "id": "max_msg_producer_total",
         "title": "Tamaño máx. de mensaje del productor (MB)"
       },
       {
+        "id": "max_msg_consumer_total",
         "title": "Tamaño máx. de mensaje del consumidor (MB)"
       },
       {
+        "id": "consumer_groups",
         "title": "Conteo de grupos de consumo"
       },
       {
+        "id": "brokers",
         "title": "Conteo de brokers"
       },
       {
+        "id": "tps",
         "title": "TPS de grupos productor / consumidor",
         "expressionLabels": [
           "productor",
@@ -101,6 +122,7 @@
         ]
       },
       {
+        "id": "msg_size",
         "title": "Tamaño de mensaje (MB)",
         "expressionLabels": [
           "producidos",
@@ -108,6 +130,7 @@
         ]
       },
       {
+        "id": "offsets",
         "title": "Offsets productor / consumidor",
         "expressionLabels": [
           "productor",
@@ -115,10 +138,12 @@
         ]
       },
       {
+        "id": "backlog",
         "title": "Mensajes acumulados",
         "tip": "Offset del productor menos offset del grupo de consumo — el lag del topic."
       },
       {
+        "id": "consumer_latency",
         "title": "Latencia del consumidor (s)"
       }
     ]
