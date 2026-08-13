@@ -22,11 +22,12 @@
  * `LogQueryRequest` from `@skywalking-horizon-ui/api-client/logs`.
  *
  * Tag filters + content keyword filters are AND-joined server-side.
- * We accept a `service` name on the body so the SPA doesn't have to
- * pre-resolve names → ids; mirror of the topology + endpoint feeds.
+ * The body carries the picked service's identity (`serviceId` + `service`);
+ * the log condition keys on the id.
  *
- * Returns at most one page of logs plus the OAP-reported total so
- * the UI's "page N of M" + density histogram can scope correctly.
+ * Returns one page of logs plus `hasNext`, read through the shared
+ * over-fetch-by-one seam. OAP exposes no cross-page total, so none is
+ * reported.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -42,7 +43,13 @@ import type {
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
-import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import {
+  readPage,
+  type OapPaging,
+  type PagedQuerySpec,
+} from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -92,19 +99,7 @@ function defaultWindow(
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForLogs($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-    }
-  }
-`;
-
-const QUERY_LOGS = /* GraphQL */ `
-  query QueryLogs($condition: LogQueryCondition) {
-    data: queryLogs(condition: $condition) {
-      logs {
+const LOG_ROW_SELECTION = `
         serviceName
         serviceId
         serviceInstanceName
@@ -115,16 +110,18 @@ const QUERY_LOGS = /* GraphQL */ `
         timestamp
         contentType
         content
-        tags { key value }
-      }
-    }
-  }
-`;
-// OAP's `Logs.total` field was removed in newer query-protocol
-// versions (>=10.x — the paging model went cursor-based and the
-// caller computes total client-side). We don't ask for it anymore;
-// the response handler falls back to `logs.length` for the pagination
-// hint, which is what booster-ui does now.
+        tags { key value }`;
+
+/** OAP's `Logs` type carries `errorReason` / `logs` / `debuggingTrace` — no
+ *  total and no has-more, so paging facts come from the over-fetch seam. */
+const LOG_PAGE: PagedQuerySpec = {
+  operationName: 'QueryLogs',
+  conditionType: 'LogQueryCondition',
+  field: 'queryLogs',
+  rowsField: 'logs',
+  rowsSelection: LOG_ROW_SELECTION,
+  probeSelection: 'timestamp',
+};
 
 interface OapLogRow {
   serviceName?: string | null;
@@ -169,18 +166,15 @@ export interface LogFetchScope {
   tags?: LogTagFilter[];
 }
 
-/** Run OAP's `queryLogs(LogQueryCondition)` for a pre-resolved scope +
- *  SECOND-precision window + page, and map the rows to {@link LogRow}.
- *  Shared by the per-layer Logs route and the cross-layer Log inspect
- *  branch. Soft-fails to `reachable: false` on any OAP error. */
-export async function fetchLogs(
-  opts: GraphqlOptions,
+/** Build the `LogQueryCondition` for one paging pair. Curried over the
+ *  already-resolved window so the page and its next-page probe read the same
+ *  range — a second `defaultWindow()` call would drift by the round-trip. */
+function logCondition(
   scope: LogFetchScope,
   window: { start: string; end: string },
-  paging: { pageNum: number; pageSize: number },
   coldStage: boolean,
-): Promise<LogsResponse> {
-  const condition = {
+): (paging: OapPaging) => Record<string, unknown> {
+  return (paging) => ({
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.serviceInstanceId ? { serviceInstanceId: scope.serviceInstanceId } : {}),
     ...(scope.endpointId ? { endpointId: scope.endpointId } : {}),
@@ -196,16 +190,43 @@ export async function fetchLogs(
       ...(coldStage ? { coldStage: true } : {}),
     },
     paging,
-  };
+  });
+}
+
+/** Run OAP's `queryLogs(LogQueryCondition)` for a pre-resolved scope +
+ *  SECOND-precision window + page, and map the rows to {@link LogRow}.
+ *  Shared by the per-layer Logs route and the cross-layer Log inspect
+ *  branch. Soft-fails to `reachable: false` on any OAP error. */
+export async function fetchLogs(
+  opts: GraphqlOptions,
+  scope: LogFetchScope,
+  window: { start: string; end: string },
+  paging: OapPaging,
+  coldStage: boolean,
+): Promise<LogsResponse> {
   try {
-    const env = await graphqlPost<{ data: { logs: OapLogRow[] } }>(opts, QUERY_LOGS, { condition });
-    const logs = (env.data?.logs ?? []).map(mapLogRow);
-    return { generatedAt: Date.now(), query: {}, total: logs.length, logs, reachable: true };
+    const page = await readPage<OapLogRow>(
+      opts,
+      LOG_PAGE,
+      logCondition(scope, window, coldStage),
+      paging,
+    );
+    return {
+      generatedAt: Date.now(),
+      query: {},
+      pageNum: page.pageNum,
+      pageSize: page.pageSize,
+      hasNext: page.hasNext,
+      logs: page.rows.map(mapLogRow),
+      reachable: true,
+    };
   } catch (err) {
     return {
       generatedAt: Date.now(),
       query: {},
-      total: 0,
+      pageNum: paging.pageNum,
+      pageSize: paging.pageSize,
+      hasNext: false,
       logs: [],
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
@@ -213,34 +234,9 @@ export async function fetchLogs(
   }
 }
 
-/**
- * Resolve a service argument to an OAP service id. The arg can be
- * either a name (`mesh-svr::songs.sample-services`) or an id
- * (`bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1`). OAP ids are
- * `<base64>.<digits>` — match strictly, since a name containing `.`
- * (e.g. `*.sample-services`) must not be mistaken for an id.
- */
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-  opts: GraphqlOptions,
-  layer: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layer.toUpperCase() },
-  );
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 interface LogBody extends LogQueryRequest {
+  /** Name half of the picked service's identity; `serviceId` (on
+   *  `LogQueryRequest`) is the half the log condition queries with. */
   service?: string;
 }
 
@@ -263,22 +259,27 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         endMs: body.endMs,
       });
 
-      // Resolve a service NAME to an id if the caller used one.
-      let serviceId = body.serviceId ?? null;
-      if (!serviceId && body.service) {
-        try {
-          serviceId = await resolveServiceId(opts, layerKey, body.service);
-        } catch (err) {
-          return reply.send({
-            generatedAt: Date.now(),
-            query: body,
-            total: 0,
-            logs: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies LogsResponse);
-        }
+      const paging: OapPaging = {
+        pageNum: Math.max(1, Math.round(body.page ?? 1)),
+        pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.logs),
+      };
+
+      // A name with no id refuses the read: `LogQueryCondition.serviceId` is
+      // nullable, so falling through with `null` would stream EVERY service's
+      // logs under the picked service's title.
+      const scope = serviceScopeOf(body);
+      if (scope.kind === 'incomplete') {
+        return reply.send({
+          generatedAt: Date.now(),
+          query: body,
+          ...paging,
+          hasNext: false,
+          logs: [],
+          reachable: false,
+          error: scope.message,
+        } satisfies LogsResponse);
       }
+      const serviceId = scope.kind === 'service' ? scope.service.id : null;
       const res = await fetchLogs(
         opts,
         {
@@ -290,10 +291,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           tags: body.tags,
         },
         window,
-        {
-          pageNum: Math.max(1, Math.round(body.page ?? 1)),
-          pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.logs),
-        },
+        paging,
         !!req.coldStage,
       );
       // Echo the operator's query (the shared helper returns an empty
@@ -308,7 +306,8 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
    * Fetches a larger window-scoped sample (default 200 rows) just for
    * facet aggregation. The UI calls this in parallel with the page
    * fetch so the left-rail counts reflect the query window, not the
-   * displayed page.
+   * displayed page. The sample is over-fetched by one, so `truncated`
+   * says whether the window held more than the sample counted.
    */
   app.post(
     '/api/layer/:key/logs/facets',
@@ -327,23 +326,22 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         startMs: body.startMs,
         endMs: body.endMs,
       });
-      let serviceId = body.serviceId ?? null;
-      if (!serviceId && body.service) {
-        try {
-          serviceId = await resolveServiceId(opts, layerKey, body.service);
-        } catch (err) {
-          return reply.send({
-            generatedAt: Date.now(),
-            total: 0,
-            sampled: 0,
-            level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
-            services: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies LogFacetsResponse);
-        }
+      // Same refusal as the row query — a facet sample taken across every
+      // service would count log lines this service never wrote.
+      const scope = serviceScopeOf(body);
+      if (scope.kind === 'incomplete') {
+        return reply.send({
+          generatedAt: Date.now(),
+          sampled: 0,
+          truncated: false,
+          level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
+          services: [],
+          reachable: false,
+          error: scope.message,
+        } satisfies LogFacetsResponse);
       }
-      const condition = {
+      const serviceId = scope.kind === 'service' ? scope.service.id : null;
+      const condition = (paging: OapPaging): Record<string, unknown> => ({
         ...(serviceId ? { serviceId } : {}),
         ...(body.serviceInstanceId ? { serviceInstanceId: body.serviceInstanceId } : {}),
         ...(body.endpointId ? { endpointId: body.endpointId } : {}),
@@ -355,14 +353,15 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         // counts show the unfiltered distribution; the user picks a
         // level from the breakdown.
         queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
-        paging: { pageNum: 1, pageSize: sampleSize },
-      };
+        paging,
+      });
 
       try {
-        const env = await graphqlPost<{
-          data: { logs: OapLogRow[] };
-        }>(opts, QUERY_LOGS, { condition });
-        const rows = env.data?.logs ?? [];
+        const sample = await readPage<OapLogRow>(opts, LOG_PAGE, condition, {
+          pageNum: 1,
+          pageSize: sampleSize,
+        });
+        const rows = sample.rows;
         const level: LogFacetsResponse['level'] = { error: 0, warn: 0, info: 0, debug: 0, other: 0 };
         const svcMap = new Map<string, number>();
         for (const r of rows) {
@@ -382,8 +381,8 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           .slice(0, 12);
         return reply.send({
           generatedAt: Date.now(),
-          total: rows.length,
           sampled: rows.length,
+          truncated: sample.hasNext,
           level,
           services,
           reachable: true,
@@ -391,8 +390,8 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       } catch (err) {
         return reply.send({
           generatedAt: Date.now(),
-          total: 0,
           sampled: 0,
+          truncated: false,
           level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
           services: [],
           reachable: false,

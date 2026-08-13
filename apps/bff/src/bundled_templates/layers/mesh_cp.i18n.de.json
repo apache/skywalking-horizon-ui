@@ -23,32 +23,20 @@
   "dashboards": {
     "service": [
       {
-        "title": "CPU",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU"
       },
       {
-        "title": "Goroutines",
-        "expressions": [
-          null
-        ]
+        "id": "goroutines",
+        "title": "Goroutines"
       },
       {
-        "title": "Istio-Versionen",
-        "expressions": [
-          null
-        ]
+        "id": "version",
+        "title": "Istio-Versionen"
       },
       {
+        "id": "memory",
         "title": "Speicher (MB)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "alloc",
           "heap inuse",
@@ -58,14 +46,8 @@
         ]
       },
       {
+        "id": "pilot_errors",
         "title": "Pilot-Fehler",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "cds reject",
           "eds reject",
@@ -75,30 +57,20 @@
         ]
       },
       {
-        "title": "Proxy-Push-Zeit (Perzentil)",
-        "expressions": [
-          null
-        ]
+        "id": "proxy_push_time",
+        "title": "Proxy-Push-Zeit (Perzentil)"
       },
       {
-        "title": "Pilot-Pushes",
-        "expressions": [
-          null
-        ]
+        "id": "pilot_pushes",
+        "title": "Pilot-Pushes"
       },
       {
-        "title": "Sidecar-Injection-Erfolg",
-        "expressions": [
-          null
-        ]
+        "id": "sidecar_inj",
+        "title": "Sidecar-Injection-Erfolg"
       },
       {
+        "id": "ads",
         "title": "ADS-Überwachung",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "xds",
           "dienste",
@@ -106,24 +78,16 @@
         ]
       },
       {
+        "id": "validation",
         "title": "Konfigurationsvalidierung",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "passed",
           "fehlgeschlagen"
         ]
       },
       {
+        "id": "conflicts",
         "title": "Pilot-Konflikte",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "ol tcp/tcp",
           "il",

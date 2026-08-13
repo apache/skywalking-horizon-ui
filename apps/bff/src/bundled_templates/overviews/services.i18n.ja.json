@@ -3,9 +3,11 @@
   "description": "レイヤー横断のサービス健全性ビュー。トレース対象サービスに加えて、仮想データベース / キャッシュ / メッセージキュー / GenAI バックエンド、そして基盤となる Kubernetes キャパシティを集約します。",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "サービス"
     },
     {
+      "id": "tile_general",
       "title": "汎用サービス",
       "tip": "General レイヤーでトレース対象となっているアプリケーションサービス。",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "tile_db",
       "title": "仮想データベース",
       "tip": "クライアントサイド span から観測されるバックエンドのデータベース。",
       "kpis": [
@@ -36,6 +39,7 @@
       ]
     },
     {
+      "id": "tile_cache",
       "title": "仮想キャッシュ",
       "tip": "クライアントサイド span から観測されるキャッシュ(Redis / Memcached など)。",
       "kpis": [
@@ -51,6 +55,7 @@
       ]
     },
     {
+      "id": "tile_mq",
       "title": "仮想メッセージキュー",
       "tip": "consume / produce span から観測されるメッセージキュー。",
       "kpis": [
@@ -66,6 +71,7 @@
       ]
     },
     {
+      "id": "tile_genai",
       "title": "仮想 GenAI",
       "tip": "計測されたクライアント span から観測される GenAI バックエンド。",
       "kpis": [
@@ -81,20 +87,25 @@
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "トポロジーとアクティブなアラーム"
     },
     {
+      "id": "svc_topo",
       "title": "汎用サービストポロジー",
       "tip": "各レイヤーの Topology タブと同じレンダラーによるライブサービスマップ。詳細サイドバーは省略されます。"
     },
     {
+      "id": "svc_alarms",
       "title": "アクティブなアラーム",
       "tip": "エージェントから報告されたサービスで現在発火中のアラーム。"
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "クラスタのキャパシティと利用率",
       "tip": "ノード / 名前空間 / ワークロード、およびクラスタ全体の CPU・メモリ・ディスク使用状況。",
       "kpis": [

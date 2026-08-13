@@ -40,6 +40,7 @@ import { useTemplatePreference } from '@/controls/templatePreference';
 import { useLocalTemplateEdits, layerEditName, overviewEditName } from '@/controls/localTemplateEdits';
 import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 import { usePreviewOverride } from '@/controls/previewOverride';
+import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import type { ConfigBundle, BundleScopeMap } from '@/api/scopes/configs';
 import type { DashboardWidget, OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 
@@ -94,6 +95,15 @@ const STORAGE_KEY = 'horizon:configBundle:v3';
 const state = ref<ConfigBundle | null>(null);
 let loadPromise: Promise<void> | null = null;
 
+// The load is one-shot per page load, so without dropping the promise the next
+// AppShell mount (a second operator signing in to the same tab) would keep
+// rendering the bundle fetched for the previous session and never re-validate
+// it — including whichever local-vs-remote template preference produced it.
+onSessionReset(() => {
+  state.value = null;
+  loadPromise = null;
+});
+
 function readStorage(): ConfigBundle | null {
   if (typeof localStorage === 'undefined') return null;
   try {
@@ -124,6 +134,11 @@ function writeStorage(b: ConfigBundle): void {
  */
 export function ensureConfigBundle(): Promise<void> {
   if (loadPromise) return loadPromise;
+  // Captured before the fetch: an identity change while it is in flight drops
+  // `state` + `loadPromise`, and the next session's own call is the load that
+  // gets to publish. Without this the superseded response would still write
+  // itself back into both the singleton and localStorage after the reset.
+  const epoch = sessionEpoch();
   loadPromise = (async () => {
     const cached = readStorage();
     if (cached) {
@@ -137,6 +152,7 @@ export function ensureConfigBundle(): Promise<void> {
     pushEvent('preload', 'start', 'Pre-loading dashboard + overview configs…');
     try {
       const fresh = await bffClient.configs.bundle(cached?.etag, preferParam());
+      if (!isCurrentEpoch(epoch)) return;
       if (fresh) {
         state.value = fresh;
         writeStorage(fresh);
@@ -151,6 +167,7 @@ export function ensureConfigBundle(): Promise<void> {
         if (state.value) logSyncSummary(state.value);
       }
     } catch (err) {
+      if (!isCurrentEpoch(epoch)) return;
       pushEvent(
         'preload',
         'err',
@@ -198,8 +215,10 @@ export function ensureConfigBundle(): Promise<void> {
  * fast path cached.
  */
 export async function refreshConfigBundle(opts: { force?: boolean } = {}): Promise<void> {
+  const epoch = sessionEpoch();
   try {
     const fresh = await bffClient.configs.bundle(undefined, preferParam(), opts.force);
+    if (!isCurrentEpoch(epoch)) return;
     if (fresh) {
       state.value = fresh;
       writeStorage(fresh);

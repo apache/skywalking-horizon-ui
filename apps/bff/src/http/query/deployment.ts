@@ -16,7 +16,7 @@
  */
 
 /**
- * `GET /api/layer/:key/deployment?service=<svcId>`
+ * `GET /api/layer/:key/deployment?serviceId=&service=`
  *
  * The instance-to-instance call graph WITHIN one service. This is the HTTP
  * edge: it parses the request, resolves the (preview OR effective)
@@ -43,13 +43,14 @@ import { deploymentConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewDeployment } from '../../logic/layers/preview.js';
 import { buildDeployment, emptyDeploymentResponse } from '../../logic/oap/deployment.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface DeploymentRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serves the in-use (remote-or-bundled)
-   *  config, matching the admin + sidebar. */
+  /** OAP UI-template client — serves the in-use REMOTE config, matching
+   *  the admin + sidebar. */
   uiTemplateClient?: () => UITemplateClient;
 }
 
@@ -70,16 +71,21 @@ export function registerDeploymentRoute(
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
       const q = req.query as {
+        serviceId?: string;
         service?: string;
         step?: string;
         startMs?: string;
         endMs?: string;
         previewConfig?: string;
       };
-      const serviceId = (q.service ?? '').trim();
-      if (!serviceId) {
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'all') {
         return reply.code(400).send({ error: 'missing_service' });
       }
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceId = scope.service.id;
 
       // Admin Preview: the page forwards the draft `deployment`
       // block; when previewing, that draft decides support (404 if it has

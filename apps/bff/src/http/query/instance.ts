@@ -16,8 +16,8 @@
  */
 
 /**
- * `GET /api/layer/:key/instances?service=<id|name>` — list active
- * service instances for a service.
+ * `GET /api/layer/:key/instances?serviceId=<id>&service=<name>`
+ * — list active service instances for a service.
  *
  * The per-layer Instance dashboard surfaces a second selector below
  * the service picker: the user picks a service first, then chooses
@@ -25,10 +25,8 @@
  * dashboard MQE then evaluates against `{ scope: ServiceInstance,
  * serviceName, serviceInstanceName }` for the selected pair.
  *
- * The `service` query param accepts the OAP service id (preferred —
- * passed through verbatim) or a plain service name (we resolve it via
- * `listServices(layer)` and pick the first matching row). Returning
- * both id + name keeps the SPA from re-resolving.
+ * `listInstances(serviceId)` keys on the id, which the request already
+ * carries — no roster lookup, and nothing to mistake for a name.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -37,6 +35,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -52,20 +51,6 @@ interface OapInstance {
   language?: string | null;
   attributes?: Array<{ name: string; value: string }> | null;
 }
-
-interface ListServicesResp {
-  services: Array<{ id: string; name: string; normal?: boolean | null }>;
-}
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const LIST_INSTANCES = /* GraphQL */ `
   query LayerInstances($serviceId: ID!, $duration: Duration!) {
@@ -110,52 +95,20 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string };
-      const serviceArg = (q.service ?? '').trim();
-      if (!serviceArg) {
+      const scope = serviceScopeOf(req.query as { serviceId?: string; service?: string });
+      if (scope.kind === 'all') {
         return reply.code(400).send({ error: 'missing_service' });
       }
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceId = scope.service.id;
+      // The handle the caller sent, echoed back on every reply below.
+      const serviceArg = scope.service.name || serviceId;
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
-      // OAP service-id shape: `<base64>.<digits>` (e.g.
-      // `Y2hlY2tvdXQ=.1`). Match this strictly, not "contains `.`":
-      // a loose substring rule mis-classifies mesh / k8s_service names
-      // that embed dots (e.g. `mesh-svr::r3-load.sample-services`) as
-      // ids — they need a `listServices` lookup instead.
-      let serviceId = serviceArg;
-      if (!/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) {
-        try {
-          const data = await graphqlPost<ListServicesResp>(opts, LIST_SERVICES_FOR_RESOLVE, {
-            layer: layerKey.toUpperCase(),
-          });
-          const match =
-            data.services.find((s) => s.name === serviceArg) ??
-            data.services.find((s) => s.id === serviceArg) ??
-            null;
-          if (!match) {
-            return reply.send({
-              layer: layerKey,
-              service: serviceArg,
-              generatedAt: Date.now(),
-              instances: [],
-              reachable: true,
-              error: 'service not found',
-            } satisfies InstancesResponse);
-          }
-          serviceId = match.id;
-        } catch (err) {
-          return reply.send({
-            layer: layerKey,
-            service: serviceArg,
-            generatedAt: Date.now(),
-            instances: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies InstancesResponse);
-        }
-      }
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {
           serviceId,

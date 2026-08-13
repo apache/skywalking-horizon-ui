@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "files_open",
         "title": "열린 파일"
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -30,6 +32,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "쿼리",
         "expressionLabels": [
           "전체",
@@ -38,6 +41,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "쿼리 시간 (ms)",
         "expressionLabels": [
           "평균",
@@ -46,6 +50,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "연결",
         "expressionLabels": [
           "TCP",
@@ -53,9 +58,11 @@
         ]
       },
       {
+        "id": "slow",
         "title": "느린 읽기"
       },
       {
+        "id": "merge_mut",
         "title": "Merge / Mutations",
         "expressionLabels": [
           "merge",
@@ -63,6 +70,7 @@
         ]
       },
       {
+        "id": "insert_io",
         "title": "Insert 처리량",
         "expressionLabels": [
           "bytes/s",
@@ -70,12 +78,15 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "지연 인서트 (s)"
       },
       {
+        "id": "parts_active",
         "title": "활성 데이터 파트"
       },
       {
+        "id": "replicated",
         "title": "복제 Fetch / Send",
         "expressionLabels": [
           "fetch",
@@ -83,6 +94,7 @@
         ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper 바이트 (b/s)",
         "expressionLabels": [
           "전송 바이트",
@@ -90,29 +102,37 @@
         ]
       },
       {
+        "id": "zk_sessions",
         "title": "Zookeeper 세션"
       },
       {
+        "id": "zk_watches",
         "title": "Zookeeper Watches"
       },
       {
+        "id": "keeper_alive",
         "title": "Keeper 활성 연결"
       },
       {
+        "id": "keeper_outstanding",
         "title": "Keeper 미처리 요청"
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "가동 시간 (일)"
       },
       {
+        "id": "version",
         "title": "버전"
       },
       {
+        "id": "cpu",
         "title": "CPU (코어)"
       },
       {
+        "id": "mem",
         "title": "메모리 (%)",
         "expressionLabels": [
           "사용",
@@ -120,6 +140,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "네트워크 (B)",
         "expressionLabels": [
           "수신",
@@ -127,6 +148,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "연결",
         "expressionLabels": [
           "TCP",
@@ -134,6 +156,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "쿼리",
         "expressionLabels": [
           "전체",
@@ -142,6 +165,7 @@
         ]
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -149,6 +173,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "쿼리 시간 (ms)",
         "expressionLabels": [
           "평균",
@@ -157,18 +182,23 @@
         ]
       },
       {
+        "id": "slow",
         "title": "느린 파일 읽기"
       },
       {
+        "id": "merge",
         "title": "백그라운드 머지"
       },
       {
+        "id": "mutations",
         "title": "Mutations"
       },
       {
+        "id": "files",
         "title": "열린 파일"
       },
       {
+        "id": "insert_io",
         "title": "Insert 처리량",
         "expressionLabels": [
           "bytes/s",
@@ -176,6 +206,7 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "지연 인서트 (s)"
       }
     ]

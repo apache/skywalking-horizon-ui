@@ -26,6 +26,7 @@
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EndpointDependencyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
+import { nextFreeId } from './free-id';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
@@ -52,14 +53,15 @@ function toggleShowGroup(): void {
   const c = ensure();
   c.showGroup = !c.showGroup;
 }
-function blankMetric(n: number): TopologyMetricDef {
-  return { id: `metric_${n + 1}`, label: `Metric ${n + 1}`, mqe: '', unit: '', aggregation: 'avg' };
+function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
+  const id = nextFreeId('metric_', taken.map((m) => m.id));
+  return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
 function addNode(): void {
-  ensure().nodeMetrics.push(blankMetric(nodeMetrics.value.length));
+  ensure().nodeMetrics.push(blankMetric(nodeMetrics.value));
 }
 function addLink(): void {
-  ensure().linkMetrics!.push(blankMetric(linkMetrics.value.length));
+  ensure().linkMetrics!.push(blankMetric(linkMetrics.value));
 }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
   const j = i + dir;

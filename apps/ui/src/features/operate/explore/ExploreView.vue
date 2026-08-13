@@ -31,6 +31,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
+import { serviceRef } from '@/utils/serviceRef';
 import type {
   ExploreEntity,
   ExploreRequest,
@@ -75,6 +76,9 @@ const servicesLoading = ref(false);
 const pickServiceName = computed(
   () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
 );
+const pickServiceNormal = computed<boolean | null>(
+  () => services.value.find((s) => s.id === pickServiceId.value)?.normal ?? null,
+);
 
 async function loadServices(): Promise<void> {
   services.value = [];
@@ -98,10 +102,11 @@ async function loadServices(): Promise<void> {
 async function loadInstances(): Promise<void> {
   instances.value = [];
   pickInstanceId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) return;
+  // The picker selected a roster row — carry it whole.
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+  if (!pickLayer.value || !picked) return;
   try {
-    const res = await bffClient.layer.instances(pickLayer.value, name);
+    const res = await bffClient.layer.instances(pickLayer.value, picked);
     instances.value = res.reachable ? res.instances : [];
   } catch {
     instances.value = [];
@@ -110,15 +115,15 @@ async function loadInstances(): Promise<void> {
 
 async function loadEndpoints(): Promise<void> {
   pickEndpointId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) {
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+  if (!pickLayer.value || !picked) {
     endpoints.value = [];
     return;
   }
   try {
     // Preload the top endpoints (like the per-layer Traces picker); the
     // dropdown filters them client-side.
-    const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
+    const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
     endpoints.value = res.reachable ? res.endpoints : [];
   } catch {
     endpoints.value = [];
@@ -315,6 +320,9 @@ const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
 const native = ref<NativeTraceListResponse | null>(null);
 const zipkinRows = ref<ZipkinTraceListRow[]>([]);
+/** The chosen limit held back at least one more row. Neither backend reports a
+ *  total, so this is the only honest "there is more" signal on this page. */
+const capped = ref(false);
 const resolved = ref<ExploreResolved | null>(null);
 const showResolved = ref(false);
 
@@ -380,6 +388,7 @@ async function runQuery(): Promise<void> {
   brushedKeys.value = [];
   native.value = null;
   zipkinRows.value = [];
+  capped.value = false;
   resolved.value = null;
   const zipkin = traceSource.value === 'zipkin';
   const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
@@ -388,11 +397,13 @@ async function runQuery(): Promise<void> {
     if (res.kind === 'trace' && res.traceSource === 'native') {
       native.value = res.native;
       zipkinRows.value = [];
+      capped.value = res.native.hasNext;
       resolved.value = res.resolved;
       if (!res.native.reachable) errorMsg.value = res.native.error ?? t('OAP unreachable');
     } else if (res.kind === 'trace' && res.traceSource === 'zipkin') {
       zipkinRows.value = res.zipkin.traces;
       native.value = null;
+      capped.value = res.zipkin.hasNext;
       resolved.value = res.resolved;
       if (!res.zipkin.reachable) errorMsg.value = res.zipkin.error ?? t('OAP unreachable');
     }
@@ -400,6 +411,7 @@ async function runQuery(): Promise<void> {
     errorMsg.value = e instanceof Error ? e.message : String(e);
     native.value = null;
     zipkinRows.value = [];
+    capped.value = false;
   } finally {
     running.value = false;
   }
@@ -709,6 +721,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <header class="iq-list-head">
             <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
             <span class="hint">{{ displayRows.length }}<template v-if="brushedKeys.length"> / {{ rows.length }}</template> {{ isSegmentList ? t('segments') : t('traces') }}</span>
+            <span v-if="capped" class="hint">{{ t('capped at {n} — narrow the window', { n: rows.length }) }}</span>
             <button v-if="brushedKeys.length" type="button" class="iq-brush-clear" @click="clearBrush">{{ t('clear') }}</button>
           </header>
           <TraceListPanel

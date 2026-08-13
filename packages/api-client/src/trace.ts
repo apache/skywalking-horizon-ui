@@ -125,6 +125,10 @@ export interface NativeTraceListResponse {
    *  follow-up `queryTrace` fetch (`queryBasicTraces`). */
   api: TraceQueryApi;
   traces: NativeTraceListRow[];
+  /** OAP holds at least one more trace after this page — the list was capped
+   *  by the operator's limit. `TraceBrief` carries no total, so this says
+   *  there IS more, never how much more. */
+  hasNext: boolean;
   reachable: boolean;
   error?: string;
 }
@@ -194,6 +198,11 @@ export interface ZipkinTraceListRow {
 export interface ZipkinTraceListResponse {
   source: 'zipkin';
   traces: ZipkinTraceListRow[];
+  /** Zipkin returned at least one more trace than the limit allowed. Zipkin's
+   *  list endpoint has no count and no offset, so this is a capped flag — it
+   *  says there IS more, never how much more, and there is no next page to
+   *  walk to. */
+  hasNext: boolean;
   reachable: boolean;
   error?: string;
 }

@@ -17,14 +17,16 @@
 
 /**
  * The sidebar's duplicate-template contract. A layer whose template name
- * sits on more than one ENABLED OAP record has no single definition, so the
- * menu drops it instead of routing an operator into a dashboard nobody can
- * identify — and says so in the log, because a menu entry that vanished
- * without explanation is worse than the duplicate itself.
+ * sits on more than one ENABLED OAP record, with the copies carrying
+ * different content, has no single definition, so the menu drops it instead
+ * of routing an operator into a dashboard nobody can identify — and says so
+ * in the log, because a menu entry that vanished without explanation is
+ * worse than the duplicate itself.
  *
  * The other half of the contract is that hiding only ever follows a
- * POSITIVE conflict signal: a template status we could not read, and a
- * duplicate that isn't this layer's own definition, both show everything.
+ * POSITIVE ambiguity signal: a template status we could not read, a
+ * duplicate that isn't this layer's own definition, and byte-identical
+ * copies (same dashboard either way) all show everything.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -93,6 +95,10 @@ const overviewCfg = (id: string, title: string): string =>
   serializeEnvelope(buildEnvelope('overview', id, { id, title, widgets: [] }));
 const zhOverlayCfg = (key: string, alias: string): string =>
   serializeEnvelope(buildOverlayEnvelope('layer', key, 'zh-CN', { alias }));
+/** A record whose NAME and CONTENT were written independently — `buildEnvelope`
+ *  derives one from the other, which is the agreement under test. */
+const misfiledCfg = (name: string, content: unknown): string =>
+  JSON.stringify({ name, kind: 'layer', version: 1, content });
 
 function templateClient(store: Store): () => UITemplateClient {
   return () =>
@@ -140,6 +146,15 @@ async function menuKeys(store: Store): Promise<string[]> {
   return body.layers.map((l) => l.key);
 }
 
+/** The full sidebar entry the menu served for `key`, or undefined. */
+async function menuLayer(store: Store, key: string) {
+  const { app, sid } = await build(store);
+  const res = await get(app, sid);
+  await app.close();
+  expect(res.statusCode).toBe(200);
+  return (res.json() as MenuResponse).layers.find((l) => l.key === key);
+}
+
 /** Menu-specific warn lines (sync.ts logs its own conflict line too). */
 const hiddenWarns = (): unknown[][] =>
   vi
@@ -165,6 +180,20 @@ describe('menu — a duplicated layer template is not navigable', () => {
     expect(keys).not.toContain('general');
     // Only the ambiguous one goes — its neighbours are untouched.
     expect(keys).toContain('mesh');
+  });
+
+  it('keeps a layer whose two enabled records are byte-identical', async () => {
+    // Same bytes on both records: whichever one renders, the operator sees the
+    // same dashboard. Hiding it would cost them a working layer to punish a
+    // bookkeeping problem on OAP — the admin banner still reports the duplicate.
+    const keys = await menuKeys([
+      row('dupe-a', layerCfg('GENERAL', 'General Service')),
+      row('dupe-b', layerCfg('GENERAL', 'General Service')),
+      row('mesh-1', layerCfg('MESH', 'Service Mesh')),
+    ]);
+    expect(keys).toContain('general');
+    expect(keys).toContain('mesh');
+    expect(hiddenWarns()).toHaveLength(0);
   });
 
   it('keeps a layer whose only twin is a disabled tombstone', async () => {
@@ -218,6 +247,55 @@ describe('menu — a duplicated layer template is not navigable', () => {
     expect(hiddenWarns()).toHaveLength(0);
   });
 
+  it('takes no layer definition from a record that is not that layer', async () => {
+    // The record is named GENERAL and holds a K8S template. Reading it would
+    // put K8S's alias and capabilities on the General entry — the sidebar
+    // saying one thing while every page under it answers as another.
+    const general = await menuLayer(
+      [
+        row(
+          'impostor',
+          misfiledCfg('horizon.layer.GENERAL', {
+            key: 'K8S',
+            alias: 'Kubernetes',
+            slots: { services: 'Workloads' },
+            components: { service: true },
+          }),
+        ),
+      ],
+      'general',
+    );
+
+    expect(general).toBeDefined();
+    // The in-code default for GENERAL, not the record's.
+    expect(general?.name).toBe('General');
+    expect(general?.slots?.services).toBe('Services');
+  });
+
+  it('keeps a bundled layer in the sidebar when its record turns out to be another layer', async () => {
+    // K8S is not in this OAP's active list, so its sidebar entry can only come
+    // from the template rows. The layer is real and renders from the in-code
+    // defaults — one stray record must not take it out of the nav.
+    const keys = await menuKeys([
+      row('impostor', misfiledCfg('horizon.layer.K8S', { key: 'GENERAL', components: { service: true } })),
+    ]);
+
+    expect(keys).toContain('k8s');
+  });
+
+  it('invents no sidebar entry from a record stored under a name no reader computes', async () => {
+    // `horizon.layer.a_custom_layer` is a name nothing addresses. Ordering the
+    // menu by the row keys used to give it an entry of its own, routing into a
+    // layer that exists in neither OAP nor the bundle.
+    const keys = await menuKeys([
+      row('lower', misfiledCfg('horizon.layer.a_custom_layer', { key: 'A_CUSTOM_LAYER', components: { service: true } })),
+      row('general-1', layerCfg('GENERAL', 'General Service')),
+    ]);
+
+    expect(keys).not.toContain('a_custom_layer');
+    expect(keys).toContain('general');
+  });
+
   it('names the hidden layer in one warn, not one per sidebar poll', async () => {
     const { app, sid } = await build([
       row('dupe-a', layerCfg('GENERAL', 'General Service')),
@@ -232,5 +310,47 @@ describe('menu — a duplicated layer template is not navigable', () => {
     expect(JSON.stringify(warns[0]?.[0])).toContain('GENERAL');
     // The operator needs to be told where to go and that Horizon changed nothing.
     expect(String(warns[0]?.[1])).toContain('Dashboard setup → Layer dashboards');
+  });
+});
+
+/** A layer envelope carrying an operator-supplied documentation link. */
+const layerCfgWithLink = (key: string, documentLink: string): string =>
+  serializeEnvelope(
+    buildEnvelope('layer', key, {
+      key,
+      alias: key,
+      slots: { services: 'Services' },
+      components: { service: true },
+      documentLink,
+    }),
+  );
+
+// The publish boundary refuses a bad link, but the store it is read back from
+// is OAP — which keeps templates as opaque text and can be written without
+// going through Horizon at all. So the read path checks too, and this is the
+// wiring that proves it, rather than the pure policy function.
+describe('menu — a documentLink that fails the link policy is not served', () => {
+  // The 30s sync cache is process-wide, so a stale entry would let one case
+  // read the previous case's template.
+  beforeEach(() => invalidateSyncCache());
+  afterEach(() => invalidateSyncCache());
+
+  it('serves a link on a trusted host', async () => {
+    const layer = await menuLayer(
+      [row('1', layerCfgWithLink('GENERAL', 'https://skywalking.apache.org/docs/'))],
+      'general',
+    );
+    expect(layer?.documentLink).toBe('https://skywalking.apache.org/docs/');
+  });
+
+  it.each([
+    ['a javascript: scheme', 'javascript:alert(document.domain)'],
+    ['an untrusted host', 'https://evil.example/x'],
+    ['a backslash escape that leaves the origin', '/\\evil.example/x'],
+  ])('withholds %s', async (_label, documentLink) => {
+    const layer = await menuLayer([row('1', layerCfgWithLink('GENERAL', documentLink))], 'general');
+    // The layer still renders — only its link is dropped.
+    expect(layer).toBeDefined();
+    expect(layer?.documentLink).toBeUndefined();
   });
 });

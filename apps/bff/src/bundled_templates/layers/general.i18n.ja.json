@@ -16,6 +16,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "上位 20 API",
         "tip": "選択中サービス配下の上位エンドポイント。タブを切り替えてトラフィック、応答時間、最悪成功率で再ランク付け。",
         "expressionLabels": [
@@ -25,23 +26,29 @@
         ]
       },
       {
+        "id": "traffic_line",
         "title": "トラフィック"
       },
       {
+        "id": "err_line",
         "title": "エラー率"
       },
       {
+        "id": "apdex_line",
         "title": "Apdex",
         "tip": "0 – 1 スケールのユーザー満足度スコア。"
       },
       {
+        "id": "percentile_line",
         "title": "応答時間パーセンタイル",
         "tip": "p50 / p75 / p90 / p95 / p99 レイテンシ — 応答時間分布のテール。"
       },
       {
+        "id": "resp_time_line",
         "title": "平均応答時間"
       },
       {
+        "id": "mq_combined",
         "title": "MQ コンシュームレート + レイテンシ",
         "tip": "件数は左軸、レイテンシは右軸。",
         "expressionLabels": [
@@ -50,80 +57,107 @@
         ]
       },
       {
+        "id": "top_instance_load",
         "title": "負荷別上位 10 インスタンス",
         "tip": "選択中サービスのインスタンス全体でトラフィック順にランク付け。"
       },
       {
+        "id": "top_instance_slow",
         "title": "上位 10 低速インスタンス",
         "tip": "選択中サービスのインスタンス全体で平均応答時間順にランク付け。"
       },
       {
+        "id": "top_instance_sla",
         "title": "成功率別上位 10 インスタンス",
         "tip": "top_n(service_instance_sla,10,asc)/100 — 悪い順のランク付け。"
       },
       {
+        "id": "slow_statements",
         "title": "低速データベースステートメント",
         "tip": "このサービスに対して捕捉された低速データベースステートメント上位 20。top_n_service_database_statement を取得元とする。ウィンドウ内で OAP がステートメントを捕捉していない場合は `no data` を表示。"
       }
     ],
     "instance": [
       {
+        "id": "instance_cpm_line",
         "title": "サービスインスタンス負荷",
         "tip": "選択中インスタンスに対する 1分あたりのコール数。"
       },
       {
+        "id": "instance_resp_line",
         "title": "サービスインスタンスレイテンシ"
       },
       {
+        "id": "instance_sla_line",
         "title": "サービスインスタンス成功率"
       },
       {
+        "id": "nodejs_process_cpu",
         "title": "プロセス CPU",
-        "tip": "Node.js エージェント：プロセス CPU（user + system）、収集間隔内（%）。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：プロセス CPU（user + system）、収集間隔内（%）。"
       },
       {
+        "id": "nodejs_heap_used",
         "title": "V8 ヒープ使用量",
-        "tip": "Node.js エージェント：V8 ヒープ使用量（process.memoryUsage().heapUsed）、MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：V8 ヒープ使用量（process.memoryUsage().heapUsed）、MB。"
       },
       {
+        "id": "nodejs_heap_total",
         "title": "V8 ヒープ合計",
-        "tip": "Node.js エージェント：V8 ヒープ合計（process.memoryUsage().heapTotal）、MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：V8 ヒープ合計（process.memoryUsage().heapTotal）、MB。"
       },
       {
+        "id": "nodejs_heap_limit",
         "title": "V8 ヒープ上限",
-        "tip": "Node.js エージェント：V8 最大ヒープサイズ（v8.getHeapStatistics().heap_size_limit）、MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：V8 最大ヒープサイズ（v8.getHeapStatistics().heap_size_limit）、MB。"
       },
       {
+        "id": "nodejs_rss",
         "title": "プロセス RSS",
-        "tip": "Node.js エージェント：常駐メモリセット（process.memoryUsage().rss）、MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：常駐メモリセット（process.memoryUsage().rss）、MB。"
       },
       {
+        "id": "nodejs_external_memory",
         "title": "外部メモリ",
-        "tip": "Node.js エージェント：V8 にバインドされた C++ オブジェクト（process.memoryUsage().external）、MB。",
-        "expressions": [
-          null
-        ]
+        "tip": "Node.js エージェント：V8 にバインドされた C++ オブジェクト（process.memoryUsage().external）、MB。"
       },
       {
+        "id": "nodejs_array_buffers",
+        "title": "配列バッファ",
+        "tip": "Node.js エージェント：ArrayBuffer / SharedArrayBuffer メモリ（process.memoryUsage().arrayBuffers）、MB。"
+      },
+      {
+        "id": "nodejs_uptime",
+        "title": "プロセス稼働時間",
+        "tip": "Node.js エージェント：プロセス起動からの日数（process.uptime()）。"
+      },
+      {
+        "id": "nodejs_peak_malloced_memory",
+        "title": "ピーク malloc メモリ",
+        "tip": "Node.js エージェント：V8 ピーク malloc メモリ（v8.getHeapStatistics().peak_malloced_memory）、MB。"
+      },
+      {
+        "id": "nodejs_malloced_memory",
+        "title": "Malloc メモリ",
+        "tip": "Node.js エージェント：現在の V8 malloc メモリ（v8.getHeapStatistics().malloced_memory）、MB。"
+      },
+      {
+        "id": "nodejs_old_space_used",
+        "title": "旧世代ヒープ使用量",
+        "tip": "Node.js エージェント：V8 旧世代ヒープ使用量（v8.getHeapSpaceStatistics old_space）、MB。"
+      },
+      {
+        "id": "nodejs_new_space_used",
+        "title": "新世代ヒープ使用量",
+        "tip": "Node.js エージェント：V8 新世代ヒープ使用量（v8.getHeapSpaceStatistics new_space）、MB。"
+      },
+      {
+        "id": "jvm_cpu",
         "title": "JVM CPU",
         "tip": "エージェントが報告する JVM CPU。インスタンスが JVM の場合のみ描画。"
       },
       {
+        "id": "jvm_memory",
         "title": "JVM メモリ",
         "tip": "ヒープ / 非ヒープの使用中 + 最大 (MB)。",
         "expressionLabels": [
@@ -134,6 +168,7 @@
         ]
       },
       {
+        "id": "jvm_memory_detail",
         "title": "JVM メモリ詳細",
         "tip": "プール単位の使用中メモリ (MB)。code cache、young / old / survivor / permgen / metaspace、および新しい JVM で導入された JIT codeheap サブプール (Z heap、compressed class space、セグメント化された codeheap) を網羅。JVM が公開しないプールは単に 0 のまま。",
         "expressionLabels": [
@@ -151,6 +186,7 @@
         ]
       },
       {
+        "id": "jvm_thread_count",
         "title": "JVM スレッド数",
         "expressionLabels": [
           "ライブ",
@@ -159,6 +195,7 @@
         ]
       },
       {
+        "id": "jvm_thread_state",
         "title": "JVM スレッド状態数",
         "tip": "JVM 状態別のスレッド数 (runnable / blocked / waiting / timed-waiting)。",
         "expressionLabels": [
@@ -169,6 +206,7 @@
         ]
       },
       {
+        "id": "jvm_gc_time",
         "title": "JVM GC 時間",
         "expressionLabels": [
           "young",
@@ -177,6 +215,7 @@
         ]
       },
       {
+        "id": "jvm_gc_count",
         "title": "JVM GC 回数",
         "expressionLabels": [
           "young",
@@ -185,6 +224,7 @@
         ]
       },
       {
+        "id": "jvm_class_count",
         "title": "JVM クラス数",
         "expressionLabels": [
           "ロード済み",
@@ -193,10 +233,12 @@
         ]
       },
       {
+        "id": "clr_cpu",
         "title": "CLR CPU",
         "tip": ".NET 専用：インスタンスが CLR メトリクスを報告した場合のみ描画。"
       },
       {
+        "id": "clr_thread",
         "title": "CLR スレッド",
         "expressionLabels": [
           "ワーカー利用可能",
@@ -205,9 +247,11 @@
         ]
       },
       {
+        "id": "clr_heap",
         "title": "CLR ヒープメモリ"
       },
       {
+        "id": "clr_gc",
         "title": "CLR GC",
         "expressionLabels": [
           "gen 0",
@@ -216,22 +260,28 @@
         ]
       },
       {
+        "id": "sleuth_http_req_count",
         "title": "Spring HTTP リクエスト数",
         "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests カウンタ。"
       },
       {
+        "id": "sleuth_http_req_duration",
         "title": "Spring HTTP リクエスト所要時間"
       },
       {
+        "id": "sleuth_proc_cpu",
         "title": "Spring インスタンス CPU 使用率"
       },
       {
+        "id": "sleuth_os_cpu",
         "title": "Spring OS CPU 使用率"
       },
       {
+        "id": "sleuth_os_load",
         "title": "Spring OS システム負荷"
       },
       {
+        "id": "sleuth_proc_files",
         "title": "Spring OS プロセスファイル",
         "expressionLabels": [
           "オープン",
@@ -239,9 +289,11 @@
         ]
       },
       {
+        "id": "sleuth_jvm_gc_pause",
         "title": "Spring JVM GC ポーズ所要時間"
       },
       {
+        "id": "sleuth_jvm_memory",
         "title": "Spring JVM メモリ",
         "expressionLabels": [
           "使用中",
@@ -249,6 +301,7 @@
         ]
       },
       {
+        "id": "sleuth_jvm_thread",
         "title": "Spring JVM スレッド",
         "expressionLabels": [
           "ライブ",
@@ -257,6 +310,7 @@
         ]
       },
       {
+        "id": "sleuth_jvm_classes",
         "title": "Spring JVM クラス",
         "expressionLabels": [
           "ロード済み",
@@ -264,14 +318,17 @@
         ]
       },
       {
+        "id": "sleuth_datasource",
         "title": "Spring データベース接続プール",
         "tip": "HikariCP / Spring Boot データソースメトリクス — プール単位の接続数。"
       },
       {
+        "id": "sleuth_thread_pool",
         "title": "Spring スレッドプール",
         "tip": "Spring Boot スレッドプールメーター — Executor 単位のアクティブ、キュー、最大スレッド数。"
       },
       {
+        "id": "sleuth_jdbc",
         "title": "Spring JDBC 接続",
         "expressionLabels": [
           "アクティブ",
@@ -280,6 +337,7 @@
         ]
       },
       {
+        "id": "sleuth_tomcat",
         "title": "Spring Tomcat セッション",
         "expressionLabels": [
           "アクティブ",
@@ -288,6 +346,7 @@
         ]
       },
       {
+        "id": "go_goroutines",
         "title": "Golang Goroutine / OS スレッド",
         "tip": "Golang エージェント：ライブな goroutine 数 + 基盤の OS スレッド。",
         "expressionLabels": [
@@ -296,45 +355,59 @@
         ]
       },
       {
+        "id": "go_gc_pause",
         "title": "Golang GC ポーズ時間 (毎分)"
       },
       {
+        "id": "go_gc_count",
         "title": "Golang GC 回数 (毎分)"
       },
       {
+        "id": "go_heap_alloc",
         "title": "Golang ヒープアロケート (毎分)"
       },
       {
+        "id": "go_sched_lat",
         "title": "Golang Goroutine スケジュール時間"
       },
       {
+        "id": "go_heap_frees",
         "title": "Golang GC Free (毎分)"
       },
       {
+        "id": "go_alloc_size",
         "title": "Golang アロケートサイズ (毎分)"
       },
       {
+        "id": "go_free_size",
         "title": "Golang Free サイズ (毎分)"
       },
       {
+        "id": "go_heap_objects",
         "title": "Golang ヒープオブジェクト"
       },
       {
+        "id": "go_heap",
         "title": "Golang ヒープ"
       },
       {
+        "id": "go_mspan",
         "title": "Golang メタデータ Mspan"
       },
       {
+        "id": "go_mcache",
         "title": "Golang メタデータ Mcache"
       },
       {
+        "id": "go_gc_goal",
         "title": "Golang GC ゴールサイズ"
       },
       {
+        "id": "go_cgo",
         "title": "Golang CGO コール (毎分)"
       },
       {
+        "id": "pvm_cpu",
         "title": "Python CPU 使用率",
         "tip": "Python (PVM) エージェント：ホスト vs プロセス CPU。",
         "expressionLabels": [
@@ -343,6 +416,7 @@
         ]
       },
       {
+        "id": "pvm_mem",
         "title": "Python メモリ使用率",
         "expressionLabels": [
           "ホスト",
@@ -350,9 +424,11 @@
         ]
       },
       {
+        "id": "pvm_threads",
         "title": "Python スレッド数"
       },
       {
+        "id": "pvm_gc",
         "title": "Python GC 回数",
         "expressionLabels": [
           "gen 0",
@@ -361,19 +437,24 @@
         ]
       },
       {
+        "id": "pvm_gc_time",
         "title": "Python GC 時間"
       },
       {
+        "id": "ruby_cpu",
         "title": "Ruby CPU 使用率",
         "tip": "Ruby エージェント：プロセス CPU を百分率で表示。"
       },
       {
+        "id": "ruby_mem_rss",
         "title": "Ruby メモリ (RSS)"
       },
       {
+        "id": "ruby_mem_usage",
         "title": "Ruby メモリ使用率"
       },
       {
+        "id": "ruby_threads",
         "title": "Ruby スレッド状態",
         "expressionLabels": [
           "アクティブ",
@@ -381,6 +462,7 @@
         ]
       },
       {
+        "id": "ruby_gc",
         "title": "Ruby GC 回数",
         "expressionLabels": [
           "合計",
@@ -389,12 +471,15 @@
         ]
       },
       {
+        "id": "ruby_gc_time",
         "title": "Ruby GC 時間"
       },
       {
+        "id": "ruby_heap_usage",
         "title": "Ruby ヒープ使用率"
       },
       {
+        "id": "ruby_heap_slots",
         "title": "Ruby ヒープスロット",
         "expressionLabels": [
           "ライブ",
@@ -402,44 +487,55 @@
         ]
       },
       {
+        "id": "php_cpu",
         "title": "PHP CPU 使用率",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) の CPU 使用率 (%)。/proc からサンプリング。"
       },
       {
+        "id": "php_mem",
         "title": "PHP メモリ使用量",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) の実メモリ (MB, /proc の VmRSS)。"
       },
       {
+        "id": "php_mem_peak",
         "title": "PHP メモリピーク",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) のピーク実メモリ (MB, /proc の VmHWM)。"
       },
       {
+        "id": "php_vmsize",
         "title": "PHP 仮想メモリ",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) の仮想メモリ (MB, /proc の VmSize)。"
       },
       {
+        "id": "php_threads",
         "title": "PHP スレッド数",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) の OS スレッド数 (/proc の Threads)。"
       },
       {
+        "id": "php_open_fds",
         "title": "PHP オープン FD 数",
         "tip": "PHP エージェント：親 PHP プロセス (getppid()) のオープン file descriptor 数 (/proc/pid/fd)。"
       }
     ],
     "endpoint": [
       {
+        "id": "endpoint_cpm_line",
         "title": "トラフィック"
       },
       {
+        "id": "endpoint_resp_line",
         "title": "応答時間"
       },
       {
+        "id": "endpoint_sla_line",
         "title": "成功率"
       },
       {
+        "id": "endpoint_percentile",
         "title": "応答時間パーセンタイル"
       },
       {
+        "id": "endpoint_mq_consume_latency",
         "title": "MQ 平均コンシュームレイテンシ",
         "tip": "エンドポイントスコープのコンシュームレイテンシ — メッセージキュートラフィックを処理するエンドポイントのみで値が入る。"
       }
@@ -448,86 +544,137 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "レイテンシ"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "レイテンシ" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "レイテンシ"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },
   "endpointDependency": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "レイテンシ"
       }
     ],
     "linkMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ]

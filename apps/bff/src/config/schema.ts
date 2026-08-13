@@ -205,7 +205,9 @@ const rbacSchema = z
         ],
         // Configures observability: dashboards, alarm rules, DSL/OAL,
         // diagnostics. Inherits viewer + platform reads so operators
-        // can verify their changes against live data.
+        // can verify their changes against live data. No reserved verb is
+        // granted here (see RESERVED_VERBS): granting one promises a
+        // capability now and silently confers it the day something enforces it.
         operator: [
           'metrics:read',
           'alarms:read',
@@ -227,13 +229,11 @@ const rbacSchema = z
           'dashboard:write',
           'alarm-setup:read',
           'alarm-rule:read',
-          'alarm-rule:write',
           'infra-3d:read',
           'rule:read',
           'rule:write',
           'rule:write:structural',
           'rule:delete',
-          'rule:debug',
           'live-debug:read',
           'live-debug:write',
           'profile:enable',
@@ -503,8 +503,11 @@ const performanceSchema = z
         // with a "narrow the scope" notice rather than drawn unreadably.
         topologyMaxNodes: z.number().int().positive().default(5000),
         topologyMaxEdges: z.number().int().positive().default(15000),
-        // Max RECORDS per request (the OAP storage LIMIT) for each event
-        // list — NOT a page count. The UI page-size picker maxes at the
+        // Max rows one page of each event list DISPLAYS — NOT a page count,
+        // and not the storage LIMIT to the row: every read fetches one row
+        // past the page it shows, which is the only way to know a next page
+        // exists (page 1 asks for size + 1; later pages ask for the page and
+        // a one-row probe beside it). The UI page-size picker maxes at the
         // same value, so a client can't out-ask the dropdown.
         maxPageSize: z
           .object({
@@ -524,11 +527,18 @@ const performanceSchema = z
   .strict()
   .default({});
 
-// Template source mode. `live` (default) uses OAP 11's
-// `/ui-management/templates*` REST API. `readonly` renders from the local disk
-// bundle and never calls a template-management API. OAP 10 has a legacy
-// GraphQL template API, but Horizon does not consume it, so OAP 10 requires
-// `readonly`. The OAP query API is still used + boot-checked in either mode.
+// Template source mode — LOAD-BEARING, see CLAUDE.md "Template source".
+//
+// `live` (default) uses OAP 11's `/ui-management/templates*` REST API and the
+// OAP-stored row is the ONLY source: an unreachable store BLOCKS the route
+// rather than substituting the disk bundle, so an operator never sees shipped
+// defaults presented as their own configuration.
+// `readonly` renders from the local disk bundle and never calls a
+// template-management API. That plus bundled PREVIEW in the admin editor are
+// the only two doors the bundle reaches the runtime through.
+// OAP 10 has a legacy GraphQL template API which Horizon does not consume, so
+// an OAP 10.x REQUIRES `readonly` — Horizon will not fall back on its behalf.
+// The OAP query API is still used + boot-checked in either mode.
 // Env-overridable so a file-less container can pick the mode.
 const templatesModeDefault: 'live' | 'readonly' =
   process.env.HORIZON_TEMPLATES_MODE === 'readonly' ? 'readonly' : 'live';
@@ -539,11 +549,49 @@ const templatesSchema = z
   .strict()
   .default({ mode: templatesModeDefault });
 
+/** Hosts a template's outbound link may point at. Horizon is a closed
+ *  console: the only operator-supplied link is a layer template's
+ *  `documentLink` ("docs ↗" in the layer header), and it may only leave the
+ *  origin for a host listed here.
+ *
+ *  The default carries the project's own documentation domain because all 44
+ *  bundled layer templates link there — it is a DEFAULT, not a built-in
+ *  exemption, so an operator who wants a fully closed console sets this to
+ *  `[]` and every outbound link stops rendering. Add your own wiki here.
+ *
+ *  A site-relative link (`/runbook/…`) never needs listing; it does not leave
+ *  the origin. Non-http(s) schemes are refused outright, wherever they come
+ *  from — that check is not configurable. */
+const TRUSTED_LINK_DOMAINS_DEFAULT = ['skywalking.apache.org'];
+
+const securitySchema = z
+  .object({
+    // Hostnames, not URLs or patterns. A value with a scheme, a path, a port
+    // or a wildcard would never match — `new URL(...).hostname` is what it is
+    // compared against — so it is refused at boot rather than silently
+    // matching nothing, which would read as "the allow-list is not working".
+    trustedLinkDomains: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toLowerCase()
+          .refine((v) => /^[a-z0-9.-]+$/.test(v) && !v.startsWith('.') && !v.endsWith('.'), {
+            message:
+              'must be a bare hostname such as "wiki.internal" — no scheme, port, path or wildcard (a host matches itself and its subdomains)',
+          }),
+      )
+      .default(TRUSTED_LINK_DOMAINS_DEFAULT),
+  })
+  .strict()
+  .default({ trustedLinkDomains: TRUSTED_LINK_DOMAINS_DEFAULT });
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
     layers: layersSchema,
     templates: templatesSchema,
+    security: securitySchema,
     oap: oapSchema.default({}),
     auth: authSchema,
     rbac: rbacSchema,

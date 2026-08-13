@@ -1,0 +1,280 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The check `tsc` and unit tests cannot be: Horizon against a REAL OAP, fed by
+# real telemetry, verified on BOTH halves of the product — the BFF's HTTP
+# surface and the rendered UI in headless Chromium. A route that returns
+# correct JSON into a view that throws on mount passes every API assertion and
+# is blank for the operator; only the browser half catches that.
+#
+# Separate from ci.yaml because the two answer different questions and cost
+# different amounts. ci.yaml asks "does this compile, lint, package and boot?"
+# in ~3 minutes on one runner; this asks "does it actually work against a
+# backend?" and spends a stack of containers per case to find out.
+#
+# Every case is skywalking-infra-e2e driven — the same harness the rest of the
+# SkyWalking project uses. The case file owns setup / trigger / verify /
+# cleanup; Playwright is invoked from a verify case. Fixture, image pins and
+# local-run instructions: test/e2e/README.md.
+#
+#
+# ── DEMO SCENARIOS ───────────────────────────────────────────────────────
+#
+# Scenarios are split by DEPLOYMENT — the stack that has to be stood up — never
+# by feature. Anything the baseline stack can already produce is a spec inside
+# `core`, never a new scenario: a stack costs about a minute of boot before a
+# single assertion runs, and assertions are cheap where stacks are not.
+#
+# Each entry below is that deployment, then what of Horizon is tested on it and
+# which components render it. This table is the single source of truth for
+# coverage: every case echoes its own entry to the console before it boots,
+# read straight from here, so there is no second copy to drift.
+#
+#   core      OAP + BanyanDB + the demo services                ACTIVE
+#             tests: layer template headers and metrics, layer dashboard
+#             layout and widget spans, the line / top / record widget forms,
+#             service picker, traces, logs, topology, instance topology,
+#             alarms and their timeline, trace profiling (task create ->
+#             list), the trace DETAIL — duration scatter, waterfall, tree,
+#             statistics and the span modal — the services overview
+#             dashboard, shell and login, plus three live debug CAPTURES:
+#             LAL live debug over logs driven while the session is open,
+#             OAL live debug entered the way an operator reaches it — the
+#             catalog's green ▶ on the `service_cpm` statement — through to
+#             a captured Service source row carrying a fixture service name,
+#             and MAL live debug over the agent's own self-observability
+#             meters, through to the metric its output step materialised
+#             components: LayerWidgetTile, TimeChart, TopList, RecordList,
+#             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
+#             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
+#             LayerInstanceTopologyView, LayerShell, LayerServiceSelector,
+#             LayerDashboardsView, LayerInstancePicker, LayerEndpointPicker,
+#             AlarmsView, AlarmsTimeline, LayerTraceProfilingView,
+#             TraceDistribution, TraceDetailCard, TraceWaterfallView,
+#             TraceTreeView, TraceStatsView, SpanDetailModal,
+#             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
+#             AlarmsWidget, SectionBreak, AppShell, DebugView,
+#             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
+#             live debug), DebugMal (MAL live debug)
+#
+#   es        the same, storing to ElasticSearch instead        ACTIVE
+#             tests: the trace page on a non-BanyanDB backend — query-API
+#             banner, segment rows that open to fetch a full trace, the
+#             cold-stage control being hidden, and stored-log CONTENT search,
+#             which exists only where the storage can answer it
+#             components: LayerTracesView, TraceListPanel
+#
+#   browser   plus OAP's browser receiver, seeded client-side   ACTIVE
+#             tests: the Browser Errors page — error rows, message, page
+#             path, category, and the stack behind the expander
+#             components: LayerBrowserErrorsView
+#
+#   admin     core, kept separate because it MUTATES OAP        ACTIVE
+#             tests: template push to OAP and the DSL write lifecycle, both
+#             on the wire — a browser cannot drive them without racing the
+#             case's own state. The admin pages themselves are covered only
+#             as far as MOUNTING and listing; editing and pushing from the
+#             page are not exercised
+#             components: DslCatalogView, DebugHistoryView,
+#             LiveDebuggerView (the live debug page itself — no capture is
+#             started here; the MAL / LAL / OAL runs live in `deployment`
+#             and `core`), OverviewTemplatesAdmin, LayerDashboardsAdmin
+#             — mount + list
+#
+#   deployment  BanyanDB as a CLUSTER on kind, via its helm chart  ACTIVE
+#             with FODC, plus an OTel collector
+#             tests: the BANYANDB layer — the cluster resolving from the
+#             collector's `cluster` label, the `table` widget form (declared
+#             by no template any other case reaches), the Deployment tab
+#             drawing the cluster grouped by node role, and a MAL live debug
+#             CAPTURE on `otel-rules/banyandb` — the collector-fed rule set,
+#             a different producer from the agent meters `core` samples
+#             components: TableWidget, DebugMal (MAL live debug),
+#             LayerDeploymentView (its edge panel and metric rows; the
+#             edge Sparkline itself is NOT asserted — the series is still
+#             sparse on a minutes-old cluster)
+#
+#   istio     kind + Istio + rover, in place of compose         ACTIVE
+#             tests: the MESH layer — service list, mesh topology, and the
+#             mesh_dp instance dashboard, which is the first bundled template
+#             in the suite to declare `card` widgets — plus the Zipkin trace
+#             page, which the MESH template sources its traces from. The
+#             profiling pages are covered only as far as MOUNTING: no process
+#             is asserted and no task is run, so the profiling components
+#             stay untested for now
+#             components: LayerWidgetTile's card branch,
+#             LayerZipkinTracesView, ZipkinTraceDetailCard, TraceListPanel,
+#             LayerEBPFProfilingView / LayerNetworkProfilingView — mount only
+#
+# ── RUNNING `istio` WITHOUT PROFILING ────────────────────────────────────
+#
+# Zipkin used to be its own scenario, with a Brave app reporting into an
+# otherwise empty layer. It folded into `istio` once that went green: the MESH
+# template sources its traces from Zipkin, so a mesh deployment feeds the same
+# receiver from the traffic that already produces the topology — real data, and
+# one less stack to boot.
+#
+# `istio` runs on infra-e2e's kind environment rather than compose, and is the
+# only case that needs a Linux kernel: profiling comes from rover, which
+# attaches eBPF probes to the host kernel. On macOS that kernel belongs to a
+# VM rover does not control, so a rover install there cannot work.
+#
+# Profiling is therefore skipped in two situations, decided in ONE place —
+# test/e2e/script/prepare/profiling-enabled.sh — which both the rover
+# deployment and the profiling verification consult, so the two can never
+# disagree:
+#
+#   E2E_SKIP_PROFILING=true    asked for explicitly, on any host
+#   a non-Linux host           automatic, and NOT overridable — forgetting the
+#                              flag on a laptop would otherwise mean a rover
+#                              install that cannot work, a multi-minute helm
+#                              timeout, and a red run saying nothing about
+#                              Horizon
+#
+# Skipping drops the rover deployment AND the profiling verification; the mesh
+# coverage is unaffected. Skipped verify cases print `SKIPPED` to stderr, so a
+# narrowed run never reads as a full one. Locally:
+#
+#     make -C test/e2e run-istio-without-profiling      # sets the flag
+#     make -C test/e2e run CASE=istio                   # macOS: same result
+#
+# THIS WORKFLOW NEVER SETS IT. Runners are Linux, which is the whole reason
+# the full case belongs in CI rather than on a developer's machine — the
+# profiling half is only ever exercised here.
+#
+# Adding a scenario: a directory under test/e2e/cases/, an entry in the table
+# above, and one `case:` entry below. Adding coverage to an existing scenario
+# is a spec, not a new stack.
+
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.case.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # One case failing must not cancel the others: when several go red at
+      # once, which ones they are is the diagnosis.
+      fail-fast: false
+      matrix:
+        case:
+          - name: core (OAP + BanyanDB)
+            config: test/e2e/cases/core/e2e.yaml
+          - name: es (OAP + ElasticSearch)
+            config: test/e2e/cases/es/e2e.yaml
+          - name: browser (+ browser receiver)
+            config: test/e2e/cases/browser/e2e.yaml
+          - name: admin (isolated, mutating)
+            config: test/e2e/cases/admin/e2e.yaml
+          # kind rather than compose, and the only case needing a Linux
+          # kernel: rover attaches eBPF probes. Slowest by a wide margin — a
+          # mesh install plus ALS analysis before the first assertion.
+          - name: istio (kind + Istio + rover)
+            config: test/e2e/cases/istio/e2e.yaml
+          # kind as well, but no eBPF — this one runs anywhere kind runs.
+          - name: deployment (BanyanDB cluster + FODC)
+            config: test/e2e/cases/deployment/e2e.yaml
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # swctl has no published binaries, so the case builds it from source —
+      # about a minute, and the largest fixed cost in the run. The binary only
+      # changes when the pin does, so key the cache on the pin itself rather
+      # than on the file that holds it: bumping an unrelated image pin should
+      # not throw the compiler back at us.
+      - name: Resolve the pinned swctl commit
+        id: pins
+        run: |
+          echo "swctl=$(grep -E '^SW_CTL_COMMIT=' test/e2e/script/env | head -1 | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+      - name: Cache swctl
+        uses: actions/cache@v4
+        with:
+          path: /tmp/skywalking-infra-e2e/bin/swctl
+          key: swctl-${{ runner.os }}-${{ steps.pins.outputs.swctl }}
+
+      # Horizon and the instrumented demo services. Built here rather than
+      # pulled: the point is to test THIS commit, and compose sets
+      # pull_policy: never so a missing build fails loudly instead of silently
+      # testing someone else's image.
+      - name: Build the fixture images
+        run: make -C test/e2e images
+
+      - name: ${{ matrix.case.name }}
+        uses: apache/skywalking-infra-e2e@68bbdec303cf2d3df9f2353f970f91938b52f674
+        with:
+          e2e-file: $GITHUB_WORKSPACE/${{ matrix.case.config }}
+          # Container logs land here. On a red run they answer the first
+          # question — did the fixture break, or did Horizon? — which the
+          # Playwright report alone cannot.
+          log-dir: $GITHUB_WORKSPACE/e2e-logs
+
+      # Traces and screenshots are the only way to diagnose a UI failure that
+      # did not reproduce locally. Also on cancellation: a hung case hits the
+      # job timeout as `cancelled`, which a plain `failure()` would skip.
+      - name: Collect the Playwright report
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          # Named after the case: `e2e-report-3` alone means opening the
+          # workflow file to find out which deployment it came from.
+          name: e2e-report-${{ strategy.job-index }}-${{ matrix.case.name }}
+          path: |
+            test/e2e/playwright/playwright-report
+            test/e2e/playwright/test-results
+            # Per-pod logs from infra-e2e, plus — for a kind case — the
+            # cluster state the browser runner captured at the moment it
+            # failed, while the cluster was still up.
+            e2e-logs
+          retention-days: 7
+
+  # Rolls the matrix up into ONE status so branch protection can check on it:
+  # `.asf.yaml` lists contexts by name, and a matrix produces one context per
+  # case whose names change whenever a case is added or renamed.
+  #
+  # `always() && !cancelled()` so a single red case still reports rather than
+  # leaving the context pending forever, which would block every merge on a
+  # status that never arrives.
+  required:
+    name: E2E Required
+    if: always() && !cancelled()
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every case passed
+        run: |
+          result="${{ needs.e2e.result }}"
+          echo "e2e matrix result: ${result}"
+          [ "${result}" = "success" ] || exit 1

@@ -23,16 +23,18 @@ import type {
   ContinuousProfilingTargetType,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.continuousProfiling` — the auto-trigger policies behind
  *  continuous profiling (as opposed to the on-demand profiling tasks). */
 export class ContinuousProfilingApi {
   constructor(private readonly bff: BffClient) {}
 
-  policies(serviceId: string): Promise<ContinuousProfilingPoliciesResponse> {
+  policies(service: ServiceRef): Promise<ContinuousProfilingPoliciesResponse> {
+    const qs = new URLSearchParams(serviceRefFields(service));
     return this.bff.request<ContinuousProfilingPoliciesResponse>(
       'GET',
-      `/api/continuous-profiling/policies?service=${encodeURIComponent(serviceId)}`,
+      `/api/continuous-profiling/policies?${qs.toString()}`,
     );
   }
 
@@ -70,10 +72,10 @@ export class ContinuousProfilingApi {
   /** ONE roster for all requested targets. The instance/process list is
    *  target-invariant on OAP's side, so asking per target would ship it N times. */
   instances(
-    serviceId: string,
+    service: ServiceRef,
     targets: ContinuousProfilingTargetType[],
   ): Promise<ContinuousProfilingInstancesResponse> {
-    const qs = new URLSearchParams({ service: serviceId, targets: targets.join(',') });
+    const qs = new URLSearchParams({ ...serviceRefFields(service), targets: targets.join(',') });
     return this.bff.request<ContinuousProfilingInstancesResponse>(
       'GET',
       `/api/continuous-profiling/instances?${qs.toString()}`,

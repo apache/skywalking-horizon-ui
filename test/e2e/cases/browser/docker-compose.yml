@@ -1,0 +1,60 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Browser telemetry. A different SOURCE from every other case — records arrive
+# on OAP's browser receiver rather than from a SkyWalking agent — and lands in
+# the BROWSER layer, which nothing else populates.
+#
+# Kept as its own case rather than merged into `core`: the two share only "not a
+# SkyWalking agent", and their fixtures have nothing else in common. One stack
+# carrying both would be two unrelated fixtures wearing one name.
+#
+# No demo app: the seeder posts to the receiver directly. Upstream builds a
+# client-js instrumented site from source to generate the same records; for a
+# UI repo the question is what Horizon renders, not whether the JS agent
+# serialises correctly.
+
+services:
+  banyandb:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: banyandb
+
+  oap:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: oap
+    ports:
+      # 12800 carries the browser receiver as well as the query API.
+      - 12800
+      - 17128
+    depends_on:
+      banyandb:
+        condition: service_healthy
+
+  horizon:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: horizon
+    ports:
+      - 8081
+    depends_on:
+      oap:
+        condition: service_healthy
+
+networks:
+  e2e:

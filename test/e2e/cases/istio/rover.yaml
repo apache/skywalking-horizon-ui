@@ -1,0 +1,128 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# rover, the source of eBPF and network profiling data.
+#
+# A DaemonSet, not a chart: skywalking-helm publishes no rover chart. Shaped
+# after apache/skywalking's own e2e manifest, which is the reference for how
+# rover expects to be run.
+#
+# __IMAGE__ is substituted by script/prepare/istio-up.sh from script/env.
+#
+# It is privileged, hostPID and hostNetwork because eBPF probes attach to
+# processes in the host's namespaces — which is the whole reason this needs a
+# Linux kernel and cannot run on macOS.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skywalking-rover
+  namespace: istio-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: skywalking-rover
+rules:
+  # Process discovery maps host processes back to the pods they belong to.
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "services"]
+    verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: skywalking-rover
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: skywalking-rover
+subjects:
+  - kind: ServiceAccount
+    name: skywalking-rover
+    namespace: istio-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: skywalking-rover
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      name: skywalking-rover
+  template:
+    metadata:
+      labels:
+        name: skywalking-rover
+    spec:
+      serviceAccountName: skywalking-rover
+      containers:
+        - name: skywalking-rover
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [SYS_PTRACE, SYS_ADMIN]
+          volumeMounts:
+            - name: host
+              mountPath: /host
+              readOnly: true
+            - name: host-sys
+              mountPath: /sys
+              readOnly: true
+          env:
+            - name: ROVER_BACKEND_ADDR
+              value: skywalking-oap.istio-system:11800
+            - name: ROVER_PROCESS_DISCOVERY_KUBERNETES_ACTIVE
+              value: "true"
+            - name: ROVER_PROCESS_DISCOVERY_KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Envoy's own processes are already covered by the metrics service
+            # this case configures; discovering them again through rover would
+            # duplicate the MESH_DP entities the dashboards read.
+            - name: ROVER_PROCESS_DISCOVERY_KUBERNETES_ANALYZER_ISTIO_ENVOY_ACTIVE
+              value: "false"
+            # rover names mesh services `<canonical-name>.<namespace>` by
+            # default, while OAP's ALS analysis names them from
+            # K8S_SERVICE_NAME_RULE — plain `productpage` here. Left alone the
+            # two disagree, and rover's processes attach to a SECOND MESH
+            # service that no dashboard shows: the profiling pages then look
+            # empty against a working rover. Drop the namespace so both
+            # pipelines land on the same entity.
+            - name: ROVER_PROCESS_DISCOVERY_KUBERNETES_ANALYZER_ISTIO_APPLICATION_SERVICE_NAME
+              value: '{{.Pod.LabelValue "service.istio.io/canonical-name,app.kubernetes.io/name,app" ""}}'
+            - name: ROVER_HOST_PROC_MAPPING
+              value: /host/proc
+            - name: ROVER_HOST_ETC_MAPPING
+              value: /host/etc
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      volumes:
+        # The kind node mounts the machine's root at /host — see kind.yaml.
+        - name: host
+          hostPath:
+            path: /host
+            type: Directory
+        - name: host-sys
+          hostPath:
+            path: /host/sys
+            type: Directory

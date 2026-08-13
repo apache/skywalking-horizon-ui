@@ -23,15 +23,20 @@
  * first visit.
  *
  * Layer / overview content is strictly REMOTE at runtime: a (non-
- * disabled) remote OAP template under the matching `horizon.*` name is
- * rendered; anything else is dropped from the bundle. Bundled disk
- * content is NEVER served here at runtime — it reaches the UI only by
- * being synced INTO OAP (boot seed / admin reset) or via the explicit
- * `?prefer=local` preview. So when OAP admin is unreachable, or a
- * template is disabled / missing its remote row, that entry is simply
- * absent from the bundle (the SPA blocks via the connectivity banner /
- * falls to per-page in-code defaults), rather than masked by stale
- * bundled config.
+ * disabled) remote OAP template stored under the matching `horizon.*`
+ * name AND declaring that same identity is rendered; anything else —
+ * including a row whose content names another template — is dropped
+ * from the bundle. Bundled disk content is NEVER served here at
+ * runtime: it reaches the UI only by being synced INTO OAP (boot seed
+ * / admin reset) or via the explicit `?prefer=local` preview. So when
+ * OAP admin is unreachable, or a template is disabled / missing its
+ * remote row, that entry is simply absent from the bundle (the SPA
+ * blocks via the connectivity banner / falls to per-page in-code
+ * defaults), rather than masked by stale bundled config. An overview
+ * whose name sits on several enabled OAP records with differing
+ * content is dropped for the same reason the sidebar drops a
+ * duplicated layer: there is no single definition to serve, and
+ * picking one for the operator is not the renderer's call.
  *
  * `syncStatus` carries per-template badges for the admin pages so the
  * SPA can render `synced / diverged / disabled / remote-only /
@@ -61,6 +66,7 @@ import {
 } from '../../logic/layers/loader.js';
 import { loadOverviewDashboards } from '../../logic/overview/loader.js';
 import {
+  ambiguousConflicts,
   getSyncStatus,
   findOverlayRow,
   type TemplateRow,
@@ -101,12 +107,25 @@ export interface BundleSyncStatus {
   }>;
   /** Names where >1 enabled OAP record exists. Empty when clean.
    *  Admin pages render a banner so the operator can disable extras
-   *  (the lowest id is the one Horizon renders — see `ConflictRow`). */
+   *  (the lowest id is the one Horizon renders — see `ConflictRow`).
+   *  Every duplicate is reported here, including the `identical` ones
+   *  `overviews` keeps serving. */
   conflicts: Array<{
     name: string;
     kind: TemplateKind;
     key: string;
     enabledIds: string[];
+    identical: boolean;
+  }>;
+  /** Enabled OAP records that are not readable as the template they are stored
+   *  as (see `UnreadableRow`). No read path serves them; the banner names them
+   *  with their OAP record ids, which is what an operator needs to repair or
+   *  retire one. */
+  unreadable: Array<{
+    id: string;
+    name: string;
+    kind: TemplateKind;
+    reason: string;
   }>;
 }
 
@@ -140,8 +159,12 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
       if (typeof inm === 'string' && inm === body.etag) {
         return reply.code(304).send();
       }
+      // The 304 above still fires under the central `no-store` rule: the SPA
+      // keeps this payload in localStorage and sets `If-None-Match` itself,
+      // so revalidation never depended on the browser's HTTP cache. Nothing
+      // to trade off here — `no-store` only stops the browser writing its own
+      // copy to disk.
       reply.header('ETag', body.etag);
-      reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
       return reply.send(body);
     },
   );
@@ -198,17 +221,24 @@ async function buildBundle(
     // Normal runtime: enumerate the REMOTE layer rows only — never the disk
     // bundle. A bundled-but-unsynced (or disabled / unreachable) layer is
     // simply absent, exactly like the per-page routes' remote-or-default.
+    // `effective === 'remote'` is the whole gate: it excludes the disabled and
+    // the identity-invalid rows, which matters most HERE, because this loop
+    // files each layer under the key its CONTENT declares — a row whose content
+    // names another layer would otherwise land on, and overwrite, that layer.
     for (const row of sync.rows) {
-      if (row.kind !== 'layer' || row.status === 'disabled' || !row.remote || row.locale !== undefined) continue;
+      if (row.kind !== 'layer' || row.effective !== 'remote' || !row.remote || row.locale !== undefined) continue;
       const env = parseEnvelope(row.remote.configuration);
       if (env && isLayerLike(env.content)) addLayer(env.content as LayerTemplate);
     }
   }
 
+  const ambiguousOverviews = new Set(ambiguousConflicts(sync, 'overview').map((c) => c.name));
+
   const overviews: OverviewDashboard[] = [];
   const diskOverviewIds = new Set<string>();
   for (const dash of loadOverviewDashboards()) {
     diskOverviewIds.add(dash.id);
+    if (ambiguousOverviews.has(formatName('overview', dash.id))) continue;
     const picked = pickOverviewContent(dash, remoteByName, preferLocal);
     if (picked === null) continue; // disabled
     overviews.push(localizeContent(picked, oapOverlayFor('overview', picked.id), locale));
@@ -218,8 +248,9 @@ async function buildBundle(
   // them, so surface them straight from the remote envelope. (Layers can't
   // be remote-only: every layer ships a bundled template.)
   for (const row of sync.rows) {
-    if (row.kind !== 'overview' || row.status === 'disabled' || !row.remote) continue;
+    if (row.kind !== 'overview' || row.effective !== 'remote' || !row.remote) continue;
     if (row.locale !== undefined) continue; // skip per-locale overlay rows
+    if (ambiguousOverviews.has(row.name)) continue;
     const env = parseEnvelope(row.remote.configuration);
     if (!env || !isOverviewLike(env.content)) continue;
     const dash = env.content as OverviewDashboard;
@@ -248,6 +279,7 @@ async function buildBundle(
         status: r.status,
       })),
     conflicts: sync.conflicts ?? [],
+    unreadable: sync.unreadable ?? [],
   };
 
   const body = { layers, overviews, syncStatus };

@@ -49,6 +49,7 @@ import { runAiChat } from '../agent/agent.js';
 import { createFigureBuffer } from '../figure-buffer.js';
 import type { AiRequestContext } from '../context.js';
 import type { SseEvent } from '../types.js';
+import { SECURITY_HEADERS, API_CACHE_CONTROL } from '../../util/security-headers.js';
 
 export interface AiChatRouteDeps {
   config: ConfigSource;
@@ -123,12 +124,13 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
     raw.writeHead(200, {
       // Re-add what the bypassed onSend hook would set, plus the SSE headers.
       'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
+      // `no-store` matches every other /api/ response (this route bypasses the
+      // hook that applies it); `no-transform` additionally stops a proxy
+      // rewriting the stream, which would break SSE framing.
+      'Cache-Control': `${API_CACHE_CONTROL}, no-transform`,
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
-      'Referrer-Policy': 'no-referrer',
+      ...SECURITY_HEADERS,
       ...(setCookie ? { 'Set-Cookie': setCookie } : {}),
     });
 

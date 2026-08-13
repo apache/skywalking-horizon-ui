@@ -43,6 +43,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
+import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { buildEndpointId, buildInstanceId, buildServiceId } from '../../util/entityId.js';
 import { fetchNativeList, type TraceListBody } from './trace.js';
@@ -193,7 +194,6 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
           const native = await fetchNativeList(
             opts,
             { ...base, ...ids },
-            '', // layer-less: serviceId is pre-resolved, resolveServiceId never runs
             !!req.coldStage,
             offset,
             maxTraces,
@@ -234,7 +234,7 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         const zipkinOpts = { ...opts, queryUrl: deps.config.current.oap.zipkinUrl };
         let zipkin: ZipkinTraceListResponse;
         try {
-          const traces = await zipkinFetchTraces(zipkinOpts, {
+          const fetched = await zipkinFetchTraces(zipkinOpts, {
             serviceName: service,
             remoteServiceName: body.remoteServiceName || undefined,
             spanName: body.spanName || undefined,
@@ -243,13 +243,15 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
             maxDuration: maxUs,
             endTs,
             lookback,
-            limit,
+            limit: overFetchSize(limit),
           });
-          zipkin = { source: 'zipkin', traces, reachable: true };
+          const { rows, hasNext } = takeOverFetched(fetched, limit);
+          zipkin = { source: 'zipkin', traces: rows, hasNext, reachable: true };
         } catch (err) {
           zipkin = {
             source: 'zipkin',
             traces: [],
+            hasNext: false,
             reachable: false,
             error: err instanceof Error ? err.message : String(err),
           };

@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "ledgers",
         "title": "Bookie 원장"
       },
       {
+        "id": "entries",
         "title": "Bookie 엔트리"
       },
       {
+        "id": "writable_dirs",
         "title": "쓰기 가능 원장 디렉토리"
       },
       {
+        "id": "write_cache",
         "title": "쓰기 캐시",
         "expressionLabels": [
           "크기 (MB)",
@@ -36,6 +40,7 @@
         ]
       },
       {
+        "id": "read_cache",
         "title": "읽기 캐시",
         "expressionLabels": [
           "크기 (MB)",
@@ -43,6 +48,7 @@
         ]
       },
       {
+        "id": "io_rates",
         "title": "읽기 / 쓰기 비율 (B/s)",
         "expressionLabels": [
           "read",
@@ -50,14 +56,17 @@
         ]
       },
       {
+        "id": "dir_usage",
         "title": "원장 디렉토리 사용량"
       }
     ],
     "instance": [
       {
+        "id": "jvm_pool",
         "title": "JVM 메모리 풀 (MB)"
       },
       {
+        "id": "jvm_mem",
         "title": "JVM 메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -66,6 +75,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM 스레드",
         "expressionLabels": [
           "current",
@@ -75,6 +85,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "초",
@@ -82,6 +93,7 @@
         ]
       },
       {
+        "id": "thread_executor",
         "title": "스레드 실행기",
         "expressionLabels": [
           "completed",
@@ -91,6 +103,7 @@
         ]
       },
       {
+        "id": "pooled_threads",
         "title": "풀링된 스레드",
         "expressionLabels": [
           "높은 우선순위",
@@ -98,6 +111,7 @@
         ]
       },
       {
+        "id": "queue_size",
         "title": "풀 최대 큐 크기",
         "expressionLabels": [
           "높은 우선순위",

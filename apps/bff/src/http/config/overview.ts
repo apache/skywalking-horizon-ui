@@ -50,8 +50,9 @@ import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 export interface OverviewRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled)
-   *  overviews + apply OAP translation overlays, matching the bundle. */
+  /** OAP UI-template client — serve the in-use REMOTE overviews + apply OAP
+   *  translation overlays, matching the bundle. Without one the list is empty:
+   *  the disk bundle is never a render-time source. */
   uiTemplateClient?: () => UITemplateClient;
 }
 

@@ -13,6 +13,7 @@ The sidebar on the left of this site is the canonical entry point — every sect
 - **Access Control** — local users, LDAP login, break-glass access, roles, audit log, and admin pages.
 - **Customization** — layer menus, layer and overview dashboard templates, adding a layer, languages and translations, and themes and global defaults.
 - **Reference** — design target and widget reference for template authors.
+- **Release Notes** — what changed in each release, one page per version. One version line covers everything Horizon ships: the browser UI, the Horizon server, and the server's reported version.
 
 ## Quick orientation
 

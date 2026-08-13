@@ -20,54 +20,70 @@
   "dashboards": {
     "service": [
       {
+        "id": "count",
         "title": "요청 수"
       },
       {
+        "id": "err4xx",
         "title": "4xx 수"
       },
       {
+        "id": "err5xx",
         "title": "5xx 수"
       },
       {
+        "id": "latency",
         "title": "요청 평균 지연 시간"
       },
       {
+        "id": "integration_latency",
         "title": "통합 평균 지연 시간",
         "tip": "게이트웨이와 백엔드 통합 사이의 지연 시간입니다."
       },
       {
+        "id": "data",
         "title": "처리된 데이터 (HTTP API 전용)"
       },
       {
+        "id": "cache_hit",
         "title": "캐시 적중률 (REST API 전용)"
       },
       {
+        "id": "cache_miss",
         "title": "캐시 미스율 (REST API 전용)"
       }
     ],
     "endpoint": [
       {
+        "id": "count",
         "title": "요청 수"
       },
       {
+        "id": "err4xx",
         "title": "4xx 수"
       },
       {
+        "id": "err5xx",
         "title": "5xx 수"
       },
       {
+        "id": "latency",
         "title": "요청 평균 지연 시간"
       },
       {
+        "id": "integration_latency",
         "title": "통합 평균 지연 시간"
       },
       {
+        "id": "data",
         "title": "처리된 데이터"
       },
       {
+        "id": "cache_hit",
         "title": "캐시 적중률"
       },
       {
+        "id": "cache_miss",
         "title": "캐시 미스율"
       }
     ]

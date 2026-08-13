@@ -40,21 +40,28 @@ import { useTimeDefaultsStore } from '@/state/timeDefaults';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { watch } from 'vue';
 
-// Both stores expose 3-tier resolution (user pref in localStorage → OAP
-// → bundled); at construction they reflect user pref + bundled fallback,
-// and loadOrgDefault (onMounted) fills the OAP tier once auth is through.
+// Both stores resolve user pref (localStorage) → org default → in-code
+// fallback. loadOrgDefault fills the middle tier once auth is through.
 const themeStore = useThemeStore();
 const timeDefaultsStore = useTimeDefaultsStore();
 const timeRangeStore = useTimeRangeStore();
 
 // The time-range store is constructed with a static `'1h'` default; this
 // watch promotes the resolved time-default over it ONCE — subsequent
-// operator picks on the time picker stay sticky.
+// operator picks on the time picker stay sticky. A user override outranks the
+// org default, so it applies without waiting; otherwise the value is not final
+// until the org read settles, and promoting the in-code fallback first would
+// latch it and the org default could never take effect.
 let timeDefaultsApplied = false;
 watch(
-  () => timeDefaultsStore.defaultWindowMinutes,
-  (m) => {
+  (): [number, boolean, boolean] => [
+    timeDefaultsStore.defaultWindowMinutes,
+    timeDefaultsStore.userOverride !== null,
+    timeDefaultsStore.orgSettled,
+  ],
+  ([m, hasOverride, orgSettled]) => {
     if (timeDefaultsApplied) return;
+    if (!hasOverride && !orgSettled) return;
     timeRangeStore.selectByMinutes(m);
     timeDefaultsApplied = true;
   },

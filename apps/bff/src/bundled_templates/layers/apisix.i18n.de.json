@@ -20,121 +20,84 @@
   "dashboards": {
     "service": [
       {
-        "title": "HTTP-Request-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "rps",
+        "title": "HTTP-Request-Trend"
       },
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       },
       {
-        "title": "HTTP-Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "HTTP-Verbindungen"
       },
       {
+        "id": "status_unmatched",
         "title": "Status-Trend ohne Treffer",
-        "tip": "Anfragen ohne passende APISIX-Route.",
-        "expressions": [
-          null
-        ]
+        "tip": "Anfragen ohne passende APISIX-Route."
       },
       {
-        "title": "Latenz ohne Treffer",
-        "expressions": [
-          null
-        ]
+        "id": "latency_unmatched",
+        "title": "Latenz ohne Treffer"
       },
       {
-        "title": "Bandbreite ohne Treffer",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth_unmatched",
+        "title": "Bandbreite ohne Treffer"
       }
     ],
     "instance": [
       {
-        "title": "HTTP-Request-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "rps",
+        "title": "HTTP-Request-Trend"
       },
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       },
       {
-        "title": "HTTP-Verbindungen",
-        "expressions": [
-          null
-        ]
+        "id": "conns",
+        "title": "HTTP-Verbindungen"
       },
       {
+        "id": "shared_dict",
         "title": "Shared Dict",
         "tip": "Kapazität vs. freier Speicher.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "kapazität",
           "frei"
         ]
       },
       {
-        "title": "etcd erreichbar",
-        "expressions": [
-          null
-        ]
+        "id": "etcd_total",
+        "title": "etcd erreichbar"
       },
       {
+        "id": "etcd",
         "title": "etcd Indizes",
-        "expressions": [
-          null
-        ],
         "expressionLabels": [
           "indizes"
         ]
       },
       {
+        "id": "unmatched",
         "title": "Traffic ohne Treffer",
         "tip": "Status + Latenz + Bandbreite für Anfragen ohne passende Route.",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "status",
           "latenz (ms)",
@@ -144,22 +107,16 @@
     ],
     "endpoint": [
       {
-        "title": "HTTP-Status-Trend",
-        "expressions": [
-          null
-        ]
+        "id": "status",
+        "title": "HTTP-Status-Trend"
       },
       {
-        "title": "HTTP-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "HTTP-Latenz"
       },
       {
-        "title": "HTTP-Bandbreite",
-        "expressions": [
-          null
-        ]
+        "id": "bandwidth",
+        "title": "HTTP-Bandbreite"
       }
     ]
   },

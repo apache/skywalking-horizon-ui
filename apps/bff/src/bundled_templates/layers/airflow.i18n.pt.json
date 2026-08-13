@@ -7,50 +7,125 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Tamanho do DAG bag" },
-      { "label": "Tempo total de parsing do DAG" },
-      { "label": "Slots livres do executor" },
-      { "label": "Slots agendados" }
+      {
+        "label": "Tamanho do DAG bag"
+      },
+      {
+        "label": "Tempo total de parsing do DAG"
+      },
+      {
+        "label": "Slots livres do executor"
+      },
+      {
+        "label": "Slots agendados"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Tasks executáveis" },
-      { "title": "Tasks em execução" },
-      { "title": "Slots agendados" },
-      { "title": "Tasks enfileiradas" },
-      { "title": "Slots livres do executor" },
-      { "title": "Tamanho da fila de arquivos DAG" },
-      { "title": "Erros de importação DAG" },
-      { "title": "Tamanho do DAG bag" },
-      { "title": "Tempo total de parsing do DAG" },
-      { "title": "Erros de refresh de arquivos DAG" },
-      { "title": "Atualizações de assets" }
+      {
+        "id": "tasks_executable",
+        "title": "Tasks executáveis"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Tasks em execução"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "Slots agendados"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "Tasks enfileiradas"
+      },
+      {
+        "id": "open_slots",
+        "title": "Slots livres do executor"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "Tamanho da fila de arquivos DAG"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "Erros de importação DAG"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "Tamanho do DAG bag"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "Tempo total de parsing do DAG"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "Erros de refresh de arquivos DAG"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Atualizações de assets"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Slots de pool abertos / adiados / em execução",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "Tasks em execução / slots agendados",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "Heartbeat do scheduler" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "Heartbeat do scheduler"
+      },
+      {
+        "id": "executor_slots",
         "title": "Slots do executor abertos / enfileirados",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Atualizações de assets" },
-      { "title": "DagRuns acionados por assets" },
-      { "title": "Heartbeat do triggerer" },
       {
+        "id": "asset_updates",
+        "title": "Atualizações de assets"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "DagRuns acionados por assets"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Heartbeat do triggerer"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "Triggers em execução / capacidade restante",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "Triggers bloqueados / com falha / bem-sucedidos",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

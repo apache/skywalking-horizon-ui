@@ -33,20 +33,21 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { ServiceHierarchyResponse } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export function useServiceHierarchy(
   layerKey: Ref<string>,
-  serviceId: Ref<string | null>,
+  service: Ref<ServiceRef | null>,
   /** REPLAY mode: the captured hierarchy to render from. Present ⇒ start with it
    *  and NEVER fetch, so a reloaded fan replays statically. */
   replayData?: Ref<ServiceHierarchyResponse | null>,
 ) {
   const replay = computed(() => !!replayData?.value);
   const q = useQuery({
-    queryKey: ['layer-service-hierarchy', layerKey, serviceId],
+    queryKey: ['layer-service-hierarchy', layerKey, service],
     queryFn: (): Promise<ServiceHierarchyResponse> =>
-      bffClient.layer.serviceHierarchy(layerKey.value, serviceId.value!),
-    enabled: computed(() => layerKey.value.length > 0 && !!serviceId.value && !replay.value),
+      bffClient.layer.serviceHierarchy(layerKey.value, service.value!),
+    enabled: computed(() => layerKey.value.length > 0 && !!service.value && !replay.value),
     staleTime: 60_000,
   });
 

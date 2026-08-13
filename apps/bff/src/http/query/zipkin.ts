@@ -51,6 +51,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader } from '../../client/graphql.js';
+import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { wireFetch } from '../../client/wire-log.js';
 
 export interface ZipkinRouteDeps {
@@ -184,7 +185,9 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
           maxDuration: q.maxDuration,
           endTs,
           lookback,
-          limit,
+          // Zipkin has no offset — the over-fetch is the only has-more signal
+          // available here, and it can never become a pager.
+          limit: overFetchSize(limit),
         },
       );
       // Zipkin's `/traces` returns `Array<Array<Span>>` — one inner array
@@ -193,10 +196,12 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
       // redundant `/trace/{id}` re-query. (The `/trace/{id}` route stays for
       // the paste-an-id / deep-link popout, which has no list row.)
       const raw = Array.isArray(body) ? (body as ZipkinSpan[][]) : [];
-      const rows: ZipkinTraceListRow[] = raw.map((spans) => ({ ...summariseTrace(spans), spans }));
+      const fetched: ZipkinTraceListRow[] = raw.map((spans) => ({ ...summariseTrace(spans), spans }));
+      const { rows, hasNext } = takeOverFetched(fetched, limit);
       const response: ZipkinTraceListResponse = {
         source: 'zipkin',
         traces: rows,
+        hasNext,
         reachable: true,
       };
       return reply.code(status).send(response);
@@ -204,6 +209,7 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
       const response: ZipkinTraceListResponse = {
         source: 'zipkin',
         traces: [],
+        hasNext: false,
         reachable: false,
         error: err instanceof Error ? err.message : String(err),
       };

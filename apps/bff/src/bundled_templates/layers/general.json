@@ -254,6 +254,72 @@
         "rowSpan": 2
       },
       {
+        "id": "nodejs_array_buffers",
+        "title": "Array Buffers",
+        "tip": "Node.js agent: ArrayBuffer / SharedArrayBuffer memory in MB (process.memoryUsage().arrayBuffers).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_array_buffers/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_array_buffers", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_uptime",
+        "title": "Process Uptime",
+        "tip": "Node.js agent: days since the process started (process.uptime()).",
+        "type": "line",
+        "unit": "days",
+        "expressions": ["meter_instance_nodejs_uptime/86400"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_uptime", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_peak_malloced_memory",
+        "title": "Peak Malloced Memory",
+        "tip": "Node.js agent: peak V8 malloced memory in MB (v8.getHeapStatistics().peak_malloced_memory).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_peak_malloced_memory/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_peak_malloced_memory", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_malloced_memory",
+        "title": "Malloced Memory",
+        "tip": "Node.js agent: current V8 malloced memory in MB (v8.getHeapStatistics().malloced_memory).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_malloced_memory/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_malloced_memory", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_old_space_used",
+        "title": "Old Space Used",
+        "tip": "Node.js agent: V8 old generation heap used in MB (v8.getHeapSpaceStatistics old_space).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_old_space_used/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_old_space_used", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_new_space_used",
+        "title": "New Space Used",
+        "tip": "Node.js agent: V8 new generation heap used in MB (v8.getHeapSpaceStatistics new_space).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_new_space_used/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_new_space_used", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
         "id": "jvm_cpu",
         "title": "JVM CPU",
         "tip": "JVM CPU as reported by the agent. Renders only when the instance is a JVM.",

@@ -20,15 +20,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "launch_percentile",
         "title": "アプリ起動時間パーセンタイル"
       },
       {
+        "id": "hang_percentile",
         "title": "ハング時間パーセンタイル"
       },
       {
+        "id": "hang_sum",
         "title": "ハング時間 (合計)"
       },
       {
+        "id": "abnormal_exits",
         "title": "異常終了 (クラッシュ)",
         "tip": "MetricKit はフォアグラウンド vs バックグラウンドの異常終了を分けて報告する。",
         "expressionLabels": [
@@ -37,17 +41,21 @@
         ]
       },
       {
+        "id": "oom_kills",
         "title": "OOM Kill 回数",
         "tip": "バックグラウンド OOM kill — iOS システムがメモリ圧迫でアプリを終了させる。"
       },
       {
+        "id": "peak_memory",
         "title": "ピークメモリ"
       },
       {
+        "id": "scroll_hitch",
         "title": "スクロール Hitch 率",
         "tip": "Hitched に分類されたスクロールフレームの割合 — 高いほど UI がカクつく。"
       },
       {
+        "id": "network_transfer",
         "title": "ネットワーク転送",
         "tip": "Wi-Fi vs セルラーのバイト (送受信)。",
         "expressionLabels": [
@@ -58,6 +66,7 @@
         ]
       },
       {
+        "id": "outbound_http",
         "title": "アウトバウンド HTTP",
         "tip": "アプリがバックエンドに対して行うコール — 負荷、レイテンシ、成功率。",
         "expressionLabels": [
@@ -69,12 +78,15 @@
     ],
     "instance": [
       {
+        "id": "instance_launch_p",
         "title": "起動時間パーセンタイル"
       },
       {
+        "id": "instance_hang_p",
         "title": "ハング時間パーセンタイル"
       },
       {
+        "id": "instance_crashes",
         "title": "異常終了",
         "expressionLabels": [
           "フォアグラウンド",
@@ -82,12 +94,15 @@
         ]
       },
       {
+        "id": "instance_oom",
         "title": "OOM Kill 回数"
       },
       {
+        "id": "instance_peak_mem",
         "title": "ピークメモリ"
       },
       {
+        "id": "instance_outbound",
         "title": "アウトバウンド HTTP",
         "expressionLabels": [
           "RPM",
@@ -98,15 +113,19 @@
     ],
     "endpoint": [
       {
+        "id": "ep_cpm",
         "title": "アウトバウンド負荷"
       },
       {
+        "id": "ep_resp",
         "title": "アウトバウンド平均レイテンシ"
       },
       {
+        "id": "ep_sla",
         "title": "アウトバウンド成功率"
       },
       {
+        "id": "ep_percentile",
         "title": "アウトバウンドレイテンシパーセンタイル"
       }
     ]

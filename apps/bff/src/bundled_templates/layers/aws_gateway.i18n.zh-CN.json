@@ -7,32 +7,89 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "请求数" },
-      { "label": "延迟" },
-      { "label": "4xx" },
-      { "label": "5xx" }
+      {
+        "label": "请求数"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "请求数" },
-      { "title": "4xx 数量" },
-      { "title": "5xx 数量" },
-      { "title": "请求平均延迟" },
-      { "title": "集成平均延迟", "tip": "网关与后端集成之间的延迟。" },
-      { "title": "处理数据量（仅 HTTP API）" },
-      { "title": "缓存命中率（仅 REST API）" },
-      { "title": "缓存未命中率（仅 REST API）" }
+      {
+        "id": "count",
+        "title": "请求数"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx 数量"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx 数量"
+      },
+      {
+        "id": "latency",
+        "title": "请求平均延迟"
+      },
+      {
+        "id": "integration_latency",
+        "title": "集成平均延迟",
+        "tip": "网关与后端集成之间的延迟。"
+      },
+      {
+        "id": "data",
+        "title": "处理数据量（仅 HTTP API）"
+      },
+      {
+        "id": "cache_hit",
+        "title": "缓存命中率（仅 REST API）"
+      },
+      {
+        "id": "cache_miss",
+        "title": "缓存未命中率（仅 REST API）"
+      }
     ],
     "endpoint": [
-      { "title": "请求数" },
-      { "title": "4xx 数量" },
-      { "title": "5xx 数量" },
-      { "title": "请求平均延迟" },
-      { "title": "集成平均延迟" },
-      { "title": "处理数据量" },
-      { "title": "缓存命中率" },
-      { "title": "缓存未命中率" }
+      {
+        "id": "count",
+        "title": "请求数"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx 数量"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx 数量"
+      },
+      {
+        "id": "latency",
+        "title": "请求平均延迟"
+      },
+      {
+        "id": "integration_latency",
+        "title": "集成平均延迟"
+      },
+      {
+        "id": "data",
+        "title": "处理数据量"
+      },
+      {
+        "id": "cache_hit",
+        "title": "缓存命中率"
+      },
+      {
+        "id": "cache_miss",
+        "title": "缓存未命中率"
+      }
     ]
   }
 }

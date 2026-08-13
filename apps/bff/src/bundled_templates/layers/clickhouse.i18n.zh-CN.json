@@ -7,89 +7,212 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Select / 秒" },
-      { "label": "Insert / 秒" },
-      { "label": "慢读" },
-      { "label": "打开文件数" }
+      {
+        "label": "Select / 秒"
+      },
+      {
+        "label": "Insert / 秒"
+      },
+      {
+        "label": "慢读"
+      },
+      {
+        "label": "打开文件数"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "打开文件数" },
-      { "title": "QPS", "expressionLabels": ["select", "insert"] },
       {
+        "id": "files_open",
+        "title": "打开文件数"
+      },
+      {
+        "id": "qps",
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "id": "queries",
         "title": "查询数",
-        "expressionLabels": ["total", "select", "insert"]
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
       },
       {
+        "id": "query_time",
         "title": "查询耗时（ms）",
-        "expressionLabels": ["avg", "select", "insert"]
+        "expressionLabels": [
+          "avg",
+          "select",
+          "insert"
+        ]
       },
       {
+        "id": "conns",
         "title": "连接数",
-        "expressionLabels": ["TCP", "HTTP"]
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
       },
-      { "title": "慢读" },
       {
+        "id": "slow",
+        "title": "慢读"
+      },
+      {
+        "id": "merge_mut",
         "title": "Merge / Mutations",
-        "expressionLabels": ["merge", "mutations"]
+        "expressionLabels": [
+          "merge",
+          "mutations"
+        ]
       },
       {
+        "id": "insert_io",
         "title": "Insert 吞吐",
-        "expressionLabels": ["bytes/s", "rows/s"]
+        "expressionLabels": [
+          "bytes/s",
+          "rows/s"
+        ]
       },
-      { "title": "延迟 Insert（s）" },
-      { "title": "活跃数据 Part" },
       {
+        "id": "delayed",
+        "title": "延迟 Insert（s）"
+      },
+      {
+        "id": "parts_active",
+        "title": "活跃数据 Part"
+      },
+      {
+        "id": "replicated",
         "title": "复制 Fetch / Send",
-        "expressionLabels": ["fetch", "send"]
+        "expressionLabels": [
+          "fetch",
+          "send"
+        ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper 字节 (b/s)",
-        "expressionLabels": ["bytes sent", "bytes recv"]
+        "expressionLabels": [
+          "bytes sent",
+          "bytes recv"
+        ]
       },
-      { "title": "Zookeeper 会话" },
-      { "title": "Zookeeper Watches" },
-      { "title": "Keeper 活跃连接" },
-      { "title": "Keeper 未完成请求" }
+      {
+        "id": "zk_sessions",
+        "title": "Zookeeper 会话"
+      },
+      {
+        "id": "zk_watches",
+        "title": "Zookeeper Watches"
+      },
+      {
+        "id": "keeper_alive",
+        "title": "Keeper 活跃连接"
+      },
+      {
+        "id": "keeper_outstanding",
+        "title": "Keeper 未完成请求"
+      }
     ],
     "instance": [
-      { "title": "运行时长（天）" },
-      { "title": "版本" },
-      { "title": "CPU（核数）" },
       {
+        "id": "uptime",
+        "title": "运行时长（天）"
+      },
+      {
+        "id": "version",
+        "title": "版本"
+      },
+      {
+        "id": "cpu",
+        "title": "CPU（核数）"
+      },
+      {
+        "id": "mem",
         "title": "内存（%）",
-        "expressionLabels": ["used", "available"]
+        "expressionLabels": [
+          "used",
+          "available"
+        ]
       },
       {
+        "id": "network",
         "title": "网络（B）",
-        "expressionLabels": ["receive", "send"]
+        "expressionLabels": [
+          "receive",
+          "send"
+        ]
       },
       {
+        "id": "conns",
         "title": "连接数",
-        "expressionLabels": ["TCP", "HTTP"]
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
       },
       {
+        "id": "queries",
         "title": "查询数",
-        "expressionLabels": ["total", "select", "insert"]
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
       },
       {
+        "id": "qps",
         "title": "QPS",
-        "expressionLabels": ["select", "insert"]
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
       },
       {
+        "id": "query_time",
         "title": "查询耗时（ms）",
-        "expressionLabels": ["avg", "select", "insert"]
+        "expressionLabels": [
+          "avg",
+          "select",
+          "insert"
+        ]
       },
-      { "title": "文件慢读" },
-      { "title": "后台 Merge" },
-      { "title": "Mutations" },
-      { "title": "打开文件数" },
       {
-        "title": "Insert 吞吐",
-        "expressionLabels": ["bytes/s", "rows/s"]
+        "id": "slow",
+        "title": "文件慢读"
       },
-      { "title": "延迟 Insert（s）" }
+      {
+        "id": "merge",
+        "title": "后台 Merge"
+      },
+      {
+        "id": "mutations",
+        "title": "Mutations"
+      },
+      {
+        "id": "files",
+        "title": "打开文件数"
+      },
+      {
+        "id": "insert_io",
+        "title": "Insert 吞吐",
+        "expressionLabels": [
+          "bytes/s",
+          "rows/s"
+        ]
+      },
+      {
+        "id": "delayed",
+        "title": "延迟 Insert（s）"
+      }
     ]
   }
 }

@@ -239,6 +239,7 @@ describe('dsl-debugging vocabulary', () => {
     expect([...DEBUG_CATALOGS].sort()).toEqual([
       'lal',
       'log-mal-rules',
+      'meter-analyzer-config',
       'oal',
       'otel-rules',
       'telegraf-rules',

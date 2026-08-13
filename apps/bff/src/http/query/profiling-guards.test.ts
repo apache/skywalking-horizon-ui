@@ -68,7 +68,7 @@ describe('eBPF task reads never turn a failure into "no tasks"', () => {
     const { app, sid } = await build(registerEBPFRoutes, async () => new Response('boom', { status: 500 }));
     const res = await app.inject({
       method: 'GET',
-      url: `/api/layer/mesh/ebpf/tasks?service=${encodeURIComponent(SERVICE)}`,
+      url: `/api/layer/mesh/ebpf/tasks?serviceId=${encodeURIComponent(SERVICE)}&service=mesh`,
       headers: { cookie: `horizon_sid=${sid}` },
     });
     const body = res.json();
@@ -93,7 +93,7 @@ describe('eBPF task reads never turn a failure into "no tasks"', () => {
     const { app, sid } = await build(registerEBPFRoutes, fetchImpl);
     const res = await app.inject({
       method: 'GET',
-      url: `/api/layer/mesh/ebpf/tasks?service=${encodeURIComponent(SERVICE)}`,
+      url: `/api/layer/mesh/ebpf/tasks?serviceId=${encodeURIComponent(SERVICE)}&service=mesh`,
       headers: { cookie: `horizon_sid=${sid}` },
     });
     const body = res.json();
@@ -117,7 +117,7 @@ describe('eBPF task reads never turn a failure into "no tasks"', () => {
     const { app, sid } = await build(registerEBPFRoutes, fetchImpl);
     const res = await app.inject({
       method: 'GET',
-      url: `/api/layer/mesh/ebpf/tasks?service=${encodeURIComponent(SERVICE)}`,
+      url: `/api/layer/mesh/ebpf/tasks?serviceId=${encodeURIComponent(SERVICE)}&service=mesh`,
       headers: { cookie: `horizon_sid=${sid}` },
     });
     const body = res.json();

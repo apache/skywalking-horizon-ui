@@ -147,10 +147,13 @@ What the map shows is driven by a single configuration that an
 administrator edits in the UI at `/admin/3d-map` (linked under
 **Dashboard setup** in the sidebar). It is a **structured editor** — you
 work with tiers, layers, colors, and metrics through form controls, not
-raw JSON. Horizon ships a bundled default so the map is useful out of the
-box; your edits are kept as a local draft in your browser, and **Check
-diff & push** publishes them to OAP — which is the copy the map then
-renders (falling back to the bundled default if OAP has none).
+raw JSON. Horizon ships a bundled default, seeded into OAP at first boot
+so the map is useful out of the box; your edits are kept as a local draft
+in your browser, and **Check diff & push** publishes them to OAP — the
+copy the map renders. In the default `live` template mode that OAP copy is
+the only source: if the template store cannot be read, the map reports
+that instead of rendering the bundled default. See
+[Configuration File → Template source mode](../setup/horizon-yaml.md#template-source-mode).
 
 From the editor you can:
 
@@ -197,6 +200,7 @@ The map's loading stages run in batches, several requests at once. How aggressiv
 The defaults are tuned for a typical deployment; only revisit these if the loading timeline stalls on the Metrics, Topologies, or Templates step, or if OAP returns errors under the load.
 
 Viewing the map needs read access (`infra-3d:read`, held by the built-in
-viewer role and above); editing and publishing the configuration needs
+viewer role and above). A role without it does not get the topbar entry to
+the map at all. Editing and publishing the configuration needs
 `overview:write` (operators and admins by default). See
 [Roles and Permissions](../access-control/rbac.md).

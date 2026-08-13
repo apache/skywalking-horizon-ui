@@ -1,0 +1,105 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The collector that turns BanyanDB's self-observability into the metrics the
+# BANYANDB layer renders. Without it the layer exists and every widget is
+# empty — nothing else in the suite feeds OAP's OTel receiver.
+#
+# The shape is dictated by OAP's `otel-rules/banyandb/*` rules, not chosen:
+#
+#   - The FODC PROXY is the single scrape target. Each BanyanDB pod runs a
+#     FODC agent sidecar that polls that pod's own metrics ports and the proxy
+#     aggregates them, so scraping the proxy sees the whole cluster with the
+#     per-pod labels (pod_name, container_name, node_role, node_type) already
+#     attached. Scraping the per-node :2121 endpoints instead would lose those
+#     identity labels and produce instances the Deployment tab cannot group.
+#
+#   - The job MUST be named `banyandb-monitoring`. The rules select on
+#     `tags.job_name == 'banyandb-monitoring'`; any other name and OAP accepts
+#     every sample and builds nothing from them.
+#
+#   - `cluster` is the ONE label SkyWalking has to add, and it becomes the
+#     BANYANDB service name. Everything else rides on the samples.
+#
+# __IMAGE__ and __CLUSTER__ are substituted from script/env.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector
+  namespace: skywalking
+data:
+  config.yaml: |
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: banyandb-monitoring
+              metrics_path: /metrics
+              # MUST be finer than the rate windows in OAP's banyandb rules,
+              # which compute `.rate('PT15S')`. At a coarser interval every
+              # rate evaluates to 0, no samples are produced, and since the
+              # BANYANDB service is created BY those samples, the layer stays
+              # empty — indistinguishable from a scrape that never worked.
+              scrape_interval: 10s
+              static_configs:
+                - targets: ['skywalking-banyandb-fodc-proxy-http:17913']
+                  labels:
+                    cluster: __CLUSTER__
+    processors:
+      batch:
+    exporters:
+      otlp:
+        endpoint: skywalking-oap.skywalking:11800
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        metrics:
+          receivers: [prometheus]
+          processors: [batch]
+          exporters: [otlp]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: skywalking
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          args: ['--config=/conf/config.yaml']
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+      volumes:
+        - name: conf
+          configMap:
+            name: otel-collector

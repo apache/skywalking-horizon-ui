@@ -28,6 +28,9 @@ concurrency:
 
 jobs:
   license-header:
+    # Kept separate because it needs neither Node nor `pnpm install` — it is a
+    # container action that would otherwise sit behind the toolchain setup the
+    # build job spends its first half-minute on.
     name: License header
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,19 +41,15 @@ jobs:
       - name: Check license header
         uses: apache/skywalking-eyes@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
 
-  dependency-license:
-    # The binary tarball bundles the full production dependency tree — the
-    # BFF runtime deps (dist/node_modules) AND the UI deps Vite compiles
-    # into the static bundle — so ASF policy requires every one of their
-    # licenses reproduced in the binary LICENSE/NOTICE.
-    # collect-dist-licenses.mjs enumerates that tree straight from the pnpm
-    # store (no `pnpm package` needed), and this job fails if either:
-    #   1. a dep carries a Category-X / unknown license (check-dist-licenses), or
-    #   2. the committed binary LICENSE/NOTICE reference is stale (--check) —
-    #      i.e. prod deps changed without `pnpm licenses:bin:update`.
-    name: Dependency license
+  build-and-check:
+    # Every Node-side gate in one job. They all need the same checkout + pnpm
+    # install, and each gate itself finishes in seconds, so fanning them across
+    # runners bought a few tens of seconds of wall clock at the price of paying
+    # the setup cost eight times over. Steps run cheapest-first so a lint or
+    # type error reports before the package build starts.
+    name: Build and check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
@@ -61,8 +60,74 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+
+      # ESLint (rules + 2000-line cap, comments excluded) across ui + bff, the
+      # source-budget gate (≤2000 code / ≤500 comment lines per file), both
+      # i18n gates (UI catalog coverage/parity and the BFF template-overlay
+      # validator), and the bundled layer / overview templates. Those templates
+      # are configuration that ships inside the release, so a broken one is a
+      # shipping defect rather than operator error — and the loader only
+      # JSON.parses them, which is how an orderBy naming a nonexistent column
+      # and an unsupported aggregation both shipped.
+      - name: Lint, source budget, i18n, security, bundled templates
+        run: pnpm lint
+
+      # Advisories against what actually SHIPS. `--prod` matches the scope the
+      # binary LICENSE is generated from, so the two gates describe the same
+      # artifact. A finding here is always something an operator would run, so
+      # it blocks. Only high+ does: a gate that fails on things nobody can act
+      # on gets ignored.
+      - name: Audit shipped dependencies
+        run: pnpm audit --prod --audit-level=high
+
+      # Dev tooling is a different threat model, not a lesser one — it runs in
+      # CI with repository credentials and on contributors' machines, so a
+      # compromised build tool can reach the artifact without ever being IN it.
+      # Reported rather than enforced: an advisory in a linter's transitive
+      # tree with no patch available would otherwise block every unrelated PR.
+      - name: Audit build tooling (report only)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
+
+      - name: Type-check
+        run: pnpm -r run type-check
+
+      # `pnpm -r` walks every workspace package and runs `test:unit` —
+      # currently @skywalking-horizon-ui/ui (vitest + jsdom),
+      # @skywalking-horizon-ui/bff and @skywalking-horizon-ui/api-client
+      # (vitest, node env). Packages without the script (design-tokens,
+      # templates) are skipped automatically.
+      # The scripts already include `vitest run`, so no `--run` forwarding
+      # needed — keeps the CI line robust against pnpm-flag parsing quirks.
+      # The runner pool is pinned in those same scripts, not on this line, so a
+      # contributor's `pnpm test:unit` and this job share one isolation model.
+      # Why `threads`, and what enforces it: `src/runner-pool.test.ts`.
+      - name: Unit tests
+        run: pnpm -r run test:unit
+
+      # ASSEMBLES the distributable: the three packages/* builds, the BFF
+      # esbuild bundle, the Vite UI build, dist/server.js, the built UI at
+      # dist/static/, bundled templates, i18n catalogs, AI resources. Because it
+      # compiles the UI and the BFF on the way, it subsumes standalone build
+      # steps. Until this ran in CI the assembly happened for the first time
+      # inside the release image build — i.e. after merge — so a broken tarball
+      # merged green.
+      - name: Package the distributable
+        run: pnpm package
+
+      # After `pnpm package`, never before: collect-dist-licenses writes its
+      # LICENSE / NOTICE / report into dist/, and packaging starts by wiping
+      # that directory.
+      # The binary tarball bundles the full production dependency tree — the
+      # BFF runtime deps (dist/node_modules) AND the UI deps Vite compiles into
+      # the static bundle — so ASF policy requires every one of their licenses
+      # reproduced in the binary LICENSE/NOTICE. This fails if either:
+      #   1. a dep carries a Category-X / unknown license (check-dist-licenses), or
+      #   2. the committed binary LICENSE/NOTICE reference is stale (--check) —
+      #      i.e. prod deps changed without `pnpm licenses:bin:update`.
       - name: Verify binary LICENSE/NOTICE (drift + ASF allow/deny)
         run: pnpm licenses:bin:check
+
       - name: Compare source vs. binary LICENSE/NOTICE shape
         run: |
           # Source-flavored LICENSE = repo root; must NOT contain the
@@ -82,6 +147,7 @@ jobs:
           head -1 NOTICE | grep -q 'Apache SkyWalking Horizon UI'
           head -1 dist-material/release-docs/NOTICE | grep -q 'Apache SkyWalking Horizon UI'
           echo "src/bin LICENSE+NOTICE shape OK."
+
       - name: Upload dependency report
         uses: actions/upload-artifact@v4
         with:
@@ -91,119 +157,7 @@ jobs:
             dist/NOTICE
             dist/.dependency-report.json
 
-  type-check:
-    name: Type-check (workspaces)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm -r run type-check
-
-  build-ui:
-    name: Build · @skywalking-horizon-ui/ui
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @skywalking-horizon-ui/ui build
-
-  build-bff:
-    name: Build · @skywalking-horizon-ui/bff
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @skywalking-horizon-ui/bff build
-
-  test:
-    name: Unit tests (workspaces)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      # `pnpm -r` walks every workspace package and runs `test:unit` —
-      # currently @skywalking-horizon-ui/ui (vitest + jsdom),
-      # @skywalking-horizon-ui/bff and @skywalking-horizon-ui/api-client
-      # (vitest, node env). Packages without the script (design-tokens,
-      # templates) are skipped automatically.
-      # The scripts already include `vitest run`, so no `--run` forwarding
-      # needed — keeps the CI line robust against pnpm-flag parsing quirks.
-      - run: pnpm -r run test:unit
-
-  lint:
-    name: Lint + source budget
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      # ESLint (rules + 2000-line cap, comments excluded) across ui + bff,
-      # the source-budget gate (≤2000 code / ≤500 comment lines per file),
-      # then both i18n gates: UI catalog coverage/parity (check-ui-i18n.mjs)
-      # and the BFF template-overlay validator (i18n:validate).
-      - run: pnpm lint
-
-  package:
-    # The two build jobs above compile the UI and the BFF separately; neither
-    # exercises `pnpm package`, which ASSEMBLES the distributable (the three
-    # packages/* builds, dist/server.js, the built UI at dist/static/, bundled
-    # templates, i18n catalogs, AI resources). Until this job existed that
-    # assembly ran for the first time inside the release image build — i.e.
-    # after merge — so a broken tarball merged green. Boot the artifact too:
-    # a dist/ that assembles but 404s at `/` is not a working release.
-    name: Package + boot artifact
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm package
+      # A dist/ that assembles but 404s at `/` is not a working release.
       - name: Boot the packaged server and smoke-test it
         run: |
           set -eu
@@ -230,25 +184,52 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/layer/general/traces")
           [ "$code" = "200" ] || fail "SPA deep link returned ${code}"
           curl -s "http://127.0.0.1:8099/api/nope" | grep -q '"code":"not_found"' || fail "/api/* 404 is not the JSON envelope"
-          echo "packaged artifact boots and serves the UI"
+
+          # Security headers, asserted against the SHIPPED artifact — a unit
+          # test on the header map cannot catch a hook that never runs, a
+          # plugin registered ahead of it, or a route that writes its own head.
+          hdr() { curl -s -D - -o /dev/null "$1" | tr -d '\r' | grep -i "^$2:" | cut -d' ' -f2-; }
+          csp=$(hdr "http://127.0.0.1:8099/" "content-security-policy")
+          [ -n "$csp" ] || fail "no Content-Security-Policy on the SPA shell"
+          # Pull script-src out and judge it alone. Matching the whole policy
+          # would be both wrong ways round: style-src legitimately carries
+          # 'unsafe-inline', and a substring test on the joined string depends
+          # on token order. This is the directive that makes an injected
+          # handler or a stored javascript: URL inert.
+          scriptsrc=$(printf '%s' "$csp" | tr ';' '\n' | grep -i 'script-src' | head -1 || true)
+          [ -n "$scriptsrc" ] || fail "CSP has no script-src: ${csp}"
+          case "$scriptsrc" in *"'self'"*) ;; *) fail "script-src lacks 'self': ${scriptsrc}" ;; esac
+          case "$scriptsrc" in *unsafe-inline*|*unsafe-eval*|*unsafe-hashes*)
+            fail "script-src grants an unsafe keyword: ${scriptsrc}" ;; esac
+          for h in x-content-type-options x-frame-options referrer-policy; do
+            [ -n "$(hdr "http://127.0.0.1:8099/" "$h")" ] || fail "missing ${h} on the SPA shell"
+          done
+          # Every /api/ response, including a 404 and an error, is unstorable.
+          for p in /api/health /api/nope; do
+            cc=$(hdr "http://127.0.0.1:8099${p}" "cache-control")
+            [ "$cc" = "no-store" ] || fail "${p} Cache-Control is '${cc}', expected no-store"
+            [ -n "$(hdr "http://127.0.0.1:8099${p}" "content-security-policy")" ] || fail "no CSP on ${p}"
+          done
+          # ...while content-hashed assets stay cacheable.
+          cc=$(hdr "http://127.0.0.1:8099${asset}" "cache-control")
+          case "$cc" in *no-store*) fail "hashed asset ${asset} is no-store — static files must stay cacheable" ;; esac
+          echo "packaged artifact boots, serves the UI, and carries its security headers"
 
   required:
     # Status-check name pinned to "Required" so Apache branch protection
     # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
     # [Required]`) can gate on a single rolled-up signal.
+    #
+    # E2E is a separate workflow with its own rolled-up "E2E Required"
+    # status, listed alongside this one in .asf.yaml — it cannot be a `needs`
+    # here because `needs` does not cross workflow boundaries.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint, package]
+    needs: [license-header, build-and-check]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check upstream jobs
         run: |
           [[ ${{ needs.license-header.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.dependency-license.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.type-check.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.build-ui.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.build-bff.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.test.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.lint.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.package.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.build-and-check.result }} == 'success' ]] || exit 1

@@ -47,6 +47,7 @@ import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplat
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { useLayers } from '@/shell/useLayers';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
@@ -555,11 +556,21 @@ const noPublishedVersion = computed<boolean>(
 // `sourcesReady` so the editor doesn't visibly flip from bundled to
 // remote on first mount. Once sources are ready the watcher runs
 // every time the operator picks a different overview.
+//
+// The dirty guard applies ONLY to a re-fetch of the SAME overview — it is
+// there so a background detail refetch cannot clobber in-progress edits. It
+// must NOT survive a switch to a different overview: skipping the seed there
+// leaves the previous overview's draft in the editor, where it then reads as
+// (and would be saved as) the newly-selected one. Tracking the last-seeded id
+// is what separates the two triggers.
+const lastSeededId = ref<string>('');
 watch(
   [selectedId, () => detailQuery.data.value],
   () => {
     if (!sourcesReady.value) return;
-    if (isDirty.value) return;
+    const switched = selectedId.value !== lastSeededId.value;
+    if (isDirty.value && !switched) return;
+    lastSeededId.value = selectedId.value;
     seedEditor();
   },
   { immediate: true },
@@ -569,6 +580,7 @@ watch(
 // run the seed for the currently-selected overview once.
 watch(sourcesReady, (ready, wasReady) => {
   if (ready && !wasReady && selectedId.value && !isDirty.value) {
+    lastSeededId.value = selectedId.value;
     seedEditor();
   }
 });
@@ -639,7 +651,9 @@ async function pushToOap(): Promise<void> {
       }
       setFlash(t('Refetched after timeout — the push may have completed; please verify.'));
     } else {
-      setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('push failed'));
+      // The BFF's issue list, when it sent one — it names the field (or the
+      // name to publish under), which the bare transport message does not.
+      setFlash(t('error: {message}', { message: pushErrorLines(err).join(' · ') }));
     }
   } finally {
     saving.value = false;

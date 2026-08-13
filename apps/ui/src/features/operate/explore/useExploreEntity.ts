@@ -32,6 +32,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
+import { serviceRef } from '@/utils/serviceRef';
 import type { ExploreEntity } from '@/api/client';
 
 export type EntityMode = 'pick' | 'type';
@@ -52,6 +53,9 @@ export function useExploreEntity() {
 
   const pickServiceName = computed(
     () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
+  );
+  const pickServiceNormal = computed<boolean | null>(
+    () => services.value.find((s) => s.id === pickServiceId.value)?.normal ?? null,
   );
 
   async function loadServices(): Promise<void> {
@@ -76,10 +80,10 @@ export function useExploreEntity() {
   async function loadInstances(): Promise<void> {
     instances.value = [];
     pickInstanceId.value = '';
-    const name = pickServiceName.value;
-    if (!pickLayer.value || !name) return;
+    const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+    if (!pickLayer.value || !picked) return;
     try {
-      const res = await bffClient.layer.instances(pickLayer.value, name);
+      const res = await bffClient.layer.instances(pickLayer.value, picked);
       instances.value = res.reachable ? res.instances : [];
     } catch {
       instances.value = [];
@@ -87,13 +91,13 @@ export function useExploreEntity() {
   }
 
   async function loadEndpoints(): Promise<void> {
-    const name = pickServiceName.value;
-    if (!pickLayer.value || !name) {
+    const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+    if (!pickLayer.value || !picked) {
       endpoints.value = [];
       return;
     }
     try {
-      const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
+      const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
       endpoints.value = res.reachable ? res.endpoints : [];
     } catch {
       endpoints.value = [];

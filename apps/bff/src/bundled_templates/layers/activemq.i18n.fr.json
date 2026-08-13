@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "load",
         "title": "Load average système"
       },
       {
+        "id": "threads",
         "title": "Nombre de threads"
       },
       {
+        "id": "heap_used",
         "title": "Heap utilisé (Mo)"
       },
       {
+        "id": "heap_max",
         "title": "Heap max (Mo)"
       },
       {
+        "id": "enqueue_dequeue",
         "title": "Enqueue / Dequeue / Dispatch /s",
         "expressionLabels": [
           "enqueue",
@@ -40,9 +45,11 @@
         ]
       },
       {
+        "id": "expired_rate",
         "title": "Expirés /s"
       },
       {
+        "id": "enqueue_time",
         "title": "Temps d'enqueue",
         "expressionLabels": [
           "moy",
@@ -50,6 +57,7 @@
         ]
       },
       {
+        "id": "gc_counts",
         "title": "Nombre de GC (G1+Parallèle)",
         "expressionLabels": [
           "ancien",
@@ -57,6 +65,7 @@
         ]
       },
       {
+        "id": "gc_time",
         "title": "Temps GC (ms)",
         "expressionLabels": [
           "ancien",
@@ -66,25 +75,31 @@
     ],
     "instance": [
       {
+        "id": "connections_card",
         "title": "Connexions",
         "tip": "Connexions TCP/JMS courantes vers ce broker."
       },
       {
+        "id": "producer_count_card",
         "title": "Nombre de producers",
         "tip": "Sessions producteur actives sur ce broker."
       },
       {
+        "id": "consumer_count_card",
         "title": "Nombre de consumers",
         "tip": "Sessions consommateur actives sur ce broker."
       },
       {
+        "id": "uptime_card",
         "title": "Disponibilité",
         "tip": "Disponibilité du broker en heures depuis le dernier redémarrage."
       },
       {
+        "id": "connections_line",
         "title": "Connexions (tendance)"
       },
       {
+        "id": "enqueue_dequeue_line",
         "title": "Nombre d'enqueue / dequeue",
         "tip": "Enqueue + dequeue par minute sur l'ensemble des destinations de ce broker.",
         "expressionLabels": [
@@ -93,6 +108,7 @@
         ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "Augmentation producer / consumer",
         "tip": "Nouvelles sessions producer + consumer ouvertes par minute.",
         "expressionLabels": [
@@ -101,32 +117,40 @@
         ]
       },
       {
+        "id": "memory_usage_line",
         "title": "Utilisation mémoire",
         "tip": "Utilisation mémoire agrégée sur l'ensemble des destinations (Mo)."
       },
       {
+        "id": "memory_limit_line",
         "title": "Limite mémoire",
         "tip": "Plafond mémoire configuré sur l'ensemble des destinations (Go)."
       },
       {
+        "id": "message_size_line",
         "title": "Taille de message moyenne",
         "tip": "Taille moyenne des messages sur l'ensemble des destinations."
       }
     ],
     "endpoint": [
       {
+        "id": "producer",
         "title": "Nombre de producers"
       },
       {
+        "id": "consumer",
         "title": "Nombre de consumers"
       },
       {
+        "id": "queue_size",
         "title": "Taille de la file"
       },
       {
+        "id": "memory",
         "title": "Utilisation mémoire (Mo)"
       },
       {
+        "id": "messages",
         "title": "Nombre de messages",
         "expressionLabels": [
           "enqueue",
@@ -137,6 +161,7 @@
         ]
       },
       {
+        "id": "enqueue_time",
         "title": "Temps d'enqueue (s)",
         "expressionLabels": [
           "moy",

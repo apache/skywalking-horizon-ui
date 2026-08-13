@@ -16,27 +16,39 @@
  */
 
 /**
- * Resolve the **in-use** layer template — strictly REMOTE, with an
- * explicit block/default distinction.
+ * Resolve the **in-use** layer template — strictly the effective REMOTE row,
+ * with an explicit block/default distinction.
  *
- * Runtime is remote-only: the disk-bundled template reaches the UI ONLY
- * by being synced INTO OAP (boot seed / admin reset-from-bundle) or via
- * admin preview — it is NEVER a render-time fallback. {@link
- * resolveEffectiveLayer} folds every state into two signals routes act on:
+ * In `live` mode Horizon renders what OAP stores, full stop. The disk-bundled
+ * template is a seed/reset source (it syncs INTO OAP at boot) and is NEVER a
+ * render-time fallback. Bundled content reaches a running Horizon through
+ * exactly two doors, neither of which is a fallback: `templates.mode: readonly`
+ * — where the sync status presents the disk bundle AS the effective rows, so
+ * this resolver reads it like any remote row — and the config bundle's
+ * `?prefer=local` preview. {@link resolveEffectiveLayer} folds every state into
+ * two signals routes act on:
  *
- *   - `template` (non-null) — the remote OAP row's content, render it.
- *   - `blocked: true`       — the layer's row is admin-DISABLED. A deliberate
- *     **feature block**: the route serves nothing and the layer is hidden from
- *     nav. Routes MUST NOT fall back to in-code defaults here.
- *   - store UNREACHABLE      — NOT a block. The shipped bundle is served
- *     instead, so an OAP without the template-management REST surface (10.x)
- *     or one whose admin port is momentarily down still renders its layers.
- *     The UI raises the connectivity banner; what is missing is any edit an
- *     operator stored on OAP, and those return when the store answers.
- *   - `template: null, blocked: false` — reachable but NO remote row
- *     (an OAP layer Horizon ships no bundled template for, or one not yet
- *     synced). Routes render their hard-coded in-code **defaults** — this
+ *   - `template` (non-null) — the effective row's content, render it.
+ *   - `blocked: true`       — the template store is UNREACHABLE, or the layer's
+ *     row is admin-DISABLED. A deliberate **feature block**: the route serves
+ *     nothing (empty) and the UI surfaces the connectivity banner (unreachable)
+ *     / the layer is hidden from nav (disabled). Routes MUST NOT fall back to
+ *     in-code defaults here.
+ *   - `template: null, blocked: false` — reachable but NO remote row Horizon
+ *     can read for this layer (an OAP layer Horizon ships no bundled template
+ *     for, one not yet synced, or a row that is not readable as this layer —
+ *     see below). Routes render their hard-coded in-code **defaults** — this
  *     is the "remote OR default" runtime, never "remote OR bundled".
+ *
+ * An identity-invalid row (the sync layer gives it `effective: null`) lands in
+ * that last case DELIBERATELY, not in `blocked`. Blocking is reserved for the
+ * two states an operator can act on and would recognise — the store is down, or
+ * they disabled this layer. A row holding some other layer's template is
+ * neither: it is a record that says nothing about THIS layer, so the honest
+ * reading is the one every other reader already takes, "no row for this layer".
+ * Blocking on it would let one stray record dark a working layer's features,
+ * and the operator would have no disable to un-do. It is reported on the sync
+ * status instead, where the admin banner names the record id.
  *
  * Reads the shared 30s sync cache, so it's cheap on the hot path.
  */
@@ -46,6 +58,7 @@ import type { LayerTemplate } from './loader.js';
 import { getSyncStatus } from '../templates/sync.js';
 import { iterateBundledTemplates } from '../templates/aggregator.js';
 import { formatName, parseEnvelope } from '../templates/names.js';
+import { canonicalLayerKey } from '../templates/identity.js';
 import { logger } from '../../logger.js';
 
 export interface EffectiveLayer {
@@ -70,18 +83,13 @@ export async function resolveEffectiveLayer(
       bundled: () => iterateBundledTemplates(),
       logger,
     });
-    // Store unreachable — DEGRADE to the shipped bundle rather than serving
-    // nothing. This is the predictable case, not an exotic one: an OAP 10.x
-    // has no `/ui-management/templates*` at all (template management lives on
-    // the query port's GraphQL there, which Horizon does not speak), so the
-    // store is unreachable for the life of the deployment and blocking meant
-    // layer-driven pages — most visibly Traces — were simply empty. A transient
-    // OAP-admin outage lands here too, and bundled content beats a blank page.
-    // The UI still raises its connectivity banner, so this is degraded-and-said,
-    // never degraded-and-hidden; operator EDITS stored on OAP are the thing that
-    // is missing, and they return the moment the store answers again.
-    if (sync.unreachable) return { template: bundledLayerTemplate(layerKey), blocked: false };
-    const name = formatName('layer', layerKey.toUpperCase());
+    // Store unreachable → block. NOT a degrade to disk: the bundle can differ
+    // from what the operator published, and rendering it as though it were the
+    // live config is worse than an empty page behind the connectivity banner.
+    // An OAP that never serves the template store (10.x) runs
+    // `templates.mode: readonly`, where `unreachable` is always false.
+    if (sync.unreachable) return { template: null, blocked: true };
+    const name = formatName('layer', canonicalLayerKey(layerKey));
     const row = sync.rows.find(
       (r) => r.name === name && r.kind === 'layer' && r.locale === undefined,
     );
@@ -89,34 +97,23 @@ export async function resolveEffectiveLayer(
     if (!row) return { template: null, blocked: false };
     // Admin disabled the layer's template → block (the sidebar also hides it).
     if (row.status === 'disabled') return { template: null, blocked: true };
+    // The row's own name got us here, but the name alone is not the identity:
+    // `effective` is what the shared identity rule leaves behind, so a row
+    // carrying another layer's template never renders as this one.
     if (row.effective === 'remote' && row.remote) {
       const env = parseEnvelope(row.remote.configuration);
       if (env?.content && typeof env.content === 'object' && 'key' in env.content) {
         return { template: env.content as LayerTemplate, blocked: false };
       }
     }
-    // Bundled-fallback (seed didn't land) or unparseable remote → we do
-    // NOT resurrect bundled at render time; fall to in-code defaults.
+    // Bundled-fallback (seed didn't land), identity-invalid, or unparseable
+    // remote → we do NOT resurrect bundled at render time; in-code defaults.
     return { template: null, blocked: false };
   } catch {
     // Unexpected read error (getSyncStatus soft-fails internally, so this
     // is rare) — default rather than blank the app on a transient bug.
     return { template: null, blocked: false };
   }
-}
-
-/** The layer template Horizon ships on disk, or `null` when the release
- *  bundles none for this layer. Only consulted when the template store is
- *  unreachable — the normal runtime is remote-or-defaults, never bundled. */
-function bundledLayerTemplate(layerKey: string): LayerTemplate | null {
-  const key = layerKey.toUpperCase();
-  for (const b of iterateBundledTemplates()) {
-    if (b.kind !== 'layer' || b.key.toUpperCase() !== key) continue;
-    if (b.content && typeof b.content === 'object' && 'key' in b.content) {
-      return b.content as LayerTemplate;
-    }
-  }
-  return null;
 }
 
 /** Back-compat: the resolved remote template, or `null` for both the

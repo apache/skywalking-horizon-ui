@@ -20,6 +20,7 @@
 // Persists to localStorage, live-syncs across tabs.
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { useAuthStore } from '@/state/auth';
+import { onSessionReset } from '@/state/sessionReset';
 import { createHistoryStore, noopHistory, historyEnabledPref, setHistoryEnabledPref, type HistoryStore } from './historyStore';
 import { aiHistorySettings } from './useAiChat';
 import { streamAnswer, type AiTurn, type AiStreamRange } from './aiStream';
@@ -198,6 +199,28 @@ function persist(target?: Conversation): void {
 }
 
 const current = computed<Conversation | null>(() => conversations.value.find((c) => c.id === currentId.value) ?? null);
+
+// An identity change must leave none of the previous operator's transcript —
+// their prompts and the telemetry captured into the blocks — in memory:
+// `hydrate()` replaces the list only once the NEW owner's rows have loaded, and
+// the panel renders whatever is here until then. `loadedOwner` is cleared for
+// the same-person-signs-back-in case: hydrate would otherwise treat their
+// (now emptied) history as already loaded and never re-read it.
+onSessionReset(() => {
+  streamController?.abort();
+  streamController = null;
+  streaming.value = false;
+  conversations.value = [];
+  currentId.value = null;
+  status.value = {};
+  // Queued mutations read `store` when they RUN, so the persist that the
+  // aborted turn enqueues lands on the no-op store, not the old owner's rows.
+  store = noopHistory;
+  storeIsReal = false;
+  owner = '';
+  loadedOwner = null;
+  loadedReal = false;
+});
 
 function newChat(): Conversation {
   const conv: Conversation = { id: uid(), title: '', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };

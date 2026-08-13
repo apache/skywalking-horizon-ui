@@ -53,7 +53,8 @@ import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
+import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -67,6 +68,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus service's OAP id. Travels with `focusService` — the block's
+   *  producer matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusEndpointId?: string;
   focusInstanceId?: string;
   focusWindowMinutes?: number;
@@ -99,13 +103,27 @@ const safeCfg = computed(() => {
 });
 // Replay hides the whole toolbar this rollup feeds, so it fires zero queries.
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
-// Embedded mode takes the focus service straight from the prop; the route uses
-// the shared layerSelection store (resolved to a name). Overriding here means
-// the chat block never touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
-);
+// Embedded mode takes the focus service straight from the props; the route
+// takes it from the shared layerSelection store. Overriding here means the chat
+// block never touches that global selection. `serviceReady` is the gate: a
+// trace query fired before the service resolves carries none, and OAP answers
+// it with every service's traces.
+const {
+  name: serviceName,
+  ref: serviceRef,
+  status: serviceStatus,
+  ready: serviceReady,
+} = useLayerTabService(layerKey, landing, {
+  embedded,
+  focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
+  replay,
+});
+// Scalar identity of the tab's service, so the cascade-clear keys on exactly
+// what the query is scoped by. `serviceRef` is a fresh object on every
+// recompute, so watching it directly would fire on re-resolution, not on a
+// switch.
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -136,9 +154,12 @@ const traceIdFilter = ref<string | null>(null);
 const tagsInput = ref<string>('');
 const tagsList = ref<Array<{ key: string; value: string }>>([]);
 
-// Committed snapshot — what useLayerTraces actually reads. Updated
-// only by runQuery(). Initially mirrors the live defaults so the
-// FIRST `Run query` click fetches with sensible inputs.
+// Committed snapshot — what useLayerTraces actually reads. Written by
+// commitConditions(): on Run query, and on a service switch so the
+// committed service can never trail the picked one. Initially mirrors
+// the live defaults so the FIRST `Run query` click fetches with
+// sensible inputs.
+const cService = ref<ServiceRef | null>(null);
 const cTraceState = ref<TraceQueryState>('ALL');
 const cQueryOrder = ref<TraceQueryOrder>('BY_START_TIME');
 const cMinDuration = ref<number | null>(null);
@@ -195,7 +216,7 @@ const sourceRef = computed<'native'>(() => 'native');
 // The instance/endpoint lists feed the hidden filter chrome; in replay they must
 // fire NO query. Endpoints takes a replay gate; instances has none, so we starve
 // it of a service (its `enabled` needs one).
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances } = useLayerInstances(layerKey, toolbarService);
 const { endpoints } = useLayerEndpoints(layerKey, toolbarService, endpointQuery, ref(50), replay);
 // '' ↔ null bridges the All sentinel (TypeaheadSelect value is a string).
@@ -216,17 +237,22 @@ const endpointIdSel = computed<string>({
   set: (v) => { endpointId.value = v || null; },
 });
 
-watch([serviceName], () => {
+// The service is auto-resolved from the URL/landing, and a switch is a context
+// change → cascade-clear back to the Run-query prompt: re-commit the snapshot
+// so the committed service can never trail the picked one, which drops the
+// previous service's result set with it. Filter edits only stage; they wait
+// for Run query.
+watch([serviceKey], () => {
   if (embedded.value) return; // focus (incl. seeded endpoint/instance) is fixed by props
   instanceId.value = null;
   endpointId.value = null;
+  hasQueried.value = false;
+  commitConditions();
 });
 
-// Service is auto-resolved from the URL/landing; when it changes we
-// reset the committed snapshot so a stale committed `service` doesn't
-// drive the next query for the wrong layer-service pair.
-const cService = ref<string | null>(null);
-const queryEnabled = computed(() => hasQueried.value);
+// The service is the upstream control: the list read stays parked until it
+// resolves, however many times the operator has pressed Run query.
+const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 
 const { native, isFetching, refetch } = useLayerTraces(layerKey, {
   source: NATIVE_SOURCE,
@@ -259,14 +285,10 @@ const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
 const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
 const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
 
-/**
- * Commit live filter values to the committed refs, then fire the
- * query. This is the only path that fetches — filter inputs don't
- * auto-refresh the result list.
- */
-function runQuery(): void {
+/** Copy the live filter values into the committed refs the query reads. */
+function commitConditions(): void {
   traceIdFilter.value = traceIdInput.value.trim() || null;
-  cService.value = serviceName.value;
+  cService.value = serviceRef.value;
   cInstanceId.value = instanceId.value;
   cEndpointId.value = endpointId.value;
   cTraceIdFilter.value = traceIdFilter.value;
@@ -279,6 +301,17 @@ function runQuery(): void {
   cWindowMinutes.value = windowMinutes.value;
   cCustomStart.value = customStart.value;
   cCustomEnd.value = customEnd.value;
+}
+/**
+ * Commit the live filter values, then fire the query. This is the only
+ * path that fetches — filter inputs don't auto-refresh the result list.
+ */
+function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — every service's traces under this service's title.
+  if (!serviceReady.value) return;
+  commitConditions();
   hasQueried.value = true;
   void refetch();
 }
@@ -315,7 +348,7 @@ function resolveDrillEntities(): boolean {
 }
 function maybeRunDrill(): void {
   // Wait for service + any pending entity id, else the first query runs unfiltered.
-  if (!drillArmed.value || !serviceName.value) return;
+  if (!drillArmed.value || !serviceReady.value) return;
   if (pendingDrillInstance.value || pendingDrillEndpoint.value) return;
   drillArmed.value = false;
   runQuery();
@@ -348,7 +381,7 @@ function applyDrillFromRoute(): void {
   drillArmed.value = true;
   maybeRunDrill();
 }
-watch(serviceName, maybeRunDrill);
+watch(serviceKey, maybeRunDrill);
 watch([instances, endpoints], () => {
   if (!drillArmed.value) return;
   resolveDrillEntities();
@@ -424,6 +457,13 @@ function togglePick(rowKey: string): void {
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
+// Both the inline detail and the in-page pick key on rows of the result set the
+// service switch just cleared — a pick left behind would also filter the NEXT
+// service's list down to nothing.
+watch(serviceKey, () => {
+  closeDetail();
+  resetPick();
+});
 // Picking dots filters the list; the inline detail still opens via a list row.
 function onScatterSelect(row: NativeTraceListRow): void {
   togglePick(row.key);
@@ -484,7 +524,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                duplicate chrome. -->
           <span class="kicker">{{ t('Traces') }}</span>
           <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
-          <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
+          <button
+            class="sw-btn primary tr-run-btn"
+            type="button"
+            :disabled="!serviceReady"
+            @click="runQuery"
+          >{{ t('Run query') }}</button>
         </div>
         <div class="tr-conditions">
           <label class="cf">
@@ -609,6 +654,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       </section>
     </div>
 
+    <!-- The refusal / failure reason belongs in the body, not only in the list
+         header's tooltip: an unknown service is the difference between "no
+         traces here" and "this query was never run". -->
+    <div v-if="native?.error" class="banner err">
+      <strong>{{ replay ? t('This trace read failed when it was captured.') : t('Traces feed failed.') }}</strong>
+      {{ native.error }}
+    </div>
+
     <div v-if="showApiBanner" class="tr-api-banner">
       {{ t('This OAP serves traces via') }} <b>{{ t('Trace Query {label} API', { label: traceApiLabel }) }}</b>
       (<code>{{ native?.api }}</code>).
@@ -628,10 +681,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       <article class="tr-list-card sw-card">
         <header class="tr-list-head">
           <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
-          <span v-if="native?.error" class="err-chip" :title="native.error">{{ t('unreachable') }}</span>
+          <span v-if="native?.error" class="err-chip">{{ t('unreachable') }}</span>
           <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
+          <!-- The list is capped by the limit picker and OAP reports no total,
+               so the over-fetch is the only honest "there is more" signal. -->
+          <span v-if="native?.hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: native.traces.length }) }}</span>
         </header>
-        <div v-if="!hasQueried" class="tr-empty">
+        <!-- Trailing control: the list waits for the service, and says which
+             kind of waiting this is — still resolving, or resolved to nothing. -->
+        <div v-if="!serviceReady" class="tr-empty">
+          <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
+          <template v-else-if="serviceStatus === 'unknown'">
+            {{ t('The selected service is not in this layer — pick another one to query.') }}
+          </template>
+          <template v-else>{{ t('Pick a service to run this query.') }}</template>
+        </div>
+        <div v-else-if="!hasQueried" class="tr-empty">
           {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <div v-else-if="!native || (native.reachable && native.traces.length === 0)" class="tr-empty">
@@ -850,6 +915,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   border-radius: 3px;
   background: rgba(239, 68, 68, 0.18);
   color: var(--sw-err);
+}
+/* Same failure banner as the Logs tab (each view keeps its own scoped copy —
+   they intentionally don't share a stylesheet). */
+.banner.err {
+  padding: 8px 12px;
+  background: var(--sw-err-soft);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 11.5px;
 }
 .tr-api-banner {
   padding: 7px 12px;

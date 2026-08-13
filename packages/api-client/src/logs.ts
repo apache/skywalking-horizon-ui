@@ -76,11 +76,17 @@ export interface LogQueryRequest {
 
 export interface LogsResponse {
   generatedAt: number;
-  /** Echo of the query so the SPA can render "page N of M" without
+  /** Echo of the query so the SPA can render the page header without
    *  re-stating the request. */
   query: LogQueryRequest;
-  /** Total rows OAP claims to know about across all pages. */
-  total: number;
+  /** 1-based page these rows came from. */
+  pageNum: number;
+  /** Rows per page as displayed. */
+  pageSize: number;
+  /** OAP holds at least one more row after this page. There is NO
+   *  cross-page total on the wire — this says there IS more, never how
+   *  much more. */
+  hasNext: boolean;
   logs: LogRow[];
   reachable: boolean;
   error?: string;
@@ -94,10 +100,11 @@ export interface LogsResponse {
  */
 export interface LogFacetsResponse {
   generatedAt: number;
-  /** Total rows OAP reported across the facet window. */
-  total: number;
   /** Rows actually included in the facet sample (capped). */
   sampled: number;
+  /** The window held more rows than the sample counted, so the breakdown
+   *  below is a sample and not the window's true distribution. */
+  truncated: boolean;
   /** Count by `level` tag value, normalised to lowercase. Buckets
    *  outside (error / warn / info / debug) fall into `other`. */
   level: Record<'error' | 'warn' | 'info' | 'debug' | 'other', number>;

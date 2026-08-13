@@ -68,6 +68,7 @@ import { registerInfra3dConfigRoutes } from './http/config/infra-3d.js';
 import { registerInfra3dMetricsRoute } from './http/query/infra-3d-metrics.js';
 import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
+import { registerSettingsRoute } from './http/config/settings.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
 import { buildOapClients } from './client/index.js';
 import { wireLog } from './client/wire-log.js';
@@ -94,6 +95,7 @@ import { SourceMapStore } from './logic/browser-errors/store.js';
 import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
+import { SECURITY_HEADERS, API_CACHE_CONTROL, isApiPath } from './util/security-headers.js';
 
 const configPath = process.env.HORIZON_CONFIG ?? './horizon.yaml';
 
@@ -170,17 +172,18 @@ app.setErrorHandler((err, req, reply) => {
   });
 });
 
-// Baseline security headers on every response (MIME-sniff / clickjacking /
-// referrer leakage). Defense-in-depth for the console behind the operator's
-// ingress; no third-party dependency.
-app.addHook('onSend', (_req, reply, payload, done) => {
-  reply.header('X-Content-Type-Options', 'nosniff');
-  reply.header('X-Frame-Options', 'DENY');
-  reply.header('Referrer-Policy', 'no-referrer');
+// Security headers on every response — CSP, MIME-sniff, clickjacking,
+// referrer leakage. Defense-in-depth for the console behind the operator's
+// ingress; no third-party dependency. The AI SSE route hijacks the reply and
+// therefore bypasses this hook, so it writes the same map itself.
+app.addHook('onSend', (req, reply, payload, done) => {
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) reply.header(name, value);
+  // Static assets are content-hashed and stay cacheable; API data never is.
+  if (isApiPath(req.url)) reply.header('Cache-Control', API_CACHE_CONTROL);
   done(null, payload);
 });
 
-const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
+const sessions = new SessionStore({ ttlMinutes: () => source.current.session.ttlMinutes });
 const audit = new AuditLogger(source.current.audit.file, source.current.audit.enabled);
 await audit.open();
 // Wire-level OAP debug log (`debugLog` in horizon.yaml) — reads the live
@@ -325,6 +328,11 @@ registerOverviewRoutes(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerConfigBundleRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
+registerSettingsRoute(app, {
   config: source,
   sessions,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),

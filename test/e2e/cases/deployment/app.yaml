@@ -1,0 +1,108 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Write load for the cluster, deliberately minimal.
+#
+# This case is about BanyanDB's own deployment, not about the app: BanyanDB
+# reports nothing interesting while idle, so one instrumented service plus a
+# caller is enough to keep OAP writing. The compose cases run the same image.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: provider
+  namespace: skywalking
+spec:
+  selector:
+    app: provider
+  ports:
+    - port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider
+  namespace: skywalking
+  labels:
+    app: provider
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provider
+  template:
+    metadata:
+      labels:
+        app: provider
+    spec:
+      containers:
+        - name: provider
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9090
+          env:
+            - name: SW_AGENT_COLLECTOR_BACKEND_SERVICES
+              value: skywalking-oap.skywalking:11800
+            - name: SW_AGENT_NAME
+              value: e2e-service-provider
+            - name: SW_AGENT_INSTANCE_NAME
+              value: provider1
+            - name: SW_LOGGING_OUTPUT
+              value: CONSOLE
+            - name: SW_METER_ACTIVE
+              value: 'false'
+          readinessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trafficgenerator
+  namespace: skywalking
+  labels:
+    app: trafficgenerator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trafficgenerator
+  template:
+    metadata:
+      labels:
+        app: trafficgenerator
+    spec:
+      containers:
+        - name: trafficgenerator
+          image: __TRAFFIC_IMAGE__
+          command: ["/bin/sh", "-c", "--"]
+          args:
+            - |
+              while true; do
+                curl -s -o /dev/null -X POST http://provider.skywalking:9090/users \
+                  -H 'Content-Type: application/json' \
+                  -d '{"id":"123","name":"skywalking"}'
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 0.1

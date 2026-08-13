@@ -180,13 +180,18 @@ const GENERIC_WIDGETS: DashboardWidget[] = [
 ];
 
 /**
- * Last-resort widget set when no remote template resolved (`tpl` is
- * `null` — layer not yet synced to OAP, admin-disabled, or the template
- * store is unreachable). These hardcoded sets are NOT the disk-bundled
- * templates: bundled config only ever reaches the UI via OAP (sync /
- * reset / preview). This is a minimal generic KPI seed so a bare grid
- * isn't completely empty; the connectivity banner separately signals an
- * unreachable store. When `tpl` carries widgets, those win.
+ * Last-resort widget set for a layer the caller did NOT block: the template
+ * store answered and this layer is not disabled, yet no remote row resolved
+ * (`tpl` is `null`) — the layer isn't synced to OAP yet, Horizon ships no
+ * bundled template for it, or its row is not readable as this layer (the
+ * identity rule leaves that one `effective: null`, so no reader serves it).
+ * The two states that DO block — store unreachable, layer admin-disabled —
+ * never arrive here: their routes answer with an empty grid instead.
+ *
+ * These hardcoded sets are NOT the disk-bundled templates: bundled config only
+ * ever reaches the UI via OAP (sync / reset / preview). This is a minimal
+ * generic KPI seed so a bare grid isn't completely empty. When `tpl` carries
+ * widgets, those win.
  */
 export function defaultWidgetsFor(
   tpl: LayerTemplate | null,

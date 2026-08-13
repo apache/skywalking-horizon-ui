@@ -81,9 +81,14 @@ export interface BrowserErrorsQueryRequest {
 export interface BrowserErrorsResponse {
   generatedAt: number;
   query: BrowserErrorsQueryRequest;
-  /** OAP no longer returns a cross-page total for this query; the BFF
-   *  reports the returned row count, same as the logs feed. */
-  total: number;
+  /** 1-based page these rows came from. */
+  pageNum: number;
+  /** Rows per page as displayed. */
+  pageSize: number;
+  /** OAP holds at least one more row after this page. OAP returns no
+   *  cross-page total for this query — this says there IS more, never how
+   *  much more. */
+  hasNext: boolean;
   logs: BrowserErrorRow[];
   reachable: boolean;
   error?: string;

@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "jobs",
         "title": "Jobs en exécution"
       },
       {
+        "id": "task_mgrs",
         "title": "TaskManagers"
       },
       {
+        "id": "slots_total",
         "title": "Total slots"
       },
       {
+        "id": "slots_available",
         "title": "Slots disponibles"
       },
       {
+        "id": "cpu_load",
         "title": "Charge CPU JVM JM (%)"
       },
       {
+        "id": "jm_threads",
         "title": "Nombre de threads JVM JM"
       },
       {
+        "id": "jm_cpu_time",
         "title": "Temps CPU JM (ms)"
       },
       {
+        "id": "jm_mem_heap",
         "title": "Heap JM (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -48,6 +56,7 @@
         ]
       },
       {
+        "id": "jm_mem_nonheap",
         "title": "NonHeap JM (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -55,6 +64,7 @@
         ]
       },
       {
+        "id": "jm_metaspace",
         "title": "Metaspace JM (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -62,6 +72,7 @@
         ]
       },
       {
+        "id": "g1_young",
         "title": "GC G1 Young",
         "expressionLabels": [
           "nombre",
@@ -69,6 +80,7 @@
         ]
       },
       {
+        "id": "g1_old",
         "title": "GC G1 Old",
         "expressionLabels": [
           "nombre",
@@ -76,6 +88,7 @@
         ]
       },
       {
+        "id": "all_gc",
         "title": "Tous les GC",
         "expressionLabels": [
           "nombre",
@@ -83,23 +96,29 @@
         ]
       },
       {
+        "id": "top_running",
         "title": "Top 10 jobs en exécution"
       }
     ],
     "instance": [
       {
+        "id": "cpu_load",
         "title": "Charge CPU JVM (%)"
       },
       {
+        "id": "threads",
         "title": "Nombre de threads JVM"
       },
       {
+        "id": "cpu_time",
         "title": "Temps CPU (ms)"
       },
       {
+        "id": "back_pressure",
         "title": "En back-pressure"
       },
       {
+        "id": "mem_heap",
         "title": "Heap (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -107,6 +126,7 @@
         ]
       },
       {
+        "id": "mem_nonheap",
         "title": "NonHeap (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -114,6 +134,7 @@
         ]
       },
       {
+        "id": "mem_meta",
         "title": "Metaspace (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -121,6 +142,7 @@
         ]
       },
       {
+        "id": "records",
         "title": "Enregistrements entrants / sortants",
         "expressionLabels": [
           "entrant",
@@ -128,6 +150,7 @@
         ]
       },
       {
+        "id": "bytes",
         "title": "Octets entrants / sortants / s",
         "expressionLabels": [
           "entrant",
@@ -135,6 +158,7 @@
         ]
       },
       {
+        "id": "netty",
         "title": "Mémoire Netty (Mo)",
         "expressionLabels": [
           "utilisé",
@@ -142,6 +166,7 @@
         ]
       },
       {
+        "id": "pool_usage",
         "title": "Utilisation du pool (%)",
         "expressionLabels": [
           "dans le pool",
@@ -149,6 +174,7 @@
         ]
       },
       {
+        "id": "back_pressure_time",
         "title": "Temps de back-pressure (ms/s)",
         "expressionLabels": [
           "bp logicielle",
@@ -160,18 +186,23 @@
     ],
     "endpoint": [
       {
+        "id": "running_time",
         "title": "Temps d'exécution des jobs (min)"
       },
       {
+        "id": "restarting_time",
         "title": "Temps de redémarrage des jobs (min)"
       },
       {
+        "id": "cancelling_time",
         "title": "Temps d'annulation des jobs (min)"
       },
       {
+        "id": "restarts",
         "title": "Redémarrages des jobs"
       },
       {
+        "id": "checkpoints",
         "title": "Checkpoints",
         "expressionLabels": [
           "total",
@@ -181,6 +212,7 @@
         ]
       },
       {
+        "id": "checkpoint_last",
         "title": "Dernier checkpoint",
         "expressionLabels": [
           "taille (octets)",
@@ -188,9 +220,11 @@
         ]
       },
       {
+        "id": "emit_lag",
         "title": "Lag actuel d'émission des événements (ms)"
       },
       {
+        "id": "records",
         "title": "Enregistrements entrants / sortants",
         "expressionLabels": [
           "entrant",
@@ -198,6 +232,7 @@
         ]
       },
       {
+        "id": "bytes",
         "title": "Octets entrants / sortants / s",
         "expressionLabels": [
           "entrant",

@@ -16,15 +16,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "app_pv",
         "title": "アプリ負荷 (PV)"
       },
       {
+        "id": "app_error_rate",
         "title": "アプリエラー率"
       },
       {
+        "id": "app_error_sum",
         "title": "アプリエラー件数"
       },
       {
+        "id": "top_pages_pv",
         "title": "上位ホットページ",
         "tip": "ページビュー、エラー、エラー率でランク付けしたページ。",
         "expressionLabels": [
@@ -34,6 +38,7 @@
         ]
       },
       {
+        "id": "top_versions",
         "title": "上位バージョン",
         "tip": "アプリバージョン内訳 — 負荷 + エラー + エラー率。",
         "expressionLabels": [
@@ -45,30 +50,38 @@
     ],
     "instance": [
       {
+        "id": "ver_pv",
         "title": "バージョン PV"
       },
       {
+        "id": "ver_error_rate",
         "title": "バージョン別エラー率"
       },
       {
+        "id": "ver_error_sum",
         "title": "バージョン別エラー件数"
       }
     ],
     "endpoint": [
       {
+        "id": "page_fmp_percentile",
         "title": "First Meaningful Paint パーセンタイル",
         "tip": "選択中ページの FMP レイテンシ p50–p99。p75 で 1 秒以下が一般的な目標。"
       },
       {
+        "id": "page_load_percentile",
         "title": "ページロードパーセンタイル"
       },
       {
+        "id": "page_ttl_percentile",
         "title": "Time-to-Live パーセンタイル"
       },
       {
+        "id": "page_first_pack_percentile",
         "title": "First Pack レイテンシパーセンタイル"
       },
       {
+        "id": "page_performance",
         "title": "ページパフォーマンス内訳",
         "tip": "ページロードの各フェーズに費やされた平均時間 — resolve、redirect、DNS、TCP、TTFB、transfer、DOM 解析、DOM ready、FPT、フルロード。",
         "expressionLabels": [
@@ -85,6 +98,7 @@
         ]
       },
       {
+        "id": "page_error_breakdown",
         "title": "タイプ別ページエラー",
         "tip": "1分あたりの Resource / JS / AJAX / 不明エラーカウンタ。",
         "expressionLabels": [
@@ -95,6 +109,7 @@
         ]
       },
       {
+        "id": "web_vitals",
         "title": "Web Vitals",
         "tip": "Core Web Vitals — FMP、LCP、CLS（1分あたり平均）。CLS は典型的な 0–1 スコア範囲に収めるため 1000 で除算。",
         "expressionLabels": [
@@ -104,6 +119,7 @@
         ]
       },
       {
+        "id": "inp_percentile",
         "title": "Interaction to Next Paint パーセンタイル",
         "tip": "INP — FID を置き換えた応答性メトリクス。"
       }

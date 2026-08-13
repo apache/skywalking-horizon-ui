@@ -20,12 +20,15 @@
   "dashboards": {
     "service": [
       {
+        "id": "mem_available",
         "title": "차단 전 사용 가능 메모리 (MB)"
       },
       {
+        "id": "disk_available",
         "title": "차단 전 사용 가능 디스크 (GB)"
       },
       {
+        "id": "fds",
         "title": "파일 디스크립터 + 소켓",
         "expressionLabels": [
           "fds",
@@ -33,12 +36,15 @@
         ]
       },
       {
+        "id": "messages_ready",
         "title": "대기 중인 메시지"
       },
       {
+        "id": "messages_pending",
         "title": "미확인 응답"
       },
       {
+        "id": "publish_pipeline",
         "title": "게시 파이프라인",
         "expressionLabels": [
           "published",
@@ -48,6 +54,7 @@
         ]
       },
       {
+        "id": "unroutable",
         "title": "라우팅 불가 메시지",
         "expressionLabels": [
           "dropped",
@@ -55,6 +62,7 @@
         ]
       },
       {
+        "id": "queue_totals",
         "title": "큐",
         "expressionLabels": [
           "전체",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "channel_totals",
         "title": "채널",
         "expressionLabels": [
           "전체",
@@ -72,6 +81,7 @@
         ]
       },
       {
+        "id": "conn_totals",
         "title": "연결",
         "expressionLabels": [
           "전체",
@@ -82,39 +92,51 @@
     ],
     "instance": [
       {
+        "id": "ready_msgs",
         "title": "대기 중인 메시지"
       },
       {
+        "id": "incoming",
         "title": "수신 메시지"
       },
       {
+        "id": "outgoing",
         "title": "송신 메시지"
       },
       {
+        "id": "unack",
         "title": "확인되지 않은 메시지"
       },
       {
+        "id": "conns",
         "title": "연결"
       },
       {
+        "id": "publishers",
         "title": "게시자"
       },
       {
+        "id": "consumers",
         "title": "소비자"
       },
       {
+        "id": "channels",
         "title": "채널"
       },
       {
+        "id": "queues",
         "title": "큐"
       },
       {
+        "id": "memory_pct",
         "title": "할당 사용 %"
       },
       {
+        "id": "memory_bytes_total",
         "title": "할당 총량 (MB)"
       },
       {
+        "id": "memory_bytes",
         "title": "메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -123,9 +145,11 @@
         ]
       },
       {
+        "id": "alloc_by_type",
         "title": "유형별 할당량 (MB)"
       },
       {
+        "id": "blocks",
         "title": "다중/단일 블록 메모리 (MB)",
         "expressionLabels": [
           "multi 사용",

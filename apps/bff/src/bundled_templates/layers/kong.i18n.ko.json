@@ -20,30 +20,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "kong_latency",
         "title": "Kong 지연 시간"
       },
       {
+        "id": "req_latency",
         "title": "요청 지연 시간"
       },
       {
+        "id": "upstream_latency",
         "title": "업스트림 지연 시간"
       },
       {
+        "id": "conns",
         "title": "Nginx 연결"
       },
       {
+        "id": "timers",
         "title": "Nginx 타이머"
       },
       {
+        "id": "datastore",
         "title": "데이터스토어 도달 가능",
         "tableHeaders": [
           "인스턴스",
@@ -51,58 +60,75 @@
         ]
       },
       {
+        "id": "nginx_errors",
         "title": "Nginx 메트릭 오류"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "kong_latency",
         "title": "Kong 지연 시간"
       },
       {
+        "id": "req_latency",
         "title": "요청 지연 시간"
       },
       {
+        "id": "upstream_latency",
         "title": "업스트림 지연 시간"
       },
       {
+        "id": "datastore",
         "title": "데이터스토어 도달 가능"
       },
       {
+        "id": "conns",
         "title": "Nginx 연결"
       },
       {
+        "id": "timers",
         "title": "Nginx 타이머"
       },
       {
+        "id": "shared_mem",
         "title": "공유 메모리 사용량"
       },
       {
+        "id": "lua_vm",
         "title": "워커 Lua VM 사용량"
       }
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "bandwidth",
         "title": "총 대역폭"
       },
       {
+        "id": "kong_latency",
         "title": "Kong 지연 시간"
       },
       {
+        "id": "req_latency",
         "title": "요청 지연 시간"
       },
       {
+        "id": "upstream_latency",
         "title": "업스트림 지연 시간"
       }
     ]

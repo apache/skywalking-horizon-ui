@@ -35,6 +35,14 @@ coverage
 *.lcov
 .nyc_output
 
+# E2E run output: the Playwright report, traces/screenshots, and the session
+# state auth.setup.ts writes for the other projects.
+# Anywhere under test/e2e: Playwright resolves these against its cwd, which
+# differs between a case run and a direct invocation.
+test/e2e/**/playwright-report
+test/e2e/**/test-results
+test/e2e/**/.auth
+
 # Build artifacts
 *.tsbuildinfo
 
@@ -48,3 +56,5 @@ horizon-wire.jsonl
 # Release
 scripts/.release-work
 scripts/.finalize-work
+# e2e failure diagnostics — collected on a red run, never committed.
+e2e-logs/

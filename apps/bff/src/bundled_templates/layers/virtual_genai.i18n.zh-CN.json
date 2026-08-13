@@ -7,40 +7,112 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "RPM" },
-      { "label": "延迟" },
-      { "label": "成功率" },
-      { "label": "输出 Token" }
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "输出 Token"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "调用 / 分钟" },
-      { "title": "平均响应时间" },
-      { "title": "成功率" },
-      { "title": "延迟分位" },
-      { "title": "输入 Token" },
-      { "title": "输出 Token" },
-      { "title": "总预估成本" },
-      { "title": "平均输入 Token" },
-      { "title": "平均输出 Token" },
-      { "title": "平均预估成本" }
+      {
+        "id": "cpm",
+        "title": "调用 / 分钟"
+      },
+      {
+        "id": "resp_time",
+        "title": "平均响应时间"
+      },
+      {
+        "id": "sla",
+        "title": "成功率"
+      },
+      {
+        "id": "percentile",
+        "title": "延迟分位"
+      },
+      {
+        "id": "input_tokens_total",
+        "title": "输入 Token"
+      },
+      {
+        "id": "output_tokens_total",
+        "title": "输出 Token"
+      },
+      {
+        "id": "cost_total",
+        "title": "总预估成本"
+      },
+      {
+        "id": "input_tokens",
+        "title": "平均输入 Token"
+      },
+      {
+        "id": "output_tokens",
+        "title": "平均输出 Token"
+      },
+      {
+        "id": "cost",
+        "title": "平均预估成本"
+      }
     ],
     "instance": [
-      { "title": "调用 / 分钟" },
-      { "title": "平均延迟" },
-      { "title": "成功率" },
-      { "title": "延迟分位" },
       {
-        "title": "TTFT",
-        "expressionLabels": ["avg", "percentile"]
+        "id": "cpm",
+        "title": "调用 / 分钟"
       },
-      { "title": "输入 Token" },
-      { "title": "输出 Token" },
-      { "title": "总预估成本" },
-      { "title": "平均输入 Token" },
-      { "title": "平均输出 Token" },
-      { "title": "平均预估成本" }
+      {
+        "id": "latency_avg",
+        "title": "平均延迟"
+      },
+      {
+        "id": "sla",
+        "title": "成功率"
+      },
+      {
+        "id": "latency_percentile",
+        "title": "延迟分位"
+      },
+      {
+        "id": "ttft",
+        "title": "TTFT",
+        "expressionLabels": [
+          "avg",
+          "percentile"
+        ]
+      },
+      {
+        "id": "input_tokens_total",
+        "title": "输入 Token"
+      },
+      {
+        "id": "output_tokens_total",
+        "title": "输出 Token"
+      },
+      {
+        "id": "cost_total",
+        "title": "总预估成本"
+      },
+      {
+        "id": "input_tokens",
+        "title": "平均输入 Token"
+      },
+      {
+        "id": "output_tokens",
+        "title": "平均输出 Token"
+      },
+      {
+        "id": "cost",
+        "title": "平均预估成本"
+      }
     ]
   }
 }

@@ -8,64 +8,151 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "生产 TPS" },
-      { "label": "消费 TPS" },
-      { "label": "Topic" },
-      { "label": "Broker" }
+      {
+        "label": "生产 TPS"
+      },
+      {
+        "label": "消费 TPS"
+      },
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "Broker"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "今日生产" },
-      { "title": "今日消费" },
-      { "title": "昨日生产" },
-      { "title": "昨日消费" },
       {
+        "id": "today_produced",
+        "title": "今日生产"
+      },
+      {
+        "id": "today_consumed",
+        "title": "今日消费"
+      },
+      {
+        "id": "yesterday_produced",
+        "title": "昨日生产"
+      },
+      {
+        "id": "yesterday_consumed",
+        "title": "昨日消费"
+      },
+      {
+        "id": "tps",
         "title": "Producer / Consumer TPS",
-        "expressionLabels": ["producer", "consumer"]
+        "expressionLabels": [
+          "producer",
+          "consumer"
+        ]
       },
       {
+        "id": "msg_size",
         "title": "Producer / Consumer 消息大小（MB）",
-        "expressionLabels": ["produced", "consumed"]
+        "expressionLabels": [
+          "produced",
+          "consumed"
+        ]
       },
-      { "title": "最大消费延迟" },
-      { "title": "最大 CommitLog 磁盘占比（%）" },
-      { "title": "Topic" },
-      { "title": "Broker" },
-      { "title": "CommitLog 磁盘占比（%）" },
       {
+        "id": "consumer_lag",
+        "title": "最大消费延迟"
+      },
+      {
+        "id": "commitlog_ratio_total",
+        "title": "最大 CommitLog 磁盘占比（%）"
+      },
+      {
+        "id": "topic_count",
+        "title": "Topic"
+      },
+      {
+        "id": "broker_count",
+        "title": "Broker"
+      },
+      {
+        "id": "commitlog_ratio",
+        "title": "CommitLog 磁盘占比（%）"
+      },
+      {
+        "id": "queue_wait",
         "title": "线程池队列头等待（ms）",
-        "expressionLabels": ["pull", "send"]
+        "expressionLabels": [
+          "pull",
+          "send"
+        ]
       }
     ],
     "instance": [
-      { "title": "生产 TPS" },
-      { "title": "消费 QPS" },
-      { "title": "Producer 消息大小（MB）" },
-      { "title": "Consumer 消息大小（MB）" }
+      {
+        "id": "produce_tps",
+        "title": "生产 TPS"
+      },
+      {
+        "id": "consume_qps",
+        "title": "消费 QPS"
+      },
+      {
+        "id": "producer_size",
+        "title": "Producer 消息大小（MB）"
+      },
+      {
+        "id": "consumer_size",
+        "title": "Consumer 消息大小（MB）"
+      }
     ],
     "endpoint": [
-      { "title": "最大生产者消息大小（MB）" },
-      { "title": "最大消费者消息大小（MB）" },
-      { "title": "Consumer Group 数量" },
-      { "title": "Broker 数量" },
       {
+        "id": "max_msg_producer_total",
+        "title": "最大生产者消息大小（MB）"
+      },
+      {
+        "id": "max_msg_consumer_total",
+        "title": "最大消费者消息大小（MB）"
+      },
+      {
+        "id": "consumer_groups",
+        "title": "Consumer Group 数量"
+      },
+      {
+        "id": "brokers",
+        "title": "Broker 数量"
+      },
+      {
+        "id": "tps",
         "title": "Producer / Consumer Group TPS",
-        "expressionLabels": ["producer", "consumer group"]
+        "expressionLabels": [
+          "producer",
+          "consumer group"
+        ]
       },
       {
+        "id": "msg_size",
         "title": "消息大小（MB）",
-        "expressionLabels": ["produced", "consumed"]
+        "expressionLabels": [
+          "produced",
+          "consumed"
+        ]
       },
       {
+        "id": "offsets",
         "title": "Producer / Consumer Offset",
-        "expressionLabels": ["producer", "consumer group"]
+        "expressionLabels": [
+          "producer",
+          "consumer group"
+        ]
       },
       {
+        "id": "backlog",
         "title": "积压消息",
         "tip": "Producer offset 减去 Consumer-group offset — 即 Topic 的 Lag。"
       },
-      { "title": "消费延迟（s）" }
+      {
+        "id": "consumer_latency",
+        "title": "消费延迟（s）"
+      }
     ]
   }
 }

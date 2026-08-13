@@ -7,63 +7,149 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Fetched / 秒" },
-      { "label": "Inserted / 秒" },
-      { "label": "缓存命中率" },
-      { "label": "死锁" }
+      {
+        "label": "Fetched / 秒"
+      },
+      {
+        "label": "Inserted / 秒"
+      },
+      {
+        "label": "缓存命中率"
+      },
+      {
+        "label": "死锁"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "拉取行数 / 秒" },
-      { "title": "插入行数 / 秒" },
-      { "title": "更新行数 / 秒" },
-      { "title": "删除行数 / 秒" },
-      { "title": "返回行数 / 秒" },
-      { "title": "临时文件 / 秒" },
-      { "title": "缓存命中率" },
       {
+        "id": "rows_fetched",
+        "title": "拉取行数 / 秒"
+      },
+      {
+        "id": "rows_inserted",
+        "title": "插入行数 / 秒"
+      },
+      {
+        "id": "rows_updated",
+        "title": "更新行数 / 秒"
+      },
+      {
+        "id": "rows_deleted",
+        "title": "删除行数 / 秒"
+      },
+      {
+        "id": "rows_returned",
+        "title": "返回行数 / 秒"
+      },
+      {
+        "id": "temp_files",
+        "title": "临时文件 / 秒"
+      },
+      {
+        "id": "cache_hit",
+        "title": "缓存命中率"
+      },
+      {
+        "id": "txn_rates",
         "title": "事务 / 秒",
         "tip": "已提交 vs 已回滚。",
-        "expressionLabels": ["committed", "rolled-back"]
+        "expressionLabels": [
+          "committed",
+          "rolled-back"
+        ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "冲突 + 死锁 / 秒",
-        "expressionLabels": ["conflicts", "deadlocks"]
+        "expressionLabels": [
+          "conflicts",
+          "deadlocks"
+        ]
       },
       {
+        "id": "sessions",
         "title": "会话",
-        "expressionLabels": ["active", "idle", "locks"]
+        "expressionLabels": [
+          "active",
+          "idle",
+          "locks"
+        ]
       },
       {
+        "id": "buffers",
         "title": "Buffer / 秒",
         "tip": "Checkpoint / clean / fsync / alloc / backend 缓冲活动。",
-        "expressionLabels": ["checkpoint", "clean", "backend fsync", "alloc", "backend"]
+        "expressionLabels": [
+          "checkpoint",
+          "clean",
+          "backend fsync",
+          "alloc",
+          "backend"
+        ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "Checkpoint 统计 / 秒",
-        "expressionLabels": ["timed", "requested", "write time", "sync time"]
+        "expressionLabels": [
+          "timed",
+          "requested",
+          "write time",
+          "sync time"
+        ]
       },
       {
+        "id": "slow_statements",
         "title": "慢语句",
         "tip": "采集到的最慢的 20 条语句。"
       }
     ],
     "instance": [
-      { "title": "共享缓冲" },
-      { "title": "Effective Cache" },
-      { "title": "Work Mem" },
-      { "title": "最大 WAL 大小" },
-      { "title": "拉取行数 / 秒" },
-      { "title": "插入行数 / 秒" },
-      { "title": "缓存命中率" },
       {
-        "title": "会话",
-        "expressionLabels": ["active", "idle", "locks"]
+        "id": "shared_buffers",
+        "title": "共享缓冲"
       },
       {
+        "id": "effective_cache",
+        "title": "Effective Cache"
+      },
+      {
+        "id": "work_mem",
+        "title": "Work Mem"
+      },
+      {
+        "id": "max_wal_size",
+        "title": "最大 WAL 大小"
+      },
+      {
+        "id": "instance_fetched",
+        "title": "拉取行数 / 秒"
+      },
+      {
+        "id": "instance_inserted",
+        "title": "插入行数 / 秒"
+      },
+      {
+        "id": "instance_cache_hit",
+        "title": "缓存命中率"
+      },
+      {
+        "id": "instance_sessions",
+        "title": "会话",
+        "expressionLabels": [
+          "active",
+          "idle",
+          "locks"
+        ]
+      },
+      {
+        "id": "instance_conflicts",
         "title": "冲突 + 死锁 / 秒",
-        "expressionLabels": ["conflicts", "deadlocks"]
+        "expressionLabels": [
+          "conflicts",
+          "deadlocks"
+        ]
       }
     ]
   }

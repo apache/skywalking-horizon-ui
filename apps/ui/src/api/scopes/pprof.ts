@@ -23,15 +23,17 @@ import type {
   PprofTaskListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.pprof` — Go pprof profiling tasks. */
 export class PprofApi {
   constructor(private readonly bff: BffClient) {}
 
-  tasks(layerKey: string, service: string): Promise<PprofTaskListResponse> {
+  /** Scoped by the roster row the screen picked — id and name together. */
+  tasks(layerKey: string, service: ServiceRef): Promise<PprofTaskListResponse> {
     return this.bff.request<PprofTaskListResponse>(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/pprof/tasks?service=${encodeURIComponent(service)}`,
+      `/api/layer/${encodeURIComponent(layerKey)}/pprof/tasks?${new URLSearchParams(serviceRefFields(service)).toString()}`,
     );
   }
   create(

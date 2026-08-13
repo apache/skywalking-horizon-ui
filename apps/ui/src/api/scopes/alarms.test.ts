@@ -18,6 +18,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AlarmsApi } from './alarms';
 import type { BffClient } from '../client';
+/* Reaches into the BFF on purpose: `/api/alarms` is a two-sided contract, and a
+ * test that pins only the URL this client builds stays green while the route
+ * refuses that very URL — which is how every service-filtered alarm query came
+ * to 400. The last block below parses this client's own requests with the
+ * route's schema, so a one-sided tightening fails here. */
+import { alarmsQuerySchema } from '../../../../bff/src/http/query/alarms-request';
 
 function makeStub() {
   const calls: Array<[string, string, unknown?]> = [];
@@ -51,12 +57,28 @@ describe('AlarmsApi.list — query param assembly', () => {
       endTime: 2,
       layer: 'MESH',
       service: 'mesh-svr::reviews',
+      normal: true,
       instance: 'reviews-pod-1',
       endpoint: '/api/orders',
     });
     expect(calls[0][1]).toBe(
-      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&layer=MESH&service=mesh-svr%3A%3Areviews&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
+      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&layer=MESH&service=mesh-svr%3A%3Areviews&normal=true&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
     );
+  });
+
+  it('forwards the service normal flag in both states', async () => {
+    const virtual = makeStub();
+    await new AlarmsApi(virtual.bff).list({
+      startTime: 1,
+      endTime: 2,
+      service: 'mysql-a',
+      normal: false,
+    });
+    expect(virtual.calls[0][1]).toContain('service=mysql-a&normal=false');
+
+    const real = makeStub();
+    await new AlarmsApi(real.bff).list({ startTime: 1, endTime: 2, service: 'songs', normal: true });
+    expect(real.calls[0][1]).toContain('service=songs&normal=true');
   });
 
   it('forwards scope + keyword when present', async () => {
@@ -69,6 +91,61 @@ describe('AlarmsApi.list — query param assembly', () => {
     });
     expect(calls[0][1]).toContain('scope=Service');
     expect(calls[0][1]).toContain('keyword=slow+query');
+  });
+});
+
+/* The other half of the contract: the requests this client actually issues,
+ * read back by the schema the route parses them with, so neither side can move
+ * alone. A service reaches the alarm entity filter as its NAME plus the roster
+ * row's `normal` flag — OAP's alarm query has no id form, and the flag is part
+ * of the entity id the name resolves to. */
+describe('AlarmsApi.list — the BFF route parses what this client sends', () => {
+  /** The last request's query string, as the route receives it. */
+  function sentQuery(calls: Array<[string, string, unknown?]>): Record<string, string> {
+    const url = calls[0][1];
+    return Object.fromEntries(new URLSearchParams(url.slice(url.indexOf('?') + 1)));
+  }
+
+  it('accepts the service-filtered query the alarms page sends', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_600_000,
+      layer: 'VIRTUAL_DATABASE',
+      service: 'mysql-a',
+      normal: false,
+      instance: 'mysql-a-0',
+      keyword: 'response time',
+    });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data).toEqual({
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_600_000,
+      pageNum: 1,
+      pageSize: 500,
+      layer: 'VIRTUAL_DATABASE',
+      service: 'mysql-a',
+      normal: false,
+      instance: 'mysql-a-0',
+      keyword: 'response time',
+    });
+  });
+
+  it('accepts the unfiltered query the overview widget and the 3D map send', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, pageSize: 200 });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data).toEqual({ startTime: 1, endTime: 2, pageNum: 1, pageSize: 200 });
+  });
+
+  it('is refused when a service travels without its flag', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, service: 'songs' });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (parsed.success) throw new Error('the route accepted a service with no flag');
+    expect(parsed.error.issues.map((i) => i.path.join('.'))).toEqual(['normal']);
   });
 });
 
@@ -85,36 +162,53 @@ describe('AlarmsApi.services + config + count', () => {
     expect(calls[0][1]).toBe('/api/alarms/services?layer=MESH');
   });
 
-  function stubSyncStatus(rows: unknown[]) {
+  /** A client whose org-settings read returns `alert`, and whose admin
+   *  sync-status still holds a bundled-only row — the shape live mode must
+   *  refuse to render. */
+  function stubSettings(alert: unknown) {
     const { bff } = makeStub();
-    (bff as unknown as { templateSync: { syncStatus: () => Promise<unknown> } }).templateSync = {
-      syncStatus: vi.fn(async () => ({ rows })),
+    const settings = vi.fn(async () => ({ theme: null, timeDefaults: null, alert }));
+    (bff as unknown as { configs: { settings: typeof settings } }).configs = { settings };
+    const syncStatus = vi.fn(async () => ({
+      rows: [
+        {
+          name: 'horizon.alert.page-setup',
+          effective: 'bundled',
+          remote: null,
+          bundled: {
+            configuration: JSON.stringify({
+              name: 'horizon.alert.page-setup',
+              kind: 'alert',
+              version: 1,
+              content: { pinnedLayers: ['ON_DISK_ONLY'], defaultWindowMs: 14400000 },
+            }),
+          },
+        },
+      ],
+    }));
+    (bff as unknown as { templateSync: { syncStatus: typeof syncStatus } }).templateSync = {
+      syncStatus,
     };
-    return bff;
+    return { bff, settings, syncStatus };
   }
 
-  it('config reads + normalizes the alert page-setup from the template sync status', async () => {
-    const bff = stubSyncStatus([
-      {
-        name: 'horizon.alert.page-setup',
-        effective: 'remote',
-        remote: {
-          configuration: JSON.stringify({
-            name: 'horizon.alert.page-setup',
-            kind: 'alert',
-            version: 1,
-            content: { pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 },
-          }),
-        },
-        bundled: null,
-      },
-    ]);
+  it('config normalizes the alert page-setup the BFF resolved', async () => {
+    const { bff, settings, syncStatus } = stubSettings({
+      pinnedLayers: ['MESH'],
+      defaultWindowMs: 7200000,
+      overviewAlarmsLimit: 300,
+    });
     const cfg = await new AlarmsApi(bff).config();
     expect(cfg).toEqual({ pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 });
+    expect(settings).toHaveBeenCalledTimes(1);
+    // The admin payload carries every template's bundled copy and needs a verb
+    // the alarm badge's readers don't have; the badge must not touch it.
+    expect(syncStatus).not.toHaveBeenCalled();
   });
 
-  it('config falls back to shipped defaults when the alert row is absent', async () => {
-    const cfg = await new AlarmsApi(stubSyncStatus([])).config();
+  it('config falls back to shipped defaults — not the on-disk template — when the BFF resolved no value', async () => {
+    const { bff } = stubSettings(null);
+    const cfg = await new AlarmsApi(bff).config();
     expect(cfg).toEqual({ pinnedLayers: ['GENERAL', 'MESH'], defaultWindowMs: 1200000, overviewAlarmsLimit: 200 });
   });
 

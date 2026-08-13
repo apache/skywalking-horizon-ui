@@ -18,7 +18,7 @@
 /**
  * Trace-driven (agent) profiling routes.
  *
- *   GET  /api/layer/:key/profile/tasks?service=&endpoint=
+ *   GET  /api/layer/:key/profile/tasks?serviceId=&service=&endpoint=
  *        — list profile tasks for a service (+ optional endpoint filter).
  *   POST /api/layer/:key/profile/tasks
  *        — create a new profile task.
@@ -29,8 +29,9 @@
  *   POST /api/profile/analyze
  *        — analyze profiled span time-ranges into call trees.
  *
- * Wraps OAP's GraphQL profile fragment. Service-id resolution mirrors the
- * pattern in `endpoint-routes.ts` so the UI can pass a service name OR id.
+ * Wraps OAP's GraphQL profile fragment. The service arrives as the identity
+ * pair the roster returned (`serviceId` + `service`); the task list keys on
+ * the id, and the route resolves nothing.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -48,22 +49,13 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface ProfileRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForProfileResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const GET_PROFILE_TASK_LIST = /* GraphQL */ `
   query getProfileTaskList($endpointName: String, $serviceId: ID) {
@@ -164,22 +156,6 @@ function softError<T extends { reachable: boolean; error?: string }>(payload: T,
   return payload;
 }
 
-async function resolveServiceId(
-  opts: ReturnType<typeof buildOapOpts>,
-  layerKey: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string; normal?: boolean }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layerKey.toUpperCase() });
-  const match =
-    data.services.find((s) => s.name === serviceArg) ??
-    data.services.find((s) => s.id === serviceArg) ??
-    null;
-  return match?.id ?? null;
-}
-
 export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDeps): void {
   const auth = requireAuth(deps);
 
@@ -187,22 +163,25 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     '/api/layer/:key/profile/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
-      const layerKey = params.key;
-      const q = req.query as { service?: string; endpoint?: string };
-      const serviceArg = (q.service ?? '').trim();
+      const q = req.query as { serviceId?: string; service?: string; endpoint?: string };
       const endpointName = (q.endpoint ?? '').trim();
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const payload: ProfileTaskListResponse = { tasks: [], reachable: true };
 
-      if (!serviceArg) return reply.send(payload);
+      // `getProfileTaskList(serviceId)` is nullable — a name that arrived
+      // without its id must say so, not list every service's profiling tasks.
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'incomplete') {
+        payload.reachable = false;
+        payload.error = scope.message;
+        return reply.send(payload);
+      }
+      if (scope.kind === 'all') return reply.send(payload);
       try {
-        const serviceId = await resolveServiceId(opts, layerKey, serviceArg);
-        if (!serviceId) return reply.send(payload);
         const data = await graphqlPost<{ taskList: ProfileTaskListResponse['tasks'] }>(
           opts,
           GET_PROFILE_TASK_LIST,
-          { serviceId, endpointName: endpointName || '' },
+          { serviceId: scope.service.id, endpointName: endpointName || '' },
         );
         payload.tasks = data.taskList ?? [];
         return reply.send(payload);

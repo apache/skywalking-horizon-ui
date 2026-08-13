@@ -20,46 +20,32 @@
   "dashboards": {
     "service": [
       {
-        "title": "Knotenanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "node_count",
+        "title": "Knotenanzahl"
       },
       {
-        "title": "Fehlerhafte Knoten",
-        "expressions": [
-          null
-        ]
+        "id": "failed_nodes",
+        "title": "Fehlerhafte Knoten"
       },
       {
-        "title": "Namespace-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "namespace_count",
+        "title": "Namespace-Anzahl"
       },
       {
-        "title": "EKS-Servicezahl",
-        "expressions": [
-          null
-        ]
+        "id": "service_count",
+        "title": "EKS-Servicezahl"
       },
       {
+        "id": "network_errors",
         "title": "Cluster Netzwerk-Fehler",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "rx",
           "tx"
         ]
       },
       {
+        "id": "network_dropped",
         "title": "Cluster Netzwerk-Drops",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "rx",
           "tx"
@@ -68,119 +54,78 @@
     ],
     "endpoint": [
       {
-        "title": "Pod-CPU-Auslastung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "pod_cpu",
+        "title": "Pod-CPU-Auslastung (%)"
       },
       {
-        "title": "Pod-Speicher-Auslastung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "pod_mem",
+        "title": "Pod-Speicher-Auslastung (%)"
       },
       {
-        "title": "Pod-Netzwerk RX (KB/s)",
-        "expressions": [
-          null
-        ]
+        "id": "pod_net_rx",
+        "title": "Pod-Netzwerk RX (KB/s)"
       },
       {
-        "title": "Pod RX-Fehler / s",
-        "expressions": [
-          null
-        ]
+        "id": "pod_net_rx_err",
+        "title": "Pod RX-Fehler / s"
       },
       {
-        "title": "Pod-Netzwerk TX (KB/s)",
-        "expressions": [
-          null
-        ]
+        "id": "pod_net_tx",
+        "title": "Pod-Netzwerk TX (KB/s)"
       },
       {
-        "title": "Pod TX-Fehler / s",
-        "expressions": [
-          null
-        ]
+        "id": "pod_net_tx_err",
+        "title": "Pod TX-Fehler / s"
       }
     ],
     "instance": [
       {
-        "title": "Pod-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "pods",
+        "title": "Pod-Anzahl"
       },
       {
-        "title": "CPU-Auslastung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "node_cpu",
+        "title": "CPU-Auslastung (%)"
       },
       {
-        "title": "Speicherauslastung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "node_mem",
+        "title": "Speicherauslastung (%)"
       },
       {
-        "title": "FS-Nutzung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "node_fs",
+        "title": "FS-Nutzung (%)"
       },
       {
+        "id": "node_net_rx",
         "title": "Netzwerk RX (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes",
           "fehler"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "node_net_tx",
         "title": "Netzwerk TX (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "bytes",
           "fehler"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "disk",
         "title": "Disk-I/O (B/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
-        "title": "Pod-CPU auf Knoten",
-        "expressions": [
-          null
-        ]
+        "id": "pod_cpu",
+        "title": "Pod-CPU auf Knoten"
       },
       {
-        "title": "Pod-Speicher auf Knoten",
-        "expressions": [
-          null
-        ]
+        "id": "pod_mem",
+        "title": "Pod-Speicher auf Knoten"
       }
     ]
   },

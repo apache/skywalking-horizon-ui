@@ -16,3 +16,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # The e2e suite is a workspace package so `pnpm -r run type-check` covers
+  # its specs. It ships nothing: no build, no test:unit, dev-only deps — so
+  # it stays out of the packaged artifact and the binary LICENSE.
+  - "test/e2e/playwright"

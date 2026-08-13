@@ -254,8 +254,16 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <div v-if="w.type !== 'section-break'" class="ot__row">
         <label class="ot__field">
           <span>{{ t('Layer') }}</span>
+          <!-- "— any —" is not offered for the widgets that READ metrics:
+               the renderer skips a data widget with no layer entirely
+               (`if (!layer) continue`), so choosing it produces a tile that
+               can never fill and says nothing about why. Layout and
+               layer-agnostic widgets keep the option. -->
           <select v-model="w.layer" class="ot__in ot__in--narrow">
-            <option :value="undefined">{{ t('— any —') }}</option>
+            <option
+              v-if="w.type !== 'metric' && w.type !== 'kpi-tile' && w.type !== 'metric-composite'"
+              :value="undefined"
+            >{{ t('— any —') }}</option>
             <option v-for="k in layerOptions" :key="k" :value="k">{{ k }}</option>
           </select>
         </label>
@@ -264,16 +272,29 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <div v-if="w.type === 'metric'" class="ot__row">
         <label class="ot__field ot__field--wide">
           <span>{{ t('MQE') }} <WidgetTip :tip="topnHint" /></span>
-          <MqeExpressionInput v-model="w.mqe" placeholder="service_cpm" :title="t('Widget MQE')" />
+          <!-- The placeholder follows the aggregation mode below, because the
+               two need DIFFERENT expressions: server-side fires the MQE once
+               with no service entity, so it must collapse the layer itself
+               (`sum(top_n(...))`); page-side fans out per service, so a plain
+               per-service metric is what belongs there. A plain metric in
+               server-side mode returns nothing at all — an empty tile with no
+               error — which is the trap this placeholder exists to avoid. -->
+          <MqeExpressionInput
+            v-model="w.mqe"
+            :placeholder="w.aggregateOnPage ? 'service_cpm' : 'sum(top_n(service_cpm,{{topn}},DES))'"
+            :title="t('Widget MQE')"
+          />
         </label>
         <label class="ot__field">
           <span>{{ t('Unit') }}</span>
           <input v-model="w.unit" type="text" class="ot__in ot__in--narrow" :placeholder="t('rpm / ms / %')" />
         </label>
-        <label class="ot__field">
+        <!-- `aggregation` is consulted ONLY when the page aggregates; a
+             self-aggregating MQE carries its own sum()/avg(). Showing it in
+             both modes implied it always did something. -->
+        <label v-if="w.aggregateOnPage" class="ot__field">
           <span>{{ t('Aggregation') }}</span>
           <select v-model="w.aggregation" class="ot__in ot__in--narrow">
-            <option :value="undefined">—</option>
             <option value="avg">avg</option>
             <option value="sum">sum</option>
           </select>
@@ -287,7 +308,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
-      <template v-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
+      <template v-if="w.type === 'kpi-tile' || w.type === 'metric-composite' || w.type === 'metric'">
         <div v-if="w.type === 'kpi-tile'" class="ot__row">
           <label class="ot__field ot__field--check">
             <input type="checkbox" v-model="w.showCount" />
@@ -319,7 +340,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
               <span>{{ t('Top-N services') }} <WidgetTip :tip="topNServicesHint" /></span>
               <input v-model.number="w.limit" type="number" min="1" max="8" class="ot__in ot__in--num" />
             </label>
-            <label class="ot__field ot__field--wide">
+            <label v-if="w.type !== 'metric'" class="ot__field ot__field--wide">
               <span>{{ t('Rank by') }} <WidgetTip :tip="rankByHint" /></span>
               <select
                 :value="rankSel(w)"

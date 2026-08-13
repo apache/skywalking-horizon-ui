@@ -31,7 +31,8 @@ import { useLayers } from '@/shell/useLayers';
 import { useSetupStore } from '@/state/setup';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerLanding } from '@/layer/useLayerLanding';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
+import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerBrowserErrors } from '@/layer/browser-errors/useLayerBrowserErrors';
@@ -48,6 +49,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus app's OAP id. Travels with `focusService` — the block's producer
+   *  matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusWindowMinutes?: number;
   /** REPLAY (chat reload): render the frozen captured error list, never query.
    *  The mount auto-run is skipped and the Prev/Next pager is hidden. */
@@ -93,11 +97,25 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here keeps the chat block from
-// touching that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
-);
+// touching that global selection. `serviceReady` is the gate: an error read
+// fired before the name lands carries no service, and OAP answers it with every
+// browser app's JS errors.
+const {
+  name: serviceName,
+  ref: serviceRef,
+  status: serviceStatus,
+  ready: serviceReady,
+} = useLayerTabService(layerKey, landing, {
+  embedded,
+  focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
+  replay,
+});
+// Scalar identity of the tab's service, so the cascade-clear watchers below key
+// on exactly what the query is scoped by. `serviceRef` is a fresh object on
+// every recompute, so watching it directly would fire on re-resolution, not on
+// a switch.
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -163,7 +181,7 @@ const allCategories = ref<BrowserErrorCategory>('ALL');
 // the BROWSER "Versions" are instances → serviceVersionId; "Pages" are
 // endpoints → pagePathId. Reuse the shared layer instance/endpoint feeds.
 const selectedVersionId = ref('');
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: versionList } = useLayerInstances(layerKey, toolbarService);
 
 // Page (endpoint) is a searchable combobox (shared EndpointCombo), not a
@@ -177,7 +195,7 @@ const selectedPageId = ref('');
 const selectedPageLabel = ref('');
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit, replay);
+const { endpoints: pageList, hasMore: pagesHasMore, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceRef, pageQuery, pageLimit, replay);
 function pickPage(name: string): void {
   selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
   selectedPageLabel.value = name;
@@ -196,8 +214,11 @@ function clearPage(): void {
 // Replay seeds this true so the frozen rows render straight past the
 // "Run query" gate; the composable keeps the query itself disabled.
 const hasQueried = ref(replay.value);
+// The service is the upstream control: the read stays parked until it resolves,
+// however many times the operator has pressed Run query.
+const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 interface AppliedBrowserConditions {
-  service: string | null;
+  service: ServiceRef | null;
   serviceVersionId: string;
   pagePathId: string;
   windowMinutes: number;
@@ -206,7 +227,7 @@ interface AppliedBrowserConditions {
 }
 function snapshotConditions(): AppliedBrowserConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     serviceVersionId: selectedVersionId.value,
     pagePathId: selectedPageId.value,
     windowMinutes: windowMinutesEffective.value,
@@ -219,7 +240,7 @@ function applyConditions(): void {
   applied.value = snapshotConditions();
 }
 
-const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
+const { logs, hasNext, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
   service: computed(() => applied.value.service),
   serviceVersionId: computed(() => applied.value.serviceVersionId),
   pagePathId: computed(() => applied.value.pagePathId),
@@ -229,10 +250,14 @@ const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrow
   windowMinutes: computed(() => applied.value.windowMinutes),
   startMs: computed(() => applied.value.startMs),
   endMs: computed(() => applied.value.endMs),
-  enabled: hasQueried,
+  enabled: queryEnabled,
   replayData: computed(() => props.replayData ?? null),
 });
 function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — every browser app's JS errors under this app's title.
+  if (!serviceReady.value) return;
   applyConditions();
   page.value = 1;
   hasQueried.value = true;
@@ -250,7 +275,7 @@ onMounted(() => {
 
 // Service switch is a context change → cascade-clear back to the Run-query
 // prompt; never show the prior service's errors under the new one.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   selectedVersionId.value = '';
   clearPage();
@@ -268,8 +293,6 @@ watch(logs, () => {
   closeExpanded();
 });
 
-const hasMorePages = computed(() => logs.value.length >= pageSize.value);
-
 const CATEGORY_ORDER = ['js', 'promise', 'vue', 'ajax', 'resource', 'unknown'] as const;
 type Cat = (typeof CATEGORY_ORDER)[number];
 const CATEGORY_COLOR: Record<Cat, string> = {
@@ -286,7 +309,7 @@ function catOf(r: BrowserErrorRow): Cat {
 }
 
 const selectedCat = ref<Cat | null>(null);
-watch(serviceName, () => { selectedCat.value = null; });
+watch(serviceKey, () => { selectedCat.value = null; });
 function toggleCat(c: Cat): void {
   selectedCat.value = selectedCat.value === c ? null : c;
   // `expanded` indexes into filteredLogs, which just changed — drop it.
@@ -338,7 +361,7 @@ const {
   toggleRow,
   resolveRow,
 } = useSourceMapResolution(t);
-watch(serviceName, () => { selectedMapId.value = ''; });
+watch(serviceKey, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
 // reports several errors at the identical timestamp+page+version (a
@@ -366,7 +389,12 @@ function loc(row: BrowserErrorRow): string {
             {{ t('Source maps') }}
             <span class="be-maps-count">{{ sourceMaps.length }}</span>
           </button>
-          <button class="sw-btn primary" type="button" :disabled="isFetching" @click="runQuery">{{ t('Run query') }}</button>
+          <button
+            class="sw-btn primary"
+            type="button"
+            :disabled="isFetching || !serviceReady"
+            @click="runQuery"
+          >{{ t('Run query') }}</button>
         </div>
       </div>
       <div class="lg-conditions">
@@ -383,6 +411,7 @@ function loc(row: BrowserErrorRow): string {
             :endpoints="pageList"
             :selected="selectedPageLabel || null"
             :loading="pagesLoading"
+            :has-more="pagesHasMore"
             :placeholder="t('All pages')"
             @update:query="pageQuery = $event"
             @pick="pickPage"
@@ -450,7 +479,15 @@ function loc(row: BrowserErrorRow): string {
           <template #tipTotal="{ total }">{{ t('{count} logs', { count: total }) }}</template>
         </DensityHistogram>
 
-        <div v-if="!serviceName" class="lg-empty">{{ t('Select an app to view its browser logs.') }}</div>
+        <!-- Trailing control: the stream waits for the app, and says which kind
+             of waiting this is — still resolving, or resolved to nothing. -->
+        <div v-if="!serviceReady" class="lg-empty">
+          <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
+          <template v-else-if="serviceStatus === 'unknown'">
+            {{ t('The selected service is not in this layer — pick another one to query.') }}
+          </template>
+          <template v-else>{{ t('Select an app to view its browser logs.') }}</template>
+        </div>
         <div v-else-if="!hasQueried" class="lg-empty">{{ t('Pick your conditions, then click Run query.') }}</div>
         <div v-else-if="isFetching && logs.length === 0" class="lg-empty">{{ t('Reading data…') }}</div>
         <div v-else-if="!reachable" class="lg-empty">{{ t('Backend unreachable.') }}<span v-if="queryError"> {{ queryError }}</span></div>
@@ -521,10 +558,10 @@ function loc(row: BrowserErrorRow): string {
         </div>
 
         <div class="lg-pager">
-          <span class="hint">{{ t('page {page} · showing {shown} of {total} loaded', { page, shown: filteredLogs.length, total }) }}</span>
+          <span class="hint">{{ t('page {page} · showing {shown}', { page, shown: filteredLogs.length }) }}</span>
           <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1 || isFetching" @click="page--">{{ t('Prev') }}</button>
-            <button class="sw-btn small" type="button" :disabled="!hasMorePages || isFetching" @click="page++">{{ t('Next') }}</button>
+            <button class="sw-btn small" type="button" :disabled="!hasNext || isFetching" @click="page++">{{ t('Next') }}</button>
           </div>
         </div>
       </div>

@@ -1,0 +1,98 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Horizon inside the cluster, as the compose cases run it beside OAP.
+#
+# __PLACEHOLDERS__ are substituted by script/prepare/istio-up.sh from
+# script/env, so the image tag and the e2e account have ONE definition shared
+# with every other case.
+#
+# imagePullPolicy: Never — the image is built from this checkout and side-
+# loaded into the node. A pull would silently test someone else's build, the
+# same guarantee `pull_policy: never` gives the compose cases.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: horizon
+  namespace: istio-system
+  labels:
+    app: horizon
+spec:
+  type: NodePort
+  selector:
+    app: horizon
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+      # Fixed rather than allocated: the browser container builds its URL from
+      # the same pin in script/env, so both ends agree without discovery.
+      nodePort: __NODE_PORT__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: horizon
+  namespace: istio-system
+  labels:
+    app: horizon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: horizon
+  template:
+    metadata:
+      labels:
+        app: horizon
+      annotations:
+        # Horizon is the client under test, not a meshed workload — a sidecar
+        # would put its own telemetry into the very topology the specs assert.
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: horizon
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
+          env:
+            - name: HORIZON_OAP_QUERY_URL
+              value: http://skywalking-oap.istio-system:12800
+            - name: HORIZON_OAP_ADMIN_URL
+              value: http://skywalking-oap.istio-system:17128
+            # The MESH template sources traces from Zipkin; without this the
+            # mesh Traces tab has nowhere to query.
+            - name: HORIZON_OAP_ZIPKIN_URL
+              value: http://skywalking-oap.istio-system:9412/zipkin
+            # Stated explicitly because it is the contract under test: Horizon
+            # seeds the bundle into OAP's ui_template store at boot and then
+            # renders only what OAP holds.
+            - name: HORIZON_TEMPLATES_MODE
+              value: live
+            - name: HORIZON_AUTH_BACKEND
+              value: local
+            - name: HORIZON_AUTH_LOCAL_USERS
+              value: '__AUTH_USERS__'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 60

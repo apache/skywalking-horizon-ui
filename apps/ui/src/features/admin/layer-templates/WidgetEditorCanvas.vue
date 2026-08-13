@@ -50,6 +50,7 @@ import {
   widgetRowSpan,
   widgetGridStyle,
 } from '@/features/admin/layer-templates/layer-dashboards.geometry';
+import { nextFreeId } from './free-id';
 import { type AdminScope, scopeLabelOf } from './layer-dashboards.scopes';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
@@ -106,20 +107,17 @@ function allWidgetIds(): Set<string> {
   if (tpl.widgets) collectWidgetIds(tpl.widgets, ids);
   return ids;
 }
-/** Smallest `${prefix}${k}` (k≥1) not already used as a widget id anywhere in
- *  the draft — collision-proof regardless of delete/move/re-add history. */
-function nextFreeId(prefix: string): string {
-  const used = allWidgetIds();
-  for (let k = 1; ; k++) {
-    const cand = `${prefix}${k}`;
-    if (!used.has(cand)) return cand;
-  }
+/** Widget ids are minted against the WHOLE draft, not the list being appended
+ *  to, so a widget moved between scopes or tabs can never collide with one it
+ *  left behind. */
+function nextWidgetId(prefix: string): string {
+  return nextFreeId(prefix, allWidgetIds());
 }
 
 function addWidget(type: DashboardWidget['type'] = 'card'): void {
   const widgets = [...widgetsFor(props.activeScope)];
   const idx = widgets.length;
-  const id = nextFreeId('widget_');
+  const id = nextWidgetId('widget_');
   if (type === 'tab') {
     // A tab container carries no MQE; it seeds one empty named tab. Wider/taller
     // default slot since it hosts a sub-grid of widgets.
@@ -224,7 +222,7 @@ function addToTab(widgetId: string, type: DashboardWidget['type']): void {
   const ti = activeTabOf(widgetId);
   const widgets = [...subWidgetsOf(widgetId, ti)];
   const n = widgets.length + 1;
-  widgets.push({ id: nextFreeId(`${widgetId}_t${ti}_w`), title: `Widget ${n}`, type, expressions: [''], span: 6, rowSpan: 2 });
+  widgets.push({ id: nextWidgetId(`${widgetId}_t${ti}_w`), title: `Widget ${n}`, type, expressions: [''], span: 6, rowSpan: 2 });
   commitSubWidgets(widgetId, ti, widgets);
   subSel.value = { widgetId, tabIdx: ti, subIdx: widgets.length - 1 };
 }

@@ -38,7 +38,7 @@ const { t } = useI18n({ useScope: 'global' });
       <LayerServiceMapView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
-        :focus-services="[spec.service]"
+        :focus-services="[{ id: spec.serviceId, name: spec.service }]"
         :focus-depth="1"
         :fit-scale="1.2"
         :zoom-controls="true"

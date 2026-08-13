@@ -24,27 +24,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "rows_fetched",
         "title": "Linhas fetched / s"
       },
       {
+        "id": "rows_inserted",
         "title": "Linhas inseridas / s"
       },
       {
+        "id": "rows_updated",
         "title": "Linhas atualizadas / s"
       },
       {
+        "id": "rows_deleted",
         "title": "Linhas removidas / s"
       },
       {
+        "id": "rows_returned",
         "title": "Linhas retornadas / s"
       },
       {
+        "id": "temp_files",
         "title": "Arquivos temporários / s"
       },
       {
+        "id": "cache_hit",
         "title": "Taxa de cache hit"
       },
       {
+        "id": "txn_rates",
         "title": "Transações / s",
         "tip": "Commits vs rollbacks.",
         "expressionLabels": [
@@ -53,6 +61,7 @@
         ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "Conflitos + deadlocks / s",
         "expressionLabels": [
           "conflitos",
@@ -60,6 +69,7 @@
         ]
       },
       {
+        "id": "sessions",
         "title": "Sessões",
         "expressionLabels": [
           "ativas",
@@ -68,6 +78,7 @@
         ]
       },
       {
+        "id": "buffers",
         "title": "Buffers / s",
         "tip": "Atividade de buffer de checkpoint / clean / fsync / alloc / backend.",
         "expressionLabels": [
@@ -79,6 +90,7 @@
         ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "Estatísticas de checkpoint / s",
         "expressionLabels": [
           "timed",
@@ -88,33 +100,42 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "Statements lentos",
         "tip": "Top 20 statements mais lentos capturados."
       }
     ],
     "instance": [
       {
+        "id": "shared_buffers",
         "title": "Shared buffers"
       },
       {
+        "id": "effective_cache",
         "title": "Effective cache"
       },
       {
+        "id": "work_mem",
         "title": "Work mem"
       },
       {
+        "id": "max_wal_size",
         "title": "Tamanho máximo de WAL"
       },
       {
+        "id": "instance_fetched",
         "title": "Linhas fetched / s"
       },
       {
+        "id": "instance_inserted",
         "title": "Linhas inseridas / s"
       },
       {
+        "id": "instance_cache_hit",
         "title": "Taxa de cache hit"
       },
       {
+        "id": "instance_sessions",
         "title": "Sessões",
         "expressionLabels": [
           "ativas",
@@ -123,6 +144,7 @@
         ]
       },
       {
+        "id": "instance_conflicts",
         "title": "Conflitos + deadlocks / s",
         "expressionLabels": [
           "conflitos",

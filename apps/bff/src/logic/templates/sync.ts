@@ -42,11 +42,13 @@ import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import {
   buildEnvelope,
   buildOverlayEnvelope,
+  isOverlayName,
   parseEnvelope,
   serializeEnvelope,
   type TemplateKind,
 } from './names.js';
 import { iterateBundledOverlays } from './aggregator.js';
+import { templateIdentityIssue } from './identity.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
@@ -73,8 +75,16 @@ export interface TemplateRow {
    *  layer / overview pages) filter to `locale === undefined`. */
   locale?: string;
   status: TemplateStatus;
-  /** What the renderer should use. `null` for `disabled`. */
+  /** What the renderer should use, and the field every render path decides
+   *  content on: `'remote'` means this row's remote configuration is content
+   *  any reader may serve. `null` for `disabled` and for {@link unreadable}
+   *  — a row can carry a `remote` an admin page still needs (to diff it, to
+   *  push over it) while being content no page may render. */
   effective: 'remote' | 'bundled' | null;
+  /** Why this row is not readable AS what it is stored as — the identity
+   *  rule's single reason (see {@link UnreadableRow}). Set only on enabled
+   *  source rows; forces `effective: null`. */
+  unreadable?: string;
   /** Remote-side detail. `null` when remote-absent. */
   remote: { id: string; configuration: string; disabled: boolean } | null;
   /** Bundled-side serialized envelope. `null` when bundled-absent (`remote-only`). */
@@ -92,6 +102,24 @@ export interface ConflictRow {
    *  Horizon renders the lowest of these and touches none of them.
    *  Sorted, not ranked: the survivor is NOT always the first element. */
   enabledIds: string[];
+  /** Every enabled row carries byte-identical configuration — a duplicated
+   *  name, but an unambiguous definition. See {@link ambiguousConflicts}. */
+  identical: boolean;
+}
+
+/** An enabled OAP row no reader can resolve: its name is not the one Horizon
+ *  reads a template of that kind under, or its content declares a different
+ *  identity than the row it sits in. Reported, never touched — the same stance
+ *  as {@link ConflictRow} — and never RENDERED: the matching {@link TemplateRow}
+ *  carries `effective: null`, so every read path drops it exactly as it drops a
+ *  disabled row. */
+export interface UnreadableRow {
+  /** OAP record id — what an operator needs to retire it on OAP. */
+  id: string;
+  name: string;
+  kind: TemplateKind;
+  /** Which of the two is wrong, and the readable form — self-contained. */
+  reason: string;
 }
 
 export interface SyncStatus {
@@ -116,6 +144,12 @@ export interface SyncStatus {
    *  a disable OAP refused. Empty list = no conflicts. The admin UI
    *  renders a banner per entry. */
   conflicts: ConflictRow[];
+  /** Enabled rows nobody can read (see {@link UnreadableRow}). The publish
+   *  boundary refuses to create these, so a non-empty list is either a row
+   *  written before that check existed or one written by something other than
+   *  Horizon; either way nothing renders it, which is precisely why it has to
+   *  be reported rather than left to be noticed. */
+  unreadable: UnreadableRow[];
 }
 
 export interface BundledOverlay {
@@ -303,6 +337,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       generatedAt: now,
       rows: readonlyRows(bundledRows, overlays),
       conflicts: [],
+      unreadable: [],
     };
   }
 
@@ -321,6 +356,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       generatedAt: now,
       rows: bundledOnlyRows(bundledRows, 'bundled-fallback'),
       conflicts: [],
+      unreadable: [],
     };
   }
 
@@ -365,6 +401,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     generatedAt: now,
     rows,
     conflicts: parsedRemote.conflicts,
+    unreadable: parsedRemote.unreadable,
   };
 }
 
@@ -554,6 +591,10 @@ interface RemoteRow {
   id: string;
   configuration: string;
   disabled: boolean;
+  /** Identity-rule reason, when this row is not readable as what it is stored
+   *  as. Carried per row (not per name): duplicates are resolved content-blind,
+   *  so one twin can be readable while the other is not. */
+  unreadable?: string;
 }
 
 function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, BundledRow> {
@@ -576,6 +617,7 @@ interface ParsedRemote {
   /** Names where >1 ENABLED row exists. The BFF renders the
    *  `pickDuplicateWinner` row; the admin UI surfaces the rest. */
   conflicts: ConflictRow[];
+  unreadable: UnreadableRow[];
 }
 
 function parseRemoteRows(
@@ -591,6 +633,7 @@ function parseRemoteRows(
    * more than one ENABLED row is also surfaced as a `conflict` so the
    * admin UI can prompt a reconcile. */
   const groups = new Map<string, Array<RemoteRow>>();
+  const unreadable: UnreadableRow[] = [];
   let skipped = 0;
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
@@ -603,20 +646,32 @@ function parseRemoteRows(
     // template's key, NOT the locale-suffixed string — that's what
     // consumers use to find sibling source rows. The parsed envelope
     // gives us both unambiguously.
+    const key = env.locale === undefined
+      ? env.name.split('.').slice(2).join('.')
+      : env.name.split('.').slice(2, -2).join('.');
+    // A disabled row is already served to nobody, and an overlay carries its
+    // parent's identity rather than one of its own — only a LIVE source row
+    // that no reader can resolve is both reportable and renderable-by-mistake.
+    const issue =
+      !r.disabled && env.locale === undefined
+        ? templateIdentityIssue(env.kind, key, env.content)
+        : null;
     const row: RemoteRow = {
       name: env.name,
       kind: env.kind,
-      key: env.locale === undefined
-        ? env.name.split('.').slice(2).join('.')
-        : env.name.split('.').slice(2, -2).join('.'),
+      key,
       locale: env.locale,
       id: r.id,
       configuration: r.configuration,
       disabled: r.disabled,
+      ...(issue ? { unreadable: issue.message } : {}),
     };
     const list = groups.get(env.name) ?? [];
     list.push(row);
     groups.set(env.name, list);
+    if (issue) {
+      unreadable.push({ id: r.id, name: env.name, kind: env.kind, reason: issue.message });
+    }
   }
   const out = new Map<string, RemoteRow>();
   const conflicts: ConflictRow[] = [];
@@ -630,6 +685,7 @@ function parseRemoteRows(
         kind: winner.kind,
         key: winner.key,
         enabledIds: enabled.map((r) => r.id),
+        identical: enabled.every((r) => r.configuration === enabled[0]!.configuration),
       });
     }
   }
@@ -641,13 +697,23 @@ function parseRemoteRows(
   }
   if (conflicts.length > 0) {
     logger.warn(
-      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
+      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds, identical: c.identical })) },
       'OAP UI-template name conflicts (>1 enabled row) — Horizon renders the lowest-id row and changes NOTHING on its own. ' +
         'Retiring a row does not bring its content back (OAP soft-disables; the admin Reactivate control restores the bundled default, not the disabled copy), so clean this up on OAP ' +
         'once you have confirmed which copy you want to keep.',
     );
   }
-  return { byName: out, conflicts };
+  if (unreadable.length > 0) {
+    logger.warn(
+      { rows: unreadable },
+      'OAP UI-template rows Horizon cannot read as the template they are stored as — the name is not one this kind ' +
+        'is read under, or the content names a different template than the record it sits in. They render for nobody: ' +
+        'no page is served from them, whichever of the two is wrong. Republish each one so its stored name and its ' +
+        'content agree, then retire the record left behind if that moved it to a different name; Horizon changes ' +
+        'nothing on its own.',
+    );
+  }
+  return { byName: out, conflicts, unreadable };
 }
 
 async function seedMissing(
@@ -740,7 +806,10 @@ function mergeRows(
       kind: b.kind,
       key: b.key,
       status,
-      effective: 'remote',
+      // An identity-invalid row keeps its bundled-vs-remote status — that is
+      // what the admin diffs and pushes over to repair it — but serves no one.
+      effective: r.unreadable ? null : 'remote',
+      ...(r.unreadable ? { unreadable: r.unreadable } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: false },
       bundled: { configuration: b.configuration },
     });
@@ -754,7 +823,8 @@ function mergeRows(
       key: r.key,
       locale: r.locale,
       status: r.disabled ? 'disabled' : 'remote-only',
-      effective: r.disabled ? null : 'remote',
+      effective: r.disabled || r.unreadable ? null : 'remote',
+      ...(r.unreadable ? { unreadable: r.unreadable } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: r.disabled },
       bundled: null,
     });
@@ -762,6 +832,28 @@ function mergeRows(
 
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
+}
+
+/**
+ * Conflicts of `kind` whose enabled copies actually DIFFER — the subset the
+ * navigation surfaces (sidebar menu, config bundle) hide on, because there
+ * the template's definition is genuinely ambiguous and no renderer gets to
+ * pick a winner for the operator.
+ *
+ * Two exclusions, both deliberate:
+ *   - byte-identical copies: the name is duplicated, the definition is not.
+ *     Hiding those would cost the operator a working dashboard to punish a
+ *     bookkeeping problem on OAP. They stay reported (`status.conflicts`).
+ *   - per-locale overlay rows: they carry their parent's `kind` + `key`, but
+ *     a duplicated translation never makes the parent's definition ambiguous.
+ *
+ * Reads `status.conflicts`, which is empty whenever the store was unreachable
+ * or unread — so hiding always follows a POSITIVE signal, never an absent one.
+ */
+export function ambiguousConflicts(status: SyncStatus, kind: TemplateKind): ConflictRow[] {
+  return status.conflicts.filter(
+    (c) => c.kind === kind && !c.identical && !isOverlayName(c.name),
+  );
 }
 
 /** Pick the OAP overlay row for the given template family + locale,

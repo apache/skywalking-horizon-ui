@@ -16,7 +16,7 @@ Each event has these fields:
 | `outcome` | `success` / `ok` / `break-glass` for normal flows; the OAP `applyStatus` or `http_<code>` on an upstream failure. |
 | `details` | Extra context for the operation. |
 | `fromIp` | Requester IP. |
-| `sessionId` | Session id, when a session exists. |
+| `sessionId` | An opaque, non-replayable reference to the session, when one exists. Actions from the same session share the same value while the server is running, so a run of activity can be followed; it is a one-way digest, so it cannot be used to resume that session, and it does not match anything in a file written before a restart. |
 
 One event per line, `\n`-terminated. Use `jq -c` to filter:
 

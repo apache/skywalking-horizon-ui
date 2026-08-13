@@ -213,7 +213,10 @@ function widgetDefaults(type: OverviewWidget['type']): Partial<OverviewWidget> {
     case 'section-break':
       return { title: 'New section', cols: 12 };
     case 'metric':
-      return { title: 'New metric', mqe: '', aggregation: 'avg' };
+      // No `aggregation`: it is read only when the PAGE aggregates, and a new
+      // metric starts in server-side mode where the MQE carries its own
+      // sum()/avg(). Seeding it wrote a field that did nothing.
+      return { title: 'New metric', mqe: '' };
     case 'topology':
       return { title: 'Topology' };
     case 'alarms':

@@ -4,7 +4,7 @@ This page is the shortest path from "no Horizon" to "Horizon in front of a runni
 
 ## Prerequisites
 
-- Apache SkyWalking **OAP 11.x** (native). OAP 10.x can run the data-plane stack, subject to minor-specific trace and endpoint limitations; **`templates.mode: readonly` is recommended** there. OAP 10 does have persistent UI-template management through legacy query-port GraphQL, but Horizon implements only OAP 11's `/ui-management/templates*` REST protocol; the default `live` mode therefore cannot read the v10 template store, and falls back to the templates bundled in the release (the connectivity banner says so). The admin-port features — Inspect, DSL Management, Live Debugger, Alarm Rule editor, and Cluster Status → Admin pane — are v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the exact feature matrix and v10 recipe.
+- Apache SkyWalking **OAP 11.x** (native). OAP 10.x runs the data-plane stack **only with `templates.mode: readonly`**, and subject to minor-specific trace and endpoint limitations. OAP 10 does have persistent UI-template management through legacy query-port GraphQL, but Horizon implements only OAP 11's `/ui-management/templates*` REST protocol; the default `live` mode therefore cannot read the v10 template store, and rather than render a layer whose published template it cannot read, it blocks layer-driven pages (most visibly Traces) behind the template-store banner. The admin-port features — Inspect, DSL Management, Live Debugger, Alarm Rule editor, and Cluster Status → Admin pane — are v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the exact feature matrix and v10 recipe.
 - Network reachability from the Horizon BFF to the OAP query port (`:12800`). The admin port (`:17128`) is additionally required for OAP 11 admin features and live template mode, but not for OAP 10 readonly operation. See [Network Ports](../compatibility/ports.md).
 - A recent LTS Node.js runtime for the binary tarball. Source builds also need pnpm (pinned via Corepack).
 
@@ -68,7 +68,7 @@ For LDAP setup instead, see [Access Control → LDAP Backend](../access-control/
 From inside the unpacked binary directory:
 
 ```sh
-HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./static node server.js
+HORIZON_CONFIG=./horizon.yaml node server.js
 ```
 
 Horizon defaults to `127.0.0.1:8081`. For production, bind to `0.0.0.0` and put TLS termination in front:
@@ -111,7 +111,7 @@ Use source builds when you are developing Horizon itself:
 ```sh
 pnpm install
 pnpm package
-HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./dist/static node dist/server.js
+HORIZON_CONFIG=./horizon.yaml node dist/server.js
 ```
 
 ## Production checklist

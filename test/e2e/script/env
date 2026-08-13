@@ -1,0 +1,138 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Pinned images, loaded by every case through `init-system-environment` —
+# the same role apache/skywalking's test/e2e-v2/script/env plays there.
+#
+# A value already exported in your shell WINS over the one here, so a local
+# override needs no edit to this tracked file:
+#
+#     export E2E_SKIP_PROFILING=true     # no rover; implied off-Linux anyway
+#     export ISTIO_VERSION=1.25.0        # try another mesh version
+#     make -C test/e2e run CASE=istio
+#
+# Everything the fixture runs on is a published apache image; nothing is built
+# from an upstream checkout, so this file plus the compose files is the whole
+# dependency on the SkyWalking repo.
+#
+# Bumping: pick a commit SHA from the relevant upstream master and confirm the
+# tag exists before committing it —
+#
+#     docker manifest inspect ghcr.io/apache/skywalking/oap:<sha>
+#
+# NEVER move these to `latest`. A `latest` here means an unrelated push to an
+# upstream master can turn Horizon's CI red with no Horizon commit involved,
+# and the failure reads as our regression.
+
+# OAP. Must be at or after 5b481a41a9 (#13877), which added the
+# server-admin/ui-management module Horizon's template store talks to on the
+# admin host. Before that commit `templates.mode: live` cannot work.
+SW_OAP_COMMIT=c59f7b410b20596a1effa09161d334cb081eea33
+
+# BanyanDB — the storage every case runs on. OAP's own default selector is
+# banyandb, so no SW_STORAGE override is needed anywhere.
+SW_BANYANDB_COMMIT=d552528a6f1571c26cd449b711db8f7351ada73e
+
+# Java agent image. Carries the agent at /skywalking/agent and presets
+# JAVA_TOOL_OPTIONS, so the demo services need no -javaagent of their own.
+SW_AGENT_JAVA_COMMIT=ac0df43d7140e726eba9e5e5b1b75cf364c71dff
+SW_AGENT_JDK_VERSION=17
+
+# The demo app: apache/skywalking's own e2e provider/consumer services,
+# published as images so no Maven build is needed here. Tagged from the last
+# master push that touched test/e2e-v2/java-test-service.
+SW_E2E_SERVICE_COMMIT=95a296e2c810e6280b16975dd411e9c595a16836
+
+# swctl, the project's own CLI — used for the fixture sanity check that asks
+# OAP directly what it knows, bypassing Horizon. Built from source because
+# skywalking-cli publishes no binaries; the latest release tag (0.14.0) long
+# predates this commit, so a tag here would be a downgrade.
+SW_CTL_COMMIT=85e5afdb3d55c6e5af66a472c3fe8ac024d11690
+
+# A frontend calling a backend, both reporting Zipkin spans, which is what
+# exercises OAP's Zipkin receiver and Horizon's Zipkin query surface.
+
+# ElasticSearch, for the case that exercises Horizon's pre-v2 trace path.
+# Trace Query v2 is BanyanDB-only, so this is the ONLY deployment where
+# hasQueryTracesV2Support is false and the v1 branch runs at all.
+ES_VERSION=8.18.8
+
+# The browser runs INSIDE this image, in CI and on a laptop alike, so the e2e
+# environment is locked to one Ubuntu. Chromium's rendering, fonts and system
+# libraries are then identical everywhere, and a local run reproduces CI
+# exactly rather than approximately. Must match the @playwright/test version
+# in test/e2e/playwright/package.json.
+SW_PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright:v1.62.1-noble
+
+# ── Horizon under test ──────────────────────────────────────────────────
+# Built from this checkout (`make -C test/e2e image`) or loaded from the CI
+# artifact. Never pulled — compose sets pull_policy: never so a missing build
+# fails loudly instead of silently testing someone else's image.
+HORIZON_E2E_IMAGE=horizon-ui:e2e
+
+# The fixture's only account. The hash is argon2id of HORIZON_E2E_PASSWORD.
+#
+# NOT QUOTED, and nothing in this file may be. infra-e2e reads it by splitting
+# each line on the first `=` and exporting the remainder verbatim — it does no
+# quote stripping and no expansion. Quoting the hash therefore ships the `'`
+# characters into the container as part of the hash, argon2 rejects it, and
+# every authenticated case fails with an empty body rather than a 401 anyone
+# would recognise.
+#
+# The same constraint is why no reader of this file may shell-source it: bash
+# would expand the `$argon2id` / `$v` / `$m` segments to nothing. Read
+# individual keys instead (see script/prepare/build-images.sh).
+HORIZON_E2E_USER=e2e
+HORIZON_E2E_PASSWORD=e2e-passw0rd
+HORIZON_E2E_PASSWORD_HASH=$argon2id$v=19$m=65536,t=3,p=4$K/f0dJqlI/c1I6RPxNhTPg$sZ2NcLuSPL/o4bqNrARetaLVp4MDmV0xzxdwyYUKh+U
+
+# ── kind / istio scenario ────────────────────────────────────────────────
+# The kind NODE image is pinned in cases/istio/kind.yaml instead — kind reads
+# that file verbatim, so a ${VAR} in it would be pulled literally. Keep this
+# kubectl version in step with the node image's k8s version.
+KUBECTL_VERSION=v1.28.15
+HELM_VERSION=v3.16.3
+ISTIO_VERSION=1.24.3
+# bookinfo's images are tagged independently of Istio itself — read off the
+# manifest the case applies, not guessed from ISTIO_VERSION.
+BOOKINFO_VERSION=1.20.2
+TRAFFIC_GEN_IMAGE=alpine/curl:8.9.1
+# The helm chart's wait-for-banyandb init container references `curlimages/curl`
+# UNTAGGED — it resolves to `:latest` and the chart exposes no override. The tag
+# a kind case side-loads therefore has to be `:latest` too. build-images.sh pins
+# the CONTENT instead: it pulls this version and re-tags it as `:latest` locally,
+# so a run is reproducible even though the reference cannot be pinned.
+SW_CURL_IMAGE=curlimages/curl:8.11.1
+# skywalking-helm publishes an OCI chart per commit, not per release.
+#
+# Must be at or after 3aee62a, which moved OAP's init job out of a post-install
+# hook. Before it, `helm --wait` deadlocks against that job — the release fails
+# with "Job/skywalking-oap-init not ready ... Job in progress" whenever the job
+# is slower than the timeout, which reads like a broken fixture rather than a
+# known chart bug.
+SW_HELM_CHART_COMMIT=3aee62ac0b0a8c9626abbd386e9728c859cd21be
+# rover ships no helm chart; the istio case applies its DaemonSet directly.
+SW_ROVER_IMAGE=ghcr.io/apache/skywalking-rover/skywalking-rover:79292fe07f17f98f486e0c4471213e1961fb2d1d
+# The collector that scrapes BanyanDB's FODC proxy and pushes OTLP to OAP —
+# the only path by which the BANYANDB layer's metrics exist.
+SW_OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector-contrib:0.115.1
+# Becomes the BANYANDB service name: OAP's banyandb rules build the service
+# from the `cluster` label the collector adds.
+BANYANDB_E2E_CLUSTER=e2e-banyandb
+
+# Reached from the browser container over the kind node's published NodePort.
+HORIZON_E2E_NODE_PORT=30081

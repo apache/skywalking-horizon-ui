@@ -47,6 +47,8 @@ import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
+import { useConfigBundle } from '@/controls/configBundle';
+import { layerMissingReason, type LayerMissingReason } from './layerMissingReason';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 
@@ -163,6 +165,18 @@ const layerMissing = computed<boolean>(() => {
   if (previewLoading.value) return false;
   return true;
 });
+// A duplicated layer template is hidden from the menu, so a bookmarked tab
+// lands in the gate above — it must not read as "inactive or unknown". The
+// conflict list rides on the config bundle, which is pulled once per page
+// load: a tab that was ALREADY open when the duplicate appeared shows the
+// plain not-found card until it reloads.
+const { bundle } = useConfigBundle();
+const missingReason = computed<LayerMissingReason>(() =>
+  layerMissingReason(bundle.value?.syncStatus.conflicts, layerKey.value),
+);
+// The duplicate is resolved on the template admin page; link there only for
+// operators who may open it (the route itself requires `dashboard:read`).
+const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('dashboard:read'));
 
 // Auto-redirect when the URL targets a sub-route the layer doesn't
 // support — e.g. `/layer/mesh_dp/service` on a layer with
@@ -654,11 +668,28 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         </div>
       </div>
     </div>
-    <!-- Truly not in the registry. Only shown once the menu fetch
-         has settled with a non-empty result; avoids the post-login
-         "Layer not found" flash. -->
+    <!-- Not in the registry. Only shown once the menu fetch has settled
+         with a non-empty result; avoids the post-login "Layer not found"
+         flash. The duplicate case gets its own card — that layer is
+         neither inactive nor unknown, it has two definitions on OAP. -->
     <div v-else-if="layerMissing" class="missing">
-      <div class="sw-card missing-card">
+      <div v-if="missingReason === 'duplicated'" class="sw-card missing-card">
+        <Icon name="alert" :size="18" />
+        <div>
+          <h2>{{ t('Layer dashboard is duplicated') }}</h2>
+          <p>
+            {{ t('More than one enabled OAP record holds the dashboard template for') }} <code>{{ layerKey }}</code>.
+            {{ t('Which definition to render is ambiguous, so Horizon hides the layer and changes nothing on its own. Retire the extra record on OAP to bring it back.') }}
+          </p>
+          <p class="missing-links">
+            <RouterLink v-if="canOpenLayerTemplates" to="/admin/layer-dashboards">
+              {{ t('Dashboard setup → Layer dashboards') }}
+            </RouterLink>
+            <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>
+          </p>
+        </div>
+      </div>
+      <div v-else class="sw-card missing-card">
         <Icon name="alert" :size="18" />
         <div>
           <h2>{{ t('Layer not found') }}</h2>
@@ -966,5 +997,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
 .missing-card a {
   color: var(--sw-accent-2);
   text-decoration: none;
+}
+.missing-card .missing-links {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
 }
 </style>

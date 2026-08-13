@@ -20,6 +20,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "throttled",
         "title": "Requêtes throttlées",
         "expressionLabels": [
           "lecture",
@@ -27,6 +28,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Événements de throttle",
         "expressionLabels": [
           "lecture",
@@ -34,6 +36,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Erreurs système",
         "expressionLabels": [
           "lecture",
@@ -41,15 +44,19 @@
         ]
       },
       {
+        "id": "user_errors",
         "title": "Erreurs utilisateur"
       },
       {
+        "id": "cond_check_fail",
         "title": "Conditional check échoué"
       },
       {
+        "id": "txn_conflict",
         "title": "Conflit de transactions"
       },
       {
+        "id": "read_usage",
         "title": "Capacité de lecture (unité/s)",
         "expressionLabels": [
           "provisionné",
@@ -57,6 +64,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "Capacité d'écriture (unité/s)",
         "expressionLabels": [
           "provisionné",
@@ -64,6 +72,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "Latence des requêtes réussies (ms)",
         "expressionLabels": [
           "get",
@@ -73,15 +82,19 @@
         ]
       },
       {
+        "id": "ttl_deleted",
         "title": "Éléments supprimés TTL"
       },
       {
+        "id": "scan_items",
         "title": "Éléments retournés par scan"
       },
       {
+        "id": "query_items",
         "title": "Éléments retournés par query"
       },
       {
+        "id": "account_max",
         "title": "Lectures / écritures max du compte",
         "expressionLabels": [
           "lectures au niveau table",
@@ -91,6 +104,7 @@
         ]
       },
       {
+        "id": "account_util",
         "title": "Utilisation de la capacité du compte",
         "expressionLabels": [
           "lecture",
@@ -100,6 +114,7 @@
     ],
     "endpoint": [
       {
+        "id": "throttled",
         "title": "Requêtes throttlées",
         "expressionLabels": [
           "lecture",
@@ -107,6 +122,7 @@
         ]
       },
       {
+        "id": "throttle_events",
         "title": "Événements de throttle",
         "expressionLabels": [
           "lecture",
@@ -114,6 +130,7 @@
         ]
       },
       {
+        "id": "sys_errors",
         "title": "Erreurs système",
         "expressionLabels": [
           "lecture",
@@ -121,15 +138,19 @@
         ]
       },
       {
+        "id": "cond_check",
         "title": "Conditional check échoué"
       },
       {
+        "id": "txn_conflict",
         "title": "Conflit de transactions"
       },
       {
+        "id": "ttl_deleted",
         "title": "Éléments supprimés TTL"
       },
       {
+        "id": "read_usage",
         "title": "Capacité de lecture",
         "expressionLabels": [
           "provisionné",
@@ -137,6 +158,7 @@
         ]
       },
       {
+        "id": "write_usage",
         "title": "Capacité d'écriture",
         "expressionLabels": [
           "provisionné",
@@ -144,6 +166,7 @@
         ]
       },
       {
+        "id": "latency",
         "title": "Latence des requêtes réussies (ms)",
         "expressionLabels": [
           "get",
@@ -153,9 +176,11 @@
         ]
       },
       {
+        "id": "scan_items",
         "title": "Éléments retournés par scan"
       },
       {
+        "id": "query_items",
         "title": "Éléments retournés par query"
       }
     ]

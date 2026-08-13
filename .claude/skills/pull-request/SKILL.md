@@ -1,6 +1,6 @@
 ---
 name: pull-request
-description: Open a pull request for the current Horizon UI branch the right way — run the full preflight gate first (CHANGELOG + docs updated, type-check + build "compiling passed", new UI strings translated across all 8 locales, license headers, lint + unit tests, live-OAP validation), commit with NO AI trailers, push, and open the PR against apache/skywalking-horizon-ui. After it merges, return to main, fast-forward to latest, and delete the merged local branch.
+description: Open a pull request for the current Horizon UI branch the right way — run the full preflight gate first (changelog + docs updated, type-check + build "compiling passed", new UI strings translated across all 8 locales, license headers, lint + unit tests, live-OAP validation), commit with NO AI trailers, push, and open the PR against apache/skywalking-horizon-ui. After it merges, return to main, fast-forward to latest, and delete the merged local branch.
 user-invocable: true
 ---
 
@@ -28,15 +28,17 @@ Walk the list in order. Each item maps to a thing CI enforces or a thing a
 reviewer will bounce the PR for. If you genuinely can't run one, say so in the
 PR body rather than skipping silently.
 
-### A. CHANGELOG updated
+### A. Changelog updated
 If the change is **operator-visible** — a new page / tab / widget, a new
 component flag, a bundled-template change (a layer gaining a capability, new
-dashboards / widgets / metrics), a new admin surface — add an entry under the
-current **unreleased** (`*-dev` in `package.json`) section of `CHANGELOG.md`,
-written from the operator's point of view. **One line per paragraph / bullet —
-no hard wrap** (house style; see `CLAUDE.md`). Released version sections are
-frozen (bug-fix entries only). A pure refactor / tooling / internal-docs change
-gets **no** changelog entry.
+dashboards / widgets / metrics), a new admin surface — add an entry to the
+changelog file of the version in development: `docs/changelog/<version>.md`,
+where `<version>` is what `package.json` carries as `*-dev` (`1.0.0-dev` →
+`docs/changelog/1.0.0.md`). Written from the operator's point of view. **One
+line per paragraph / bullet — no hard wrap** (house style; see `CLAUDE.md`).
+Every released version keeps its own file and those are frozen — never edit
+them. A pure refactor / tooling / internal-docs change gets **no** changelog
+entry.
 
 ### B. docs/ updated
 If observable behavior or configuration changed, update the public docs under
@@ -45,8 +47,8 @@ operate it; never internal code narration). Flat layout, registered in
 `docs/menu.yml`. Same one-line-per-paragraph house style.
 
 ### C. Compiling passed (type-check + build)
-This is what "compiling passed" means here — CI runs `type-check`, `build-ui`,
-`build-bff` as separate gates:
+This is what "compiling passed" means here — CI type-checks, then builds both
+apps as part of `pnpm package`:
 
 ```bash
 pnpm -r run type-check                              # vue-tsc + tsc, strict, no `any`
@@ -178,10 +180,11 @@ When you're updating an already-open PR's body after another review pass:
 section starts to read like a changelog of the review itself, that's the
 signal to fold it back into the feature description and delete the seams.
 
-Operator-visible fixes still belong in `CHANGELOG.md` per the usual house
-style (see the preflight gate above) — that file *is* allowed to say what
-changed, because it's read chronologically across releases. The PR body is
-not; it's read once, describing one final state.
+Operator-visible fixes still belong in the in-development changelog file
+(`docs/changelog/<version>.md`) per the usual house style (see the preflight
+gate above) — that file *is* allowed to say what changed, because it's read
+chronologically across releases. The PR body is not; it's read once, describing
+one final state.
 
 ## 4 — After the PR is MERGED: return to main, update, delete the branch
 

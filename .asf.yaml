@@ -39,11 +39,17 @@ github:
       required_status_checks:
         # Require branches to be up to date with main before merging.
         strict: true
-        # The CI "required" job rolls up every check (license-header,
-        # dependency-license, type-check, build-ui, build-bff, test) into a
-        # single "Required" status, so protection gates on one context.
+        # Two rolled-up statuses, one per workflow, so protection gates on
+        # fixed context names rather than on matrix jobs whose names change
+        # whenever a case is added or renamed.
+        #
+        #   Required      — ci.yaml: license headers, lint, type-check, unit
+        #                   tests, packaging, and booting the artifact
+        #   E2E Required  — e2e.yaml: every deployment case, against a real
+        #                   OAP, verified in a headless browser
         contexts:
           - Required
+          - E2E Required
       required_pull_request_reviews:
         required_approving_review_count: 1
         # Drop stale approvals when a PR gets new commits, so a reviewer's

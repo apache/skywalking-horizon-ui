@@ -20,27 +20,35 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "稼働日数"
       },
       {
+        "id": "clients",
         "title": "接続済みクライアント"
       },
       {
+        "id": "blocked",
         "title": "ブロッククライアント"
       },
       {
+        "id": "mem_pct",
         "title": "メモリ使用率"
       },
       {
+        "id": "commands",
         "title": "合計コマンド / s"
       },
       {
+        "id": "hit_rate",
         "title": "ヒット率"
       },
       {
+        "id": "avg_cmd_time",
         "title": "平均コマンド時間 / s"
       },
       {
+        "id": "net_io",
         "title": "ネット I/O (KB)",
         "expressionLabels": [
           "入",
@@ -48,6 +56,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "キー",
         "expressionLabels": [
           "合計",
@@ -56,33 +65,42 @@
         ]
       },
       {
+        "id": "slow_cmds",
         "title": "低速コマンド",
         "tip": "捕捉された低速コマンド上位 10。SkyWalking エージェントがコールサイトで捕捉。"
       }
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "稼働日数"
       },
       {
+        "id": "clients",
         "title": "接続済みクライアント"
       },
       {
+        "id": "blocked",
         "title": "ブロッククライアント"
       },
       {
+        "id": "max_mem",
         "title": "メモリ最大 (MB)"
       },
       {
+        "id": "mem_pct",
         "title": "メモリ使用率 (%)"
       },
       {
+        "id": "cmds",
         "title": "コマンド / s"
       },
       {
+        "id": "hit_rate",
         "title": "ヒット率"
       },
       {
+        "id": "net_io",
         "title": "ネット I/O (KB)",
         "expressionLabels": [
           "入",
@@ -90,6 +108,7 @@
         ]
       },
       {
+        "id": "db_keys",
         "title": "キー",
         "expressionLabels": [
           "合計",
@@ -98,9 +117,11 @@
         ]
       },
       {
+        "id": "cmd_dur",
         "title": "コマンド時間合計 (s)"
       },
       {
+        "id": "avg_cmd_time",
         "title": "平均コマンド時間"
       }
     ]

@@ -34,22 +34,44 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bff, bffClient } from '@/api/client';
+import { serviceRef } from '@/utils/serviceRef';
+
+/** One entry of the layer's service roster. The `normal` flag is carried
+ *  alongside the name because it is part of the OAP entity id — a virtual
+ *  (conjectural) service filtered as normal resolves to an id nothing was
+ *  ever stored under. The `id` is what the instance / endpoint pickers query
+ *  by; the alarm filter itself stays name-scoped. */
+export interface ServiceOption {
+  id: string;
+  name: string;
+  normal: boolean;
+}
 
 export interface FilterValues {
   layer: string;
   service: string;
+  /** `normal` flag of the picked `service`. Never picked on its own — it
+   *  travels with the service and is resolved from the roster. */
+  serviceNormal: boolean;
   instance: string;
   endpoint: string;
   keyword: string;
 }
 export function emptyFilters(): FilterValues {
-  return { layer: '', service: '', instance: '', endpoint: '', keyword: '' };
+  return { layer: '', service: '', serviceNormal: true, instance: '', endpoint: '', keyword: '' };
+}
+
+/** The roster entry's `normal` flag for `name`, defaulting to true — the same
+ *  assumption OAP makes for an absent flag, and the right answer for the
+ *  no-service-picked case. */
+export function normalFor(options: readonly ServiceOption[], name: string): boolean {
+  return options.find((o) => o.name === name)?.normal ?? true;
 }
 
 export interface AlarmFilters {
   draft: Ref<FilterValues>;
   applied: Ref<FilterValues>;
-  serviceOptions: ComputedRef<string[]>;
+  serviceOptions: ComputedRef<ServiceOption[]>;
   instanceOptions: ComputedRef<string[]>;
   endpointOptions: ComputedRef<string[]>;
   servicesFetching: ComputedRef<boolean>;
@@ -72,15 +94,26 @@ export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
     enabled: computed(() => hasQueryAlarms.value && draft.value.layer.length > 0),
     staleTime: 30_000,
   });
-  const serviceOptions = computed<string[]>(
-    () => (servicesQuery.data.value?.services ?? []).map((s) => s.name),
+  const serviceOptions = computed<ServiceOption[]>(() =>
+    (servicesQuery.data.value?.services ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      normal: s.normal ?? true,
+    })),
   );
+  // The picked roster row — the dropdown binds the NAME (that is what the alarm
+  // filter sends), so the row it came from is where the id for the pickers
+  // below comes from.
+  const pickedService = computed(() => {
+    const row = serviceOptions.value.find((o) => o.name === draft.value.service);
+    return serviceRef(row?.id, draft.value.service, row?.normal);
+  });
 
   const instancesQuery = useQuery({
     queryKey: computed(() => ['alarms/instances', draft.value.layer, draft.value.service]),
-    queryFn: () => bffClient.layer.instances(draft.value.layer, draft.value.service),
+    queryFn: () => bffClient.layer.instances(draft.value.layer, pickedService.value!),
     enabled: computed(
-      () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
+      () => hasQueryAlarms.value && draft.value.layer.length > 0 && !!pickedService.value,
     ),
     staleTime: 30_000,
   });
@@ -90,9 +123,9 @@ export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
 
   const endpointsQuery = useQuery({
     queryKey: computed(() => ['alarms/endpoints', draft.value.layer, draft.value.service]),
-    queryFn: () => bffClient.layer.endpoints(draft.value.layer, draft.value.service, '', 50),
+    queryFn: () => bffClient.layer.endpoints(draft.value.layer, pickedService.value!, '', 50),
     enabled: computed(
-      () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
+      () => hasQueryAlarms.value && draft.value.layer.length > 0 && !!pickedService.value,
     ),
     staleTime: 30_000,
   });
@@ -102,10 +135,12 @@ export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
 
   function onLayerChange(): void {
     draft.value.service = '';
+    draft.value.serviceNormal = true;
     draft.value.instance = '';
     draft.value.endpoint = '';
   }
   function onServiceChange(): void {
+    draft.value.serviceNormal = normalFor(serviceOptions.value, draft.value.service);
     draft.value.instance = '';
     draft.value.endpoint = '';
   }

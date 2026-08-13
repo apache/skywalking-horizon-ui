@@ -18,6 +18,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "Top 20 APIs",
         "expressionLabels": [
           "Tráfico",
@@ -27,24 +28,30 @@
         "tip": "Top endpoints del servicio seleccionado. Cambia de pestaña para reordenar por tráfico, tiempo de respuesta o peor tasa de éxito."
       },
       {
+        "id": "traffic_line",
         "title": "Tráfico",
         "tip": "Peticiones por minuto en toda la malla observadas por los sidecars de Envoy."
       },
       {
+        "id": "err_line",
         "title": "Tasa de errores"
       },
       {
+        "id": "apdex_line",
         "title": "Apdex",
         "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
       },
       {
+        "id": "resp_time_line",
         "title": "Tiempo medio de respuesta"
       },
       {
+        "id": "percentile_line",
         "title": "Percentil de tiempo de respuesta",
         "tip": "Latencia p50 / p75 / p90 / p95 / p99 — la cola de la distribución de tiempo de respuesta."
       },
       {
+        "id": "throughput_line",
         "title": "Rendimiento del servicio",
         "tip": "Bytes por minuto a través del sidecar — enviados + recibidos.",
         "expressionLabels": [
@@ -53,6 +60,7 @@
         ]
       },
       {
+        "id": "sidecar_internal_latency",
         "title": "Latencia interna del sidecar",
         "tip": "Latencia interna de Envoy para petición + respuesta, en nanosegundos. Útil cuando se sospecha de overhead del sidecar.",
         "expressionLabels": [
@@ -61,6 +69,7 @@
         ]
       },
       {
+        "id": "top_instances",
         "expressionLabels": [
           "Tráfico",
           "Lentas",
@@ -72,16 +81,20 @@
     ],
     "instance": [
       {
+        "id": "instance_cpm_line",
         "title": "Carga del sidecar",
         "tip": "Llamadas por minuto contra la instancia sidecar seleccionada."
       },
       {
+        "id": "instance_resp_line",
         "title": "Latencia del sidecar"
       },
       {
+        "id": "instance_sla_line",
         "title": "Tasa de éxito del sidecar"
       },
       {
+        "id": "instance_throughput",
         "title": "Rendimiento del sidecar",
         "tip": "Bytes a través del sidecar — recibidos + enviados.",
         "expressionLabels": [
@@ -90,6 +103,7 @@
         ]
       },
       {
+        "id": "instance_sidecar_internal_latency",
         "title": "Latencia interna del sidecar",
         "expressionLabels": [
           "petición",
@@ -97,28 +111,35 @@
         ]
       },
       {
+        "id": "envoy_up_rq_active",
         "title": "Peticiones upstream activas de Envoy",
         "tip": "Peticiones upstream en curso por clúster. Se muestra para sidecars instrumentados con Envoy."
       },
       {
+        "id": "envoy_up_rq_incr",
         "title": "Incremento de peticiones upstream de Envoy",
         "tip": "Peticiones upstream añadidas por minuto."
       },
       {
+        "id": "envoy_up_rq_pending_active",
         "title": "Pendientes upstream activas de Envoy",
         "tip": "Peticiones upstream pendientes — indica contrapresión del pool de conexiones."
       },
       {
+        "id": "envoy_up_cx_active",
         "title": "Conexiones upstream activas de Envoy"
       },
       {
+        "id": "envoy_up_cx_incr",
         "title": "Incremento de conexiones upstream de Envoy"
       },
       {
+        "id": "envoy_membership_healthy",
         "title": "Membresía sana del clúster Envoy",
         "tip": "Miembros upstream sanos por clúster — una caída no trivial indica rotación upstream."
       },
       {
+        "id": "envoy_connections",
         "title": "Conexiones totales de Envoy",
         "expressionLabels": [
           "total",
@@ -126,6 +147,7 @@
         ]
       },
       {
+        "id": "envoy_heap_memory",
         "title": "Memoria heap de Envoy",
         "tip": "Uso de memoria de Envoy. Heap vs física, asignada vs máx, en MB.",
         "expressionLabels": [
@@ -138,6 +160,7 @@
         ]
       },
       {
+        "id": "envoy_worker_threads",
         "title": "Hilos de trabajo de Envoy",
         "expressionLabels": [
           "vivas",
@@ -145,24 +168,30 @@
         ]
       },
       {
+        "id": "envoy_bug_failures",
         "title": "Bug failures de Envoy",
         "tip": "Contador propio de assertions / bugs de Envoy. Debería ser cero en clústeres sanos."
       }
     ],
     "endpoint": [
       {
+        "id": "endpoint_cpm_line",
         "title": "Tráfico del endpoint"
       },
       {
+        "id": "endpoint_resp_line",
         "title": "Tiempo medio de respuesta de endpoint"
       },
       {
+        "id": "endpoint_sla_line",
         "title": "Tasa de éxito del endpoint"
       },
       {
+        "id": "endpoint_percentile",
         "title": "Percentil de tiempo de respuesta del endpoint"
       },
       {
+        "id": "endpoint_sidecar_internal_latency",
         "title": "Latencia interna del sidecar (alcance endpoint)",
         "tip": "Latencia interna de Envoy para petición + respuesta en este endpoint, en nanosegundos.",
         "expressionLabels": [
@@ -175,60 +204,104 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "Latencia"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Tiempo medio de respuesta"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Tiempo medio de respuesta"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "Latencia" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "Latencia"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "Tiempo medio de respuesta" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Tiempo medio de respuesta"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "Tiempo medio de respuesta" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Tiempo medio de respuesta"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },

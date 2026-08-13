@@ -20,77 +20,53 @@
   "dashboards": {
     "service": [
       {
-        "title": "Geholte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "rows_fetched",
+        "title": "Geholte Zeilen / s"
       },
       {
-        "title": "Eingefügte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "rows_inserted",
+        "title": "Eingefügte Zeilen / s"
       },
       {
-        "title": "Aktualisierte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "rows_updated",
+        "title": "Aktualisierte Zeilen / s"
       },
       {
-        "title": "Gelöschte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "rows_deleted",
+        "title": "Gelöschte Zeilen / s"
       },
       {
-        "title": "Zurückgegebene Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "rows_returned",
+        "title": "Zurückgegebene Zeilen / s"
       },
       {
-        "title": "Temporäre Dateien / s",
-        "expressions": [
-          null
-        ]
+        "id": "temp_files",
+        "title": "Temporäre Dateien / s"
       },
       {
-        "title": "Cache-Trefferrate",
-        "expressions": [
-          null
-        ]
+        "id": "cache_hit",
+        "title": "Cache-Trefferrate"
       },
       {
+        "id": "txn_rates",
         "title": "Transaktionen / s",
         "tip": "Committed vs. Rolled-back.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "committed",
           "rolled-back"
         ]
       },
       {
+        "id": "conflicts_deadlocks",
         "title": "Konflikte + Deadlocks / s",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "konflikte",
           "deadlocks"
         ]
       },
       {
+        "id": "sessions",
         "title": "Sitzungen",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "aktiv",
           "leerlauf",
@@ -98,15 +74,9 @@
         ]
       },
       {
+        "id": "buffers",
         "title": "Buffers / s",
         "tip": "Checkpoint- / Clean- / Fsync- / Alloc- / Backend-Buffer-Aktivität.",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "checkpoint",
           "clean",
@@ -116,13 +86,8 @@
         ]
       },
       {
+        "id": "checkpoint_stats",
         "title": "Checkpoint-Stats / s",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "timed",
           "angefordert",
@@ -131,63 +96,43 @@
         ]
       },
       {
+        "id": "slow_statements",
         "title": "Langsame Anweisungen",
-        "tip": "Top 20 langsamste erfasste Anweisungen.",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 20 langsamste erfasste Anweisungen."
       }
     ],
     "instance": [
       {
-        "title": "Shared Buffers",
-        "expressions": [
-          null
-        ]
+        "id": "shared_buffers",
+        "title": "Shared Buffers"
       },
       {
-        "title": "Effektiver Cache",
-        "expressions": [
-          null
-        ]
+        "id": "effective_cache",
+        "title": "Effektiver Cache"
       },
       {
-        "title": "Work Mem",
-        "expressions": [
-          null
-        ]
+        "id": "work_mem",
+        "title": "Work Mem"
       },
       {
-        "title": "Max. WAL-Größe",
-        "expressions": [
-          null
-        ]
+        "id": "max_wal_size",
+        "title": "Max. WAL-Größe"
       },
       {
-        "title": "Geholte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "instance_fetched",
+        "title": "Geholte Zeilen / s"
       },
       {
-        "title": "Eingefügte Zeilen / s",
-        "expressions": [
-          null
-        ]
+        "id": "instance_inserted",
+        "title": "Eingefügte Zeilen / s"
       },
       {
-        "title": "Cache-Trefferrate",
-        "expressions": [
-          null
-        ]
+        "id": "instance_cache_hit",
+        "title": "Cache-Trefferrate"
       },
       {
+        "id": "instance_sessions",
         "title": "Sitzungen",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "aktiv",
           "leerlauf",
@@ -195,11 +140,8 @@
         ]
       },
       {
+        "id": "instance_conflicts",
         "title": "Konflikte + Deadlocks / s",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "konflikte",
           "deadlocks"

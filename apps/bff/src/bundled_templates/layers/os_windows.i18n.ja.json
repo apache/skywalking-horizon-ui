@@ -17,9 +17,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU 平均使用率 (%)"
       },
       {
+        "id": "memory",
         "title": "メモリ RAM (MB)",
         "expressionLabels": [
           "使用中",
@@ -28,6 +30,7 @@
         ]
       },
       {
+        "id": "virtual_memory",
         "title": "仮想メモリ (MB)",
         "expressionLabels": [
           "空き",
@@ -35,6 +38,7 @@
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "ネットワーク帯域 (KB/s)",
         "expressionLabels": [
           "受信",
@@ -42,6 +46,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "ディスク R/W (KB/s)",
         "expressionLabels": [
           "読み取り",

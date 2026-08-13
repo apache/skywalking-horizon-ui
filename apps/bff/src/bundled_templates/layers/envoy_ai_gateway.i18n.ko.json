@@ -20,21 +20,27 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "요청 RPM"
       },
       {
+        "id": "latency_avg",
         "title": "요청 지연 시간 평균"
       },
       {
+        "id": "input_tokens",
         "title": "입력 토큰 비율"
       },
       {
+        "id": "output_tokens",
         "title": "출력 토큰 비율"
       },
       {
+        "id": "latency_percentile",
         "title": "요청 지연 시간 백분위"
       },
       {
+        "id": "ttft",
         "title": "TTFT (Time to First Token)",
         "expressionLabels": [
           "평균",
@@ -42,6 +48,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT (Time Per Output Token)",
         "expressionLabels": [
           "평균",
@@ -49,63 +56,82 @@
         ]
       },
       {
+        "id": "provider_cpm",
         "title": "제공자별 RPM"
       },
       {
+        "id": "provider_tokens",
         "title": "제공자별 토큰"
       },
       {
+        "id": "provider_latency",
         "title": "제공자별 평균 지연 시간"
       },
       {
+        "id": "model_cpm",
         "title": "모델별 RPM"
       },
       {
+        "id": "model_tokens",
         "title": "모델별 토큰"
       },
       {
+        "id": "model_latency",
         "title": "모델별 평균 지연 시간"
       },
       {
+        "id": "model_ttft",
         "title": "모델별 TTFT"
       },
       {
+        "id": "model_tpot",
         "title": "모델별 TPOT"
       },
       {
+        "id": "mcp_cpm",
         "title": "MCP RPM",
         "tip": "Model Context Protocol — 사용 시."
       },
       {
+        "id": "mcp_latency",
         "title": "MCP 평균 지연 시간"
       },
       {
+        "id": "mcp_err",
         "title": "MCP 오류 RPM"
       },
       {
+        "id": "mcp_method",
         "title": "메서드별 MCP"
       },
       {
+        "id": "mcp_backend",
         "title": "백엔드별 MCP"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "요청 RPM"
       },
       {
+        "id": "latency_avg",
         "title": "요청 지연 시간 평균"
       },
       {
+        "id": "input_tokens",
         "title": "입력 토큰 비율"
       },
       {
+        "id": "output_tokens",
         "title": "출력 토큰 비율"
       },
       {
+        "id": "latency_percentile",
         "title": "요청 지연 시간 백분위"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "평균",
@@ -113,6 +139,7 @@
         ]
       },
       {
+        "id": "tpot",
         "title": "TPOT",
         "expressionLabels": [
           "평균",

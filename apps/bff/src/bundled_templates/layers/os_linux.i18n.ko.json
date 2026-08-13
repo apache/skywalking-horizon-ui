@@ -20,9 +20,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "평균 CPU 사용률 (%)"
       },
       {
+        "id": "cpu_load",
         "title": "CPU 부하",
         "expressionLabels": [
           "1m",
@@ -31,9 +33,11 @@
         ]
       },
       {
+        "id": "filefd",
         "title": "할당된 파일 FD"
       },
       {
+        "id": "memory",
         "title": "RAM 메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -43,6 +47,7 @@
         ]
       },
       {
+        "id": "swap",
         "title": "스왑 메모리 (MB)",
         "expressionLabels": [
           "여유",
@@ -50,6 +55,7 @@
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "네트워크 대역폭 (KB/s)",
         "expressionLabels": [
           "수신",
@@ -57,6 +63,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "디스크 R/W (KB/s)",
         "expressionLabels": [
           "read",
@@ -64,9 +71,11 @@
         ]
       },
       {
+        "id": "fs",
         "title": "파일 시스템 사용률 (%)"
       },
       {
+        "id": "network_status",
         "title": "네트워크 상태",
         "expressionLabels": [
           "tcp estab",

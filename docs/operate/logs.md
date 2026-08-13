@@ -41,6 +41,8 @@ The conditions bar narrows the stream. Every filter is optional; together they a
 
 - **Trace ID** — paste a trace id to show only the log lines correlated with that trace. This is also how a log lands when you arrive from a trace — the field pre-fills and the stream is already scoped.
 
+- **Content** — words the log line must contain, space-separated for AND (`timeout db` matches only lines carrying both). **This field appears only when your storage backend can search log content** — ElasticSearch can, BanyanDB and the others cannot, and Horizon asks the connected OAP which it is. On a backend that cannot, the field is absent rather than present-and-ignored, because OAP accepts the condition there and returns the unfiltered stream — which reads as "everything matched".
+
 - **Tags** — a single `key=value` field with autocomplete. Start typing a key to see suggested keys; type `=` to switch the suggestions to known values for that key; press **Enter** to commit the tag. Committed tags show as removable chips under the bar and ride along on the query as additional filters.
 
 - **Level** — the **Levels** strip above the stream doubles as a filter. Click `error`, `warn`, `info`, or `debug` to show only that level; click again to clear. The level filter is sent to OAP as a `level` tag, so pagination and counts reflect the filtered set. The `other` chip (lines whose level tag is missing or unrecognized) is informational only — it has no server-side value to filter on, so it is not clickable.
@@ -57,7 +59,7 @@ Log queries use **second-precision** time windows. Logs are record-style data an
 
 A **density histogram** sits above the stream: time on the x-axis, log count on the y-axis, each bar stacked by level (error / warn / info / debug / other) with the same colour as the legend. Hover a bar to see that bucket's time range and per-level counts. The histogram is built from the **currently loaded page**, so it shows the shape of what is on screen, not the whole window.
 
-The **Levels** strip carries a count per level next to each chip. Those counts come from a window-scoped sample (a few hundred of the most recent rows in the window, larger than one page), so they reflect the window's level distribution rather than only the visible page. The strip notes the sample size it used.
+The **Levels** strip carries a count per level next to each chip. Those counts come from a window-scoped sample (a few hundred of the most recent rows in the window, larger than one page), so they reflect the window's level distribution rather than only the visible page. The strip notes the sample size it used, and says when the window held more rows than the sample counted — narrow the window if you need the counts to cover all of it.
 
 Each row shows the timestamp, the level, the service (with any group prefix decoded), an **↗ trace** link when the line is trace-correlated, a format chip (`JSON` / `YAML` / `TEXT`), and a one-line preview of the content. Rows are colour-keyed by level.
 
@@ -65,13 +67,15 @@ Horizon renders the payload according to its content. OAP labels payloads as JSO
 
 Click a row to open the full payload in a popout: the complete content, format-aware pretty-printing, a **Copy** button, the service / instance / endpoint / trace context, and a table of all tags on the line. If the line is trace-correlated, an **↗ trace** button there (and the **↗ trace** link on the row) opens the related [trace's](traces.md) waterfall in an overlay without leaving the log stream — the row's timestamp is passed along so the trace is found even when it sits in a colder storage tier. Press **Escape** or click the backdrop to close.
 
-The pager at the foot shows the current page and the row count on it; **Prev** / **Next** walk the pages, and the page size (**20**, **50**, or **100**) is set on the conditions bar.
+The pager at the foot shows the current page and the row count on it; **Prev** / **Next** walk the pages, and the page size (**20**, **50**, or **100**) is set on the conditions bar. There is no "N of M" total, because the log query does not report one — **Next** is offered only when there really is another page with rows on it, so a full last page ends the walk instead of stepping onto an empty screen. Changing the page size restarts at page 1.
 
 ### Troubleshooting stored logs
 
 - **No rows returned.** Confirm the service actually ships logs to OAP, that the storage backend has the logs module enabled, and that the time range covers when the logs were produced. Narrow filters (a tag, a level, an endpoint) can also empty the result — clear them and widen the window.
 
 - **A filter empties the stream.** Tag and level filters are exact-match on indexed dimensions. A `level` value or tag value that doesn't exist in the stored data returns nothing; check the value against what the **Levels** counts and the tag autocomplete actually offer.
+
+- **Run query is greyed out.** The tab does not yet know which service to read, and says which case it is: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. The stream is always read for one service, so the tab waits instead of querying the whole layer.
 
 ## Pod logs
 

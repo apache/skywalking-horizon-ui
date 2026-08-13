@@ -3,9 +3,11 @@
   "description": "Istio データプレーンのサービス健全性、Pilot のプッシュ動作、および基盤となる Kubernetes キャパシティを表示します。メッシュデプロイは常に K8s 上で動作するため、クラスタ情報もまとめて確認できます。",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "メッシュ内サービス"
     },
     {
+      "id": "tile_mesh",
       "title": "Istio 管理サービス",
       "tip": "Istio データプレーンを経由するサービス。",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "pilot_summary",
       "title": "Istio pilot",
       "tip": "xDS のプッシュ回数 + 拒否エラー + このレイヤーのサービス数。",
       "kpis": [
@@ -28,25 +31,29 @@
         null,
         {
           "label": "サービス"
-        },
-        null
+        }
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "トポロジーとアクティブなアラーム"
     },
     {
+      "id": "mesh_topo",
       "title": "メッシュサービストポロジー",
       "tip": "各レイヤーの Topology タブと同じレンダラーによるライブサービスマップ。詳細サイドバーは省略されます。"
     },
     {
+      "id": "mesh_alarms",
       "title": "アクティブなアラーム",
       "tip": "メッシュから報告されたサービスで現在発火中のアラーム。"
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "クラスタのキャパシティと利用率",
       "tip": "ノード / 名前空間 / ワークロード、およびクラスタ全体の CPU・メモリ・ディスク使用状況。",
       "kpis": [

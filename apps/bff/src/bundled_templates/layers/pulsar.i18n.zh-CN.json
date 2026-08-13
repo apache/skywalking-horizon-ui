@@ -7,54 +7,126 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Topic" },
-      { "label": "订阅" },
-      { "label": "入站消息" },
-      { "label": "出站消息" }
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "订阅"
+      },
+      {
+        "label": "入站消息"
+      },
+      {
+        "label": "出站消息"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Topic 总数" },
-      { "title": "订阅" },
-      { "title": "Producer" },
-      { "title": "Consumer" },
       {
+        "id": "topics",
+        "title": "Topic 总数"
+      },
+      {
+        "id": "subs",
+        "title": "订阅"
+      },
+      {
+        "id": "producers",
+        "title": "Producer"
+      },
+      {
+        "id": "consumers",
+        "title": "Consumer"
+      },
+      {
+        "id": "msg_rate",
         "title": "消息速率",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "throughput",
         "title": "吞吐量",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "storage_rw",
         "title": "存储读/写速率",
-        "expressionLabels": ["read", "write"]
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
       },
       {
+        "id": "storage_size",
         "title": "存储大小（MB）",
-        "expressionLabels": ["physical", "logical"]
+        "expressionLabels": [
+          "physical",
+          "logical"
+        ]
       }
     ],
     "instance": [
-      { "title": "活跃连接" },
-      { "title": "总连接" },
-      { "title": "连接创建失败" },
-      { "title": "连接创建成功" },
-      { "title": "连接关闭" },
-      { "title": "JVM Buffer Pool（MB）" },
-      { "title": "JVM 内存池已用（MB）" },
       {
+        "id": "active_conns",
+        "title": "活跃连接"
+      },
+      {
+        "id": "total_conns",
+        "title": "总连接"
+      },
+      {
+        "id": "conn_fail",
+        "title": "连接创建失败"
+      },
+      {
+        "id": "conn_success",
+        "title": "连接创建成功"
+      },
+      {
+        "id": "conn_closed",
+        "title": "连接关闭"
+      },
+      {
+        "id": "jvm_buffer",
+        "title": "JVM Buffer Pool（MB）"
+      },
+      {
+        "id": "jvm_pool",
+        "title": "JVM 内存池已用（MB）"
+      },
+      {
+        "id": "jvm_mem",
         "title": "JVM 内存（MB）",
-        "expressionLabels": ["used", "committed", "init"]
+        "expressionLabels": [
+          "used",
+          "committed",
+          "init"
+        ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM 线程",
-        "expressionLabels": ["current", "daemon", "peak", "deadlocked"]
+        "expressionLabels": [
+          "current",
+          "daemon",
+          "peak",
+          "deadlocked"
+        ]
       },
       {
+        "id": "gc",
         "title": "GC",
-        "expressionLabels": ["seconds", "count"]
+        "expressionLabels": [
+          "seconds",
+          "count"
+        ]
       }
     ]
   }

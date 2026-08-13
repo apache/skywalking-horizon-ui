@@ -78,7 +78,7 @@ server:
   port: 8081
 ```
 
-The UI and the BFF are served from this single port (the BFF serves the built UI's static assets from `server.staticDir` when set). There is no separate static-asset server.
+The UI and the BFF are served from this single port — the BFF serves the built UI's static assets itself. There is no separate static-asset server.
 
 For production deployment behind a TLS terminator:
 

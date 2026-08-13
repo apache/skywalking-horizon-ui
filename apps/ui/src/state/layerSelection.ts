@@ -39,8 +39,9 @@
  * the URL's query params if present.
  */
 
-import { defineStore } from 'pinia';
+import { defineStore, getActivePinia } from 'pinia';
 import { ref } from 'vue';
+import { onSessionReset } from '@/state/sessionReset';
 
 function pickQueryString(v: unknown): string | null {
   if (typeof v !== 'string' || v.length === 0) return null;
@@ -221,4 +222,15 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
     clearLocks,
     activeCompareSet,
   };
+});
+
+// The lifecycle above is per LAYER, not per identity — nothing in this store
+// re-reads who is signed in. The layer shell's unmount does clear it on the way
+// to the login page, but that leaves an identity guarantee resting on one
+// component's teardown; the seam owns it instead.
+onSessionReset(() => {
+  // The 401 path runs outside any component, so there may be no pinia to
+  // resolve the store against — nothing was selected in that case anyway.
+  if (!getActivePinia()) return;
+  useLayerSelectionStore().clear();
 });

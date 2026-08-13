@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "load",
         "title": "시스템 부하 평균"
       },
       {
+        "id": "threads",
         "title": "스레드 수"
       },
       {
+        "id": "heap_used",
         "title": "Heap 사용 (MB)"
       },
       {
+        "id": "heap_max",
         "title": "Heap 최대 (MB)"
       },
       {
+        "id": "enqueue_dequeue",
         "title": "Enqueue / Dequeue / Dispatch /s",
         "expressionLabels": [
           "enqueue",
@@ -40,9 +45,11 @@
         ]
       },
       {
+        "id": "expired_rate",
         "title": "만료 /s"
       },
       {
+        "id": "enqueue_time",
         "title": "Enqueue 시간",
         "expressionLabels": [
           "평균",
@@ -50,6 +57,7 @@
         ]
       },
       {
+        "id": "gc_counts",
         "title": "GC 수 (G1+Parallel)",
         "expressionLabels": [
           "old",
@@ -57,6 +65,7 @@
         ]
       },
       {
+        "id": "gc_time",
         "title": "GC 시간 (ms)",
         "expressionLabels": [
           "old",
@@ -66,25 +75,31 @@
     ],
     "instance": [
       {
+        "id": "connections_card",
         "title": "연결",
         "tip": "이 브로커에 대한 현재 TCP/JMS 연결 수입니다."
       },
       {
+        "id": "producer_count_card",
         "title": "생산자 수",
         "tip": "이 브로커의 활성 생산자 세션 수입니다."
       },
       {
+        "id": "consumer_count_card",
         "title": "소비자 수",
         "tip": "이 브로커의 활성 소비자 세션 수입니다."
       },
       {
+        "id": "uptime_card",
         "title": "가동 시간",
         "tip": "마지막 재시작 이후 브로커 가동 시간(시간 단위)입니다."
       },
       {
+        "id": "connections_line",
         "title": "연결 (추세)"
       },
       {
+        "id": "enqueue_dequeue_line",
         "title": "Enqueue / Dequeue 수",
         "tip": "이 브로커의 대상별 분당 Enqueue + Dequeue 입니다.",
         "expressionLabels": [
@@ -93,6 +108,7 @@
         ]
       },
       {
+        "id": "producer_consumer_inc_line",
         "title": "생산자 / 소비자 증가",
         "tip": "분당 새로 열리는 생산자 + 소비자 세션 수입니다.",
         "expressionLabels": [
@@ -101,32 +117,40 @@
         ]
       },
       {
+        "id": "memory_usage_line",
         "title": "메모리 사용량",
         "tip": "대상별 총 메모리 사용량 (MB)입니다."
       },
       {
+        "id": "memory_limit_line",
         "title": "메모리 제한",
         "tip": "대상별로 설정된 메모리 상한 (GB)입니다."
       },
       {
+        "id": "message_size_line",
         "title": "평균 메시지 크기",
         "tip": "대상 간 평균 메시지 크기입니다."
       }
     ],
     "endpoint": [
       {
+        "id": "producer",
         "title": "생산자 수"
       },
       {
+        "id": "consumer",
         "title": "소비자 수"
       },
       {
+        "id": "queue_size",
         "title": "큐 크기"
       },
       {
+        "id": "memory",
         "title": "메모리 사용량 (MB)"
       },
       {
+        "id": "messages",
         "title": "메시지 수",
         "expressionLabels": [
           "enqueue",
@@ -137,6 +161,7 @@
         ]
       },
       {
+        "id": "enqueue_time",
         "title": "Enqueue 시간 (s)",
         "expressionLabels": [
           "평균",

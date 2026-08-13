@@ -17,18 +17,12 @@
   "dashboards": {
     "service": [
       {
-        "title": "CPU-Mittel genutzt (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU-Mittel genutzt (%)"
       },
       {
+        "id": "memory",
         "title": "Speicher RAM (MB)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "gesamt",
@@ -36,33 +30,24 @@
         ]
       },
       {
+        "id": "virtual_memory",
         "title": "Virtueller Speicher (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "frei",
           "gesamt"
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "Netzwerk-Bandbreite (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "transmit"
         ]
       },
       {
+        "id": "disk",
         "title": "Disk R/W (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "geschrieben"

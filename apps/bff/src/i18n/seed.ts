@@ -38,6 +38,13 @@
  *     later grows the same key.
  *   - Empty resulting overlays (no lexicon coverage at all) skip the
  *     write to keep the working directory clean.
+ *   - Entries of an id-addressable array carry their source entry's
+ *     `id`, and are matched by it — so re-seeding after a widget
+ *     reorder keeps every translation on its own widget. Running the
+ *     seeder over a catalog that predates ids is what migrates it.
+ *   - The written catalog holds translations and nothing else: a
+ *     subtree with no translated string is pruned rather than left as
+ *     scaffolding the translation editor would read as a pending edit.
  *
  * The seeder honors a fixed allowlist of translatable field names —
  * the same allowlist the validate CLI uses to flag drift, and the
@@ -46,7 +53,8 @@
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { idAddressableIds, indexOverlayById, stampOverlayIds } from '@skywalking-horizon-ui/api-client';
 import { OVERLAY_LOCALES, type Locale } from './types.js';
 import { isOverlayFilename, lexiconForLocale } from './store.js';
 
@@ -129,15 +137,65 @@ function seedNode(source: unknown, lex: Record<string, string>): unknown | undef
 /** Deep-merge `existing` (already on disk) with `fresh` (seed output).
  *  Existing values WIN at leaves — once a translator has written
  *  something, the seed doesn't overwrite it. Structural keys present
- *  in either input are preserved. */
-function mergeKeepExisting(existing: unknown, fresh: unknown): unknown {
+ *  in either input are preserved.
+ *
+ *  `source` steers array alignment: where the source array is
+ *  id-addressable and either side is id-keyed, the two are matched by
+ *  `id` and emitted in SOURCE order, so re-seeding after a widget
+ *  reorder can't graft one widget's translation onto another. An
+ *  overlay entry whose id no longer exists in the source is dropped —
+ *  it addresses nothing and would only break the dense alignment the
+ *  positional-only merger of an older Horizon still relies on. */
+function mergeKeepExisting(
+  source: unknown,
+  existing: unknown,
+  fresh: unknown,
+  dropped: string[] = [],
+  path = '',
+): unknown {
   if (existing === undefined || existing === null) return fresh;
-  if (fresh === undefined || fresh === null) return existing;
+  // An absent `fresh` must NOT short-circuit: the lexicon covers only
+  // part of a template, and returning `existing` verbatim would skip the
+  // id alignment below for every subtree it has nothing to say about —
+  // leaving an entry addressing a deleted widget in place, and leaving a
+  // reordered source unaligned. Treat it as an empty container instead
+  // so the walk continues.
+  if (fresh === undefined || fresh === null) {
+    if (Array.isArray(existing)) fresh = [];
+    else if (typeof existing === 'object') fresh = {};
+    else return existing;
+  }
   if (Array.isArray(existing) && Array.isArray(fresh)) {
+    const ids = Array.isArray(source) ? idAddressableIds(source) : null;
+    if (ids) {
+      const e = indexOverlayById(existing);
+      const f = indexOverlayById(fresh);
+      if (e.size > 0 || f.size > 0) {
+        const known = new Set(ids);
+        for (const [i, entry] of existing.entries()) {
+          if (entry === null || entry === undefined) continue;
+          const id = (entry as Record<string, unknown>).id;
+          if (typeof id !== 'string') dropped.push(`${path}[${i}] (no id, in an id-addressed array)`);
+          else if (!known.has(id)) dropped.push(`${path}[${i}] (id "${id}" is not in the source)`);
+        }
+        return ids.map(
+          (id, i) =>
+            mergeKeepExisting((source as unknown[])[i], e.get(id), f.get(id), dropped, `${path}[${i}]`) ?? null,
+        );
+      }
+    }
     const len = Math.max(existing.length, fresh.length);
     const out: unknown[] = [];
     for (let i = 0; i < len; i++) {
-      out.push(mergeKeepExisting(existing[i], fresh[i]));
+      out.push(
+        mergeKeepExisting(
+          Array.isArray(source) ? source[i] : undefined,
+          existing[i],
+          fresh[i],
+          dropped,
+          `${path}[${i}]`,
+        ),
+      );
     }
     return out;
   }
@@ -153,29 +211,83 @@ function mergeKeepExisting(existing: unknown, fresh: unknown): unknown {
     const e = existing as Record<string, unknown>;
     const f = fresh as Record<string, unknown>;
     const keys = new Set([...Object.keys(e), ...Object.keys(f)]);
+    const src = source !== null && typeof source === 'object' && !Array.isArray(source)
+      ? (source as Record<string, unknown>)
+      : undefined;
     for (const k of keys) {
-      out[k] = mergeKeepExisting(e[k], f[k]);
+      out[k] = mergeKeepExisting(src?.[k], e[k], f[k], dropped, path ? `${path}.${k}` : k);
     }
     return out;
   }
   return existing;
 }
 
-interface SeedReport {
+/** Drop every subtree that carries no translated string, so a catalog
+ *  holds translations and nothing else.
+ *
+ *  Inert scaffolding — an `"expressions": [null]` beside a translated
+ *  title, say — merges to nothing, but it does make the stored catalog
+ *  differ from the one the translation editor rebuilds out of its
+ *  fields, and the editor reads that difference as an unpushed edit.
+ *  Positions survive pruning — an emptied entry becomes `null` rather
+ *  than shifting its neighbours — so the catalog stays aligned for a
+ *  positional reader.
+ *
+ *  `id` is structural, not content: an entry whose only remaining key is
+ *  its `id` translates nothing and goes too. */
+function pruneUntranslated(node: unknown): unknown | undefined {
+  // An empty string is not a translation — the merger falls through to
+  // English on it exactly as it does on a missing key.
+  if (typeof node === 'string') return node.length > 0 ? node : undefined;
+  if (Array.isArray(node)) {
+    const out = node.map((entry) => pruneUntranslated(entry));
+    let last = out.length - 1;
+    // Trailing padding addresses nothing — the merger stops at the source's
+    // length anyway — and it is one more way the stored catalog can differ
+    // from the one the editor rebuilds.
+    while (last >= 0 && out[last] === undefined) last -= 1;
+    if (last < 0) return undefined;
+    return out.slice(0, last + 1).map((e) => (e === undefined ? null : e));
+  }
+  if (node !== null && typeof node === 'object') {
+    const rec = node as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    let translated = false;
+    for (const [k, v] of Object.entries(rec)) {
+      if (k === 'id') continue;
+      const r = pruneUntranslated(v);
+      if (r === undefined) continue;
+      out[k] = r;
+      translated = true;
+    }
+    if (!translated) return undefined;
+    return typeof rec.id === 'string' ? { id: rec.id, ...out } : out;
+  }
+  return undefined;
+}
+
+export interface SeedReport {
   locale: Locale;
   stem: string;
   filled: number;
   preserved: number;
   gaps: number;
+  /** Existing entries the merge could not place — an id the source no
+   *  longer has, or an id-less entry in an id-addressed array. Reported
+   *  rather than dropped in silence. */
+  dropped: string[];
 }
 
+/** Translated strings in an overlay. `id` is structural — it addresses
+ *  the source entry rather than translating it, so it must not count
+ *  towards coverage. */
 function countLeaves(node: unknown): number {
   if (node === null || node === undefined) return 0;
   if (typeof node === 'string') return 1;
   if (Array.isArray(node)) return node.reduce<number>((n, c) => n + countLeaves(c), 0);
   if (typeof node === 'object') {
-    return Object.values(node as Record<string, unknown>).reduce<number>(
-      (n, c) => n + countLeaves(c),
+    return Object.entries(node as Record<string, unknown>).reduce<number>(
+      (n, [k, c]) => (k === 'id' ? n : n + countLeaves(c)),
       0,
     );
   }
@@ -229,7 +341,7 @@ function normaliseSource(raw: unknown): unknown {
   return rec;
 }
 
-function seedDir(
+export function seedDir(
   dir: string,
   locale: Locale,
   dry: boolean,
@@ -252,11 +364,14 @@ function seedDir(
       console.error(`seed: failed to parse ${sourcePath}: ${err instanceof Error ? err.message : err}`);
       continue;
     }
-    const fresh = seedNode(source, lex) ?? {};
+    // Both sides are stamped BEFORE the merge so they align by `id`
+    // rather than by index — stamping a legacy positional overlay is
+    // what migrates it, and stamping an already-migrated one is a no-op.
+    const fresh = stampOverlayIds(source, seedNode(source, lex) ?? {});
     let existing: unknown = {};
     if (existsSync(overlayPath)) {
       try {
-        existing = JSON.parse(readFileSync(overlayPath, 'utf-8'));
+        existing = stampOverlayIds(source, JSON.parse(readFileSync(overlayPath, 'utf-8')));
       } catch (err) {
         console.error(
           `seed: failed to parse existing overlay ${overlayPath}: ${err instanceof Error ? err.message : err}`,
@@ -264,11 +379,12 @@ function seedDir(
         continue;
       }
     }
-    const merged = mergeKeepExisting(existing, fresh);
+    const dropped: string[] = [];
+    const merged = pruneUntranslated(mergeKeepExisting(source, existing, fresh, dropped)) ?? {};
     const filled = countLeaves(merged);
     const preserved = countLeaves(existing);
     const total = countTranslatableLeaves(source);
-    out.push({ locale, stem, filled, preserved, gaps: total - filled });
+    out.push({ locale, stem, filled, preserved, gaps: total - filled, dropped });
     if (!dry) {
       writeFileSync(overlayPath, JSON.stringify(merged, null, 2) + '\n', 'utf-8');
     }
@@ -347,6 +463,15 @@ function main(): void {
       `  ${locale}: ${agg.templates} templates, ${agg.filled}/${total} strings (${pct}%), ${agg.gaps} gaps`,
     );
   }
+  // Never drop a translator's text in silence — an entry the merge could
+  // not place is gone from the rewritten catalog, and the only trace is
+  // this line.
+  for (const r of reports) {
+    for (const d of r.dropped) {
+      console.warn(`  dropped ${r.stem}.i18n.${r.locale}.json: ${d}`);
+    }
+  }
 }
 
-main();
+// Importing this module (the tests do) must not run the CLI.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

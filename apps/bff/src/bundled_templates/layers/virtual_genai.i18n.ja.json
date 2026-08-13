@@ -20,50 +20,65 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "コール / 分"
       },
       {
+        "id": "resp_time",
         "title": "平均応答時間"
       },
       {
+        "id": "sla",
         "title": "成功率"
       },
       {
+        "id": "percentile",
         "title": "レイテンシパーセンタイル"
       },
       {
+        "id": "input_tokens_total",
         "title": "入力トークン"
       },
       {
+        "id": "output_tokens_total",
         "title": "出力トークン"
       },
       {
+        "id": "cost_total",
         "title": "総推定コスト"
       },
       {
+        "id": "input_tokens",
         "title": "平均入力トークン"
       },
       {
+        "id": "output_tokens",
         "title": "平均出力トークン"
       },
       {
+        "id": "cost",
         "title": "平均推定コスト"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "コール / 分"
       },
       {
+        "id": "latency_avg",
         "title": "平均レイテンシ"
       },
       {
+        "id": "sla",
         "title": "成功率"
       },
       {
+        "id": "latency_percentile",
         "title": "レイテンシパーセンタイル"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "平均",
@@ -71,21 +86,27 @@
         ]
       },
       {
+        "id": "input_tokens_total",
         "title": "入力トークン"
       },
       {
+        "id": "output_tokens_total",
         "title": "出力トークン"
       },
       {
+        "id": "cost_total",
         "title": "総推定コスト"
       },
       {
+        "id": "input_tokens",
         "title": "平均入力トークン"
       },
       {
+        "id": "output_tokens",
         "title": "平均出力トークン"
       },
       {
+        "id": "cost",
         "title": "平均推定コスト"
       }
     ]

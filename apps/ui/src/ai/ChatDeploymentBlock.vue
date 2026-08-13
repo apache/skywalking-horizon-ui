@@ -39,6 +39,7 @@ const { t } = useI18n({ useScope: 'global' });
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service-id="spec.serviceId"
+        :focus-service="spec.service"
         :focus-window-minutes="spec.windowMinutes"
         :replay="true"
         :replay-data="spec.replayData"

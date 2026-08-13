@@ -151,12 +151,6 @@ const MAX_TRACE_ANALYZE_QUERIES = 100;
 const EBPF_CHUNK_MS = 10_000;
 const MAX_EBPF_ANALYZE_CHUNKS = 600;
 
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForProfilingResolve($layer: String!) {
-    services: listServices(layer: $layer) { id name normal }
-  }
-`;
-
 const GET_PROFILE_TASK_LIST = /* GraphQL */ `
   query AiGetProfileTaskList($serviceId: ID) {
     taskList: getProfileTaskList(serviceId: $serviceId) {
@@ -348,6 +342,37 @@ export interface AnalyzeNetworkProfilingInput {
   offsetMinutes: number;
   /** Read this task; when absent, the service's most recent NETWORK task. */
   taskId?: string;
+}
+
+const LIST_SERVICES_FOR_PROFILING = /* GraphQL */ `
+  query HorizonProfilingServiceId($layer: String!) {
+    services: listServices(layer: $layer) { id name }
+  }
+`;
+
+/**
+ * The one name → id lookup left in the BFF, and only because the assistant's
+ * `analyze_profiling` tool schema hands over a service NAME with no id: every
+ * HTTP query route now carries the identity pair and resolves nothing. Removing
+ * this means widening that tool's schema (as `propose_profiling` already does),
+ * not re-introducing a resolver for the routes.
+ *
+ * Throws whatever the round-trip throws — an unreachable OAP is not the same
+ * answer as an unknown service, and both callers report the difference.
+ */
+async function profilingServiceId(
+  opts: GraphqlOptions,
+  layerKey: string,
+  service: string,
+): Promise<{ id: string } | { error: string }> {
+  const layer = layerKey.toUpperCase();
+  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
+    opts,
+    LIST_SERVICES_FOR_PROFILING,
+    { layer },
+  );
+  const match = (data.services ?? []).find((s) => s.name === service);
+  return match ? { id: match.id } : { error: `Unknown service "${service}" in layer ${layer}.` };
 }
 
 // Rover watches processes per instance, so only part of a fleet may report a
@@ -592,8 +617,9 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
     return result;
   };
   try {
-    const serviceId = await resolveServiceId(opts, layerKey, service);
-    if (!serviceId) return fail(`Unknown service "${service}" in layer ${layerKey}.`);
+    const found = await profilingServiceId(opts, layerKey, service);
+    if ('error' in found) return fail(found.error);
+    const serviceId = found.id;
     const task = await findNetworkTask(opts, serviceId, input.taskId);
     if (input.taskId && !task) {
       return fail(`No NETWORK profiling task "${input.taskId}" on ${service}.`);
@@ -631,18 +657,6 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
   }
-}
-
-const ENCODED_ID = /^[A-Za-z0-9+/=]+\.\d+$/;
-
-async function resolveServiceId(opts: GraphqlOptions, layerKey: string, serviceArg: string): Promise<string | null> {
-  if (ENCODED_ID.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layerKey.toUpperCase() },
-  );
-  return data.services.find((s) => s.name === serviceArg)?.id ?? data.services.find((s) => s.id === serviceArg)?.id ?? null;
 }
 
 function frameCount(trees: ProfileAnalyzationTree[]): number {
@@ -725,12 +739,13 @@ export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<Pr
     reachable: true,
   };
   try {
-    const serviceId = await resolveServiceId(opts, layerKey, service);
-    if (!serviceId) {
+    const found = await profilingServiceId(opts, layerKey, service);
+    if ('error' in found) {
       base.reachable = false;
-      base.error = `Unknown service "${service}" in layer ${layerKey}.`;
+      base.error = found.error;
       return base;
     }
+    const serviceId = found.id;
     switch (profilingType) {
       case 'trace':
         return await analyzeTrace(opts, serviceId, service, input.taskId, base);

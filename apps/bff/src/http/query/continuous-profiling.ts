@@ -42,6 +42,7 @@ import { requireAuth } from '../../user/middleware.js';
 import { policySummaryForServices } from '../../logic/oap/continuous-profiling.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface ContinuousProfilingRouteDeps {
   config: ConfigSource;
@@ -279,12 +280,13 @@ export function registerContinuousProfilingRoutes(
     '/api/continuous-profiling/policies',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = req.query as { service?: string };
+      const scope = serviceScopeOf(req.query as { serviceId?: string; service?: string });
       const payload: ContinuousProfilingPoliciesResponse = { targets: [], reachable: true };
-      if (!q.service) {
-        payload.error = 'missing service';
+      if (scope.kind !== 'service') {
+        payload.error = scope.kind === 'incomplete' ? scope.message : 'missing service';
         return reply.send(payload);
       }
+      const serviceId = scope.service.id;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         // The readiness probe is advisory, so a failure there must not lose the
@@ -292,10 +294,10 @@ export function registerContinuousProfilingRoutes(
         // cannot edit rules it never received.
         const [data, ready] = await Promise.all([
           graphqlPost<{ targets: ContinuousProfilingPolicyTarget[] }>(opts, QUERY_POLICIES, {
-            serviceId: q.service,
+            serviceId,
           }),
           graphqlPost<{ prepare: { couldProfiling: boolean } }>(opts, QUERY_EBPF_READY, {
-            serviceId: q.service,
+            serviceId,
           }).catch(() => null),
         ]);
         payload.targets = data.targets ?? [];
@@ -342,13 +344,14 @@ export function registerContinuousProfilingRoutes(
     '/api/continuous-profiling/instances',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = req.query as { service?: string; targets?: string };
+      const q = req.query as { serviceId?: string; service?: string; targets?: string };
       const empty = { instanceCount: 0, processCount: 0, triggeredInstanceCount: 0 };
       const payload: ContinuousProfilingInstancesResponse = {
         instances: [], targets: [], summary: empty, reachable: true,
       };
-      if (!q.service) {
-        payload.error = 'missing service';
+      const scope = serviceScopeOf(q);
+      if (scope.kind !== 'service') {
+        payload.error = scope.kind === 'incomplete' ? scope.message : 'missing service';
         return reply.send(payload);
       }
       const targets = (q.targets ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -369,7 +372,7 @@ export function registerContinuousProfilingRoutes(
         const perTarget = await Promise.all(
           wanted.map((target) =>
             graphqlPost<{ instances: WireInstance[] }>(opts, QUERY_INSTANCES, {
-              serviceId: q.service,
+              serviceId: scope.service.id,
               target,
             }).then((d) => ({ target, instances: d.instances ?? [] })),
           ),

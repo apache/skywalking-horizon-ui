@@ -17,9 +17,11 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "평균 CPU 사용률 (%)"
       },
       {
+        "id": "memory",
         "title": "RAM 메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -28,6 +30,7 @@
         ]
       },
       {
+        "id": "virtual_memory",
         "title": "가상 메모리 (MB)",
         "expressionLabels": [
           "여유",
@@ -35,6 +38,7 @@
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "네트워크 대역폭 (KB/s)",
         "expressionLabels": [
           "수신",
@@ -42,6 +46,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "디스크 R/W (KB/s)",
         "expressionLabels": [
           "read",

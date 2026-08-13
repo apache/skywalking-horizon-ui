@@ -33,9 +33,15 @@
  */
 
 import { readonly, shallowRef } from 'vue';
+import { onSessionReset } from '@/state/sessionReset';
 
 const values = shallowRef<Map<string, number | null>>(new Map());
 const units = shallowRef<Map<string, string>>(new Map()); // key: layerKey upper-case
+
+// The pipeline clears these at its LAST stage, so without this an identity
+// change would leave the previous session's chips on the cubes for the whole
+// length of a fresh run.
+onSessionReset(() => reset());
 
 export function useInfra3dMetrics() {
   return {

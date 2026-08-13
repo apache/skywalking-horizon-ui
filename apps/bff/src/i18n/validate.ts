@@ -17,7 +17,7 @@
 
 /**
  * Validate translation catalogs against the source templates and the
- * lexicon contract. Catches five failure modes:
+ * lexicon contract. Catches eight failure modes:
  *
  *   1. **Orphan keys.** Catalog entries whose source path no longer
  *      exists (renamed / deleted in the source template). Render-time
@@ -40,13 +40,26 @@
  *      OVERLAY_LOCALES. Even `{}` is fine; the file's presence is
  *      what we gate on so a new locale doesn't silently ship with
  *      half its templates English-only.
+ *   6. **Unknown / duplicate overlay ids.** An entry addressing a
+ *      widget the source no longer has, or two entries claiming the
+ *      same widget. The merger ignores both (first entry wins), so
+ *      the translation silently disappears.
+ *   7. **Mixed addressing.** One array holding both id-addressed and
+ *      positional entries. The two have no shared meaning, and the
+ *      merger drops the positional ones.
+ *   8. **Un-migrated positional overlay.** An array whose source
+ *      entries all carry a unique `id` but whose overlay entries carry
+ *      none. It still renders (the merger falls back to position), but
+ *      it cannot follow a widget through a reorder — the bundled
+ *      catalogs must stay migrated.
  *
  * Exit code is non-zero on any failure so CI can gate.
  */
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { idAddressableIds } from '@skywalking-horizon-ui/api-client';
 import { OVERLAY_LOCALES, type Locale } from './types.js';
 import { isOverlayFilename, parseOverlayFilename } from './store.js';
 
@@ -54,7 +67,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUNDLED_ROOT = join(__dirname, '..', 'bundled_templates');
 const LEXICON_ROOT = join(__dirname, 'lexicon');
 
-interface Finding {
+export interface Finding {
   file: string;
   path: string;
   message: string;
@@ -64,14 +77,114 @@ const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 
 const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots', 'valueMap']);
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);
 
-function walk(source: unknown, overlay: unknown, path: string[], findings: Finding[], file: string): void {
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Check an overlay array against an id-addressable source array — every
+ * source entry carries a unique `id`, so the overlay is expected to
+ * address entries by that id rather than by position.
+ *
+ * A legacy overlay carrying no ids at all still renders (the merger
+ * falls back to position) but is reported: it cannot survive a widget
+ * reorder, and the bundled catalogs are migrated.
+ */
+function walkIdArray(
+  source: readonly unknown[],
+  ids: readonly string[],
+  overlay: readonly unknown[],
+  path: string[],
+  findings: Finding[],
+  file: string,
+): void {
+  const known = new Map(ids.map((id, i) => [id, i]));
+  const seen = new Set<string>();
+  let idKeyed = false;
+  let positional = false;
+  if (overlay.length > source.length) {
+    findings.push({
+      file,
+      path: path.join('.'),
+      message: `overlay has ${overlay.length} entries for ${source.length} source entries`,
+    });
+  }
+  for (let i = 0; i < overlay.length; i++) {
+    const entry = overlay[i];
+    if (entry === null || entry === undefined) continue;
+    const at = [...path, String(i)].join('.');
+    if (!isObject(entry)) {
+      findings.push({ file, path: at, message: 'overlay entry should be an object' });
+      continue;
+    }
+    const id = entry.id;
+    if (id === undefined) {
+      positional = true;
+      if (i < source.length) walk(source[i], entry, [...path, String(i)], findings, file);
+      continue;
+    }
+    if (typeof id !== 'string' || id.length === 0) {
+      findings.push({ file, path: `${at}.id`, message: 'overlay "id" should be a non-empty string' });
+      continue;
+    }
+    idKeyed = true;
+    if (!known.has(id)) {
+      findings.push({ file, path: at, message: `no source entry with id "${id}"` });
+      continue;
+    }
+    if (seen.has(id)) {
+      findings.push({ file, path: at, message: `duplicate overlay entry for id "${id}"` });
+      continue;
+    }
+    seen.add(id);
+    walk(source[known.get(id) as number], entry, [...path, String(i)], findings, file, true);
+  }
+  if (idKeyed && positional) {
+    findings.push({
+      file,
+      path: path.join('.'),
+      message: 'overlay mixes id-addressed and positional entries — the positional ones are dropped at render',
+    });
+    return;
+  }
+  if (!idKeyed && positional) {
+    findings.push({
+      file,
+      path: path.join('.'),
+      message:
+        'overlay entries carry no "id" — source entries have stable ids, so add them; a positional overlay cannot follow a reordered entry',
+    });
+  }
+}
+
+function walk(
+  source: unknown,
+  overlay: unknown,
+  path: string[],
+  findings: Finding[],
+  file: string,
+  idIsStructural = false,
+): void {
   if (overlay === null || overlay === undefined) return;
   if (Array.isArray(source)) {
     if (!Array.isArray(overlay)) {
       findings.push({ file, path: path.join('.'), message: 'overlay should be an array' });
       return;
     }
+    const ids = idAddressableIds(source);
+    if (ids) {
+      walkIdArray(source, ids, overlay, path, findings, file);
+      return;
+    }
     for (let i = 0; i < overlay.length; i++) {
+      if (isObject(overlay[i]) && 'id' in (overlay[i] as Record<string, unknown>)) {
+        findings.push({
+          file,
+          path: [...path, String(i)].join('.'),
+          message:
+            'overlay entry carries an "id" but the source array is not id-addressable (entries lack a unique id) — this array matches by position',
+        });
+      }
       if (i >= source.length) {
         findings.push({
           file,
@@ -188,6 +301,11 @@ function walk(source: unknown, overlay: unknown, path: string[], findings: Findi
         }
         continue;
       }
+      // `id` on an entry of an id-addressable array is the structural
+      // matching key — walkIdArray has already checked it. Anywhere
+      // else an overlay `id` is just a non-translatable field, and
+      // falls through to the allowlist finding below.
+      if (k === 'id' && idIsStructural) continue;
       // Non-allowlisted key: recurse if both sides are containers,
       // otherwise (leaf-level non-translatable key in overlay) flag.
       if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
@@ -219,7 +337,7 @@ function normaliseSource(raw: unknown): unknown {
   return rec;
 }
 
-function validateDir(dir: string, label: string, findings: Finding[]): void {
+export function validateDir(dir: string, label: string, findings: Finding[]): void {
   if (!existsSync(dir)) return;
   const sourceByStem = new Map<string, unknown>();
   for (const file of readdirSync(dir)) {
@@ -376,4 +494,5 @@ function main(): void {
   process.exit(1);
 }
 
-main();
+// Importing this module (the tests do) must not run the CLI.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

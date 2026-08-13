@@ -20,18 +20,12 @@
   "dashboards": {
     "service": [
       {
-        "title": "CPU-Mittel genutzt (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU-Mittel genutzt (%)"
       },
       {
+        "id": "cpu_load",
         "title": "CPU-Last",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1m",
           "5m",
@@ -39,19 +33,12 @@
         ]
       },
       {
-        "title": "File-FD zugewiesen",
-        "expressions": [
-          null
-        ]
+        "id": "filefd",
+        "title": "File-FD zugewiesen"
       },
       {
+        "id": "memory",
         "title": "Speicher RAM (MB)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "gesamt",
@@ -60,53 +47,36 @@
         ]
       },
       {
+        "id": "swap",
         "title": "Speicher Swap (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "frei",
           "gesamt"
         ]
       },
       {
+        "id": "network_bandwidth",
         "title": "Netzwerk-Bandbreite (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "empfangen",
           "transmit"
         ]
       },
       {
+        "id": "disk",
         "title": "Disk R/W (KB/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "geschrieben"
         ]
       },
       {
-        "title": "Dateisystem-Nutzung (%)",
-        "expressions": [
-          null
-        ]
+        "id": "fs",
+        "title": "Dateisystem-Nutzung (%)"
       },
       {
+        "id": "network_status",
         "title": "Netzwerk-Status",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "tcp estab",
           "tcp time-wait",

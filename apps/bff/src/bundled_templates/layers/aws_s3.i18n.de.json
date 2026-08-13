@@ -20,64 +20,44 @@
   "dashboards": {
     "service": [
       {
-        "title": "Gesamtanzahl Anfragen",
-        "expressions": [
-          null
-        ]
+        "id": "all_req",
+        "title": "Gesamtanzahl Anfragen"
       },
       {
-        "title": "GET-Anfrageanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "get_req",
+        "title": "GET-Anfrageanzahl"
       },
       {
-        "title": "PUT-Anfrageanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "put_req",
+        "title": "PUT-Anfrageanzahl"
       },
       {
-        "title": "DELETE-Anfrageanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "delete_req",
+        "title": "DELETE-Anfrageanzahl"
       },
       {
-        "title": "4xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx-Anzahl"
       },
       {
-        "title": "5xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx-Anzahl"
       },
       {
-        "title": "Mittlere Anfragelatenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "Mittlere Anfragelatenz"
       },
       {
-        "title": "First Byte mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "first_byte_latency",
+        "title": "First Byte mittlere Latenz"
       },
       {
-        "title": "Heruntergeladen (KB)",
-        "expressions": [
-          null
-        ]
+        "id": "downloaded",
+        "title": "Heruntergeladen (KB)"
       },
       {
-        "title": "Hochgeladen (KB)",
-        "expressions": [
-          null
-        ]
+        "id": "uploaded",
+        "title": "Hochgeladen (KB)"
       }
     ]
   },

@@ -20,50 +20,65 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "Aufrufe / min"
       },
       {
+        "id": "resp_time",
         "title": "Mittlere Antwortzeit"
       },
       {
+        "id": "sla",
         "title": "Erfolgsrate"
       },
       {
+        "id": "percentile",
         "title": "Latenz-Perzentil"
       },
       {
+        "id": "input_tokens_total",
         "title": "Input-Tokens"
       },
       {
+        "id": "output_tokens_total",
         "title": "Output-Tokens"
       },
       {
+        "id": "cost_total",
         "title": "Geschätzte Gesamtkosten"
       },
       {
+        "id": "input_tokens",
         "title": "Mittlere Input-Tokens"
       },
       {
+        "id": "output_tokens",
         "title": "Mittlere Output-Tokens"
       },
       {
+        "id": "cost",
         "title": "Mittlere geschätzte Kosten"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "Aufrufe / min"
       },
       {
+        "id": "latency_avg",
         "title": "Mittlere Latenz"
       },
       {
+        "id": "sla",
         "title": "Erfolgsrate"
       },
       {
+        "id": "latency_percentile",
         "title": "Latenz-Perzentil"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "mittel",
@@ -71,21 +86,27 @@
         ]
       },
       {
+        "id": "input_tokens_total",
         "title": "Input-Tokens"
       },
       {
+        "id": "output_tokens_total",
         "title": "Output-Tokens"
       },
       {
+        "id": "cost_total",
         "title": "Geschätzte Gesamtkosten"
       },
       {
+        "id": "input_tokens",
         "title": "Mittlere Input-Tokens"
       },
       {
+        "id": "output_tokens",
         "title": "Mittlere Output-Tokens"
       },
       {
+        "id": "cost",
         "title": "Mittlere geschätzte Kosten"
       }
     ]

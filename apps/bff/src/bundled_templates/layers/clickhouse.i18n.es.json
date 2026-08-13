@@ -3,15 +3,19 @@
   "dashboards": {
     "instance": [
       {
+        "id": "uptime",
         "title": "Uptime (días)"
       },
       {
+        "id": "version",
         "title": "Versión"
       },
       {
+        "id": "cpu",
         "title": "CPU (núcleos)"
       },
       {
+        "id": "mem",
         "title": "Memoria (%)",
         "expressionLabels": [
           "en uso",
@@ -19,6 +23,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "Red (B)",
         "expressionLabels": [
           "recepción",
@@ -26,6 +31,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Conexiones",
         "expressionLabels": [
           "TCP",
@@ -33,6 +39,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "Consultas",
         "expressionLabels": [
           "total",
@@ -41,6 +48,7 @@
         ]
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -48,6 +56,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "Tiempo de consulta (ms)",
         "expressionLabels": [
           "media",
@@ -56,18 +65,23 @@
         ]
       },
       {
+        "id": "slow",
         "title": "Lectura lenta de archivo"
       },
       {
+        "id": "merge",
         "title": "Merge en segundo plano"
       },
       {
+        "id": "mutations",
         "title": "Mutaciones"
       },
       {
+        "id": "files",
         "title": "Archivos abiertos"
       },
       {
+        "id": "insert_io",
         "title": "Rendimiento de inserción",
         "expressionLabels": [
           "bytes/s",
@@ -75,14 +89,17 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "Inserts retrasadas (s)"
       }
     ],
     "service": [
       {
+        "id": "files_open",
         "title": "Archivos abiertos"
       },
       {
+        "id": "qps",
         "title": "QPS",
         "expressionLabels": [
           "select",
@@ -90,6 +107,7 @@
         ]
       },
       {
+        "id": "queries",
         "title": "Consultas",
         "expressionLabels": [
           "total",
@@ -98,6 +116,7 @@
         ]
       },
       {
+        "id": "query_time",
         "title": "Tiempo de consulta (ms)",
         "expressionLabels": [
           "media",
@@ -106,6 +125,7 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Conexiones",
         "expressionLabels": [
           "TCP",
@@ -113,9 +133,11 @@
         ]
       },
       {
+        "id": "slow",
         "title": "Lecturas lentas"
       },
       {
+        "id": "merge_mut",
         "title": "Merge / mutaciones",
         "expressionLabels": [
           "merge",
@@ -123,6 +145,7 @@
         ]
       },
       {
+        "id": "insert_io",
         "title": "Rendimiento de inserción",
         "expressionLabels": [
           "bytes/s",
@@ -130,12 +153,15 @@
         ]
       },
       {
+        "id": "delayed",
         "title": "Inserts retrasadas (s)"
       },
       {
+        "id": "parts_active",
         "title": "Particiones de datos activas"
       },
       {
+        "id": "replicated",
         "title": "Fetch / send replicados",
         "expressionLabels": [
           "fetch",
@@ -143,6 +169,7 @@
         ]
       },
       {
+        "id": "zk",
         "title": "Zookeeper Bytes (b/s)",
         "expressionLabels": [
           "bytes enviados",
@@ -150,15 +177,19 @@
         ]
       },
       {
+        "id": "zk_sessions",
         "title": "Sesiones de Zookeeper"
       },
       {
+        "id": "zk_watches",
         "title": "Zookeeper Watches"
       },
       {
+        "id": "keeper_alive",
         "title": "Conexiones keeper vivas"
       },
       {
+        "id": "keeper_outstanding",
         "title": "Peticiones pendientes del keeper"
       }
     ]

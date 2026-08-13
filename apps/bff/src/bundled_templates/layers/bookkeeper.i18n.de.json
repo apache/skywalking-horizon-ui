@@ -20,85 +20,54 @@
   "dashboards": {
     "service": [
       {
-        "title": "Bookie-Ledger",
-        "expressions": [
-          null
-        ]
+        "id": "ledgers",
+        "title": "Bookie-Ledger"
       },
       {
-        "title": "Bookie-Einträge",
-        "expressions": [
-          null
-        ]
+        "id": "entries",
+        "title": "Bookie-Einträge"
       },
       {
-        "title": "Beschreibbare Ledger-Verz.",
-        "expressions": [
-          null
-        ]
+        "id": "writable_dirs",
+        "title": "Beschreibbare Ledger-Verz."
       },
       {
+        "id": "write_cache",
         "title": "Schreib-Cache",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "größe (MB)",
           "einträge"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "read_cache",
         "title": "Lese-Cache",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "größe (MB)",
           "einträge"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "io_rates",
         "title": "Lese-/Schreibrate (B/s)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
-        "title": "Ledger-Verz.-Nutzung",
-        "expressions": [
-          null
-        ]
+        "id": "dir_usage",
+        "title": "Ledger-Verz.-Nutzung"
       }
     ],
     "instance": [
       {
-        "title": "JVM-Speicherpool (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "jvm_pool",
+        "title": "JVM-Speicherpool (MB)"
       },
       {
+        "id": "jvm_mem",
         "title": "JVM-Speicher (MB)",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "genutzt",
           "committed",
@@ -106,13 +75,8 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM-Threads",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "aktuell",
           "daemon",
@@ -121,28 +85,16 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "sekunden",
           "anzahl"
-        ],
-        "expressionAxes": [
-          null,
-          null
         ]
       },
       {
+        "id": "thread_executor",
         "title": "Thread Executor",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "abgeschlossen",
           "tasks abgeschlossen",
@@ -151,22 +103,16 @@
         ]
       },
       {
+        "id": "pooled_threads",
         "title": "Pool-Threads",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "high-priority",
           "lesen"
         ]
       },
       {
+        "id": "queue_size",
         "title": "Pool Max-Queue-Größe",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "high-priority",
           "lesen"

@@ -68,7 +68,7 @@ step('Cleaning ./dist and ./_deploy_tmp');
 rmSync(dist, { recursive: true, force: true });
 rmSync(tmp, { recursive: true, force: true });
 
-step('Building workspace packages (api-client / design-tokens / templates)');
+step('Building workspace packages (api-client / design-tokens)');
 run("pnpm -r --filter './packages/*' run build");
 
 step('Building BFF (esbuild bundle)');
@@ -117,9 +117,12 @@ Target binary: ${resolve(dist, 'server.js')}
 
 Boot it:
 
-    HORIZON_CONFIG=./horizon.yaml \\             # every field is a \${HORIZON_…} env var
-      HORIZON_OAP_QUERY_URL=http://oap:12800 \\  # override only what you need
+    HORIZON_CONFIG=dist/horizon.yaml \\
+      HORIZON_OAP_QUERY_URL=http://oap:12800 \\
       node dist/server.js
+
+Every field in horizon.yaml is a \${HORIZON_…} token, so override only what
+you need via the environment.
 
 The UI is served from the sibling static/ automatically — set
 HORIZON_STATIC_DIR only to point somewhere else.
@@ -127,7 +130,7 @@ HORIZON_STATIC_DIR only to point somewhere else.
 Or from inside dist/ (cwd-relative fallback resolves bundled_templates):
 
     cd dist
-    HORIZON_CONFIG=../horizon.yaml node server.js
+    HORIZON_CONFIG=./horizon.yaml node server.js
 
 The folder is fully self-contained — copy it anywhere, no \`pnpm install\`
 required, no network access at boot.

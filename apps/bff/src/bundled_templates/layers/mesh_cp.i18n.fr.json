@@ -23,15 +23,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu",
         "title": "CPU"
       },
       {
+        "id": "goroutines",
         "title": "Goroutines"
       },
       {
+        "id": "version",
         "title": "Versions Istio"
       },
       {
+        "id": "memory",
         "title": "Mémoire (Mo)",
         "expressionLabels": [
           "alloc",
@@ -42,6 +46,7 @@
         ]
       },
       {
+        "id": "pilot_errors",
         "title": "Erreurs Pilot",
         "expressionLabels": [
           "cds rejeté",
@@ -52,15 +57,19 @@
         ]
       },
       {
+        "id": "proxy_push_time",
         "title": "Temps de push du proxy (centile)"
       },
       {
+        "id": "pilot_pushes",
         "title": "Pushes Pilot"
       },
       {
+        "id": "sidecar_inj",
         "title": "Succès d'injection du sidecar"
       },
       {
+        "id": "ads",
         "title": "Surveillance ADS",
         "expressionLabels": [
           "xds",
@@ -69,6 +78,7 @@
         ]
       },
       {
+        "id": "validation",
         "title": "Validation de configuration",
         "expressionLabels": [
           "réussites",
@@ -76,6 +86,7 @@
         ]
       },
       {
+        "id": "conflicts",
         "title": "Conflits Pilot",
         "expressionLabels": [
           "ol tcp/tcp",

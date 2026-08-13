@@ -41,6 +41,7 @@ import type {
   ZipkinTraceListRow,
 } from '@skywalking-horizon-ui/api-client';
 import { wireFetch } from './wire-log.js';
+import type { HorizonConfig } from '../config/schema.js';
 
 export interface ZipkinClientOpts {
   queryUrl: string;
@@ -48,6 +49,33 @@ export interface ZipkinClientOpts {
   fetch?: FetchLike;
   /** Optional basic-auth — same shape as the GraphQL client. */
   auth?: { username: string; password: string };
+}
+
+/**
+ * Build {@link ZipkinClientOpts} from the live config.
+ *
+ * Exists because {@link ZipkinClientOpts} and the GraphQL client's options are
+ * STRUCTURALLY IDENTICAL — both are `{ queryUrl, timeoutMs, auth?, fetch? }` —
+ * so handing GraphQL options to a Zipkin call type-checks cleanly and then
+ * sends Zipkin requests to the GraphQL port, which answers 404.
+ *
+ * That is not hypothetical — `fetchZipkinList` did exactly this. It is not
+ * reachable from a BUNDLED layer today: the five templates that select Zipkin
+ * (mesh, mesh_cp, mesh_dp, k8s, k8s_service) are pure-`zipkin`, and a
+ * pure-`zipkin` layer renders the Zipkin view, which goes through
+ * `/api/zipkin/*` and resolves its base URL correctly. The broken path is
+ * `/api/layer/:key/traces` with `source: zipkin | both` — a custom template
+ * using `both`, or any direct API consumer.
+ *
+ * Build Zipkin options through here rather than reusing the GraphQL ones.
+ */
+export function buildZipkinOpts(cfg: HorizonConfig, fetch?: FetchLike): ZipkinClientOpts {
+  return {
+    queryUrl: cfg.oap.zipkinUrl,
+    timeoutMs: cfg.oap.timeoutMs,
+    auth: cfg.oap.auth,
+    fetch,
+  };
 }
 
 export interface ZipkinTracesQuery {

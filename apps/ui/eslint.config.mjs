@@ -45,4 +45,60 @@ export default [
     ignores: ['**/*.test.ts', '**/*.d.ts'],
     rules: { 'max-lines': ['error', { max: 2000, skipComments: true, skipBlankLines: true }] },
   },
+  {
+    // Markup and script sinks. `flat/essential` does not carry
+    // `vue/no-v-html`, so every one of these could be introduced without a
+    // reviewer being told — which is how a dashboard-config value reaches an
+    // HTML string. Each existing use is legitimate and now says so with an
+    // explicit disable line, so the next one has to argue for itself.
+    // Rendering data belongs in `{{ }}`, d3 `.text()`, or the shared escaper.
+    files: ['src/**/*.vue', 'src/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.d.ts'],
+    rules: {
+      'vue/no-v-html': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'no-restricted-syntax': [
+        'error',
+        {
+          // A string literal is developer-authored; anything else carries a
+          // value from somewhere, and `host.innerHTML = ''` (clearing a d3
+          // host before re-render) stays legal.
+          selector: "AssignmentExpression[left.property.name='innerHTML'][right.type!='Literal']",
+          message:
+            'innerHTML with a computed value is an HTML sink — render through {{ }}, d3 .text(), or escape it.',
+        },
+        {
+          // `el['innerHTML'] = x` reaches the same setter but parses as a
+          // COMPUTED member, where the key is `property.value`, not
+          // `property.name` — so the selector above never saw it.
+          selector:
+            "AssignmentExpression[left.computed=true][left.property.value='innerHTML'][right.type!='Literal']",
+          message:
+            'innerHTML with a computed value is an HTML sink — render through {{ }}, d3 .text(), or escape it.',
+        },
+        {
+          // `Object.assign(el, { innerHTML: x })` assigns it without ever
+          // writing an AssignmentExpression.
+          selector:
+            "CallExpression[callee.object.name='Object'][callee.property.name='assign'] Property[key.name=/^(innerHTML|outerHTML)$/]",
+          message:
+            'assigning innerHTML/outerHTML through Object.assign is an HTML sink — build the node instead.',
+        },
+        {
+          selector: "AssignmentExpression[left.property.name='outerHTML']",
+          message: 'outerHTML is an HTML sink — build the node instead.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='insertAdjacentHTML']",
+          message: 'insertAdjacentHTML is an HTML sink — build the node instead.',
+        },
+        {
+          selector: "CallExpression[callee.object.name='document'][callee.property.name='write']",
+          message: 'document.write is an HTML sink and blocks parsing.',
+        },
+      ],
+    },
+  },
 ];

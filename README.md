@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.com/apache/skywalking) — a config-driven, dark-dense, multi-layer observability front end built for feature parity with the legacy [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) on the same OAP GraphQL query-protocol and MQE. It renders services, instances, endpoints, topology, traces, logs, alarms, and profiling across 44 instrumentation layers, ships an in-browser admin suite for runtime rules, RBAC, template management, and cluster status, and includes an optional bring-your-own-LLM AI assistant that answers questions from live OAP data using the same dashboard widgets. Dashboards are JSON templates: live OAP 11 deployments publish them to OAP, while readonly deployments render the bundled copies — new screens are configuration, not code.
+Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.com/apache/skywalking) — a config-driven, dark-dense, multi-layer observability front end built for feature parity with the legacy [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) on the same OAP GraphQL query-protocol and MQE. It renders services, instances, endpoints, topology, traces, logs, alarms, and profiling across every layer SkyWalking observes — language agents, service mesh, middleware, and Kubernetes infrastructure — ships an in-browser admin suite for runtime rules, RBAC, template management, and cluster status, and includes an optional bring-your-own-LLM AI assistant that answers questions from live OAP data using the same dashboard widgets. Dashboards are JSON templates: live OAP 11 deployments publish them to OAP, while readonly deployments render the bundled copies — new screens are configuration, not code.
 
 ## Features
 
@@ -19,7 +19,7 @@ Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.
 
 ### Layers & dashboards
 
-- 44 bundled instrumentation layers across four tiers — Apps (GENERAL, BROWSER, mobile, VIRTUAL_DATABASE/CACHE/MQ/GENAI), Service Mesh (MESH, MESH_DP, MESH_CP, CILIUM_SERVICE), Middleware (databases, queues, gateways, Flink, Airflow), and Infrastructure (K8S, OS_LINUX/WINDOWS, AWS) — plus a self-observability group (SO11Y_OAP, SO11Y_SATELLITE, BANYANDB).
+- Bundled instrumentation layers across four tiers — Apps (GENERAL, BROWSER, mobile, VIRTUAL_DATABASE/CACHE/MQ/GENAI), Service Mesh (MESH, MESH_DP, MESH_CP, CILIUM_SERVICE), Middleware (databases, queues, gateways, Flink, Airflow), and Infrastructure (K8S, OS_LINUX/WINDOWS, AWS) — plus a self-observability group (SO11Y_OAP, SO11Y_SATELLITE, BANYANDB).
 - Config-driven layer dashboards — multi-scope (Service / Instance / Endpoint) JSON templates edited in the UI admin and, in OAP 11 live mode, published to OAP with no code changes; per-layer sync badges show synced / diverged / local state.
 - Rich widget vocabulary — scalar KPI cards, time-series line charts with dual-axis, top-N rankings, sampled record lists, label-dimensioned tables, KPI composites, embedded topology, and alarm tiles.
 - Server-side widget visibility gates (`visibleWhen`) — render a widget only when an MQE metric has a value or an entity attribute matches (e.g. `language = JAVA`, `container_name = lifecycle`).
@@ -58,7 +58,7 @@ Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.
 - Runtime rule management (OAL / MAL / LAL) — Monaco YAML editor, catalog, and bytecode/AST dump, with a live phase stepper for structural applies (Compiled → Confirming across the cluster → Committing → Done), cluster-propagation warnings, and a force-recover button for degraded applies.
 - Alerting rules — per-entity running-context for alarm rules (FIRING / SILENCED_FIRING / RECOVERY_OBSERVATION) with a snapshot sparkline and per-OAP-node evaluation state.
 - Live Debugger — start/poll/stop debugging sessions for the three runtime-rule languages, with per-node fan-out, sample payloads, diff-default label grouping, and replayable capture history.
-- Metrics Inspect (MQE board) — browse the OAP metric catalog by source (OAL / MAL·OTEL / MAL·Telegraf / LAL→MAL), pick a scope and entity, and fire MQE expressions live against the running system.
+- Metrics Inspect (MQE board) — browse the OAP metric catalog by source (OAL / MAL·OTEL / MAL·Telegraf / MAL·Meter / LAL→MAL), pick a scope and entity, and fire MQE expressions live against the running system.
 - Cluster status — GraphQL-port health (version, server clock, timezone, health score) and admin-host module readiness, surfaced as a topbar health chip.
 - Data retention (TTL) — backend-aware per-data-class retention (BanyanDB hot+warm/cold stages or single-stage for other backends), read-only.
 - OAP configuration dump, RBAC matrix (four built-in roles over a verb-namespaced permission set), Users admin (local + LDAP), and Auth status with an on-demand LDAP resolve probe.
@@ -83,7 +83,7 @@ Horizon UI is a pnpm-workspaces monorepo:
 
 - `apps/ui` — the Vue 3 + TypeScript (strict) single-page app, built with Vite. State via Pinia, data via `@tanstack/vue-query`, charts via Apache ECharts (wrapped — never instantiated directly in a view), topology and flame graphs via D3, 3D via Three.js + TresJS, code editing via Monaco.
 - `apps/bff` — a Fastify (Node) backend-for-frontend. It is the only tier that talks to OAP, shaping every reply for the SPA, owning timezone conversion, template sync, auth/RBAC, and the audit log.
-- `packages/api-client`, `packages/design-tokens`, `packages/templates` — the shared GraphQL client, the canonical design tokens, and the bundled dashboard JSON.
+- `packages/api-client`, `packages/design-tokens` — the shared typed client for the BFF, and the canonical design tokens. Bundled dashboard JSON lives with the BFF that serves it.
 
 The BFF speaks three OAP contracts, all owned upstream and treated as fixed:
 
@@ -91,11 +91,11 @@ The BFF speaks three OAP contracts, all owned upstream and treated as fixed:
 - Admin REST (OAP admin host, default port `17128`) — runtime rules/DSL, cluster status, metrics inspect, live debugging.
 - Zipkin v2 REST — Zipkin-format trace/span fetch.
 
-The flow inside the BFF is one-directional — `http → logic → client → OAP` — and bundled templates are synced to OAP on first boot (bundled → local draft → push), after which the running UI renders only what OAP serves.
+The flow inside the BFF is one-directional — `http → logic → client → OAP`. In the default `live` mode the bundled templates are seeded to OAP on first boot, after which the running UI renders only what OAP serves — the disk bundle is a seed/reset source, never a render-time fallback. In `templates.mode: readonly` the bundle is the declared source and OAP's template store is never called.
 
 ## Getting started / Development
 
-Prerequisites: Node (see `package.json` `engines` — `>=22`) and pnpm via Corepack (the repo pins the version through `packageManager`).
+Prerequisites: Node (see `package.json` `engines` — `>=24`, the line CI and the container image both use) and pnpm via Corepack (the repo pins the version through `packageManager`).
 
 ```bash
 corepack enable
@@ -144,7 +144,7 @@ Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}`
 - `rbac` — four built-in roles (viewer / maintainer / operator / admin) over fine-grained, verb-namespaced permissions (e.g. `dashboard:write`, `rule:write:structural`, `source-map:write`).
 - `templates` — `live` (default: bundled templates seed through OAP 11's REST API and stay editable) or `readonly` (render from the local bundle; required for OAP 10 because Horizon does not consume its legacy GraphQL template API).
 - `ai` — the AI assistant: `enabled` (off by default), provider (`openai-compatible` or `bedrock`), model, base URL, and an env-only API key.
-- `performance` — how hard the BFF fans metric queries out to OAP (per-route bulk sizes and concurrency) plus protective caps (topology render valve, per-request record limits).
+- `performance` — how hard the BFF fans metric queries out to OAP (per-route bulk sizes and concurrency) plus protective caps (topology render valve, the largest page a list may display).
 - `query` — load caps: `landingServiceCap` (how many top services a layer landing fetches metrics for) and `overviewTopN` (the Overview KPI rollup window).
 - `session`, `audit` (audit-log toggle + file), `debugLog` (the outbound OAP wire log), `sourceMaps` (browser-error source-map cache), and `layers.excluded` — the audit and wire-log files default under `/data/*` in the container.
 
@@ -156,7 +156,7 @@ Operator-focused documentation (setup, OAP compatibility, access control, custom
 
 ## Contributing
 
-Contributions are welcome. Horizon UI is a greenfield rewrite that tracks the OAP GraphQL query-protocol and MQE — backend contracts are fixed and owned by [apache/skywalking](https://github.com/apache/skywalking). Read `CLAUDE.md` for the project's working principles (correctness first, validate against a live OAP, TypeScript strict, charts wrapped, density beats whitespace), keep `CHANGELOG.md` current, and run the type-check / lint / unit-test / license-header gates before opening a PR.
+Contributions are welcome. Horizon UI is a greenfield rewrite that tracks the OAP GraphQL query-protocol and MQE — backend contracts are fixed and owned by [apache/skywalking](https://github.com/apache/skywalking). Read `CLAUDE.md` for the project's working principles (correctness first, validate against a live OAP, TypeScript strict, charts wrapped, density beats whitespace), record operator-visible changes in the changelog file for the version in development (`docs/changelog/<version>.md`, the version `package.json` carries as `-dev`), and run the type-check / lint / unit-test / license-header gates before opening a PR.
 
 ## License
 

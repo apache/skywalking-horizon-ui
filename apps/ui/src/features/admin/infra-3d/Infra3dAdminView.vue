@@ -20,7 +20,8 @@
   The 3D-map config is a singleton template kind (`horizon.infra-3d.config`)
   on the same bundled → local(browser) → remote(OAP) machinery as the layer
   / overview dashboards: edits save to a browser-local draft, "Check diff &
-  push" publishes to OAP, and the map renders the remote (bundled fallback).
+  push" publishes to OAP, and the map renders the remote copy only — the
+  bundle is the seed / reset source here, not a render-time fallback.
 
   Sections (top-to-bottom):
     1. Header — source pill + sync badge + Reset menu (to remote / to
@@ -365,7 +366,7 @@ const stats = computed(() => {
         <span class="kicker">{{ t('Dashboard setup · 3D Infra Map') }}</span>
         <h1>{{ t('3D Infrastructure Map') }}</h1>
         <p class="lede">
-          <i18n-t keypath="Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback." tag="span" scope="global">
+          <i18n-t keypath="Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the OAP-published copy only, and reports an error when none can be read." tag="span" scope="global">
             <template #mapPath><code>/3d/map</code></template>
             <template #localDraft><strong>{{ t('local draft in this browser') }}</strong></template>
             <template #checkDiffPush><strong>{{ t('Check diff & push') }}</strong></template>

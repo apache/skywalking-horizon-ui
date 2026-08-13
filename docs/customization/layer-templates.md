@@ -106,6 +106,8 @@ The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also a
 
 The service-list picker on the layer landing page. Columns sortable, with one designated default sort.
 
+The block is also accepted as `layer-header` — what every bundled template authors — and as `metrics`, which is what a template exported from the editor carries. All three name the same thing; pick one per template.
+
 ```json
 "header": {
   "orderBy": "cpm",
@@ -135,12 +137,14 @@ The service-list picker on the layer landing page. Columns sortable, with one de
 
 | Field | Type | Notes |
 |---|---|---|
-| `orderBy` | string | `metric` value of the column that should sort by default. |
-| `columns[].metric` | string | Unique id for the column (referenced by `orderBy`). |
-| `columns[].label` | string | Column header label. |
+| `orderBy` | string, optional | `metric` value of the column that should sort by default. Omit it and the service list sorts by the first column; deleting the column it names clears it back to that default. |
+| `columns[].metric` | string | Unique id for the column (referenced by `orderBy`). Required, and must be non-empty. |
+| `columns[].label` | string | Column header label. Required, and must be non-empty. |
 | `columns[].mqe` | string | MQE expression evaluated per service. |
 | `columns[].unit` | string | Optional unit suffix. |
 | `columns[].aggregation` | `sum` \| `avg` | Aggregation across the time window. |
+
+At most **10** columns — the service list's query rejects more. Publishing is refused outright if two columns share a `metric`, if `orderBy` names no column, if a `metric` or `label` is empty, or if there are more than 10 columns. The editor holds you to the first two and the cap automatically, and marks an emptied `metric` or `label` invalid as you type.
 
 ## `dashboards`
 
@@ -421,9 +425,13 @@ Your work-in-progress lives **in your browser**, never on the server until you p
 1. **Save (local).** Stores your edit as a draft in this browser only. Nobody else sees it, and your own normal browsing still shows the published version. The picker tags a layer with a local draft as **local**.
 2. **Reset to ▾.** Loads the **Bundled** (shipped default) or **Remote** (OAP live) version into the editor as a fresh starting point.
 3. **Preview ▾.** Opens the real layer page in a new tab rendering your **Local** draft, the **Bundled** default, or **Remote** — using sample data, so you can check layout, enabled components, and menu labels without touching the server. Preview works even for layers OAP currently reports no services for.
-4. **Check diff & push.** Shows a side-by-side *remote → local* diff and publishes to OAP (the runtime source of truth). Enabled only when your draft actually differs from remote. After publishing, the draft is cleared and everyone sees the change.
+4. **Check diff & push.** Shows a side-by-side *remote → local* diff and publishes to OAP (the runtime source of truth). Enabled only when your draft actually differs from remote. The template is structurally checked before anything is stored: an unknown field, an unknown component flag or dashboard scope, a widget the dashboard grid cannot run (unknown kind, or no expression at all), or a service-list column the service list cannot query (a roll-up other than `sum` / `avg`, or more columns than it accepts) is refused and **nothing is written to OAP**. Work in progress is fine — a config section you opened but haven't filled in, or a metric row whose expression is still empty, publishes normally. After publishing, the draft is cleared and everyone sees the change.
+
+   A template is also refused when it isn't the layer it is being published as — its `key` naming a different layer than the one you're publishing, a key spelled in lower case, or one of OAP's legacy layer names (`CACHE`, `DATABASE`, `MQ`, `GENAI`) where Horizon reads the modern one (`VIRTUAL_CACHE`, `VIRTUAL_DATABASE`, `VIRTUAL_MQ`, `VIRTUAL_GENAI`). Such a template would be stored under a name no page ever asks for: the push would report success and nothing would change on screen. The refusal names the one spelling the layer is read under. This is normally invisible through the editor and shows up when you import a hand-authored file or push through the API.
 
 A top banner summarizes page state — *Synced from OAP — N diverged, Y local* plus how many layers are *not configured yet* — and **Diverged** / **Local** / **Not configured** filters narrow the picker. Each row shows a status chip: **synced** (bundled == OAP), **diverged** (OAP differs from bundled — OAP wins at render), **remote-only** (on OAP, no bundled default), **disabled** (deleted — see below), or **bundled** (OAP has no copy right now).
+
+If OAP already holds a record that isn't readable as the template it is stored as — pushed by an older Horizon, by another tool, or by hand — the banner turns to **UNREADABLE** and lists each one with its OAP record id and the reason. Two shapes end up there: a record stored under a name Horizon never asks for (a lower-case layer key, an OAP legacy alias), and a record stored under the right name whose content declares a *different* layer. Neither renders anywhere: a layer whose only record is unreadable falls back to Horizon's built-in defaults, exactly as a layer with no published template does, and never to the other layer's dashboard. To clean one up, republish it so its stored name and its content agree — and if that means publishing under a different name, retire the record left behind on OAP afterwards; Horizon never retires a record on its own.
 
 ### Bundled defaults vs. your OAP-published templates
 

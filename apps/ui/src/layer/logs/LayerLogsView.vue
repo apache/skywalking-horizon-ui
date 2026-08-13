@@ -34,10 +34,12 @@ import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayers } from '@/shell/useLayers';
+import { useOapInfo } from '@/shell/useOapInfo';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
+import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
@@ -58,6 +60,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus service's OAP id. Travels with `focusService` — the block's
+   *  producer matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusWindowMinutes?: number;
   /** REPLAY mode: render the captured log list with zero re-query — no mount
    *  auto-run, no pager (paging would refetch). Implies embedded. */
@@ -93,11 +98,24 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here means the chat block never
-// touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
-);
+// touches that global selection. `serviceReady` is the gate: until the picked
+// service resolves, a log read would reach the BFF with no service and stream
+// the whole layer under this service's title.
+const {
+  ref: serviceRef,
+  status: serviceStatus,
+  ready: serviceReady,
+} = useLayerTabService(layerKey, landing, {
+  embedded,
+  focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
+  replay,
+});
+// Scalar identity of the tab's service, so the cascade-clear watchers below key
+// on exactly what the query is scoped by. `serviceRef` is a fresh object on
+// every recompute, so watching it directly would fire on re-resolution, not on
+// a switch.
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -132,14 +150,14 @@ const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 // How the picked instance is used depends on `logScope`: pinned primary
 // selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: instanceList } = useLayerInstances(layerKey, toolbarService);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
 // narrowing by picking from the dropdown. Auto-selection is reserved
 // for metrics-scope pages (instance / endpoint dashboards), where a
 // chosen entity is needed to render the metric widgets at all.
-watch(serviceName, (next, prev) => {
+watch(serviceKey, (next, prev) => {
   if (embedded.value) return;
   if (prev !== undefined && next !== prev && selectedInstance.value) {
     setSelectedInstance(null);
@@ -164,16 +182,16 @@ function clearEndpoint(): void {
   setSelectedEndpoint(null);
   endpointQuery.value = '';
 }
-const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
+const { endpoints: endpointList, hasMore: endpointsHasMore, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
-  serviceName,
+  serviceRef,
   endpointQuery,
   endpointLimit,
   replay,
 );
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
-watch(serviceName, (next, prev) => {
+watch(serviceKey, (next, prev) => {
   if (embedded.value) return;
   if (prev !== undefined && next !== prev) {
     if (selectedEndpoint.value) setSelectedEndpoint(null);
@@ -194,14 +212,21 @@ const traceIdParam = computed(() => {
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
 const traceIdInput = ref('');
-// Free-text content search is intentionally NOT exposed. OAP's
-// content-keyword filter is opt-in per storage backend (off on the
-// stock H2 store) and indexing across full log bodies has surprising
-// latency / cardinality behaviour on busy clusters. The conditions
-// the UI exposes — service / instance / endpoint / traceID / tags —
-// are all indexed dimensions and cover the booster-ui condition set.
+// Content search appears only where the STORAGE can answer it — OAP
+// reports that per backend (ElasticSearch yes, BanyanDB no). A backend
+// that says no accepts `keywordsOfContent` and ignores it, so offering
+// the box there would return an unfiltered page that reads as a match.
+const { capabilities } = useOapInfo();
+const logKeywordsSupported = computed(() => capabilities.value.logKeywords);
+const keywordInput = ref('');
 const page = ref(1);
 const pageSize = ref(50);
+// OAP derives the offset from the page size (`from = pageSize * (pageNum - 1)`),
+// so growing the size MULTIPLIES the offset — page 5 at 20 is offset 80, which
+// becomes offset 400 at 100 and lands on an unexplained empty screen.
+watch(pageSize, () => {
+  page.value = 1;
+});
 const traceIdRef = computed<string | null>(() => {
   if (traceIdParam.value) return traceIdParam.value;
   const v = traceIdInput.value.trim();
@@ -216,7 +241,12 @@ const instanceIdRef = computed<string | null>(() =>
 const endpointIdRef = computed<string | null>(() =>
   embedded.value ? null : endpointIdForQuery.value,
 );
-const keywordsRef = computed<string[]>(() => []);
+// OAP ANDs the keywords, so whitespace splits them: `timeout db` finds the
+// line that has both. Nothing is sent from an unsupported backend even if a
+// value survived in the box from a previous connection.
+const keywordsRef = computed<string[]>(() =>
+  logKeywordsSupported.value ? keywordInput.value.trim().split(/\s+/).filter((k) => k.length > 0) : [],
+);
 
 // Time range (presets + Custom…) — owns the OAP-shaped window refs.
 const {
@@ -240,7 +270,7 @@ const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFil
 // it runs on initial service load, on each "Run query", and on a service
 // switch. `page`/`pageSize` stay live; there is no periodic refresh.
 interface AppliedLogConditions {
-  service: string | null;
+  service: ServiceRef | null;
   instanceId: string | null;
   endpointId: string | null;
   traceId: string | null;
@@ -252,7 +282,7 @@ interface AppliedLogConditions {
 }
 function snapshotConditions(): AppliedLogConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     instanceId: instanceIdRef.value,
     endpointId: endpointIdRef.value,
     traceId: traceIdRef.value,
@@ -268,13 +298,16 @@ const applied = ref<AppliedLogConditions>(snapshotConditions());
 // operator presses Run query (or pages), so a freshly-opened tab shows a
 // "Run query" prompt rather than a misleading "no logs" empty state.
 const hasQueried = ref(false);
+// The service is the upstream control: both reads stay parked until it
+// resolves, however many times the operator has pressed Run query.
+const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 function applyConditions(): void {
   applied.value = snapshotConditions();
 }
 // A service switch is a context change → clear back to the Run-query
 // prompt (cascade-clear: never show the prior service's logs under the
 // new one). Filter edits just stage; they wait for Run query.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   hasQueried.value = false;
   selectedLevel.value = null;
@@ -292,7 +325,7 @@ const aWindowMinutes = computed(() => applied.value.windowMinutes);
 const aStartMs = computed(() => applied.value.startMs);
 const aEndMs = computed(() => applied.value.endMs);
 
-const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
+const { logs, hasNext, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
   service: aService,
   instanceId: aInstanceId,
   endpointId: aEndpointId,
@@ -304,7 +337,7 @@ const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(laye
   windowMinutes: aWindowMinutes,
   startMs: aStartMs,
   endMs: aEndMs,
-  enabled: hasQueried,
+  enabled: queryEnabled,
   replayData: replayDataRef,
 });
 
@@ -321,7 +354,7 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   windowMinutes: aWindowMinutes,
   startMs: aStartMs,
   endMs: aEndMs,
-  enabled: hasQueried,
+  enabled: queryEnabled,
   replay,
 });
 
@@ -329,6 +362,10 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
 // counts) so they never diverge — facets carry a 30s staleTime, so an
 // unchanged-condition Run query needs an explicit refetch.
 function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — the whole layer's log stream under this service's title.
+  if (!serviceReady.value) return;
   page.value = 1;
   hasQueried.value = true;
   applyConditions();
@@ -407,7 +444,7 @@ function onRowClick(r: LogRow): void {
  *  (Escape / × / back) — a drill-in / back flow. A bare row → trace jump
  *  (no log popout open) leaves nothing to return to. */
 const logReturnRow = ref<LogRow | null>(null);
-watch([layerKey, serviceName], () => { logReturnRow.value = null; });
+watch([layerKey, serviceKey], () => { logReturnRow.value = null; });
 function jumpToTrace(traceId: string, ts?: number): void {
   if (popoutRow.value) {
     logReturnRow.value = popoutRow.value;
@@ -437,7 +474,12 @@ watch(
         <span class="kicker">{{ t('Logs') }}</span>
         <span v-if="traceIdRef" class="trace-pin">{{ t('trace') }} <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
         <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
-        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
+        <button
+          class="sw-btn primary lg-run-btn"
+          type="button"
+          :disabled="!serviceReady"
+          @click="runQuery"
+        >{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <label class="cf">
@@ -459,6 +501,7 @@ watch(
             :selected="selectedEndpoint"
             :show-all="showEndpointSelector"
             :loading="endpointsLoading"
+            :has-more="endpointsHasMore"
             @update:query="endpointQuery = $event"
             @pick="pickEndpoint"
             @clear="clearEndpoint"
@@ -473,6 +516,18 @@ watch(
             autocomplete="off"
             class="cf-input mono"
             :placeholder="t('paste trace id…')"
+          />
+        </label>
+        <label v-if="logKeywordsSupported" class="cf cf-wide">
+          <span>{{ t('Content') }}</span>
+          <input
+            v-model="keywordInput"
+            type="text"
+            name="log-content"
+            autocomplete="off"
+            class="cf-input mono"
+            :placeholder="t('words the line must contain…')"
+            :title="t('every word must appear in the line')"
           />
         </label>
         <label class="cf cf-wide">
@@ -527,7 +582,16 @@ watch(
 
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <div v-if="!hasQueried" class="lg-empty">
+        <!-- Trailing control: the stream waits for the service, and says which
+             kind of waiting this is — still resolving, or resolved to nothing. -->
+        <div v-if="!serviceReady" class="lg-empty">
+          <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
+          <template v-else-if="serviceStatus === 'unknown'">
+            {{ t('The selected service is not in this layer — pick another one to query.') }}
+          </template>
+          <template v-else>{{ t('Pick a service to run this query.') }}</template>
+        </div>
+        <div v-else-if="!hasQueried" class="lg-empty">
           {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <template v-else>
@@ -548,7 +612,9 @@ watch(
             <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
           </button>
           <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
-            {{ t('sample of {n}', { n: facets.sampled }) }}
+            {{ facets.truncated
+              ? t('sample of {n}+ (capped — narrow the window)', { n: facets.sampled })
+              : t('sample of {n}', { n: facets.sampled }) }}
           </span>
         </div>
 
@@ -567,15 +633,15 @@ watch(
         />
         <div class="lg-pager">
           <span class="hint">
-            <template v-if="replay">{{ t('showing {shown} of {total} captured', { shown: filteredLogs.length, total }) }}</template>
-            <template v-else>{{ t('page {page} · showing {shown} of {total} total', { page, shown: filteredLogs.length, total }) }}</template>
+            <template v-if="replay">{{ t('showing {shown} captured', { shown: filteredLogs.length }) }}</template>
+            <template v-else>{{ t('page {page} · showing {shown}', { page, shown: filteredLogs.length }) }}</template>
           </span>
           <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">{{ t('Prev') }}</button>
             <button
               class="sw-btn small"
               type="button"
-              :disabled="logs.length < pageSize"
+              :disabled="!hasNext"
               @click="page++"
             >{{ t('Next') }}</button>
           </div>

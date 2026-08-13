@@ -20,48 +20,62 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "conns",
         "title": "HTTP 연결"
       },
       {
+        "id": "status_unmatched",
         "title": "매칭되지 않은 상태 추세",
         "tip": "매칭되는 APISIX 라우트가 없는 요청입니다."
       },
       {
+        "id": "latency_unmatched",
         "title": "매칭되지 않은 지연 시간"
       },
       {
+        "id": "bandwidth_unmatched",
         "title": "매칭되지 않은 대역폭"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "HTTP 요청 추세"
       },
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       },
       {
+        "id": "conns",
         "title": "HTTP 연결"
       },
       {
+        "id": "shared_dict",
         "title": "공유 사전",
         "tip": "용량과 여유 공간 비교.",
         "expressionLabels": [
@@ -70,15 +84,18 @@
         ]
       },
       {
+        "id": "etcd_total",
         "title": "etcd 도달 가능"
       },
       {
+        "id": "etcd",
         "title": "etcd 인덱스",
         "expressionLabels": [
           "인덱스"
         ]
       },
       {
+        "id": "unmatched",
         "title": "매칭되지 않은 트래픽",
         "tip": "매칭되는 라우트가 없는 요청의 상태 + 지연 시간 + 대역폭.",
         "expressionLabels": [
@@ -90,12 +107,15 @@
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "HTTP 상태 추세"
       },
       {
+        "id": "latency",
         "title": "HTTP 지연 시간"
       },
       {
+        "id": "bandwidth",
         "title": "HTTP 대역폭"
       }
     ]

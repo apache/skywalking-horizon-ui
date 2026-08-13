@@ -20,30 +20,39 @@
   "dashboards": {
     "service": [
       {
+        "id": "node_total",
         "title": "Total nœuds"
       },
       {
+        "id": "namespace_total",
         "title": "Total namespaces"
       },
       {
+        "id": "deployment_total",
         "title": "Total Deployment"
       },
       {
+        "id": "statefulset_total",
         "title": "Total StatefulSet"
       },
       {
+        "id": "daemonset_total",
         "title": "Total DaemonSet"
       },
       {
+        "id": "service_total",
         "title": "Total services"
       },
       {
+        "id": "pod_total",
         "title": "Total pods"
       },
       {
+        "id": "container_total",
         "title": "Total conteneurs"
       },
       {
+        "id": "cpu_res",
         "title": "Ressources CPU",
         "tip": "Capacité CPU du cluster vs requests / limits / allouable (millicores).",
         "expressionLabels": [
@@ -54,6 +63,7 @@
         ]
       },
       {
+        "id": "mem_res",
         "title": "Ressources mémoire",
         "tip": "Mémoire du cluster requests / allouable / limits / total.",
         "expressionLabels": [
@@ -64,6 +74,7 @@
         ]
       },
       {
+        "id": "storage_res",
         "title": "Ressources de stockage",
         "tip": "Stockage éphémère total du cluster vs allouable.",
         "expressionLabels": [
@@ -72,22 +83,23 @@
         ]
       },
       {
+        "id": "node_status",
         "title": "Statut du nœud",
         "tip": "Conditions Kubernetes par nœud actuellement true/unknown (Ready, *Pressure, …).",
         "tableHeaders": [
-          "Nœud · Condition",
-          ""
+          "Nœud · Condition"
         ]
       },
       {
+        "id": "deployment_status",
         "title": "Statut du Deployment",
         "tip": "Deployments remontant la condition Available.",
         "tableHeaders": [
-          "Deployment · Disponible",
-          ""
+          "Deployment · Disponible"
         ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Replicas spécifiés du Deployment",
         "tip": "Nombre de replicas désiré par deployment.",
         "tableHeaders": [
@@ -96,46 +108,51 @@
         ]
       },
       {
+        "id": "service_pod_status",
         "title": "Statut du service",
         "tip": "Pods supportant chaque K8s Service, par phase (Running / Pending / Failed / …).",
         "tableHeaders": [
-          "Service · Phase",
-          ""
+          "Service · Phase"
         ]
       },
       {
+        "id": "pod_not_running",
         "title": "Pod en statut non-Running",
         "tip": "Pods dans une phase autre que Running.",
         "tableHeaders": [
-          "Pod · Statut",
-          ""
+          "Pod · Statut"
         ]
       },
       {
+        "id": "pod_waiting",
         "title": "Pod en statut Waiting",
         "tip": "Conteneurs en attente, par raison.",
         "tableHeaders": [
-          "Conteneur · Pod · Raison",
-          ""
+          "Conteneur · Pod · Raison"
         ]
       }
     ],
     "instance": [
       {
+        "id": "node_status",
         "title": "Statut du nœud"
       },
       {
+        "id": "node_pod_total",
         "title": "Pods sur le nœud"
       },
       {
+        "id": "node_cpu_usage",
         "title": "Utilisation CPU du nœud",
         "tip": "Utilisation CPU en millicores."
       },
       {
+        "id": "node_pod_count",
         "title": "Total pods",
         "tip": "Pods actuellement planifiés sur ce nœud (toutes phases)."
       },
       {
+        "id": "node_cpu_resources",
         "title": "Ressources CPU du nœud",
         "expressionLabels": [
           "total",
@@ -145,9 +162,11 @@
         ]
       },
       {
+        "id": "node_memory_usage",
         "title": "Utilisation mémoire du nœud"
       },
       {
+        "id": "node_memory_resources",
         "title": "Ressources mémoire du nœud",
         "expressionLabels": [
           "total",
@@ -157,6 +176,7 @@
         ]
       },
       {
+        "id": "node_network_io",
         "title": "I/O réseau du nœud",
         "expressionLabels": [
           "réception",
@@ -164,6 +184,7 @@
         ]
       },
       {
+        "id": "node_storage_resources",
         "title": "Ressources de stockage du nœud",
         "expressionLabels": [
           "total",

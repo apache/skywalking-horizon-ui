@@ -22,6 +22,7 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
         "title": "Top 20 APIs",
         "tip": "Principais endpoints do serviço selecionado. Alterne as abas para reordenar por tráfego, tempo de resposta ou pior taxa de sucesso.",
         "expressionLabels": [
@@ -31,23 +32,29 @@
         ]
       },
       {
+        "id": "traffic_line",
         "title": "Tráfego"
       },
       {
+        "id": "err_line",
         "title": "Taxa de erros"
       },
       {
+        "id": "apdex_line",
         "title": "Apdex",
         "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
       },
       {
+        "id": "percentile_line",
         "title": "Percentil do tempo de resposta",
         "tip": "Latência p50 / p75 / p90 / p95 / p99 — a cauda da distribuição do tempo de resposta."
       },
       {
+        "id": "resp_time_line",
         "title": "Tempo médio de resposta"
       },
       {
+        "id": "mq_combined",
         "title": "Taxa de consumo MQ + latência",
         "tip": "Contagem no eixo esquerdo, latência no direito.",
         "expressionLabels": [
@@ -56,80 +63,107 @@
         ]
       },
       {
+        "id": "top_instance_load",
         "title": "Top 10 instâncias por carga",
         "tip": "Ordenado por tráfego entre as instâncias do serviço selecionado."
       },
       {
+        "id": "top_instance_slow",
         "title": "Top 10 instâncias mais lentas",
         "tip": "Ordenado pelo tempo médio de resposta entre as instâncias do serviço selecionado."
       },
       {
+        "id": "top_instance_sla",
         "title": "Top 10 instâncias por taxa de sucesso",
         "tip": "top_n(service_instance_sla,10,asc)/100 — ranking do pior para o melhor."
       },
       {
+        "id": "slow_statements",
         "title": "Statements lentos de banco de dados",
         "tip": "Top 20 statements de banco mais lentos capturados neste serviço. Origem: top_n_service_database_statement. Mostra `no data` quando o OAP não capturou statements na janela."
       }
     ],
     "instance": [
       {
+        "id": "instance_cpm_line",
         "title": "Carga da instância de serviço",
         "tip": "Chamadas por minuto na instância selecionada."
       },
       {
+        "id": "instance_resp_line",
         "title": "Latência da instância de serviço"
       },
       {
+        "id": "instance_sla_line",
         "title": "Taxa de sucesso da instância de serviço"
       },
       {
+        "id": "nodejs_process_cpu",
         "title": "CPU do processo",
-        "tip": "Agente Node.js: CPU do processo (user + system) no intervalo de coleta (%).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: CPU do processo (user + system) no intervalo de coleta (%)."
       },
       {
+        "id": "nodejs_heap_used",
         "title": "Heap V8 usado",
-        "tip": "Agente Node.js: heap V8 usado em MB (process.memoryUsage().heapUsed).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: heap V8 usado em MB (process.memoryUsage().heapUsed)."
       },
       {
+        "id": "nodejs_heap_total",
         "title": "Heap V8 total",
-        "tip": "Agente Node.js: heap V8 total em MB (process.memoryUsage().heapTotal).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: heap V8 total em MB (process.memoryUsage().heapTotal)."
       },
       {
+        "id": "nodejs_heap_limit",
         "title": "Limite heap V8",
-        "tip": "Agente Node.js: tamanho máximo do heap V8 em MB (v8.getHeapStatistics().heap_size_limit).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: tamanho máximo do heap V8 em MB (v8.getHeapStatistics().heap_size_limit)."
       },
       {
+        "id": "nodejs_rss",
         "title": "RSS do processo",
-        "tip": "Agente Node.js: tamanho do conjunto residente em MB (process.memoryUsage().rss).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: tamanho do conjunto residente em MB (process.memoryUsage().rss)."
       },
       {
+        "id": "nodejs_external_memory",
         "title": "Memória externa",
-        "tip": "Agente Node.js: objetos C++ vinculados ao V8 em MB (process.memoryUsage().external).",
-        "expressions": [
-          null
-        ]
+        "tip": "Agente Node.js: objetos C++ vinculados ao V8 em MB (process.memoryUsage().external)."
       },
       {
+        "id": "nodejs_array_buffers",
+        "title": "Buffers de matriz",
+        "tip": "Agente Node.js: memória ArrayBuffer/SharedArrayBuffer em MB (process.memoryUsage().arrayBuffers)."
+      },
+      {
+        "id": "nodejs_uptime",
+        "title": "Tempo ativo do processo",
+        "tip": "Agente Node.js: dias desde o início do processo (process.uptime())."
+      },
+      {
+        "id": "nodejs_peak_malloced_memory",
+        "title": "Memória malloc de pico",
+        "tip": "Agente Node.js: memória malloc de pico do V8 em MB (v8.getHeapStatistics().peak_malloced_memory)."
+      },
+      {
+        "id": "nodejs_malloced_memory",
+        "title": "Memória malloc atual",
+        "tip": "Agente Node.js: memória malloc atual do V8 em MB (v8.getHeapStatistics().malloced_memory)."
+      },
+      {
+        "id": "nodejs_old_space_used",
+        "title": "Geração antiga usada",
+        "tip": "Agente Node.js: heap V8 de geração antiga usado em MB (v8.getHeapSpaceStatistics old_space)."
+      },
+      {
+        "id": "nodejs_new_space_used",
+        "title": "Geração nova usada",
+        "tip": "Agente Node.js: heap V8 de geração nova usado em MB (v8.getHeapSpaceStatistics new_space)."
+      },
+      {
+        "id": "jvm_cpu",
         "title": "CPU da JVM",
         "tip": "CPU da JVM conforme reportado pelo agente. Só aparece quando a instância é uma JVM."
       },
       {
+        "id": "jvm_memory",
         "title": "Memória JVM",
         "tip": "Heap / non-heap em uso + máx em MB.",
         "expressionLabels": [
@@ -140,6 +174,7 @@
         ]
       },
       {
+        "id": "jvm_memory_detail",
         "title": "Detalhe da memória JVM",
         "tip": "Memória usada por pool em MB. Cobre code cache, young / old / survivor / permgen / metaspace e os sub-pools de codeheap do JIT introduzidos em JVMs mais recentes (Z heap, compressed class space, segmented codeheaps). Pools que a JVM não expõe simplesmente ficam em 0.",
         "expressionLabels": [
@@ -157,6 +192,7 @@
         ]
       },
       {
+        "id": "jvm_thread_count",
         "title": "Contagem de threads JVM",
         "expressionLabels": [
           "vivas",
@@ -165,6 +201,7 @@
         ]
       },
       {
+        "id": "jvm_thread_state",
         "title": "Contagem por estado de thread JVM",
         "tip": "Threads por estado da JVM (runnable / blocked / waiting / timed-waiting).",
         "expressionLabels": [
@@ -175,6 +212,7 @@
         ]
       },
       {
+        "id": "jvm_gc_time",
         "title": "Tempo de GC da JVM",
         "expressionLabels": [
           "young",
@@ -183,6 +221,7 @@
         ]
       },
       {
+        "id": "jvm_gc_count",
         "title": "Contagem de GC da JVM",
         "expressionLabels": [
           "young",
@@ -191,6 +230,7 @@
         ]
       },
       {
+        "id": "jvm_class_count",
         "title": "Contagem de classes JVM",
         "expressionLabels": [
           "carregadas",
@@ -199,10 +239,12 @@
         ]
       },
       {
+        "id": "clr_cpu",
         "title": "CPU do CLR",
         "tip": "Apenas .NET: aparece quando a instância reporta métricas CLR."
       },
       {
+        "id": "clr_thread",
         "title": "Threads do CLR",
         "expressionLabels": [
           "workers disponíveis",
@@ -211,9 +253,11 @@
         ]
       },
       {
+        "id": "clr_heap",
         "title": "Memória heap do CLR"
       },
       {
+        "id": "clr_gc",
         "title": "GC do CLR",
         "expressionLabels": [
           "gen 0",
@@ -222,22 +266,28 @@
         ]
       },
       {
+        "id": "sleuth_http_req_count",
         "title": "Contagem de requisições HTTP do Spring",
         "tip": "Spring Sleuth / Spring Boot Actuator — contador http.server.requests."
       },
       {
+        "id": "sleuth_http_req_duration",
         "title": "Duração das requisições HTTP do Spring"
       },
       {
+        "id": "sleuth_proc_cpu",
         "title": "Uso de CPU da instância Spring"
       },
       {
+        "id": "sleuth_os_cpu",
         "title": "Uso de CPU do SO via Spring"
       },
       {
+        "id": "sleuth_os_load",
         "title": "Carga do SO via Spring"
       },
       {
+        "id": "sleuth_proc_files",
         "title": "Arquivos do processo SO via Spring",
         "expressionLabels": [
           "abertos",
@@ -245,9 +295,11 @@
         ]
       },
       {
+        "id": "sleuth_jvm_gc_pause",
         "title": "Duração da pausa de GC da JVM via Spring"
       },
       {
+        "id": "sleuth_jvm_memory",
         "title": "Memória JVM via Spring",
         "expressionLabels": [
           "em uso",
@@ -255,6 +307,7 @@
         ]
       },
       {
+        "id": "sleuth_jvm_thread",
         "title": "Threads JVM via Spring",
         "expressionLabels": [
           "vivas",
@@ -263,6 +316,7 @@
         ]
       },
       {
+        "id": "sleuth_jvm_classes",
         "title": "Classes JVM via Spring",
         "expressionLabels": [
           "carregadas",
@@ -270,14 +324,17 @@
         ]
       },
       {
+        "id": "sleuth_datasource",
         "title": "Pool de conexões de banco do Spring",
         "tip": "Métricas do datasource HikariCP / Spring Boot — contagem de conexões por pool."
       },
       {
+        "id": "sleuth_thread_pool",
         "title": "Thread pool do Spring",
         "tip": "Meters do thread pool do Spring Boot — ativas, na fila, máx threads por executor."
       },
       {
+        "id": "sleuth_jdbc",
         "title": "Conexões JDBC do Spring",
         "expressionLabels": [
           "ativas",
@@ -286,6 +343,7 @@
         ]
       },
       {
+        "id": "sleuth_tomcat",
         "title": "Sessões Tomcat do Spring",
         "expressionLabels": [
           "ativas",
@@ -294,6 +352,7 @@
         ]
       },
       {
+        "id": "go_goroutines",
         "title": "Goroutines / threads do SO em Golang",
         "tip": "Agente Golang: contagem de goroutines vivas + threads subjacentes do SO.",
         "expressionLabels": [
@@ -302,45 +361,59 @@
         ]
       },
       {
+        "id": "go_gc_pause",
         "title": "Tempo de pausa de GC em Golang (por minuto)"
       },
       {
+        "id": "go_gc_count",
         "title": "Contagem de GC em Golang (por minuto)"
       },
       {
+        "id": "go_heap_alloc",
         "title": "Heap Alloc em Golang (por minuto)"
       },
       {
+        "id": "go_sched_lat",
         "title": "Tempo de escalonamento de goroutines em Golang"
       },
       {
+        "id": "go_heap_frees",
         "title": "GC Free em Golang (por minuto)"
       },
       {
+        "id": "go_alloc_size",
         "title": "Tamanho de Alloc em Golang (por minuto)"
       },
       {
+        "id": "go_free_size",
         "title": "Tamanho liberado em Golang (por minuto)"
       },
       {
+        "id": "go_heap_objects",
         "title": "Objetos no heap em Golang"
       },
       {
+        "id": "go_heap",
         "title": "Heap em Golang"
       },
       {
+        "id": "go_mspan",
         "title": "Metadata Mspan em Golang"
       },
       {
+        "id": "go_mcache",
         "title": "Metadata Mcache em Golang"
       },
       {
+        "id": "go_gc_goal",
         "title": "Tamanho-alvo do GC em Golang"
       },
       {
+        "id": "go_cgo",
         "title": "Chamadas CGO em Golang (por minuto)"
       },
       {
+        "id": "pvm_cpu",
         "title": "Uso de CPU em Python",
         "tip": "Agente Python (PVM): CPU do host vs processo.",
         "expressionLabels": [
@@ -349,6 +422,7 @@
         ]
       },
       {
+        "id": "pvm_mem",
         "title": "Uso de memória em Python",
         "expressionLabels": [
           "host",
@@ -356,9 +430,11 @@
         ]
       },
       {
+        "id": "pvm_threads",
         "title": "Contagem de threads em Python"
       },
       {
+        "id": "pvm_gc",
         "title": "Contagem de GC em Python",
         "expressionLabels": [
           "gen 0",
@@ -367,19 +443,24 @@
         ]
       },
       {
+        "id": "pvm_gc_time",
         "title": "Tempo de GC em Python"
       },
       {
+        "id": "ruby_cpu",
         "title": "Uso de CPU em Ruby",
         "tip": "Agente Ruby: CPU do processo em porcentagem."
       },
       {
+        "id": "ruby_mem_rss",
         "title": "Memória Ruby (RSS)"
       },
       {
+        "id": "ruby_mem_usage",
         "title": "Uso de memória em Ruby"
       },
       {
+        "id": "ruby_threads",
         "title": "Status das threads em Ruby",
         "expressionLabels": [
           "ativas",
@@ -387,6 +468,7 @@
         ]
       },
       {
+        "id": "ruby_gc",
         "title": "Contagem de GC em Ruby",
         "expressionLabels": [
           "total",
@@ -395,12 +477,15 @@
         ]
       },
       {
+        "id": "ruby_gc_time",
         "title": "Tempo de GC em Ruby"
       },
       {
+        "id": "ruby_heap_usage",
         "title": "Uso do heap em Ruby"
       },
       {
+        "id": "ruby_heap_slots",
         "title": "Slots do heap em Ruby",
         "expressionLabels": [
           "vivos",
@@ -408,44 +493,55 @@
         ]
       },
       {
+        "id": "php_cpu",
         "title": "Utilização de CPU PHP",
         "tip": "Agente PHP: utilização de CPU (%) do processo PHP pai (getppid()), amostrada via /proc."
       },
       {
+        "id": "php_mem",
         "title": "Memória PHP usada",
         "tip": "Agente PHP: memória residente (MB) do processo PHP pai (getppid()) (/proc VmRSS)."
       },
       {
+        "id": "php_mem_peak",
         "title": "Pico de memória PHP",
         "tip": "Agente PHP: pico de memória residente (MB) do processo PHP pai (getppid()) (/proc VmHWM)."
       },
       {
+        "id": "php_vmsize",
         "title": "Memória virtual PHP",
         "tip": "Agente PHP: memória virtual (MB) do processo PHP pai (getppid()) (/proc VmSize)."
       },
       {
+        "id": "php_threads",
         "title": "Contagem de threads PHP",
         "tip": "Agente PHP: contagem de threads OS do processo PHP pai (getppid()) (/proc Threads)."
       },
       {
+        "id": "php_open_fds",
         "title": "FDs abertos PHP",
         "tip": "Agente PHP: contagem de file descriptors abertos do processo PHP pai (getppid()) (/proc/pid/fd)."
       }
     ],
     "endpoint": [
       {
+        "id": "endpoint_cpm_line",
         "title": "Tráfego"
       },
       {
+        "id": "endpoint_resp_line",
         "title": "Tempo de resposta"
       },
       {
+        "id": "endpoint_sla_line",
         "title": "Taxa de sucesso"
       },
       {
+        "id": "endpoint_percentile",
         "title": "Percentil do tempo de resposta"
       },
       {
+        "id": "endpoint_mq_consume_latency",
         "title": "Latência média de consumo MQ",
         "tip": "Latência de consumo no escopo do endpoint — só preenchido para endpoints que atendem tráfego de fila de mensagens."
       }
@@ -454,86 +550,137 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "Latência"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Tempo médio de resposta"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Tempo médio de resposta"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "SLA" },
-        { "label": "Latência" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "Latência"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "Tempo médio de resposta" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Tempo médio de resposta"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "Tempo médio de resposta" },
-        { "label": "p95" },
-        { "label": "SLA" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Tempo médio de resposta"
+        },
+        {
+          "id": "p95",
+          "label": "p95"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        }
       ]
     }
   },
   "endpointDependency": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "sla",
         "label": "SLA"
       },
       {
+        "id": "respTime",
         "label": "Latência"
       }
     ],
     "linkMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "Tempo médio de resposta"
       },
       {
+        "id": "p95",
         "label": "p95"
       },
       {
+        "id": "sla",
         "label": "SLA"
       }
     ]

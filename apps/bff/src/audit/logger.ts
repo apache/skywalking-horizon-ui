@@ -16,6 +16,7 @@
  */
 
 import { createWriteStream, type WriteStream } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { logger } from '../logger.js';
@@ -32,7 +33,28 @@ export interface AuditEvent {
   outcome: string;
   details?: Record<string, unknown>;
   fromIp?: string;
+  /** Written by callers as the raw session id; `record()` replaces it with a
+   *  salted one-way digest before anything is persisted. */
   sessionId?: string;
+}
+
+/**
+ * The session id is a bearer credential: it IS the cookie, so anything holding
+ * it can replay the session until it expires. An audit trail is read by more
+ * people than the session store is — it is shipped to a SIEM, tailed during an
+ * incident, attached to a ticket — so it carries a one-way correlation value
+ * instead, enough to tie a run of actions to one session and useless to a
+ * reader who obtains the file.
+ *
+ * The salt is per-process and random by design: sessions live in memory and do
+ * not survive a restart either, so correlation is meaningful exactly as long
+ * as it needs to be, and a digest from an older file cannot be matched against
+ * a live session even with the same id.
+ */
+const AUDIT_SALT = randomBytes(32);
+
+function sessionCorrelationId(sid: string): string {
+  return createHash('sha256').update(AUDIT_SALT).update(sid).digest('hex').slice(0, 16);
 }
 
 export class AuditLogger {
@@ -60,7 +82,11 @@ export class AuditLogger {
 
   record(evt: Omit<AuditEvent, 'ts'>): void {
     if (!this.enabled) return;
-    const line: AuditEvent = { ts: new Date().toISOString(), ...evt };
+    const line: AuditEvent = {
+      ts: new Date().toISOString(),
+      ...evt,
+      ...(evt.sessionId ? { sessionId: sessionCorrelationId(evt.sessionId) } : {}),
+    };
     if (!this.stream) {
       logger.warn({ evt: line }, 'audit logged before open()');
       return;

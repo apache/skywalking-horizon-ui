@@ -1,0 +1,199 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Deployment case — BanyanDB as a CLUSTER, deployed by its own helm chart with
+# FODC, so the Deployment tab has a real multi-role topology to draw.
+#
+# Nothing in the compose cases can produce this: a standalone BanyanDB has no
+# roles and no FODC agent, and the BANYANDB layer's metrics only exist because
+# an OTel collector scrapes the FODC proxy and pushes OTLP to OAP.
+#
+# Run it:  make -C test/e2e run CASE=deployment
+#
+# No rover, no eBPF — this one runs anywhere kind runs, macOS included.
+
+setup:
+  env: kind
+  file: kind.yaml
+  timeout: 40m
+  init-system-environment: ../../script/env
+  kind:
+    import-images:
+      # Every image the cluster runs: the node has no guaranteed outbound
+      # access (see the proxy note in test/e2e/CLAUDE.md).
+      - ${HORIZON_E2E_IMAGE}
+      - horizon-e2e-demo-provider:${SW_E2E_SERVICE_COMMIT}
+      - ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}
+      # CLUSTER mode runs the `-slim` image — the chart appends the suffix
+      # itself for liaison and data (cluster_*_statefulset.yaml), while
+      # standalone uses the plain tag. Side-load both: the plain one still
+      # backs anything non-clustered, and a missing side-load here is an
+      # ImagePullBackOff on a node with no outbound access.
+      - ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}
+      - ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}-slim
+      # FODC is two more images, both tagged with the SAME BanyanDB commit:
+      # an AGENT sidecar in every liaison/data pod (which is why those pods
+      # report 1/2 when it is missing) and the PROXY that aggregates them.
+      # They are the whole point of this case — the scrape target and the
+      # per-pod identity labels come from them.
+      - ghcr.io/apache/skywalking-banyandb-fodc-agent:${SW_BANYANDB_COMMIT}
+      - ghcr.io/apache/skywalking-banyandb-fodc-proxy:${SW_BANYANDB_COMMIT}
+      - ${SW_OTEL_COLLECTOR_IMAGE}
+      - ${TRAFFIC_GEN_IMAGE}
+      - curlimages/curl:latest
+    expose-ports:
+      - namespace: skywalking
+        resource: service/skywalking-oap
+        port: 12800
+      - namespace: skywalking
+        resource: service/horizon
+        port: 8081
+  steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh deployment
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    - name: install kubectl
+      command: bash test/e2e/script/prepare/install.sh kubectl
+    - name: install helm
+      command: bash test/e2e/script/prepare/install.sh helm
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+    - name: install skywalking and banyandb
+      command: bash test/e2e/script/prepare/deployment-up.sh skywalking
+      wait:
+        - namespace: skywalking
+          resource: deployments/skywalking-oap
+          for: condition=available
+    - name: deploy the otel collector
+      command: bash test/e2e/script/prepare/deployment-up.sh collector
+      wait:
+        - namespace: skywalking
+          resource: deployments/otel-collector
+          for: condition=available
+    - name: deploy horizon
+      command: bash test/e2e/script/prepare/deployment-up.sh horizon
+      wait:
+        - namespace: skywalking
+          resource: deployments/horizon
+          for: condition=available
+    # Traffic runs in-cluster; kind has no load balancer for a host-side
+    # trigger to call. This is why the case has no `trigger` block.
+    - name: deploy the demo app and its traffic
+      command: bash test/e2e/script/prepare/deployment-up.sh app
+      wait:
+        - namespace: skywalking
+          resource: deployments/provider
+          for: condition=available
+
+verify:
+  # The scrape interval, OAP's OTel analysis and its persistence cycle stack
+  # up here — BanyanDB's own metrics are further from the wire than an
+  # agent's.
+  retry:
+    count: 60
+    interval: 10s
+  cases:
+    # 1. READINESS, not a test: has the collector -> OAP path produced the BANYANDB
+    #    service at all? It is named after the `cluster` label the collector
+    #    injects — unique to this fixture — so a miss here means the scrape,
+    #    the job name or the scrape interval is wrong rather than anything
+    #    about Horizon. `service ls` takes no --layer flag; matching the name
+    #    is both sufficient and one less thing to get wrong.
+    - query: |
+        swctl --display json --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
+          service ls \
+          | yq -P '{"hasCluster": [.[] | select(.name == "e2e-banyandb")] | length}'
+      expected: expected/has-cluster.yml
+
+    # 2. READINESS: the per-NODE metrics exist, which is a different aggregation
+    #    from the service above — the Deployment tab groups instances by the
+    #    `node_role` / `node_type` attributes that ride on these samples, so
+    #    the service can resolve while the tab still has nothing to draw.
+    #
+    #    The id is looked up rather than derived: the route refuses a name
+    #    without its serviceId (`incomplete_service`), because the UI always
+    #    sends the pair the roster returned.
+    #
+    #    The window is sent as the PAGE sends it — `step` + `startMs` +
+    #    `endMs`, the topbar triplet, spanning the 1h default the interactive
+    #    Deployment tab inherits. This route ignores `windowMinutes`
+    #    altogether (it honours only the triplet and otherwise falls back to
+    #    its own default), so a check written with `windowMinutes` silently
+    #    describes a window the browser never asks for.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${service_horizon_host}:${service_horizon_8081}" \
+          "/api/layer/banyandb/deployment?service=e2e-banyandb&step=MINUTE&startMs=$(python3 -c 'import time;print(int(time.time()*1000)-3600000)')&endMs=$(python3 -c 'import time;print(int(time.time()*1000))')&serviceId=$( \
+            swctl --display json --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
+              service ls | yq e '.[] | select(.name == "e2e-banyandb") | .id' - \
+          )" \
+          | yq -P '{"hasNodes": ((.nodes // []) | length > 0)}'
+      expected: expected/has-nodes.yml
+
+    # 3. READINESS: the graph has an EDGE, not just nodes. The edge sparklines
+    #    read `meter_banyandb_instance_relation_*`, which OAP binds to
+    #    serviceInstanceRelation — source AND destination instance both
+    #    required — so it is built on its own rule and only once traffic has
+    #    flowed between the roles. Nodes can be complete with no edge at all,
+    #    and the browser test has nothing to click then.
+    #
+    #    Asked through Horizon rather than swctl for exactly that reason: a
+    #    relation metric cannot be probed with a service name alone, and the
+    #    deployment endpoint already resolves both ends.
+    #
+    #    Three things have to line up, and each was learned by watching this
+    #    check open on data the page could not draw:
+    #      - the VALUES, not the edge: an edge exists from the topology alone;
+    #      - TWO non-null values, not one. A series is one entry per bucket and
+    #        mostly null until data lands, and Sparkline needs two finite
+    #        points to have a line to draw — below that it renders
+    #        `.sparkline-empty` instead. A gate that opened on a single
+    #        populated bucket therefore declared the fixture ready while the
+    #        panel the browser case asserts on could still only draw em
+    #        dashes, which is a red case on a healthy cluster;
+    #      - the metrics the panel actually DRAWS, for the PAIR the spec opens.
+    #        `write` / `query` are the primary rows of liaison->data, which is
+    #        the pair the browser case selects and the only one this fixture
+    #        guarantees traffic for. Accepting any key let the check open on
+    #        `bytes` or `err` while every rendered row was still empty; also
+    #        accepting `fwd` let it open on liaison->liaison, a different pair
+    #        from the one on screen.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${service_horizon_host}:${service_horizon_8081}" \
+          "/api/layer/banyandb/deployment?service=e2e-banyandb&step=MINUTE&startMs=$(python3 -c 'import time;print(int(time.time()*1000)-3600000)')&endMs=$(python3 -c 'import time;print(int(time.time()*1000))')&serviceId=$( \
+            swctl --display json --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
+              service ls | yq e '.[] | select(.name == "e2e-banyandb") | .id' - \
+          )" \
+          | yq -P '{"hasEdgeSeries": ([.calls[]? | (.clientMetricSeries // {}) | to_entries[]? | select(.key == "write" or .key == "query") | .value // [] | map(select(. != null)) | select(length > 1)] | length > 0)}'
+      expected: expected/has-edge-series.yml
+
+    # 4. The browser half — the actual test.
+    - query: bash test/e2e/script/prepare/playwright.sh deployment
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

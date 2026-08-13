@@ -1,0 +1,57 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The WRITE surfaces: DSL rule hot-update and ui-management template CRUD.
+#
+# These get their own deployment for one reason — they mutate OAP. A rule
+# pushed or a template disabled under `core` would change the backend every
+# other assertion there is reading, and a half-applied hot-update would
+# surface as an unrelated failure somewhere else in that run.
+#
+# Deliberately LIGHTER than core: no demo app, no agent, no traffic. Neither
+# the template store nor the rule loader needs telemetry, so the case skips
+# the slowest part of the fixture — agent registration and metric aggregation.
+
+services:
+  banyandb:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: banyandb
+
+  oap:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: oap
+    ports:
+      - 12800
+      - 17128
+    depends_on:
+      banyandb:
+        condition: service_healthy
+
+  horizon:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: horizon
+    ports:
+      - 8081
+    depends_on:
+      oap:
+        condition: service_healthy
+
+networks:
+  e2e:

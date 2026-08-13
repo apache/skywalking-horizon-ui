@@ -23,59 +23,40 @@
   "dashboards": {
     "service": [
       {
-        "title": "L4 Read-Pakete/min",
-        "expressions": [
-          null
-        ]
+        "id": "l4_read",
+        "title": "L4 Read-Pakete/min"
       },
       {
-        "title": "L4 Write-Pakete/min",
-        "expressions": [
-          null
-        ]
+        "id": "l4_write",
+        "title": "L4 Write-Pakete/min"
       },
       {
+        "id": "tcp_drop",
         "title": "TCP-Drop / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "lesen",
           "schreiben"
         ]
       },
       {
-        "title": "TCP-Drop nach Grund",
-        "expressions": [
-          null
-        ]
+        "id": "tcp_drop_reason",
+        "title": "TCP-Drop nach Grund"
       },
       {
+        "id": "http_load",
         "title": "HTTP-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "HTTP-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "http_duration",
+        "title": "HTTP-Dauer"
       },
       {
+        "id": "http_status",
         "title": "HTTP Non-2xx-Status",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "3xx",
@@ -84,84 +65,58 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "DNS-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "dns_duration",
+        "title": "DNS-Dauer"
       },
       {
-        "title": "DNS-Fehler / min",
-        "expressions": [
-          null
-        ]
+        "id": "dns_error",
+        "title": "DNS-Fehler / min"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "Kafka-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "kafka_duration",
+        "title": "Kafka-Dauer"
       },
       {
-        "title": "Kafka-Fehler / min",
-        "expressions": [
-          null
-        ]
+        "id": "kafka_error",
+        "title": "Kafka-Fehler / min"
       }
     ],
     "instance": [
       {
-        "title": "L4 Read-Pakete/min",
-        "expressions": [
-          null
-        ]
+        "id": "l4_read",
+        "title": "L4 Read-Pakete/min"
       },
       {
-        "title": "L4 Write-Pakete/min",
-        "expressions": [
-          null
-        ]
+        "id": "l4_write",
+        "title": "L4 Write-Pakete/min"
       },
       {
+        "id": "http_load",
         "title": "HTTP-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
+        "id": "http_status",
         "title": "HTTP Non-2xx-Status",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "3xx",
@@ -170,28 +125,20 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "DNS-Fehler",
-        "expressions": [
-          null
-        ]
+        "id": "dns_error",
+        "title": "DNS-Fehler"
       },
       {
+        "id": "kafka_load",
         "title": "Kafka-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
@@ -200,30 +147,20 @@
     ],
     "endpoint": [
       {
+        "id": "http_load",
         "title": "HTTP-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "HTTP-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "http_duration",
+        "title": "HTTP-Dauer"
       },
       {
+        "id": "http_status",
         "title": "HTTP Non-2xx-Status",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "1xx",
           "3xx",
@@ -232,58 +169,68 @@
         ]
       },
       {
+        "id": "dns_load",
         "title": "DNS-Last",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "aufrufe",
           "erfolg"
         ]
       },
       {
-        "title": "DNS-Dauer",
-        "expressions": [
-          null
-        ]
+        "id": "dns_duration",
+        "title": "DNS-Dauer"
       },
       {
-        "title": "DNS-Fehler",
-        "expressions": [
-          null
-        ]
+        "id": "dns_error",
+        "title": "DNS-Fehler"
       }
     ]
   },
   "topology": {
     "nodeMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "success",
         "label": "Erfolg %"
       },
       {
+        "id": "respTime",
         "label": "Latenz"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "HTTP RPM"
       },
       {
+        "id": "respTime",
         "label": "Mittlere Latenz"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "Mittlere Latenz" }
+        {
+          "id": "httpCpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "Mittlere Latenz"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "HTTP RPM" },
-        { "label": "Mittlere Latenz" }
+        {
+          "id": "cpm",
+          "label": "HTTP RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "Mittlere Latenz"
+        }
       ]
     }
   },

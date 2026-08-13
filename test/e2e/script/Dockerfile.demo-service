@@ -1,0 +1,36 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Instrumented demo service = apache/skywalking's published e2e service jar
+# running on apache/skywalking-java's published agent image.
+#
+# Upstream's own compose bind-mounts a Maven-built jar, which would force a
+# JDK + `./mvnw` + an upstream checkout into this repo's CI. Both halves are
+# published images, so joining them here gets the identical result from
+# registry pulls alone.
+#
+# The agent image sets JAVA_TOOL_OPTIONS=-javaagent:/skywalking/agent/... , so
+# the service is instrumented without a command-line flag here.
+
+ARG AGENT_IMAGE
+ARG APP_IMAGE
+
+FROM ${APP_IMAGE} AS app
+
+FROM ${AGENT_IMAGE}
+COPY --from=app /app.jar /app.jar
+CMD ["java", "-jar", "/app.jar"]

@@ -1,0 +1,78 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Shared by both istio variants: everything the mesh produces without rover.
+
+cases:
+  # 1. READINESS, not a test: does OAP know the mesh at all? bookinfo's productpage
+  #    only exists once Envoy's access logs have been analysed into entities,
+  #    so this failing means the mesh or ALS is broken, not Horizon.
+  - query: |
+      swctl --display json --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql service ls \
+        | yq -P '{"meshServices": [.[] | select(.name == "productpage" or .name == "reviews")] | length}'
+    expected: expected/mesh-services.yml
+
+  # 2. READINESS: the mesh_dp card widgets read Envoy's own stats, reported through
+  #    the metrics service — a DIFFERENT pipeline from the access logs above,
+  #    so the topology can be complete while every card is still empty.
+  #
+  #    Note the entity this asks about. ALS produces TWO sets of services:
+  #    `productpage` in MESH, and `productpage.default` in MESH_DP. Envoy
+  #    stats belong to the MESH_DP one, and they are INSTANCE-scoped — one
+  #    Envoy per pod. Asking at service scope, or asking the MESH service,
+  #    returns empty against a perfectly healthy mesh.
+  - query: |
+      swctl --display yaml --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
+        metrics exec --expression=envoy_heap_memory_used --service-name=productpage.default --instance-name=$( \
+          swctl --display yaml --base-url=http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql \
+            instance list --service-name=productpage.default | yq e '.[0].name' - \
+        )
+    expected: expected/metrics-has-value.yml
+
+  # 3. READINESS: Horizon can see the mesh roster too, absorbing the catalog TTL
+  #    before the browser project pays for it.
+  - query: |
+      bash test/e2e/script/prepare/horizon-get.sh \
+        "http://${service_horizon_host}:${service_horizon_8081}" /api/layer/mesh/services \
+        | yq -P '{"reachable": .reachable, "meshServices": [.services[] | select(.name == "productpage")] | length}'
+    expected: expected/horizon-mesh-roster.yml
+
+  # 3b. READINESS: the mesh topology has EDGES. The service roster above proves
+  #     ALS produced entities; the call graph is a different aggregation and
+  #     lands later, so the spec's `.sm-edge` assertion can fail against a
+  #     mesh that is merely still assembling.
+  - query: |
+      bash test/e2e/script/prepare/horizon-get.sh \
+        "http://${service_horizon_host}:${service_horizon_8081}" \
+        "/api/layer/mesh/topology?windowMinutes=30" \
+        | yq -P '{"hasCalls": ((.calls // []) | length > 0)}'
+    expected: expected/has-mesh-calls.yml
+
+  # 4. READINESS: Zipkin traces are queryable. Everything above is derived from
+  #    ALS, which is a different pipeline from Envoy's tracing — the mesh can
+  #    be fully mapped while no span has been reported yet. The istio project
+  #    asserts on the Zipkin tab and will not be re-run after a first failure.
+  - query: |
+      bash test/e2e/script/prepare/horizon-get.sh \
+        "http://${service_horizon_host}:${service_horizon_8081}" \
+        "/api/zipkin/traces?limit=10&lookback=1800000" \
+        | yq -P '{"hasZipkinTraces": ((.traces // []) | length > 0)}'
+    expected: expected/has-zipkin-traces.yml
+
+  # 4. The browser half — the actual test.
+  - query: bash test/e2e/script/prepare/playwright.sh istio
+    expected: expected/passed.yml

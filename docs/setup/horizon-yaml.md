@@ -17,7 +17,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `query` | Per-request query limits (layer-landing service cap, Overview top-N). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
 | `ai` | AI assistant: provider, model, credentials, prompt overrides, history cap. | [AI Assistant](../operate/ai-assistant.md) |
-| `performance` | How hard the BFF fans queries out to OAP, plus render / per-request record caps. | [below](#performance-tuning) |
+| `performance` | How hard the BFF fans queries out to OAP, plus render caps and the largest page a list may display. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
@@ -125,7 +125,7 @@ Applied live:
 - Auth backend selection (re-evaluated on next login).
 - RBAC roles and policy (re-evaluated on next route call).
 - OAP URLs and credentials (used on next outbound call).
-- Session TTL (new sessions use the new TTL; existing sessions keep their original).
+- Session TTL (applies to every session immediately, already-signed-in ones included — see [Sessions](session.md#hot-reload)).
 - `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below.
 
 These changes require a process restart:
@@ -146,7 +146,7 @@ templates:
 `templates.mode` selects where dashboard / overview templates live:
 
 - **`live` (default)** — at boot, Horizon seeds any missing bundled templates into OAP through the OAP 11 `/ui-management/templates*` REST API, then reads and writes templates through that API. Admin edits (layer dashboards, overview templates, translations) persist in OAP's `ui_template` storage, independent of the Horizon instance.
-- **`readonly`** — templates render from the local bundle only. Horizon does not call an OAP template-management API and the template admin surface is read-only. OAP's query API (metrics / traces / logs) is still used and health-checked either way. This is **recommended on OAP 10.x**: OAP 10 has persistent template management through legacy query-port GraphQL, but Horizon implements only the OAP 11 `/ui-management/templates*` REST protocol. In `live` mode that protocol mismatch leaves the store unreachable, so Horizon renders the bundled templates and flags the store as unreachable; `readonly` states that reality up front and makes the admin surface honestly display-only. See [Compatibility → OAP Version](../compatibility/oap-version.md).
+- **`readonly`** — templates render from the local bundle only. Horizon does not call an OAP template-management API and the template admin surface is read-only. OAP's query API (metrics / traces / logs) is still used and health-checked either way. This is **required on OAP 10.x**: OAP 10 has persistent template management through legacy query-port GraphQL, but Horizon implements only the OAP 11 `/ui-management/templates*` REST protocol. In `live` mode that protocol mismatch leaves the store unreachable, and Horizon blocks layer-driven pages (most visibly Traces) rather than render a layer whose published template it cannot read. See [Compatibility → OAP Version](../compatibility/oap-version.md).
 
 Env form: `HORIZON_TEMPLATES_MODE`. Changing the mode requires a BFF restart — see [Hot reload behavior](#hot-reload-behavior).
 
@@ -227,13 +227,13 @@ These govern how Horizon batches and parallelizes its metric queries to OAP. Eac
 |---|---|---|
 | `topologyMaxNodes` | The render valve for a service map — a graph with more nodes than this is **rejected with a "narrow the scope" notice** rather than drawn as an unreadable hairball. | `5000` |
 | `topologyMaxEdges` | The same valve on edges. | `15000` |
-| `maxPageSize.traces` | The maximum **records** fetched per Traces request (the storage `LIMIT`, not a page count). The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. | `100` |
-| `maxPageSize.logs` | The same per-request record cap for Logs. | `100` |
-| `maxPageSize.browserLogs` | The same per-request record cap for Browser Logs. | `100` |
-| `maxPageSize.events` | The same per-request record cap for Events. Defaults deeper than the other feeds because events are grouped for display (one deployment produces many per-instance rows), so a raw page has to carry more records to fill a screen. | `200` |
+| `maxPageSize.traces` | The largest **page** the Traces list will show — records displayed at once, not a page count. The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. Each read fetches one record beyond the page, which is how the list knows whether there is a next page. | `100` |
+| `maxPageSize.logs` | The same displayed-page cap for Logs. | `100` |
+| `maxPageSize.browserLogs` | The same displayed-page cap for Browser Logs. | `100` |
+| `maxPageSize.events` | The same displayed-page cap for Events. Defaults deeper than the other feeds because events are grouped for display (one deployment produces many per-instance rows), so a raw page has to carry more records to fill a screen. | `200` |
 
 - **`topologyMaxNodes` / `topologyMaxEdges`** are a readability and safety valve, not a data limit — if your deployment legitimately has a graph this large, raising them lets it render (at the cost of a denser scene and a heavier draw). Lower them if you'd rather force operators to scope down sooner.
-- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events request pulls from storage. Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per fetch.
+- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events page shows, and with it how much each list read pulls from storage (one record beyond the page — that extra row is how the list knows another page exists). Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per page.
 
 ## Excluded layers
 

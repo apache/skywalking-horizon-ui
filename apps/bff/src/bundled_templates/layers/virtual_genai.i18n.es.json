@@ -19,50 +19,65 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpm",
         "title": "Llamadas / min"
       },
       {
+        "id": "resp_time",
         "title": "Tiempo medio de respuesta"
       },
       {
+        "id": "sla",
         "title": "Tasa de éxito"
       },
       {
+        "id": "percentile",
         "title": "Percentil de latencia"
       },
       {
+        "id": "input_tokens_total",
         "title": "Tokens de entrada"
       },
       {
+        "id": "output_tokens_total",
         "title": "Tokens de salida"
       },
       {
+        "id": "cost_total",
         "title": "Coste estimado total"
       },
       {
+        "id": "input_tokens",
         "title": "Tokens de entrada promedio"
       },
       {
+        "id": "output_tokens",
         "title": "Tokens de salida promedio"
       },
       {
+        "id": "cost",
         "title": "Coste estimado promedio"
       }
     ],
     "instance": [
       {
+        "id": "cpm",
         "title": "Llamadas / min"
       },
       {
+        "id": "latency_avg",
         "title": "Latencia media"
       },
       {
+        "id": "sla",
         "title": "Tasa de éxito"
       },
       {
+        "id": "latency_percentile",
         "title": "Percentil de latencia"
       },
       {
+        "id": "ttft",
         "title": "TTFT",
         "expressionLabels": [
           "media",
@@ -70,21 +85,27 @@
         ]
       },
       {
+        "id": "input_tokens_total",
         "title": "Tokens de entrada"
       },
       {
+        "id": "output_tokens_total",
         "title": "Tokens de salida"
       },
       {
+        "id": "cost_total",
         "title": "Coste estimado total"
       },
       {
+        "id": "input_tokens",
         "title": "Tokens de entrada promedio"
       },
       {
+        "id": "output_tokens",
         "title": "Tokens de salida promedio"
       },
       {
+        "id": "cost",
         "title": "Coste estimado promedio"
       }
     ]

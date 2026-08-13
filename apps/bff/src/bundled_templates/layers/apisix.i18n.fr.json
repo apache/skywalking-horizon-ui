@@ -20,48 +20,62 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "conns",
         "title": "Connexions HTTP"
       },
       {
+        "id": "status_unmatched",
         "title": "Tendance des statuts non matchés",
         "tip": "Requêtes sans route APISIX correspondante."
       },
       {
+        "id": "latency_unmatched",
         "title": "Latence non matchée"
       },
       {
+        "id": "bandwidth_unmatched",
         "title": "Bande passante non matchée"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendance des requêtes HTTP"
       },
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       },
       {
+        "id": "conns",
         "title": "Connexions HTTP"
       },
       {
+        "id": "shared_dict",
         "title": "Dict partagé",
         "tip": "Capacité vs espace libre.",
         "expressionLabels": [
@@ -70,15 +84,18 @@
         ]
       },
       {
+        "id": "etcd_total",
         "title": "etcd joignable"
       },
       {
+        "id": "etcd",
         "title": "etcd index",
         "expressionLabels": [
           "index"
         ]
       },
       {
+        "id": "unmatched",
         "title": "Trafic non matché",
         "tip": "Statut + latence + bande passante pour les requêtes sans route correspondante.",
         "expressionLabels": [
@@ -90,12 +107,15 @@
     ],
     "endpoint": [
       {
+        "id": "status",
         "title": "Tendance des statuts HTTP"
       },
       {
+        "id": "latency",
         "title": "Latence HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Bande passante HTTP"
       }
     ]

@@ -6,24 +6,62 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "请求数" },
-      { "label": "平均延迟" },
-      { "label": "4xx" },
-      { "label": "5xx" }
+      {
+        "label": "请求数"
+      },
+      {
+        "label": "平均延迟"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "全部请求数" },
-      { "title": "GET 请求数" },
-      { "title": "PUT 请求数" },
-      { "title": "DELETE 请求数" },
-      { "title": "4xx 数量" },
-      { "title": "5xx 数量" },
-      { "title": "请求平均延迟" },
-      { "title": "首字节平均延迟" },
-      { "title": "下载量（KB）" },
-      { "title": "上传量（KB）" }
+      {
+        "id": "all_req",
+        "title": "全部请求数"
+      },
+      {
+        "id": "get_req",
+        "title": "GET 请求数"
+      },
+      {
+        "id": "put_req",
+        "title": "PUT 请求数"
+      },
+      {
+        "id": "delete_req",
+        "title": "DELETE 请求数"
+      },
+      {
+        "id": "err4xx",
+        "title": "4xx 数量"
+      },
+      {
+        "id": "err5xx",
+        "title": "5xx 数量"
+      },
+      {
+        "id": "latency",
+        "title": "请求平均延迟"
+      },
+      {
+        "id": "first_byte_latency",
+        "title": "首字节平均延迟"
+      },
+      {
+        "id": "downloaded",
+        "title": "下载量（KB）"
+      },
+      {
+        "id": "uploaded",
+        "title": "上传量（KB）"
+      }
     ]
   }
 }

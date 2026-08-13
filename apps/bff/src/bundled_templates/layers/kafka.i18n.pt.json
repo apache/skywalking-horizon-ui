@@ -24,24 +24,31 @@
   "dashboards": {
     "service": [
       {
+        "id": "partitions",
         "title": "Quantidade de partições"
       },
       {
+        "id": "leaders",
         "title": "Quantidade de líderes"
       },
       {
+        "id": "active_ctrl",
         "title": "Controllers ativos"
       },
       {
+        "id": "max_lag",
         "title": "Lag máximo"
       },
       {
+        "id": "under_replicated",
         "title": "Partições sub-replicadas"
       },
       {
+        "id": "offline",
         "title": "Partições offline"
       },
       {
+        "id": "leader_election",
         "title": "Taxa de eleição de líder",
         "expressionLabels": [
           "eleições",
@@ -51,39 +58,51 @@
     ],
     "instance": [
       {
+        "id": "cpu",
         "title": "Uso de CPU"
       },
       {
+        "id": "msg_rate",
         "title": "Mensagens recebidas / s"
       },
       {
+        "id": "bytes_in",
         "title": "Bytes entrada / s"
       },
       {
+        "id": "bytes_out",
         "title": "Bytes saída / s"
       },
       {
+        "id": "req_rate",
         "title": "Requisições / s"
       },
       {
+        "id": "purgatory",
         "title": "Tamanho do purgatory"
       },
       {
+        "id": "isr_shrinks",
         "title": "ISR shrinks/s"
       },
       {
+        "id": "isr_expands",
         "title": "ISR expands/s"
       },
       {
+        "id": "mem_pct",
         "title": "Uso de memória (%)"
       },
       {
+        "id": "under_replicated",
         "title": "Partições sub-replicadas"
       },
       {
+        "id": "under_min_isr",
         "title": "Partições abaixo do Min-ISR"
       },
       {
+        "id": "partitions_leaders",
         "title": "Partições + líderes",
         "expressionLabels": [
           "partições",
@@ -91,6 +110,7 @@
         ]
       },
       {
+        "id": "queue_times",
         "title": "Tempos de fila / envio",
         "expressionLabels": [
           "fila de requisições",
@@ -100,6 +120,7 @@
         ]
       },
       {
+        "id": "topic_rates",
         "title": "Taxas do tópico",
         "expressionLabels": [
           "produce req/s",
@@ -108,6 +129,7 @@
         ]
       },
       {
+        "id": "replication",
         "title": "Replicação",
         "expressionLabels": [
           "bytes entrada",
@@ -115,9 +137,11 @@
         ]
       },
       {
+        "id": "gc",
         "title": "Contagem de GC"
       },
       {
+        "id": "max_lag",
         "title": "Lag máximo (broker)"
       }
     ]

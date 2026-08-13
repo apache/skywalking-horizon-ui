@@ -37,7 +37,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import { probeLdap, resolveLdapUser } from '../../user/ldap.js';
 import type { LdapHealth } from '../../user/ldap-health.js';
 import type { SessionStore } from '../../user/sessions.js';
-import { VERBS } from '../../rbac/verbs.js';
+import { RESERVED_VERBS, VERBS } from '../../rbac/verbs.js';
 
 export interface AuthStatusRouteDeps {
   config: ConfigSource;
@@ -89,12 +89,15 @@ export interface AuthStatusBody {
   /** RBAC policy snapshot — drives the read-only Roles & permissions
    *  page. The roles + grants come straight from `rbac.roles` in
    *  horizon.yaml; `knownVerbs` is the closed namespace declared in
-   *  the BFF's verbs module. */
+   *  the BFF's verbs module, and `reservedVerbs` is the subset of it
+   *  that nothing enforces — the page marks those rather than showing
+   *  them as capabilities. */
   rbac: {
     enabled: boolean;
     roles: Record<string, string[]>;
     landingByRole: Record<string, string>;
     knownVerbs: string[];
+    reservedVerbs: string[];
   };
 }
 
@@ -177,6 +180,7 @@ export function registerAuthStatusRoutes(app: FastifyInstance, deps: AuthStatusR
         roles: cfg.rbac.roles,
         landingByRole: cfg.rbac.landingByRole,
         knownVerbs: Object.values(VERBS).sort(),
+        reservedVerbs: [...RESERVED_VERBS].sort(),
       },
     };
     return body;

@@ -20,38 +20,28 @@
   "dashboards": {
     "service": [
       {
+        "id": "traffic_line",
         "title": "Zugriffs-Traffic",
-        "tip": "Queries pro Minute gegen die virtuelle Datenbank.",
-        "expressions": [
-          null
-        ]
+        "tip": "Queries pro Minute gegen die virtuelle Datenbank."
       },
       {
-        "title": "Mittlere Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit"
       },
       {
+        "id": "sla_line",
         "title": "Erfolgsrate",
-        "tip": "Prozentsatz der Queries, die ohne Ausnahme zurückkehrten.",
-        "expressions": [
-          null
-        ]
+        "tip": "Prozentsatz der Queries, die ohne Ausnahme zurückkehrten."
       },
       {
+        "id": "percentile_line",
         "title": "Antwortzeit-Perzentil",
-        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Zugriffszeit-Verteilung.",
-        "expressions": [
-          null
-        ]
+        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Zugriffszeit-Verteilung."
       },
       {
+        "id": "slow_statements",
         "title": "Langsame Anweisungen",
-        "tip": "Top 20 langsamste erfasste Anweisungen. Jede Zeile ist eine einzelne Anweisungsausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
-        "expressions": [
-          null
-        ]
+        "tip": "Top 20 langsamste erfasste Anweisungen. Jede Zeile ist eine einzelne Anweisungsausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält)."
       }
     ]
   },

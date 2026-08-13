@@ -41,8 +41,9 @@ import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 export interface DashboardConfigDeps {
   config: ConfigSource;
   sessions: SessionStore;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled)
-   *  widget config, matching the admin + the config-bundle endpoint. */
+  /** OAP UI-template client — serve the in-use REMOTE widget config,
+   *  matching the admin + the config-bundle endpoint. Without one, or with no
+   *  readable remote row, the route answers with its in-code defaults. */
   uiTemplateClient?: () => UITemplateClient;
 }
 

@@ -41,12 +41,31 @@ server:
 templates:
   # `live` (default): seed/read/write templates through OAP 11's
   # /ui-management/templates* REST API and persist them in OAP storage.
+  # In this mode OAP is the ONLY source — if its template store cannot be
+  # read, layer pages are blocked rather than falling back to the bundle.
   # `readonly`: render templates from the local bundle only — the
   # template-management API is never called and the whole config surface
   # is read-only. OAP 10 has legacy GraphQL template management, but Horizon
   # does not consume it, so OAP 10 requires `readonly`. OAP's query API is
   # still used either way. (Changing this mode needs a BFF restart.)
   mode: "${HORIZON_TEMPLATES_MODE:live}"
+
+security:
+  # Hosts a dashboard template's outbound link may point at. The only
+  # operator-supplied link in the product is a layer template's
+  # `documentLink` — the "docs ↗" anchor in the layer header — and it may
+  # only leave this origin for a host listed here. A host matches itself and
+  # its subdomains.
+  #
+  # The default is the project's own documentation domain, because every
+  # bundled layer template links there. It is a default, not a built-in
+  # exemption: set this to `[]` for a fully closed console and no outbound
+  # link renders at all. Add your internal wiki to keep its links working.
+  #
+  # A site-relative link (`/runbook/kafka`) never needs listing — it does not
+  # leave the origin. Non-http(s) schemes (`javascript:`, `data:`, …) are
+  # always refused and that is not configurable.
+  trustedLinkDomains: ${HORIZON_TRUSTED_LINK_DOMAINS:["skywalking.apache.org"]}
 
 oap:
   # OAP query host (GraphQL + /status/*; default port 12800).

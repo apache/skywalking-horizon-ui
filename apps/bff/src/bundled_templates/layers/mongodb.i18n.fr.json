@@ -20,33 +20,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "uptime",
         "title": "Disponibilité du cluster (jours)"
       },
       {
+        "id": "data_size",
         "title": "Taille des données (Go)"
       },
       {
+        "id": "coll_count",
         "title": "Nombre de collections"
       },
       {
+        "id": "obj_count",
         "title": "Nombre d'objets"
       },
       {
+        "id": "doc_qps",
         "title": "QPS de documents"
       },
       {
+        "id": "op_qps",
         "title": "QPS d'opérations"
       },
       {
+        "id": "conns",
         "title": "Connexions totales"
       },
       {
+        "id": "cursors",
         "title": "Total des curseurs"
       },
       {
+        "id": "repl_lag",
         "title": "Lag de réplication (ms)"
       },
       {
+        "id": "db_data_size",
         "title": "Données totales DB (Go)",
         "tableHeaders": [
           "Base de données",
@@ -54,6 +64,7 @@
         ]
       },
       {
+        "id": "db_index_size",
         "title": "Index total DB (Go)",
         "tableHeaders": [
           "Base de données",
@@ -63,12 +74,15 @@
     ],
     "instance": [
       {
+        "id": "uptime",
         "title": "Disponibilité (jours)"
       },
       {
+        "id": "qps",
         "title": "QPS"
       },
       {
+        "id": "rs_state",
         "title": "État du ReplSet",
         "tableHeaders": [
           "Nœud",
@@ -76,15 +90,19 @@
         ]
       },
       {
+        "id": "conns",
         "title": "Connexions"
       },
       {
+        "id": "cpu",
         "title": "Utilisation CPU (%)"
       },
       {
+        "id": "mem",
         "title": "Utilisation mémoire"
       },
       {
+        "id": "mem_free",
         "title": "Mémoire libre (Go)",
         "expressionLabels": [
           "mem",
@@ -92,6 +110,7 @@
         ]
       },
       {
+        "id": "disk",
         "title": "Disque (Go)",
         "expressionLabels": [
           "utilisé",
@@ -99,6 +118,7 @@
         ]
       },
       {
+        "id": "network",
         "title": "Réseau (Ko/s)",
         "expressionLabels": [
           "entrant",
@@ -106,6 +126,7 @@
         ]
       },
       {
+        "id": "active_clients",
         "title": "Clients actifs",
         "expressionLabels": [
           "total",
@@ -114,15 +135,19 @@
         ]
       },
       {
+        "id": "doc_qps",
         "title": "QPS de documents"
       },
       {
+        "id": "op_qps",
         "title": "QPS d'opérations"
       },
       {
+        "id": "op_latency",
         "title": "Latence d'opération (µs)"
       },
       {
+        "id": "transactions",
         "title": "Transactions",
         "expressionLabels": [
           "actifs",
@@ -130,6 +155,7 @@
         ]
       },
       {
+        "id": "repl_buffer",
         "title": "Buffer de réplication",
         "expressionLabels": [
           "nombre",
@@ -137,6 +163,7 @@
         ]
       },
       {
+        "id": "queued_op",
         "title": "Opérations en file"
       }
     ]

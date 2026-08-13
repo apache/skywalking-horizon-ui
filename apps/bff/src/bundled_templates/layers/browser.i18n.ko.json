@@ -16,15 +16,19 @@
   "dashboards": {
     "service": [
       {
+        "id": "app_pv",
         "title": "앱 로드 (PV)"
       },
       {
+        "id": "app_error_rate",
         "title": "앱 오류율"
       },
       {
+        "id": "app_error_sum",
         "title": "앱 오류 수"
       },
       {
+        "id": "top_pages_pv",
         "title": "인기 페이지",
         "tip": "페이지 뷰, 오류, 오류율 기준으로 정렬된 페이지입니다.",
         "expressionLabels": [
@@ -34,6 +38,7 @@
         ]
       },
       {
+        "id": "top_versions",
         "title": "상위 버전",
         "tip": "앱 버전별 분포 — 로드 + 오류 + 오류율.",
         "expressionLabels": [
@@ -45,30 +50,38 @@
     ],
     "instance": [
       {
+        "id": "ver_pv",
         "title": "버전 PV"
       },
       {
+        "id": "ver_error_rate",
         "title": "버전 오류율"
       },
       {
+        "id": "ver_error_sum",
         "title": "버전 오류 수"
       }
     ],
     "endpoint": [
       {
+        "id": "page_fmp_percentile",
         "title": "First Meaningful Paint 백분위",
         "tip": "선택한 페이지의 FMP 지연 시간 p50–p99 입니다. p75가 1초 미만이면 일반적인 목표를 달성한 것입니다."
       },
       {
+        "id": "page_load_percentile",
         "title": "페이지 로드 백분위"
       },
       {
+        "id": "page_ttl_percentile",
         "title": "TTL 백분위"
       },
       {
+        "id": "page_first_pack_percentile",
         "title": "First Pack 지연 시간 백분위"
       },
       {
+        "id": "page_performance",
         "title": "페이지 성능 분해",
         "tip": "페이지 로드 각 단계의 평균 시간 — resolve, redirect, DNS, TCP, TTFB, transfer, DOM 분석, DOM ready, FPT, full load.",
         "expressionLabels": [
@@ -85,6 +98,7 @@
         ]
       },
       {
+        "id": "page_error_breakdown",
         "title": "유형별 페이지 오류",
         "tip": "Resource / JS / AJAX / unknown 오류의 분당 카운터입니다.",
         "expressionLabels": [
@@ -95,6 +109,7 @@
         ]
       },
       {
+        "id": "web_vitals",
         "title": "Web Vitals",
         "tip": "Core Web Vitals — FMP, LCP, CLS (분당 평균). CLS는 일반적인 0–1 점수 범위로 맞추기 위해 1000으로 나눕니다.",
         "expressionLabels": [
@@ -104,6 +119,7 @@
         ]
       },
       {
+        "id": "inp_percentile",
         "title": "Interaction to Next Paint 백분위",
         "tip": "INP — FID를 대체하는 반응성 지표입니다."
       }

@@ -16,7 +16,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { pickAnalyzedEvent, summaryEventOrder } from './profiling.js';
+import type { FetchLike } from '@skywalking-horizon-ui/api-client';
+import type { GraphqlOptions } from '../../client/graphql.js';
+import { analyzeProfiling, pickAnalyzedEvent, summaryEventOrder } from './profiling.js';
 
 describe('pickAnalyzedEvent', () => {
   it('picks the first event when none is requested', () => {
@@ -118,5 +120,50 @@ describe('summaryEventOrder', () => {
 
   it('is just the primary event for a single-event task', () => {
     expect(summaryEventOrder(['CPU'], 'CPU')).toEqual(['CPU']);
+  });
+});
+
+/* The assistant's `analyze_profiling` tool hands over a service NAME and no id
+ * (its schema carries none), so this is the one path that still turns a name
+ * into an id. It matches the NAME column only: the id column used to be a
+ * fallback, which let an id-shaped name — or an id in the name slot — address a
+ * different service than the one named. */
+describe('analyzeProfiling resolves the assistant\'s service NAME', () => {
+  const SERVICE_ID = 'c29uZ3M=.1';
+  interface Captured {
+    query: string;
+    variables: Record<string, unknown>;
+  }
+
+  function oap(): { opts: GraphqlOptions; calls: Captured[] } {
+    const calls: Captured[] = [];
+    const fetch: FetchLike = async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Captured;
+      calls.push({ query: body.query, variables: body.variables ?? {} });
+      const data = body.query.includes('listServices')
+        ? { services: [{ id: SERVICE_ID, name: 'songs' }] }
+        : { taskList: [] };
+      return new Response(JSON.stringify({ data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    return { opts: { queryUrl: 'http://oap:12800', timeoutMs: 5000, fetch }, calls };
+  }
+
+  it('queries the resolved id', async () => {
+    const { opts, calls } = oap();
+    const out = await analyzeProfiling({ opts, profilingType: 'trace', layerKey: 'general', service: 'songs' });
+    expect(out.reachable).toBe(true);
+    const taskList = calls.find((c) => c.query.includes('getProfileTaskList'));
+    expect(taskList?.variables.serviceId).toBe(SERVICE_ID);
+  });
+
+  it('refuses an id handed to the name slot instead of answering for it', async () => {
+    const { opts, calls } = oap();
+    const out = await analyzeProfiling({ opts, profilingType: 'trace', layerKey: 'general', service: SERVICE_ID });
+    expect(out.reachable).toBe(false);
+    expect(out.error).toContain('Unknown service');
+    expect(calls.some((c) => c.query.includes('getProfileTaskList'))).toBe(false);
   });
 });

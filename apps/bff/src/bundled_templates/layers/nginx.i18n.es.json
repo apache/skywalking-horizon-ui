@@ -22,73 +22,95 @@
   "dashboards": {
     "service": [
       {
+        "id": "rps",
         "title": "Tendencia de peticiones HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexiones HTTP"
       },
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       },
       {
+        "id": "errlog",
         "title": "Conteo de logs de error"
       }
     ],
     "instance": [
       {
+        "id": "rps",
         "title": "Tendencia de peticiones HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       },
       {
+        "id": "conns",
         "title": "Conexiones HTTP"
       },
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       },
       {
+        "id": "errlog",
         "title": "Conteo de logs de error"
       }
     ],
     "endpoint": [
       {
+        "id": "rps",
         "title": "Tendencia de peticiones HTTP"
       },
       {
+        "id": "latency",
         "title": "Latencia HTTP"
       },
       {
+        "id": "bandwidth",
         "title": "Ancho de banda HTTP"
       },
       {
+        "id": "status",
         "title": "Tendencia de estado HTTP"
       },
       {
+        "id": "err4xx",
         "title": "4xx % / min"
       },
       {
+        "id": "err5xx",
         "title": "5xx % / min"
       }
     ]

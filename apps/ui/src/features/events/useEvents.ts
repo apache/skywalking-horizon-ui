@@ -19,9 +19,9 @@
  * Events data feed for the per-service events popout. Wraps the BFF
  * `queryEvents` call, keyed on the window + applied filters so a change
  * cascade-clears and refires. Returns the raw newest-first rows; the popout
- * lays them out as an instance × time swimlane. `truncated` is true when the
- * raw fetch hit the page-size cap — older events beyond it aren't shown until
- * the window narrows.
+ * lays them out as an instance × time swimlane. `truncated` is true when OAP
+ * held at least one event beyond the page-size cap — older events beyond it
+ * aren't shown until the window narrows.
  *
  * Failure handling: the BFF soft-fails an OAP error to a `reachable: false`
  * envelope (HTTP 200), but an auth (403) / 5xx makes `bff.request` THROW, which
@@ -90,13 +90,9 @@ export function useEvents(
   });
 
   const events = computed<EventRow[]>(() => query.data.value?.events ?? []);
-  // True once the fetch hit the cap. Compare against the BFF's echoed pageSize
-  // (not the constant), so a sub-default `maxPageSize.events` still flips it.
-  const truncated = computed<boolean>(() => {
-    const data = query.data.value;
-    if (!data) return false;
-    return data.total >= (data.pageSize ?? EVENTS_PAGE_SIZE);
-  });
+  // The BFF over-fetches by one, so this is proof there are more events — a
+  // window that exactly fills the cap is complete and is NOT flagged.
+  const truncated = computed<boolean>(() => query.data.value?.hasNext ?? false);
   // A thrown request (403 / 5xx) → error state, no data → NOT reachable.
   const reachable = computed<boolean>(() => {
     if (query.isError.value) return false;

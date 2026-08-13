@@ -501,6 +501,7 @@ function onPanelZoneFocus(zoneKey: string): void {
            the server root, which lands on an empty page under a gateway
            sub-path. router-link prepends the base and stays in-SPA. -->
       <router-link class="sw-brand" to="/" :title="t('Back to Horizon')">
+        <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
         <span class="sw-brand-logo" v-html="logoSw" />
         <span class="sw-brand-text">
           <span class="sw-brand-line1">Apache SkyWalking</span>

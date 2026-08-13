@@ -20,16 +20,19 @@
  * instance selector on the per-layer Instance page. Disabled until
  * both inputs are non-empty so the SPA doesn't fire a request the
  * BFF would reject as `missing_service`.
+ *
+ * `service` is the roster pair the caller picked — id and name together.
  */
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
-export function useLayerInstances(layerKey: Ref<string>, service: Ref<string | null>) {
+export function useLayerInstances(layerKey: Ref<string>, service: Ref<ServiceRef | null>) {
   const q = useQuery({
     queryKey: ['layer-instances', layerKey, service],
-    queryFn: () => bffClient.layer.instances(layerKey.value, service.value ?? ''),
+    queryFn: () => bffClient.layer.instances(layerKey.value, service.value!),
     enabled: computed(() => layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
   });

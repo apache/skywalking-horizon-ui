@@ -78,5 +78,8 @@ export function useLayerServices(
     services: computed<LayerServiceRow[]>(() => q.data.value?.services ?? []),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
+    /** The roster read failed. A caller resolving an id against it treats this
+     *  as settled-with-nothing: there is no further answer coming. */
+    isError: q.isError,
   };
 }

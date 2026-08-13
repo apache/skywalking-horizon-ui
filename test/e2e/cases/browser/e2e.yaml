@@ -1,0 +1,80 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Browser telemetry: OAP's browser receiver, the BROWSER layer, and Horizon's
+# Browser Errors tab.
+#
+# Run it:  e2e run -c test/e2e/cases/browser/e2e.yaml
+# Images:  make -C test/e2e images
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh browser
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+    # Seeded here rather than by a `trigger`: browser errors are discrete
+    # events, not a traffic stream, and a dozen of them is plenty.
+    - name: seed browser errors
+      command: bash test/e2e/script/prepare/browser-seed.sh http://${oap_host}:${oap_12800}
+
+verify:
+  retry:
+    count: 40
+    interval: 5s
+  cases:
+    # 1. The receiver accepted the records and the BROWSER layer now has a
+    #    service. Nothing else in the suite populates that layer, so an empty
+    #    roster here means the receiver path is broken rather than the UI.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/browser/services \
+          | yq -P '{"reachable": .reachable, "hasServices": (.services | length > 0)}'
+      expected: expected/browser-roster.yml
+
+    # 2. READINESS: the seeded RECORDS are queryable, not merely the service.
+    #    The roster above appears as soon as perfData registers the service,
+    #    which is a different write from the error logs the tab reads — so
+    #    the roster can be green while the list is still empty. That matters
+    #    more here than anywhere else: playwright.sh records its first failure
+    #    and refuses to re-run the project, so a browser case that starts one
+    #    persistence cycle too early is marked failed for good.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/browser/browser-errors \
+          '{"windowMinutes":30,"page":1,"pageSize":10}' \
+          | yq -P '{"hasErrors": (.logs | length > 0)}'
+      expected: expected/has-browser-errors.yml
+
+    # 3. The errors on screen, carrying the fields the tab renders — a record
+    #    without its message or stack is unactionable.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh browser
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

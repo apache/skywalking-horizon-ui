@@ -39,6 +39,7 @@ import type {
 } from '@/api/client';
 import { useInstanceTopology } from '@/layer/service-map/useInstanceTopology';
 import { useLayerTopology } from '@/layer/service-map/useLayerTopology';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayers } from '@/shell/useLayers';
 import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
@@ -117,7 +118,7 @@ function displayName(name: string | null | undefined): string {
 // A replay map uses replayData node names + hides the pickers, so the roster
 // (name fallback for the pickers) fires ZERO queries — gated by replay mode.
 const roster = useLayerServices(layerKey, { rideTicker: !props.embedded, replay: computed(() => props.replay ?? false) });
-const topoFocus = ref<string | null>(null);
+const topoFocus = ref<ServiceRef[]>([]);
 const topoDepth = ref(2);
 // A seeded (replayed) block is static — suppress the layer-wide topology fetch
 // that only feeds the interactive swap pickers, so a reload stays offline (it

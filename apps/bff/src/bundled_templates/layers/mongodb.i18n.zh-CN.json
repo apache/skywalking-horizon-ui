@@ -7,70 +7,169 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "文档 QPS" },
-      { "label": "操作 QPS" },
-      { "label": "连接" },
-      { "label": "复制 Lag" }
+      {
+        "label": "文档 QPS"
+      },
+      {
+        "label": "操作 QPS"
+      },
+      {
+        "label": "连接"
+      },
+      {
+        "label": "复制 Lag"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "集群运行时长（天）" },
-      { "title": "数据大小（GB）" },
-      { "title": "集合数" },
-      { "title": "对象数" },
-      { "title": "文档 QPS" },
-      { "title": "操作 QPS" },
-      { "title": "总连接数" },
-      { "title": "游标总数" },
-      { "title": "复制延迟（ms）" },
       {
-        "title": "DB 数据总量（GB）",
-        "tableHeaders": ["数据库", "Data (GB)"]
+        "id": "uptime",
+        "title": "集群运行时长（天）"
       },
       {
+        "id": "data_size",
+        "title": "数据大小（GB）"
+      },
+      {
+        "id": "coll_count",
+        "title": "集合数"
+      },
+      {
+        "id": "obj_count",
+        "title": "对象数"
+      },
+      {
+        "id": "doc_qps",
+        "title": "文档 QPS"
+      },
+      {
+        "id": "op_qps",
+        "title": "操作 QPS"
+      },
+      {
+        "id": "conns",
+        "title": "总连接数"
+      },
+      {
+        "id": "cursors",
+        "title": "游标总数"
+      },
+      {
+        "id": "repl_lag",
+        "title": "复制延迟（ms）"
+      },
+      {
+        "id": "db_data_size",
+        "title": "DB 数据总量（GB）",
+        "tableHeaders": [
+          "数据库",
+          "Data (GB)"
+        ]
+      },
+      {
+        "id": "db_index_size",
         "title": "DB 索引总量（GB）",
-        "tableHeaders": ["数据库", "Index (GB)"]
+        "tableHeaders": [
+          "数据库",
+          "Index (GB)"
+        ]
       }
     ],
     "instance": [
-      { "title": "运行时长（天）" },
-      { "title": "QPS" },
       {
+        "id": "uptime",
+        "title": "运行时长（天）"
+      },
+      {
+        "id": "qps",
+        "title": "QPS"
+      },
+      {
+        "id": "rs_state",
         "title": "ReplSet 状态",
-        "tableHeaders": ["节点", "ReplSet state"]
+        "tableHeaders": [
+          "节点",
+          "ReplSet state"
+        ]
       },
-      { "title": "连接数" },
-      { "title": "CPU 使用率（%）" },
-      { "title": "内存使用" },
       {
+        "id": "conns",
+        "title": "连接数"
+      },
+      {
+        "id": "cpu",
+        "title": "CPU 使用率（%）"
+      },
+      {
+        "id": "mem",
+        "title": "内存使用"
+      },
+      {
+        "id": "mem_free",
         "title": "空闲内存（GB）",
-        "expressionLabels": ["mem", "swap"]
+        "expressionLabels": [
+          "mem",
+          "swap"
+        ]
       },
       {
+        "id": "disk",
         "title": "磁盘（GB）",
-        "expressionLabels": ["used", "total"]
+        "expressionLabels": [
+          "used",
+          "total"
+        ]
       },
       {
+        "id": "network",
         "title": "网络（KB/s）",
-        "expressionLabels": ["in", "out"]
+        "expressionLabels": [
+          "in",
+          "out"
+        ]
       },
       {
+        "id": "active_clients",
         "title": "活跃客户端",
-        "expressionLabels": ["total", "writers", "readers"]
+        "expressionLabels": [
+          "total",
+          "writers",
+          "readers"
+        ]
       },
-      { "title": "文档 QPS" },
-      { "title": "操作 QPS" },
-      { "title": "操作延迟（µs）" },
       {
+        "id": "doc_qps",
+        "title": "文档 QPS"
+      },
+      {
+        "id": "op_qps",
+        "title": "操作 QPS"
+      },
+      {
+        "id": "op_latency",
+        "title": "操作延迟（µs）"
+      },
+      {
+        "id": "transactions",
         "title": "事务",
-        "expressionLabels": ["active", "inactive"]
+        "expressionLabels": [
+          "active",
+          "inactive"
+        ]
       },
       {
+        "id": "repl_buffer",
         "title": "复制缓冲",
-        "expressionLabels": ["count", "size (MB)"]
+        "expressionLabels": [
+          "count",
+          "size (MB)"
+        ]
       },
-      { "title": "排队操作" }
+      {
+        "id": "queued_op",
+        "title": "排队操作"
+      }
     ]
   }
 }

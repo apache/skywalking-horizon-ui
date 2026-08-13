@@ -29,14 +29,16 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import type { LayerComponentFlags, LayerTemplate } from '../../logic/layers/loader.js';
-import { getSyncStatus } from '../../logic/templates/sync.js';
+import { ambiguousConflicts, getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
-import { formatName, isOverlayName, parseEnvelope } from '../../logic/templates/names.js';
+import { formatName, parseEnvelope } from '../../logic/templates/names.js';
+import { canonicalLayerKey } from '../../logic/templates/identity.js';
 import type { SyncStatus, TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
+import { linkSchemeIssue, linkDomainIssue } from '../../util/link-policy.js';
 import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
 /**
@@ -93,17 +95,19 @@ interface LayerSyncSnapshot {
   /** Canonical layer keys disabled on OAP (sidebar hides them). */
   disabled: Set<string>;
   /** Canonical layer keys whose template name sits on more than one
-   *  ENABLED OAP record. Which definition the layer has is ambiguous, so
-   *  the sidebar hides it rather than navigate to a dashboard nobody can
-   *  identify. Detection only — Horizon never retires a record. */
+   *  ENABLED OAP record carrying DIFFERENT content. Which definition the
+   *  layer has is ambiguous, so the sidebar hides it rather than navigate
+   *  to a dashboard nobody can identify. Byte-identical copies are a
+   *  reported duplicate, not an ambiguity, and stay in the menu.
+   *  Detection only — Horizon never retires a record. */
   conflicted: Set<string>;
   /** Per-name layer rows for the live OAP UI-template state. Lets the
    *  menu prefer the operator's published edits (alias / components /
    *  slots / caps / colour / metrics / overview / log / traces /
    *  naming) over the disk-bundled defaults — same precedence rule
    *  the config-bundle endpoint already applies via
-   *  `pickLayerContent`. Empty when OAP is unreachable; the menu
-   *  then falls back to bundled cleanly. */
+   *  `pickLayerContent`. Empty when OAP is unreachable; every layer then
+   *  resolves to the in-code `LAYER_DEFAULTS`, never the disk bundle. */
   layerRowsByName: Map<string, TemplateRow>;
   /** All sync rows (incl. per-locale overlay rows) so the menu can apply
    *  the live OAP translation overlay on top of the disk overlay — same
@@ -140,17 +144,12 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
       if (row.locale !== undefined) continue; // skip i18n overlay rows
       layerRowsByName.set(row.name, row);
       if (row.status === 'disabled') {
-        disabled.add(canonical(row.key.toUpperCase()));
+        disabled.add(canonicalLayerKey(row.key));
       }
     }
     const conflicted = new Set<string>();
-    for (const c of sync.conflicts) {
-      if (c.kind !== 'layer') continue;
-      // Same source-only filter the row loop applies: a duplicated
-      // translation overlay is reported with `kind: 'layer'` and the
-      // parent's key, but the layer's own definition stays unambiguous.
-      if (isOverlayName(c.name)) continue;
-      conflicted.add(canonical(c.key.toUpperCase()));
+    for (const c of ambiguousConflicts(sync, 'layer')) {
+      conflicted.add(canonicalLayerKey(c.key));
     }
     warnConflictedLayersHidden(sync, conflicted);
     return { disabled, conflicted, layerRowsByName, rows: sync.rows };
@@ -172,9 +171,10 @@ function warnConflictedLayersHidden(sync: SyncStatus, conflicted: Set<string>): 
   conflictWarnedFor.add(sync);
   logger.warn(
     { layers: [...conflicted] },
-    'Sidebar menu hides these layers: their template name is on more than one enabled OAP record, so which ' +
-      'definition to render is ambiguous. Review them under Dashboard setup → Layer dashboards (the conflict ' +
-      'banner names the record ids) and retire the extra record on OAP — Horizon never disables one on its own.',
+    'Sidebar menu hides these layers: their template name is on more than one enabled OAP record and the ' +
+      'copies differ, so which definition to render is ambiguous. Review them under Dashboard setup → Layer ' +
+      'dashboards (the conflict banner names the record ids) and retire the extra record on OAP — Horizon ' +
+      'never disables one on its own.',
   );
 }
 
@@ -189,21 +189,6 @@ const MENU_QUERY = /* GraphQL */ `
     }
   }
 `;
-
-/**
- * Legacy enum values OAP keeps for backward compatibility — collapse to the
- * modern equivalent so the sidebar shows one row per logical layer.
- */
-const LAYER_ALIAS: Record<string, string> = {
-  CACHE: 'VIRTUAL_CACHE',
-  DATABASE: 'VIRTUAL_DATABASE',
-  MQ: 'VIRTUAL_MQ',
-  GENAI: 'VIRTUAL_GENAI',
-};
-
-function canonical(layer: string): string {
-  return LAYER_ALIAS[layer] ?? layer;
-}
 
 interface MenuRaw {
   layers: string[];
@@ -270,8 +255,10 @@ const DEFAULT_FOR_UNKNOWN_LAYER = {
 
 /** Resolve the layer template the menu should serve for `rawKey`,
  *  matching the bundle endpoint + the per-page routes: REMOTE-only.
- *    1. remote OAP UI-template row, when present + not disabled
- *       (operator edits go live the moment they push) ;
+ *    1. remote OAP UI-template row, when present, not disabled and readable
+ *       as this layer (`effective === 'remote'` — the shared identity rule
+ *       already decided, so a row holding another layer's template is not one
+ *       of this layer's candidates) ;
  *    2. null otherwise — the caller (`deriveLayer`) then renders the
  *       in-code `LAYER_DEFAULTS`, NOT the disk-bundled template.
  *  Bundled disk content is the seed/reset source (it syncs INTO remote
@@ -282,7 +269,7 @@ function resolveLayerTemplate(
   rawKey: string,
   layerRowsByName: Map<string, TemplateRow>,
 ): LayerTemplate | null {
-  const row = layerRowsByName.get(formatName('layer', rawKey.toUpperCase()));
+  const row = layerRowsByName.get(formatName('layer', canonicalLayerKey(rawKey)));
   if (row && row.status !== 'disabled' && row.effective === 'remote' && row.remote) {
     const env = parseEnvelope(row.remote.configuration);
     if (env && env.content && typeof env.content === 'object' && 'key' in env.content) {
@@ -326,18 +313,18 @@ function deriveLayer(
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
       slots: tpl.slots,
-      // Caps come straight from the in-use (remote-or-bundled) template's
-      // component flags — remote-first. Missing flags fall to the
-      // componentsToCaps defaults, never to the bundled copy of an
-      // already-published layer: bundled is the seed/reset source (it
-      // syncs INTO remote on boot), not a render-time merge partner.
+      // Caps come straight from the in-use REMOTE template's component
+      // flags. Missing flags fall to the componentsToCaps defaults, never
+      // to the bundled copy of an already-published layer: bundled is the
+      // seed/reset source (it syncs INTO remote on boot), not a
+      // render-time merge partner.
       // instanceTopology cap follows the served topology config's
       // `instanceTopology` block (same source the topology routes read),
       // so the Instance-map drill-down only appears where it's configured.
       caps: ((): LayerCaps => {
         const c = componentsToCaps(tpl.components);
-        // Read the EFFECTIVE (remote-or-bundled) template — the same one
-        // the topology routes serve — so the Instance-map drill-down is
+        // Read the EFFECTIVE (remote) template — the same one the
+        // topology routes serve — so the Instance-map drill-down is
         // available iff it's enabled on the in-use template, matching the
         // admin. Gate on the parent Topology component (`serviceMap` =
         // `components.topology`): instance topology is a drill-down OF the
@@ -372,6 +359,34 @@ function deriveLayer(
   };
 }
 
+/**
+ * Re-check every layer's `documentLink` on the way out, and drop the ones that
+ * fail. The push boundary already refuses a bad scheme, but this is the READ
+ * side of a store Horizon does not own: the templates live on OAP, which keeps
+ * them as opaque strings and can be written without going through Horizon at
+ * all. Validating only where we write would leave the render path trusting a
+ * value nobody checked.
+ *
+ * A rejected link is dropped rather than rendered, and logged with its reason
+ * — silently serving it is the failure mode that matters.
+ */
+function applyLinkPolicy(layers: LayerDef[], trustedDomains: readonly string[]): LayerDef[] {
+  return layers.map((layer) => {
+    const link = layer.documentLink;
+    if (!link) return layer;
+    const issue = linkSchemeIssue(link) ?? linkDomainIssue(link, trustedDomains);
+    if (!issue) return layer;
+    // The reason names the host or the scheme; the full URL is NOT logged —
+    // a rejected link's query string can carry a token, and the audit/log
+    // trail is read by more people than the template store is.
+    logger.warn(
+      { layer: layer.key, issue },
+      'layer documentLink rejected by link policy — not rendered',
+    );
+    return { ...layer, documentLink: undefined };
+  });
+}
+
 export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): void {
   const auth = requireAuth(deps);
   app.get('/api/menu', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
@@ -389,8 +404,8 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const raw = await graphqlPost<MenuRaw>(opts, MENU_QUERY);
 
       // Active list collapsed by alias (CACHE → VIRTUAL_CACHE, etc.).
-      const activeCanonical = new Set(raw.layers.map(canonical));
-      const levelByCanonical = new Map(raw.levels.map((l) => [canonical(l.layer), l.level]));
+      const activeCanonical = new Set(raw.layers.map(canonicalLayerKey));
+      const levelByCanonical = new Map(raw.levels.map((l) => [canonicalLayerKey(l.layer), l.level]));
 
       // Service counts + first-row `normal` flag come from the
       // server-global catalog (60s TTL, shared with alarms + any other
@@ -404,7 +419,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // `Service.group` ('' = ungrouped).
       const groupsByCanonical = new Map<string, Map<string, number>>();
       for (const rawLayer of raw.layers) {
-        const key = canonical(rawLayer);
+        const key = canonicalLayerKey(rawLayer);
         const rows = catalog.byLayer.get(rawLayer) ?? [];
         countByCanonical.set(key, (countByCanonical.get(key) ?? 0) + rows.length);
         let gm = groupsByCanonical.get(key);
@@ -431,17 +446,24 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
 
       // Order = the synced layer rows (sorted by key), then any OAP-active
       // layer with no synced template, appended so nothing disappears.
+      // An unreadable row with no bundled sibling contributes no entry: its
+      // key is not one anything else in the app addresses, so it would put a
+      // sidebar item on screen leading to a layer nobody has. One that DOES
+      // pair with a bundled template keeps its entry — the layer is real and
+      // renders from the in-code defaults; dropping it would let a single
+      // stray record take a working layer out of the nav.
       const ordered: string[] = [];
       const seen = new Set<string>();
       for (const row of rows) {
         if (row.kind !== 'layer' || row.locale !== undefined) continue;
-        const k = canonical(row.key.toUpperCase());
+        if (row.unreadable && !row.bundled) continue;
+        const k = canonicalLayerKey(row.key);
         if (seen.has(k)) continue;
         seen.add(k);
         ordered.push(k);
       }
       for (const rawLayer of raw.layers) {
-        const k = canonical(rawLayer);
+        const k = canonicalLayerKey(rawLayer);
         if (seen.has(k)) continue;
         seen.add(k);
         ordered.push(k);
@@ -498,7 +520,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         });
 
       const body: MenuResponse = {
-        layers,
+        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
         generatedAt: Date.now(),
         oap: { reachable: true, queryUrl },
       };
@@ -515,13 +537,13 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const layers: LayerDef[] = [];
       const emptyRows = new Map<string, TemplateRow>();
       for (const rawKey of Object.keys(LAYER_DEFAULTS)) {
-        const key = canonical(rawKey);
+        const key = canonicalLayerKey(rawKey);
         if (seen.has(key) || excludedLayers.has(key.toUpperCase())) continue;
         seen.add(key);
         layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows, null));
       }
       const body: MenuResponse = {
-        layers,
+        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
         generatedAt: Date.now(),
         oap: {
           reachable: false,

@@ -20,33 +20,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "all_req",
         "title": "全リクエスト数"
       },
       {
+        "id": "get_req",
         "title": "GET リクエスト数"
       },
       {
+        "id": "put_req",
         "title": "PUT リクエスト数"
       },
       {
+        "id": "delete_req",
         "title": "DELETE リクエスト数"
       },
       {
+        "id": "err4xx",
         "title": "4xx 件数"
       },
       {
+        "id": "err5xx",
         "title": "5xx 件数"
       },
       {
+        "id": "latency",
         "title": "リクエスト平均レイテンシ"
       },
       {
+        "id": "first_byte_latency",
         "title": "First Byte 平均レイテンシ"
       },
       {
+        "id": "downloaded",
         "title": "ダウンロード (KB)"
       },
       {
+        "id": "uploaded",
         "title": "アップロード (KB)"
       }
     ]

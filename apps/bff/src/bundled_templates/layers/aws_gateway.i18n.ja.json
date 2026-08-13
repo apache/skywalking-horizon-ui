@@ -20,54 +20,70 @@
   "dashboards": {
     "service": [
       {
+        "id": "count",
         "title": "リクエスト数"
       },
       {
+        "id": "err4xx",
         "title": "4xx 件数"
       },
       {
+        "id": "err5xx",
         "title": "5xx 件数"
       },
       {
+        "id": "latency",
         "title": "リクエスト平均レイテンシ"
       },
       {
+        "id": "integration_latency",
         "title": "統合平均レイテンシ",
         "tip": "ゲートウェイとバックエンド統合間のレイテンシ。"
       },
       {
+        "id": "data",
         "title": "処理データ量 (HTTP API のみ)"
       },
       {
+        "id": "cache_hit",
         "title": "キャッシュヒット率 (REST API のみ)"
       },
       {
+        "id": "cache_miss",
         "title": "キャッシュミス率 (REST API のみ)"
       }
     ],
     "endpoint": [
       {
+        "id": "count",
         "title": "リクエスト数"
       },
       {
+        "id": "err4xx",
         "title": "4xx 件数"
       },
       {
+        "id": "err5xx",
         "title": "5xx 件数"
       },
       {
+        "id": "latency",
         "title": "リクエスト平均レイテンシ"
       },
       {
+        "id": "integration_latency",
         "title": "統合平均レイテンシ"
       },
       {
+        "id": "data",
         "title": "処理データ量"
       },
       {
+        "id": "cache_hit",
         "title": "キャッシュヒット率"
       },
       {
+        "id": "cache_miss",
         "title": "キャッシュミス率"
       }
     ]

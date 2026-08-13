@@ -7,51 +7,121 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "RPS" },
-      { "label": "200/秒" },
-      { "label": "404/秒" },
-      { "label": "503/秒" }
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/秒"
+      },
+      {
+        "label": "404/秒"
+      },
+      {
+        "label": "503/秒"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" },
-      { "title": "HTTP 连接" },
-      { "title": "未匹配状态趋势", "tip": "未匹配到 APISIX 路由的请求。" },
-      { "title": "未匹配延迟" },
-      { "title": "未匹配带宽" }
-    ],
-    "instance": [
-      { "title": "HTTP 请求趋势" },
-      { "title": "HTTP 状态趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" },
-      { "title": "HTTP 连接" },
       {
-        "title": "Shared Dict",
-        "tip": "容量 vs 空闲空间。",
-        "expressionLabels": ["capacity", "free"]
+        "id": "rps",
+        "title": "HTTP 请求趋势"
       },
       {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "conns",
+        "title": "HTTP 连接"
+      },
+      {
+        "id": "status_unmatched",
+        "title": "未匹配状态趋势",
+        "tip": "未匹配到 APISIX 路由的请求。"
+      },
+      {
+        "id": "latency_unmatched",
+        "title": "未匹配延迟"
+      },
+      {
+        "id": "bandwidth_unmatched",
+        "title": "未匹配带宽"
+      }
+    ],
+    "instance": [
+      {
+        "id": "rps",
+        "title": "HTTP 请求趋势"
+      },
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      },
+      {
+        "id": "conns",
+        "title": "HTTP 连接"
+      },
+      {
+        "id": "shared_dict",
+        "title": "Shared Dict",
+        "tip": "容量 vs 空闲空间。",
+        "expressionLabels": [
+          "capacity",
+          "free"
+        ]
+      },
+      {
+        "id": "etcd_total",
         "title": "etcd 可达"
       },
       {
+        "id": "etcd",
         "title": "etcd 索引",
-        "expressionLabels": ["indexes"]
+        "expressionLabels": [
+          "indexes"
+        ]
       },
       {
+        "id": "unmatched",
         "title": "未匹配流量",
         "tip": "未匹配路由请求的状态 + 延迟 + 带宽。",
-        "expressionLabels": ["status", "latency (ms)", "bandwidth (KB)"]
+        "expressionLabels": [
+          "status",
+          "latency (ms)",
+          "bandwidth (KB)"
+        ]
       }
     ],
     "endpoint": [
-      { "title": "HTTP 状态趋势" },
-      { "title": "HTTP 延迟" },
-      { "title": "HTTP 带宽" }
+      {
+        "id": "status",
+        "title": "HTTP 状态趋势"
+      },
+      {
+        "id": "latency",
+        "title": "HTTP 延迟"
+      },
+      {
+        "id": "bandwidth",
+        "title": "HTTP 带宽"
+      }
     ]
   }
 }

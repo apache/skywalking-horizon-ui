@@ -7,50 +7,125 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Taille du DAG bag" },
-      { "label": "Temps total de parsing DAG" },
-      { "label": "Slots libres de l'executor" },
-      { "label": "Slots planifiés" }
+      {
+        "label": "Taille du DAG bag"
+      },
+      {
+        "label": "Temps total de parsing DAG"
+      },
+      {
+        "label": "Slots libres de l'executor"
+      },
+      {
+        "label": "Slots planifiés"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Tâches exécutables" },
-      { "title": "Tâches en cours" },
-      { "title": "Slots planifiés" },
-      { "title": "Tâches en file" },
-      { "title": "Slots libres de l'executor" },
-      { "title": "Taille de la file de fichiers DAG" },
-      { "title": "Erreurs d'import DAG" },
-      { "title": "Taille du DAG bag" },
-      { "title": "Temps total de parsing DAG" },
-      { "title": "Erreurs de rafraîchissement de fichiers DAG" },
-      { "title": "Mises à jour d'assets" }
+      {
+        "id": "tasks_executable",
+        "title": "Tâches exécutables"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Tâches en cours"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "Slots planifiés"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "Tâches en file"
+      },
+      {
+        "id": "open_slots",
+        "title": "Slots libres de l'executor"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "Taille de la file de fichiers DAG"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "Erreurs d'import DAG"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "Taille du DAG bag"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "Temps total de parsing DAG"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "Erreurs de rafraîchissement de fichiers DAG"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Mises à jour d'assets"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Slots de pool libres / différés / en cours",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "Tâches en cours / slots planifiés",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "Heartbeat du scheduler" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "Heartbeat du scheduler"
+      },
+      {
+        "id": "executor_slots",
         "title": "Slots de l'executor libres / en file",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Mises à jour d'assets" },
-      { "title": "DagRuns déclenchés par assets" },
-      { "title": "Heartbeat du triggerer" },
       {
+        "id": "asset_updates",
+        "title": "Mises à jour d'assets"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "DagRuns déclenchés par assets"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Heartbeat du triggerer"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "Triggers en cours / capacité restante",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "Triggers bloqués / échoués / réussis",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

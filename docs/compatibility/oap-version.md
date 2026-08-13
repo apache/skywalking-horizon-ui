@@ -2,7 +2,7 @@
 
 ## Native: OAP 11.x; partial support: OAP 10.x
 
-Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes the modules and GraphQL fields that v11 ships. **OAP 10.x is partially supported, and `templates.mode: readonly` is recommended** — see [Running Horizon against OAP 10.x](#running-horizon-against-oap-10x) below. With that set, the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) uses the query GraphQL port.
+Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes the modules and GraphQL fields that v11 ships. **OAP 10.x is partially supported, and only with `templates.mode: readonly`** — see [Running Horizon against OAP 10.x](#running-horizon-against-oap-10x) below, which is a required step, not a tuning option. With that set, the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) uses the query GraphQL port.
 
 OAP 10 **does have persistent UI-template management**. It exposes `getTemplate` / `getAllTemplates` queries and `addTemplate` / `changeTemplate` / `disableTemplate` mutations through the query-port GraphQL `UIConfigurationManagement` API; writes are controlled by `SW_ENABLE_UPDATE_UI_TEMPLATE`. OAP 11 retired that legacy GraphQL surface and replaced it with `/ui-management/templates*` on the admin REST port. Horizon currently implements only the OAP 11 REST protocol, not an adapter for the OAP 10 GraphQL protocol. That Horizon-side protocol gap — not an absence of template storage in OAP 10 — is why readonly mode is required.
 
@@ -23,17 +23,15 @@ Older 9.x OAPs are not supported — the layer concept, the MQE language baselin
 | Cluster Status — Admin pane (admin-server, runtime-rule, dsl-debugging, inspect) | ✗ — admin-port modules don't exist on v10; pane is hidden | ✓ |
 | DSL Management, Live Debugger, Alarm Rule editor | ✗ — needs `receiver-runtime-rule` + `dsl-debugging` (v11-only) | ✓ |
 | **Inspect page** (metric catalog + entity enumerator) | ✗ — `/inspect/*` endpoints don't exist | ✓ — requires `SW_INSPECT=default` on OAP |
-| **OAP UI-template sync** (admin pages edit OAP-stored dashboards) | ✗ in Horizon — OAP 10 stores and manages templates through legacy GraphQL, but Horizon does not consume that protocol. Run `templates.mode: readonly`. | ✓ — Horizon consumes `/ui-management/templates*` on the admin REST port |
+| **OAP UI-template sync** (admin pages edit OAP-stored dashboards) | ✗ in Horizon — OAP 10 stores and manages templates through legacy GraphQL, but Horizon does not consume that protocol, so the store reads as unreachable and layer-driven pages block. `templates.mode: readonly` is required. | ✓ — Horizon consumes `/ui-management/templates*` on the admin REST port |
 
 ### Running Horizon against OAP 10.x
 
-Set **`templates.mode: readonly`** (env `HORIZON_TEMPLATES_MODE=readonly`). Horizon renders on a v10 OAP without it, but readonly is the honest configuration: it tells Horizon the truth about the deployment instead of leaving it to discover on every boot that the template store cannot be read.
+Set **`templates.mode: readonly`** (env `HORIZON_TEMPLATES_MODE=readonly`). On a v10 OAP this is mandatory, not optional.
 
-In the default `live` mode Horizon treats the OAP-stored template set as the source of truth for what each layer contains. Its template client calls the OAP 11 `/ui-management/templates*` REST surface. OAP 10 has the underlying store and legacy GraphQL management operations, but it does not have that REST surface, and Horizon does not fall back to the GraphQL operations, so it finds the store unreachable.
+In the default `live` mode Horizon treats the OAP-stored template set as the source of truth for what each layer contains, and an unreachable template store is a deliberate feature block rather than a reason to guess: layer-driven pages serve nothing instead of quietly rendering something that may not match the dashboards you published. Horizon's template client calls the OAP 11 `/ui-management/templates*` REST surface. OAP 10 has the underlying store and legacy GraphQL management operations, but it does not have that REST surface, and Horizon does not fall back to the GraphQL operations — so on v10 the store is unreachable by construction, and layer-driven pages come back empty behind the "Dashboard template store unreachable" banner. The most visible one is **Traces**, which resolves its query configuration from the layer template.
 
-When that happens Horizon **falls back to the templates bundled in the release** rather than serving nothing, so layer-driven pages — most visibly **Traces**, which resolves its query fields from the layer template — still render. The connectivity banner says the store is unreachable, so this is degraded and stated, never degraded and hidden. What you do not get is any template edit stored on OAP; those reappear the moment a reachable store answers.
-
-`readonly` mode removes the protocol dependency entirely: Horizon does not call either template-management API, renders every dashboard from the templates bundled in the release, and makes the whole configuration surface read-only — so the admin pages present themselves honestly as display-only instead of offering saves that cannot land. It also drops the pointless per-boot probing of an endpoint that will never answer. This is a Horizon compatibility fallback; it does not disable or remove OAP 10's own `ui_template` data.
+`readonly` mode removes the protocol dependency entirely: Horizon does not call either template-management API, renders every dashboard from the templates bundled in the release, and makes the whole configuration surface read-only — so the admin pages present themselves honestly as display-only instead of offering saves that cannot land. It also drops the pointless per-boot probing of an endpoint that will never answer. This is the supported way to run against v10; it does not disable or remove OAP 10's own `ui_template` data.
 
 ```yaml
 templates:

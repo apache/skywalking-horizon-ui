@@ -20,103 +20,71 @@
   "dashboards": {
     "service": [
       {
-        "title": "Anfrageanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "count",
+        "title": "Anfrageanzahl"
       },
       {
-        "title": "4xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx-Anzahl"
       },
       {
-        "title": "5xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx-Anzahl"
       },
       {
-        "title": "Mittlere Anfragelatenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "Mittlere Anfragelatenz"
       },
       {
+        "id": "integration_latency",
         "title": "Mittlere Integrations-Latenz",
-        "tip": "Latenz zwischen Gateway und Backend-Integration.",
-        "expressions": [
-          null
-        ]
+        "tip": "Latenz zwischen Gateway und Backend-Integration."
       },
       {
-        "title": "Verarbeitete Daten (nur HTTP API)",
-        "expressions": [
-          null
-        ]
+        "id": "data",
+        "title": "Verarbeitete Daten (nur HTTP API)"
       },
       {
-        "title": "Cache-Trefferrate (nur REST API)",
-        "expressions": [
-          null
-        ]
+        "id": "cache_hit",
+        "title": "Cache-Trefferrate (nur REST API)"
       },
       {
-        "title": "Cache-Fehlrate (nur REST API)",
-        "expressions": [
-          null
-        ]
+        "id": "cache_miss",
+        "title": "Cache-Fehlrate (nur REST API)"
       }
     ],
     "endpoint": [
       {
-        "title": "Anfrageanzahl",
-        "expressions": [
-          null
-        ]
+        "id": "count",
+        "title": "Anfrageanzahl"
       },
       {
-        "title": "4xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err4xx",
+        "title": "4xx-Anzahl"
       },
       {
-        "title": "5xx-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "err5xx",
+        "title": "5xx-Anzahl"
       },
       {
-        "title": "Mittlere Anfragelatenz",
-        "expressions": [
-          null
-        ]
+        "id": "latency",
+        "title": "Mittlere Anfragelatenz"
       },
       {
-        "title": "Mittlere Integrations-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "integration_latency",
+        "title": "Mittlere Integrations-Latenz"
       },
       {
-        "title": "Verarbeitete Daten",
-        "expressions": [
-          null
-        ]
+        "id": "data",
+        "title": "Verarbeitete Daten"
       },
       {
-        "title": "Cache-Trefferrate",
-        "expressions": [
-          null
-        ]
+        "id": "cache_hit",
+        "title": "Cache-Trefferrate"
       },
       {
-        "title": "Cache-Fehlrate",
-        "expressions": [
-          null
-        ]
+        "id": "cache_miss",
+        "title": "Cache-Fehlrate"
       }
     ]
   },

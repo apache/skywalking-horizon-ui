@@ -20,46 +20,60 @@
   "dashboards": {
     "service": [
       {
+        "id": "access_cpm_line",
         "title": "접근 트래픽"
       },
       {
+        "id": "access_resp_line",
         "title": "평균 접근 지연 시간"
       },
       {
+        "id": "access_sla_line",
         "title": "접근 성공률"
       },
       {
+        "id": "access_percentile",
         "title": "접근 지연 시간 백분위"
       },
       {
+        "id": "read_traffic",
         "title": "읽기 트래픽"
       },
       {
+        "id": "read_resp",
         "title": "읽기 평균 지연 시간"
       },
       {
+        "id": "write_traffic",
         "title": "쓰기 트래픽"
       },
       {
+        "id": "write_resp",
         "title": "쓰기 평균 지연 시간"
       },
       {
+        "id": "read_sla",
         "title": "읽기 성공률"
       },
       {
+        "id": "write_sla",
         "title": "쓰기 성공률"
       },
       {
+        "id": "read_percentile",
         "title": "읽기 지연 시간 백분위"
       },
       {
+        "id": "write_percentile",
         "title": "쓰기 지연 시간 백분위"
       },
       {
+        "id": "slow_read",
         "title": "느린 읽기 명령",
         "tip": "캡처된 가장 느린 읽기 명령 10개입니다. 각 행은 단일 실행이며 — 클릭하면 복사되며, 행 머리의 트레이스 아이콘으로 원본 트레이스를 엽니다(샘플에 트레이스가 있을 때만 표시)."
       },
       {
+        "id": "slow_write",
         "title": "느린 쓰기 명령",
         "tip": "캡처된 가장 느린 쓰기 명령 10개입니다. 각 행은 단일 실행이며 — 클릭하면 복사되며, 행 머리의 트레이스 아이콘으로 원본 트레이스를 엽니다(샘플에 트레이스가 있을 때만 표시)."
       }

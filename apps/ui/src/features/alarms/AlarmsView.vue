@@ -143,6 +143,7 @@ const alarmsQuery = useQuery({
     endTime.value,
     applied.value.layer,
     applied.value.service,
+    applied.value.serviceNormal,
     applied.value.instance,
     applied.value.endpoint,
     applied.value.keyword,
@@ -153,6 +154,7 @@ const alarmsQuery = useQuery({
       endTime: endTime.value,
       layer: applied.value.layer || undefined,
       service: applied.value.service || undefined,
+      normal: applied.value.service ? applied.value.serviceNormal : undefined,
       instance: applied.value.instance || undefined,
       endpoint: applied.value.endpoint || undefined,
       keyword: applied.value.keyword || undefined,
@@ -474,7 +476,7 @@ async function onRefresh(): Promise<void> {
         >{{ t('reset') }}</button>
         <span v-if="alarmsQuery.isFetching.value" class="ax__refreshing">{{ t('loading…') }}</span>
         <span v-else-if="truncated" class="ax__panel-warn">
-          {{ t('showing {n} rows (page may be truncated — tighten the window)', { n: totalCount }) }}
+          {{ t('more alarms in this window than were fetched — tighten the range') }}
         </span>
       </header>
       <AlarmsTimeline

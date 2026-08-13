@@ -35,7 +35,7 @@
         "metric": "maxLag",
         "label": "Max Lag",
         "mqe": "meter_kafka_max_lag",
-        "aggregation": "max"
+        "aggregation": "avg"
       },
       {
         "metric": "leaders",

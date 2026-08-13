@@ -214,8 +214,33 @@ export type ValidationResult =
   | { ok: true; value: Infra3dConfig }
   | { ok: false; issues: string[] };
 
+/**
+ * Drop the `$comment` / `$note` authoring keys. The bundled config uses them
+ * to record why four layers deliberately ship without a traffic MQE, and the
+ * notes are worth keeping in the file — but `.strict()` counts them as unknown
+ * fields, so without this the shipped config fails its own validator and both
+ * `push-bundled` and `sync-all` refuse it.
+ *
+ * Matched by exact name rather than a `$` prefix on purpose: a mistyped
+ * `$note2` should still be reported, not silently swallowed. This is the one
+ * definition — `loadBundledInfra3dConfig` uses it too, so the loaded shape and
+ * the validated shape cannot drift.
+ */
+export function stripCommentKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripCommentKeys);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '$comment' || k === '$note') continue;
+      out[k] = stripCommentKeys(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 export function validateInfra3dConfig(input: unknown): ValidationResult {
-  const parsed = configSchema.safeParse(input);
+  const parsed = configSchema.safeParse(stripCommentKeys(input));
   if (parsed.success) return { ok: true, value: parsed.data as Infra3dConfig };
   const issues = parsed.error.issues.map(
     (i) => `${i.path.join('.') || '<root>'}: ${i.message}`,

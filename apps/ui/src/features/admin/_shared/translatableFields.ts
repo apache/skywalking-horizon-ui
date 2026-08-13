@@ -23,16 +23,20 @@
  * pokes new values back along the same path.
  */
 
-const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group']);
+/** Must match the BFF seeder's allowlist exactly: a field this walker
+ *  omits is not merely hidden from the translator, it is dropped from
+ *  every overlay the editor rebuilds — so publishing deletes whatever
+ *  the seeder had put there.
+ *
+ *  Two entries are easy to mistake for non-translatable:
+ *  `name` is a `tab` widget's panel label (`tabs[].name`), the only
+ *  `name` in a template; and `naming.alias` is the dimension caption
+ *  ("namespace", "tenant") the topology and 3D map print beside a
+ *  cluster — the naming rule's capture groups are `displayGroup` /
+ *  `valueGroup`, which are absent here and so never offered. */
+const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group', 'name']);
 const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots', 'valueMap']);
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);
-
-/** Paths under which the `alias` field is a regex-replacement
- *  template (e.g. `$1`, `$<service>`), NOT a translatable label.
- *  Operators editing translations should not see these — they would
- *  type a Chinese / Spanish / etc. replacement that would silently
- *  break service-name parsing at render time. */
-const EXCLUDE_PATH_PREFIXES = ['naming'];
 
 export interface TranslatableField {
   /** Dot/bracket path from the source root, e.g. `overview.groups[0].title`. */
@@ -57,7 +61,7 @@ export interface TranslatableField {
 export function walkTranslatable(source: unknown): TranslatableField[] {
   const out: TranslatableField[] = [];
   walk(source, [], '', out);
-  return out.filter((f) => !EXCLUDE_PATH_PREFIXES.some((p) => f.path === p || f.path.startsWith(`${p}.`) || f.path.startsWith(`${p}[`)));
+  return out;
 }
 
 function walk(node: unknown, segments: Array<string | number>, section: string, out: TranslatableField[]): void {

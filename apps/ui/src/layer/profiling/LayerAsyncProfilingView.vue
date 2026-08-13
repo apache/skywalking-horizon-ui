@@ -28,7 +28,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
-import { useLayerServices } from '@/layer/useLayerServices';
+import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { bffClient } from '@/api/client';
 import type {
@@ -48,11 +48,9 @@ const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId: serviceId } = useSelectedService();
-const instances = useLayerInstances(layerKey, serviceId);
-const { services: roster } = useLayerServices(layerKey);
-const serviceName = computed<string | null>(
-  () => roster.value.find((s) => s.id === serviceId.value)?.name ?? null,
-);
+const service = useSelectedServiceRef(layerKey);
+const instances = useLayerInstances(layerKey, service);
+const serviceName = computed<string | null>(() => service.value?.name ?? null);
 
 const tasks = ref<AsyncProfilingTask[]>([]);
 const tasksError = ref<string | null>(null);
@@ -126,10 +124,10 @@ watch(
 
 async function refreshTasks(): Promise<void> {
   tasksError.value = null;
-  if (!serviceId.value) return;
+  if (!service.value) return;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.asyncProfile.tasks(layerKey.value, serviceId.value);
+    const resp = await bffClient.asyncProfile.tasks(layerKey.value, service.value!);
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;

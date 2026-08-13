@@ -25,6 +25,7 @@
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ProcessTopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
+import { nextFreeId } from './free-id';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
 
@@ -43,14 +44,15 @@ onMounted(ensure);
 const clientMetrics = computed(() => config.value?.edgeClientMetrics ?? []);
 const serverMetrics = computed(() => config.value?.edgeServerMetrics ?? []);
 
-function blankMetric(n: number): TopologyMetricDef {
-  return { id: `metric_${n + 1}`, label: `Metric ${n + 1}`, mqe: '', unit: '', aggregation: 'avg' };
+function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
+  const id = nextFreeId('metric_', taken.map((m) => m.id));
+  return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
 function addClient(): void {
-  ensure().edgeClientMetrics.push(blankMetric(clientMetrics.value.length));
+  ensure().edgeClientMetrics.push(blankMetric(clientMetrics.value));
 }
 function addServer(): void {
-  ensure().edgeServerMetrics.push(blankMetric(serverMetrics.value.length));
+  ensure().edgeServerMetrics.push(blankMetric(serverMetrics.value));
 }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
   const j = i + dir;

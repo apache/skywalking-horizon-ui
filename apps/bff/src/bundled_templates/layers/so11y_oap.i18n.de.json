@@ -4,42 +4,28 @@
   "dashboards": {
     "instance": [
       {
-        "title": "CPU (%)",
-        "expressions": [
-          null
-        ]
+        "id": "cpu",
+        "title": "CPU (%)"
       },
       {
-        "title": "JVM-Speicher (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "mem",
+        "title": "JVM-Speicher (MB)"
       },
       {
-        "title": "GC-Anzahl / min",
-        "expressions": [
-          null
-        ]
+        "id": "gc_count",
+        "title": "GC-Anzahl / min"
       },
       {
-        "title": "GC-Zeit (ms / min)",
-        "expressions": [
-          null
-        ]
+        "id": "gc_time",
+        "title": "GC-Zeit (ms / min)"
       },
       {
-        "title": "Buffer Pool (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "buffer_pool",
+        "title": "Buffer Pool (MB)"
       },
       {
+        "id": "threads",
         "title": "Thread-Anzahl",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "live",
           "spitze",
@@ -47,13 +33,8 @@
         ]
       },
       {
+        "id": "thread_states",
         "title": "Thread-Zustände",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "runnable",
           "timed-waiting",
@@ -62,12 +43,8 @@
         ]
       },
       {
+        "id": "classes",
         "title": "Klassen-Anzahl",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "geladen",
           "entladen gesamt",
@@ -75,98 +52,68 @@
         ]
       },
       {
-        "title": "Aggregation / min",
-        "expressions": [
-          null
-        ]
+        "id": "aggregation",
+        "title": "Aggregation / min"
       },
       {
+        "id": "persistence_counts",
         "title": "Persistenz-Anzahl / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "prepare",
           "execute"
         ]
       },
       {
-        "title": "Persistenter Cache / min",
-        "expressions": [
-          null
-        ]
+        "id": "persistence_cache",
+        "title": "Persistenter Cache / min"
       },
       {
-        "title": "Persistenz-Prepare-Latenz (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "persist_prepare_latency",
+        "title": "Persistenz-Prepare-Latenz (ms)"
       },
       {
-        "title": "Persistenz-Ausführungs-Latenz (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "persist_execute_latency",
+        "title": "Persistenz-Ausführungs-Latenz (ms)"
       },
       {
-        "title": "GraphQL-Latenz (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "graphql_latency",
+        "title": "GraphQL-Latenz (ms)"
       },
       {
+        "id": "graphql_count",
         "title": "GraphQL-Query-Anzahl",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "queries",
           "fehler"
         ]
       },
       {
+        "id": "trace_analysis",
         "title": "Trace-Analyse / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "fehler"
         ]
       },
       {
-        "title": "Trace-Analyse-Latenz (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "trace_latency",
+        "title": "Trace-Analyse-Latenz (ms)"
       },
       {
+        "id": "mesh_analysis",
         "title": "Mesh-Analyse / min",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "gesamt",
           "fehler"
         ]
       },
       {
-        "title": "Mesh-Analyse-Latenz (ms)",
-        "expressions": [
-          null
-        ]
+        "id": "mesh_latency",
+        "title": "Mesh-Analyse-Latenz (ms)"
       },
       {
+        "id": "otel_received",
         "title": "OTEL empfangen / s",
-        "expressions": [
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "metriken",
           "logs",
@@ -174,13 +121,8 @@
         ]
       },
       {
+        "id": "k8s_als",
         "title": "K8S ALS",
-        "expressions": [
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "anzahl",
           "verworfen",
@@ -189,37 +131,25 @@
         ]
       },
       {
+        "id": "watermark",
         "title": "Watermark Circuit Breaker",
         "tip": "Kumulative Break- + Recover-Zähler pro Listener.",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "break",
           "recover"
         ]
       },
       {
+        "id": "aggr_queue",
         "title": "Aggregations-Queue-Nutzung (%)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "L1",
           "L2"
         ]
       },
       {
+        "id": "banyandb_latency",
         "title": "BanyanDB Schreib-Latenz (ms)",
-        "expressions": [
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
         "expressionLabels": [
           "measure bulk",
           "stream bulk",
@@ -229,21 +159,16 @@
         ]
       },
       {
+        "id": "es_latency",
         "title": "Elasticsearch Schreib-Latenz (ms)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "single",
           "bulk"
         ]
       },
       {
-        "title": "Zipkin-Spans verworfen",
-        "expressions": [
-          null
-        ]
+        "id": "zipkin_drop",
+        "title": "Zipkin-Spans verworfen"
       }
     ]
   },

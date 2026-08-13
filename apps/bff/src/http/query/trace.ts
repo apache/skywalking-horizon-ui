@@ -53,19 +53,34 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import {
+  overFetchSize,
+  readPage,
+  takeOverFetched,
+  type OapPaging,
+  type PagedQuerySpec,
+} from '../../logic/paging/read-page.js';
 import { tracesConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { parsePreviewTraces } from '../../logic/layers/preview.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes, windowFromRange } from '../../util/window.js';
-import { zipkinFetchTraces, zipkinFetchTraceById, summariseZipkinTrace } from '../../client/zipkin.js';
+import {
+  buildZipkinOpts,
+  zipkinFetchTraces,
+  zipkinFetchTraceById,
+  summariseZipkinTrace,
+  type ZipkinClientOpts,
+} from '../../client/zipkin.js';
 
 export interface TraceRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  /** OAP UI-template client — serve the in-use REMOTE config (blocked /
+   *  in-code defaults when there is none; see `resolveEffectiveLayer`). */
   uiTemplateClient?: () => UITemplateClient;
 }
 
@@ -103,8 +118,10 @@ function explicitWindow(
 
 export interface TraceListBody {
   source?: TraceSource;
-  service?: string;
+  /** Identity pair — see {@link serviceScopeOf}. The native list keys on the
+   *  id; Zipkin has no ids and keys on the name. */
   serviceId?: string;
+  service?: string;
   instanceId?: string;
   endpointId?: string;
   traceId?: string;
@@ -129,35 +146,31 @@ export interface TraceListBody {
   previewConfig?: string;
 }
 
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForTrace($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
-
-const QUERY_BASIC_TRACES = /* GraphQL */ `
-  query QueryBasicTraces($condition: TraceQueryCondition) {
-    data: queryBasicTraces(condition: $condition) {
-      traces {
+/** `TraceBrief` carries `traces` + `debuggingTrace` — no total and no
+ *  has-more, so the "capped" signal comes from the over-fetch seam. */
+const BASIC_TRACES_PAGE: PagedQuerySpec = {
+  operationName: 'QueryBasicTraces',
+  conditionType: 'TraceQueryCondition',
+  field: 'queryBasicTraces',
+  rowsField: 'traces',
+  rowsSelection: `
         key: segmentId
         endpointNames
         duration
         start
         isError
-        traceIds
-      }
-    }
-  }
-`;
+        traceIds`,
+  probeSelection: 'segmentId',
+};
 
-const QUERY_TRACES = /* GraphQL */ `
-  query QueryTraces($condition: TraceQueryCondition) {
-    data: queryTraces(condition: $condition) {
-      traces {
+/** `Trace` exposes only `spans` + `debuggingTrace`, so the probe row is a whole
+ *  trace's span array — select one scalar per span and nothing else. */
+const TRACES_PAGE: PagedQuerySpec = {
+  operationName: 'QueryTraces',
+  conditionType: 'TraceQueryCondition',
+  field: 'queryTraces',
+  rowsField: 'traces',
+  rowsSelection: `
         spans {
           traceId
           segmentId
@@ -183,11 +196,9 @@ const QUERY_TRACES = /* GraphQL */ `
             tags { key value }
             summary { key value }
           }
-        }
-      }
-    }
-  }
-`;
+        }`,
+  probeSelection: 'spans { spanId }',
+};
 
 /* `duration` is BanyanDB-only and optional. When the caller passes a
  * window (start/end/step), OAP scopes the trace lookup to that window
@@ -229,34 +240,12 @@ const QUERY_TRACE_DETAIL = /* GraphQL */ `
   }
 `;
 
-// OAP service-id shape: `<base64>.<digits>`. Match strictly, not
-// "contains `.` and no whitespace": the loose form mis-classifies
-// mesh-layer names containing `.` (e.g. `*.sample-services`) as ids
-// and breaks their trace queries.
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-  opts: GraphqlOptions,
-  layer: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layer.toUpperCase() });
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 function buildTraceCondition(
   body: TraceListBody,
   resolvedServiceId: string | null,
   w: { start: string; end: string },
   coldStage: boolean,
-  maxPageSize: number,
+  paging: OapPaging,
 ) {
   return {
     ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
@@ -274,20 +263,13 @@ function buildTraceCondition(
     },
     traceState: (body.traceState ?? 'ALL') as TraceQueryState,
     queryOrder: (body.queryOrder ?? 'BY_START_TIME') as TraceQueryOrder,
-    paging: {
-      pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
-      // OAP forwards `pageSize` straight to storage as a LIMIT
-      // (PaginationUtils.java). The UI picker caps at 200; mirror that
-      // server-side so the cap holds against direct API callers.
-      pageSize: clampPageSize(body.pageSize, 20, maxPageSize),
-    },
+    paging,
   };
 }
 
 export async function fetchNativeList(
   opts: GraphqlOptions,
   body: TraceListBody,
-  layerKey: string,
   coldStage: boolean,
   offsetMinutes: number,
   maxPageSize: number,
@@ -300,29 +282,27 @@ export async function fetchNativeList(
       ? explicitWindow(body.startMs, body.endMs, offsetMinutes)
       : null;
   const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
-  let serviceId: string | null = null;
-  try {
-    serviceId = body.serviceId
-      ? body.serviceId
-      : body.service
-        ? await resolveServiceId(opts, layerKey, body.service)
-        : null;
-  } catch (err) {
-    return {
-      source: 'native',
-      api,
-      traces: [],
-      reachable: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+  const scope = serviceScopeOf(body);
+  // Half an identity must NOT fall through as "no service":
+  // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
+  // every service in the window and the rows would read as this service's.
+  if (scope.kind === 'incomplete') {
+    return { source: 'native', api, traces: [], hasNext: false, reachable: false, error: scope.message };
   }
-  const condition = buildTraceCondition(body, serviceId, window, coldStage, maxPageSize);
+  const serviceId = scope.kind === 'service' ? scope.service.id : null;
+  // OAP forwards `pageSize` straight to storage as a LIMIT
+  // (PaginationUtils.java). The UI picker caps at 200; mirror that server-side
+  // so the cap holds against direct API callers.
+  const paging: OapPaging = {
+    pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
+    pageSize: clampPageSize(body.pageSize, 20, maxPageSize),
+  };
+  const condition = (p: OapPaging): Record<string, unknown> =>
+    buildTraceCondition(body, serviceId, window, coldStage, p);
   try {
     if (api === 'queryTraces') {
-      const env = await graphqlPost<{
-        data: { traces: Array<{ spans: NativeSpan[] }> };
-      }>(opts, QUERY_TRACES, { condition });
-      const traces = (env.data?.traces ?? []).map((t) => {
+      const page = await readPage<{ spans: NativeSpan[] }>(opts, TRACES_PAGE, condition, paging);
+      const traces = page.rows.map((t) => {
         // v2 spans are flat across all segments; every segment's entry span
         // has parentSpanId === -1, so match the global root by its empty refs
         // (booster-ui does the same) — else a downstream callee can win.
@@ -339,21 +319,17 @@ export async function fetchNativeList(
           spans: t.spans,
         };
       });
-      return { source: 'native', api, traces, reachable: true };
+      return { source: 'native', api, traces, hasNext: page.hasNext, reachable: true };
     }
-    const env = await graphqlPost<{
-      data: {
-        traces: Array<{
-          key: string;
-          endpointNames: string[];
-          duration: number;
-          start: string;
-          isError: boolean;
-          traceIds: string[];
-        }>;
-      };
-    }>(opts, QUERY_BASIC_TRACES, { condition });
-    const traces = (env.data?.traces ?? []).map((t) => ({
+    const page = await readPage<{
+      key: string;
+      endpointNames: string[];
+      duration: number;
+      start: string;
+      isError: boolean;
+      traceIds: string[];
+    }>(opts, BASIC_TRACES_PAGE, condition, paging);
+    const traces = page.rows.map((t) => ({
       key: t.key,
       segmentId: t.key,
       endpointNames: t.endpointNames,
@@ -362,12 +338,13 @@ export async function fetchNativeList(
       isError: t.isError,
       traceIds: t.traceIds,
     }));
-    return { source: 'native', api, traces, reachable: true };
+    return { source: 'native', api, traces, hasNext: page.hasNext, reachable: true };
   } catch (err) {
     return {
       source: 'native',
       api,
       traces: [],
+      hasNext: false,
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
     };
@@ -388,23 +365,32 @@ export async function fetchNativeTraceSpans(opts: GraphqlOptions, traceId: strin
   }
 }
 
+/** Zipkin's `/api/v2/traces` takes a `limit` and no offset at all, so this can
+ *  only ever run the over-fetch half of the seam: ask limit+1, render limit,
+ *  and report `hasNext` as "capped". A Zipkin PAGER would need a
+ *  backwards-walking `endTs` cursor, which is a different feature. */
 export async function fetchZipkinList(
-  opts: GraphqlOptions,
+  // Zipkin options, NOT the GraphQL ones. The two are structurally identical,
+  // so passing the wrong object type-checks and then queries the GraphQL port.
+  opts: ZipkinClientOpts,
   body: TraceListBody,
   maxPageSize: number,
 ): Promise<ZipkinTraceListResponse> {
+  const limit = clampPageSize(body.pageSize, 20, maxPageSize);
   try {
-    const traces = await zipkinFetchTraces(opts, {
+    const fetched = await zipkinFetchTraces(opts, {
       serviceName: body.service,
       minDuration: body.minTraceDuration,
       maxDuration: body.maxTraceDuration,
-      limit: clampPageSize(body.pageSize, 20, maxPageSize),
+      limit: overFetchSize(limit),
     });
-    return { source: 'zipkin', traces, reachable: true };
+    const { rows, hasNext } = takeOverFetched(fetched, limit);
+    return { source: 'zipkin', traces: rows, hasNext, reachable: true };
   } catch (err) {
     return {
       source: 'zipkin',
       traces: [],
+      hasNext: false,
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
     };
@@ -449,9 +435,11 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([
         wantNative
-          ? fetchNativeList(opts, body, layerKey, !!req.coldStage, offset, maxPageSize)
+          ? fetchNativeList(opts, body, !!req.coldStage, offset, maxPageSize)
           : Promise.resolve(undefined),
-        wantZipkin ? fetchZipkinList(opts, body, maxPageSize) : Promise.resolve(undefined),
+        wantZipkin
+          ? fetchZipkinList(buildZipkinOpts(deps.config.current, deps.fetch), body, maxPageSize)
+          : Promise.resolve(undefined),
       ]);
 
       const response: TraceListResponse = {

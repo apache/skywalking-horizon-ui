@@ -3,9 +3,11 @@
   "description": "Santé des services du plan de données Istio, activité des push pilot et capacité Kubernetes sous-jacente. Les déploiements de mesh reposent toujours sur K8s ; le bloc cluster est donc inclus.",
   "widgets": [
     {
+      "id": "svc_break",
       "title": "Services du mesh"
     },
     {
+      "id": "tile_mesh",
       "title": "Services gérés par Istio",
       "tip": "Services qui transitent par le plan de données Istio.",
       "kpis": [
@@ -21,6 +23,7 @@
       ]
     },
     {
+      "id": "pilot_summary",
       "title": "Istio pilot",
       "tip": "Nombre de push xDS + erreurs de rejet + nombre de services sur cette couche.",
       "kpis": [
@@ -28,25 +31,29 @@
         null,
         {
           "label": "Services"
-        },
-        null
+        }
       ]
     },
     {
+      "id": "topo_alarms_break",
       "title": "Topologie & alertes actives"
     },
     {
+      "id": "mesh_topo",
       "title": "Topologie du mesh",
       "tip": "Carte des services en direct — même rendu que l'onglet Topologie par couche, sans la barre latérale de détail."
     },
     {
+      "id": "mesh_alarms",
       "title": "Alertes actives",
       "tip": "Alertes actuellement déclenchées sur des services rapportés par le mesh."
     },
     {
+      "id": "k8s_break",
       "title": "Kubernetes"
     },
     {
+      "id": "k8s_summary",
       "title": "Capacité et utilisation du cluster",
       "tip": "Nœuds / namespaces / workloads, plus l'utilisation CPU, mémoire et stockage au niveau du cluster.",
       "kpis": [

@@ -65,30 +65,63 @@ const roleNames = computed(() => Object.keys(status.value?.rbac.roles ?? {}).sor
 function grantsFor(role: string): readonly string[] {
   return status.value?.rbac.roles?.[role] ?? [];
 }
-/** Sidebar menu → the read verb that gates its visibility (mirrors
- *  AppSidebar.vue). Drives the visibility matrix so operators can read,
- *  per role, exactly which navigation items appear. `null` verb = shown
- *  to any signed-in user (the core data layers, cap-gated only). */
-const MENU_GATES = computed<ReadonlyArray<{ label: string; verb: string | null }>>(() => [
-  { label: t('Layers (per-layer data)'), verb: null },
-  { label: t('Alarms'), verb: 'alarms:read' },
-  { label: t('Overviews'), verb: 'overview:read' },
-  { label: t('3D infrastructure map'), verb: 'infra-3d:read' },
-  { label: t('Cluster status'), verb: 'cluster:read' },
-  { label: t('Platform monitoring (layers)'), verb: 'cluster:read' },
-  { label: t('Metrics inspect'), verb: 'inspect:read' },
-  { label: t('Data retention'), verb: 'ttl:read' },
-  { label: t('OAP configuration'), verb: 'config:read' },
-  { label: t('Alerting rules'), verb: 'alarm-rule:read' },
-  { label: t('Live debugger · Capture history'), verb: 'live-debug:read' },
-  { label: t('DSL management'), verb: 'rule:read' },
-  { label: t('Overview templates'), verb: 'overview:write' },
-  { label: t('Layer dashboards'), verb: 'dashboard:read' },
-  { label: t('Alert page'), verb: 'alarm-setup:read' },
-  { label: t('Global defaults'), verb: 'setup:read' },
-  { label: t('Users'), verb: 'user:read' },
-  { label: t('Auth status'), verb: 'auth:read' },
-  { label: t('Roles & permissions'), verb: 'role:read' },
+/** Every navigation entry Horizon renders → the read verb that decides
+ *  whether a role sees it. `null` verb = shown to any signed-in user.
+ *
+ *  `covers` names the sidebar destinations a row stands for, in sidebar
+ *  order. Usually one row per entry; a row may stand for several when they
+ *  need the same permission — an expandable entry's sub-entries, or sibling
+ *  entries of one feature (Live debugger and its Capture history). It is empty for the nav the shell
+ *  builds itself rather than from the menu registry — the overview links,
+ *  Alarms, the layer rows, the per-layer platform-monitoring rows — and
+ *  for the 3D map, which is reached from the topbar. A drift gate in the
+ *  BFF's rbac tests reads `covers` against that registry, so an entry
+ *  added to the sidebar with no row here fails. */
+interface MenuGate {
+  label: string;
+  verb: string | null;
+  covers: readonly string[];
+}
+const MENU_GATES = computed<readonly MenuGate[]>(() => [
+  { label: t('Overviews'), verb: 'overview:read', covers: [] },
+  { label: t('Alarms'), verb: 'alarms:read', covers: [] },
+  { label: t('Layers (per-layer data)'), verb: null, covers: [] },
+  { label: t('3D infrastructure map'), verb: 'infra-3d:read', covers: [] },
+  { label: t('Cluster status'), verb: 'cluster:read', covers: ['/operate/cluster'] },
+  { label: t('Data retention'), verb: 'ttl:read', covers: ['/operate/ttl'] },
+  { label: t('OAP configuration'), verb: 'config:read', covers: ['/operate/config'] },
+  { label: t('Platform monitoring (layers)'), verb: 'cluster:read', covers: [] },
+  { label: t('Alerting rules'), verb: 'alarm-rule:read', covers: ['/operate/alerting-rules'] },
+  {
+    label: t('DSL management'),
+    verb: 'rule:read',
+    covers: [
+      '/operate/dsl/otel-rules',
+      '/operate/dsl/telegraf-rules',
+      '/operate/dsl/meter-analyzer-config',
+      '/operate/dsl/lal',
+      '/operate/dsl/log-mal-rules',
+      '/operate/oal',
+      '/operate/dsl/dump',
+    ],
+  },
+  {
+    label: t('Live debugger · Capture history'),
+    verb: 'live-debug:read',
+    covers: ['/operate/live-debug', '/operate/live-debug/history'],
+  },
+  { label: t('Metrics inspect'), verb: 'inspect:read', covers: ['/operate/inspect'] },
+  { label: t('Trace inspect'), verb: 'inspect:read', covers: ['/operate/trace-inspect'] },
+  { label: t('Log inspect'), verb: 'inspect:read', covers: ['/operate/log-inspect'] },
+  { label: t('Overview templates'), verb: 'overview:write', covers: ['/admin/overview-templates'] },
+  { label: t('Layer dashboards'), verb: 'dashboard:read', covers: ['/admin/layer-dashboards'] },
+  { label: t('Translations'), verb: 'overview:write', covers: ['/admin/translations'] },
+  { label: t('Alert page'), verb: 'alarm-setup:read', covers: ['/admin/alert-page-setup'] },
+  { label: t('3D Infra Map setup'), verb: 'overview:write', covers: ['/admin/3d-map'] },
+  { label: t('Global defaults'), verb: 'setup:read', covers: ['/admin/global-defaults'] },
+  { label: t('Users'), verb: 'user:read', covers: ['/admin/users'] },
+  { label: t('Auth status'), verb: 'auth:read', covers: ['/admin/auth-status'] },
+  { label: t('Roles & permissions'), verb: 'role:read', covers: ['/admin/roles'] },
 ]);
 /** Is the menu row visible to the role? `null` verb ⇒ any signed-in user. */
 function menuVisible(role: string, verb: string | null): boolean {
@@ -137,14 +170,18 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'dashboard:read':         { label: t('See layer dashboard templates') },
   'dashboard:write':        { label: t('Edit layer dashboard templates') },
   'setup:read':             { label: t('See Global defaults') },
+  'ttl:read':               { label: t('See data retention settings') },
+  'config:read':            { label: t('See the OAP runtime configuration') },
+  'browser-errors:read':    { label: t('See browser error logs') },
+  'source-map:write':       { label: t('Upload and remove source maps') },
+  'ai:read':                { label: t('Use the AI assistant') },
   'alarm-rule:read':        { label: t('See alarm rules') },
   'alarm-rule:write':       { label: t('Edit alarm rules') },
   'alarm-setup:read':       { label: t('See Alert page setup') },
   'rule:read':              { label: t('See DSL / OAL / MQE rules') },
   'rule:write':             { label: t('Edit existing rules') },
-  'rule:write:structural':  { label: t('Change rule schema (OAL files)'), hint: t('schema-breaking edits') },
+  'rule:write:structural':  { label: t('Apply a rule edit that changes storage, or revert a rule'), hint: t('schema-breaking edits') },
   'rule:delete':            { label: t('Delete rules') },
-  'rule:debug':             { label: t('Test queries in the MQE sandbox') },
   'live-debug:read':        { label: t('See live-debug sessions') },
   'live-debug:write':       { label: t('Start and stop live-debug sessions') },
   'profile:enable':         { label: t('Start a profiling task on a target') },
@@ -158,6 +195,16 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
 }));
 function labelFor(verb: string): { label: string; hint?: string } {
   return VERB_LABELS.value[verb] ?? { label: verb };
+}
+
+/** Verbs the server declares but nothing checks. Rendered marked so the row
+ *  isn't read as a working capability — the check marks still reflect the
+ *  live grant, which is what an admin auditing their config wants to see. */
+const reservedVerbs = computed<ReadonlySet<string>>(
+  () => new Set(status.value?.rbac.reservedVerbs ?? []),
+);
+function isReserved(verb: string): boolean {
+  return reservedVerbs.value.has(verb);
 }
 
 /** Groups verbs by feature area + supplies a scope mock-sidebar so the
@@ -191,12 +238,24 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
   },
   {
     title: t('Platform monitoring'),
-    blurb: t('Watching SkyWalking itself: is the OAP cluster healthy, are modules loaded, what does the internal metric catalog look like.'),
+    blurb: t('Watching SkyWalking itself: is the OAP cluster healthy, what does the internal metric catalog look like, how long is data kept, what is the running configuration.'),
     scope: [
       { label: t('OAP cluster status'), icon: '⌬' },
       { label: t('Module inspector'), icon: '⌕' },
+      { label: t('MQE sandbox'), icon: '▶' },
+      { label: t('Data retention'), icon: '⏱' },
+      { label: t('OAP configuration'), icon: '⚙' },
     ],
-    verbs: ['cluster:read', 'inspect:read'],
+    verbs: ['cluster:read', 'inspect:read', 'ttl:read', 'config:read'],
+  },
+  {
+    title: t('Browser monitoring'),
+    blurb: t('The JavaScript error logs a BROWSER-layer application reports, plus the source maps that turn a minified stack trace into readable frames.'),
+    scope: [
+      { label: t('Browser Logs'), icon: '≡' },
+      { label: t('Source maps'), icon: '⌗' },
+    ],
+    verbs: ['browser-errors:read', 'source-map:write'],
   },
   {
     title: t('Overview templates'),
@@ -236,20 +295,28 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
   },
   {
     title: t('Diagnostics & debug'),
-    blurb: t('Interactive troubleshooting: the live debugger that streams events from a running rule, and the MQE sandbox for testing queries without saving anything.'),
+    blurb: t('Interactive troubleshooting: the live debugger runs a rule against live traffic and streams what it produced. Watching a capture needs only the live-debug read permission; starting or stopping one needs live-debug write.'),
     scope: [
       { label: t('Live debugger'), icon: '◉' },
-      { label: t('MQE sandbox'), icon: '▶' },
     ],
-    verbs: ['rule:debug', 'live-debug:read', 'live-debug:write'],
+    verbs: ['live-debug:read', 'live-debug:write'],
   },
   {
     title: t('Profiling'),
-    blurb: t('Starting a profiling task — agent-side sampling, async-profiler, pprof, or eBPF. Reading the results is part of "Data catalog" above.'),
+    blurb: t('Starting a profiling task — agent-side sampling, async-profiler, pprof, or eBPF — and arming the continuous-profiling policies that raise tasks on their own. Reading the results is part of "Data catalog" above.'),
     scope: [
       { label: t('Start a profiling task'), icon: '▦' },
+      { label: t('Continuous-profiling policies'), icon: '◍' },
     ],
     verbs: ['profile:enable'],
+  },
+  {
+    title: t('AI Assistant'),
+    blurb: t('Sending a message to the assistant. Each of its data tools re-checks the read permission the matching screen needs, so the assistant never reads more than the signed-in user can.'),
+    scope: [
+      { label: t('AI Assistant'), icon: '✧' },
+    ],
+    verbs: ['ai:read'],
   },
   {
     title: t('Users & access admin'),
@@ -341,13 +408,14 @@ function grantsOf(role: string): string[] {
         </div>
       </section>
 
-      <!-- Menu visibility matrix: which sidebar items each role sees.
-           Computed live from the policy via the same verb gates the
-           sidebar uses, so it stays honest if roles are reconfigured. -->
+      <!-- Menu visibility matrix. The check marks are computed live from the
+           policy through the same verb gates the sidebar itself applies, so
+           they stay honest when roles are reconfigured; that the row LIST
+           stays complete is held by the drift gate described on MENU_GATES. -->
       <section class="sw-card menu-matrix">
         <header class="card-head">
           <h3>{{ t('Menu visibility') }}</h3>
-          <span class="muted">{{ t('which sidebar items each role sees · gated by the read verb in the last column (UI hides; the BFF enforces the same server-side)') }}</span>
+          <span class="muted">{{ t('every navigation entry, and the read verb that decides which roles see it · an entry that expands stands for the sub-entries under it, which need the same permission (the UI hides the entry; the BFF enforces the same verb server-side)') }}</span>
         </header>
         <div class="matrix-scroll">
           <table class="matrix">
@@ -417,10 +485,16 @@ function grantsOf(role: string): string[] {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="v in g.items" :key="v">
+                <tr v-for="v in g.items" :key="v" :class="{ 'is-reserved': isReserved(v) }">
                   <td class="td-cap">
-                    <div class="cap-label">{{ labelFor(v).label }}</div>
-                    <div v-if="labelFor(v).hint" class="cap-hint">{{ labelFor(v).hint }}</div>
+                    <div class="cap-label">
+                      <span>{{ labelFor(v).label }}</span>
+                      <span v-if="isReserved(v)" class="pill pill-muted">{{ t('Reserved') }}</span>
+                    </div>
+                    <div v-if="isReserved(v)" class="cap-hint">
+                      {{ t('No screen or request checks this — granting it has no effect.') }}
+                    </div>
+                    <div v-else-if="labelFor(v).hint" class="cap-hint">{{ labelFor(v).hint }}</div>
                   </td>
                   <td v-for="r in roleNames" :key="r" class="td-cell">
                     <span v-if="hasVerb(grantsOf(r), v)" class="check check-on" :aria-label="t('allowed')">✓</span>
@@ -621,8 +695,17 @@ function grantsOf(role: string): string[] {
 .perm tr:last-child td { border-bottom: none; }
 .perm tbody tr:hover { background: rgba(255,255,255,0.02); }
 .td-cap { padding: 8px 14px; vertical-align: top; }
-.cap-label { color: var(--sw-fg-0); font-weight: var(--sw-fw-medium); }
+.cap-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sw-fg-0);
+  font-weight: var(--sw-fw-medium);
+}
 .cap-hint { color: var(--sw-fg-3); font-size: var(--sw-fs-xs); margin-top: 2px; }
+/* A reserved row is still readable — it just stops competing with the
+   capabilities that do something. */
+.perm tr.is-reserved .cap-label { color: var(--sw-fg-2); font-weight: var(--sw-fw-regular); }
 .td-cell { text-align: center; padding: 8px 12px; }
 .check {
   display: inline-block;
@@ -659,6 +742,7 @@ function grantsOf(role: string): string[] {
 .pill-err   { color: var(--sw-err);   background: rgba(239,68,68,0.16);  border-color: rgba(239,68,68,0.33); }
 .pill-info  { color: var(--sw-info);  background: rgba(56,189,248,0.16); border-color: rgba(56,189,248,0.33); }
 .pill-cyan  { color: var(--sw-cyan, #22d3ee); background: rgba(34,211,238,0.14); border-color: rgba(34,211,238,0.33); }
+.pill-muted { color: var(--sw-fg-3); background: transparent; border-color: var(--sw-line); }
 
 .rules-card { padding: 0; }
 .rules-grid {

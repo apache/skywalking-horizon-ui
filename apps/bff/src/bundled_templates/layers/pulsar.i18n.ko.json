@@ -20,18 +20,23 @@
   "dashboards": {
     "service": [
       {
+        "id": "topics",
         "title": "총 토픽 수"
       },
       {
+        "id": "subs",
         "title": "구독"
       },
       {
+        "id": "producers",
         "title": "생산자"
       },
       {
+        "id": "consumers",
         "title": "소비자"
       },
       {
+        "id": "msg_rate",
         "title": "메시지 비율",
         "expressionLabels": [
           "입력",
@@ -39,6 +44,7 @@
         ]
       },
       {
+        "id": "throughput",
         "title": "처리량",
         "expressionLabels": [
           "입력",
@@ -46,6 +52,7 @@
         ]
       },
       {
+        "id": "storage_rw",
         "title": "스토리지 읽기/쓰기 비율",
         "expressionLabels": [
           "read",
@@ -53,6 +60,7 @@
         ]
       },
       {
+        "id": "storage_size",
         "title": "스토리지 크기 (MB)",
         "expressionLabels": [
           "물리",
@@ -62,27 +70,35 @@
     ],
     "instance": [
       {
+        "id": "active_conns",
         "title": "활성 연결"
       },
       {
+        "id": "total_conns",
         "title": "총 연결"
       },
       {
+        "id": "conn_fail",
         "title": "연결 생성 실패"
       },
       {
+        "id": "conn_success",
         "title": "연결 생성 성공"
       },
       {
+        "id": "conn_closed",
         "title": "연결 종료"
       },
       {
+        "id": "jvm_buffer",
         "title": "JVM 버퍼 풀 (MB)"
       },
       {
+        "id": "jvm_pool",
         "title": "JVM 메모리 풀 사용량 (MB)"
       },
       {
+        "id": "jvm_mem",
         "title": "JVM 메모리 (MB)",
         "expressionLabels": [
           "사용",
@@ -91,6 +107,7 @@
         ]
       },
       {
+        "id": "jvm_threads",
         "title": "JVM 스레드",
         "expressionLabels": [
           "current",
@@ -100,6 +117,7 @@
         ]
       },
       {
+        "id": "gc",
         "title": "GC",
         "expressionLabels": [
           "초",

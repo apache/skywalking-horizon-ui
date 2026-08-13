@@ -83,6 +83,7 @@ const {
   entityMode,
   pickLayer,
   pickServiceId,
+  pickServiceName,
   pickInstanceId,
   pickEndpointId,
   services,
@@ -144,6 +145,7 @@ const {
   availableLayers,
   pickLayer,
   pickServiceId,
+  pickServiceName,
   pickInstanceId,
   instances,
   loadServices,
@@ -214,6 +216,11 @@ const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
 const logsResp = ref<LogsResponse | null>(null);
 const browserResp = ref<BrowserErrorsResponse | null>(null);
+/** The chosen limit held back at least one more row. Neither log query reports
+ *  a total, so this is the only honest "there is more" signal on this page. */
+const capped = computed<boolean>(() =>
+  logSource.value === 'browser' ? (browserResp.value?.hasNext ?? false) : (logsResp.value?.hasNext ?? false),
+);
 // Pod-log one-shot result. `errorReason` carries OAP's verbatim reason
 // (feature disabled / stale pod) so the pane shows a hint, not a blank.
 const podLines = ref<PodLogLine[]>([]);
@@ -781,6 +788,7 @@ watch(logSource, (next, prev) => {
       :has-queried="hasQueried"
       :running="running"
       :error-msg="errorMsg"
+      :capped="capped"
       @select="openBrowserRow"
     />
 
@@ -806,6 +814,7 @@ watch(logSource, (next, prev) => {
         <header class="iq-list-head">
           <h4>{{ t('Logs') }}</h4>
           <span class="hint">{{ rows.length }} {{ t('logs') }}</span>
+          <span v-if="capped" class="hint">{{ t('capped at {n} — narrow the window', { n: rows.length }) }}</span>
         </header>
         <div class="iq-stream-scroll">
           <LogStreamPanel :rows="rows" :selected-key="selectedKey" @select="openRow" @jump-trace="jumpToTrace($event.traceId, $event.ts)" />

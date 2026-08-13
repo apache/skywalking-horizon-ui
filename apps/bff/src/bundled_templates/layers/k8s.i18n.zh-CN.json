@@ -7,89 +7,193 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "Pod" },
-      { "label": "节点" },
-      { "label": "命名空间" },
-      { "label": "Deployment" }
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "节点"
+      },
+      {
+        "label": "命名空间"
+      },
+      {
+        "label": "Deployment"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "节点总数" },
-      { "title": "命名空间总数" },
-      { "title": "Deployment 总数" },
-      { "title": "StatefulSet 总数" },
-      { "title": "DaemonSet 总数" },
-      { "title": "Service 总数" },
-      { "title": "Pod 总数" },
-      { "title": "容器总数" },
       {
+        "id": "node_total",
+        "title": "节点总数"
+      },
+      {
+        "id": "namespace_total",
+        "title": "命名空间总数"
+      },
+      {
+        "id": "deployment_total",
+        "title": "Deployment 总数"
+      },
+      {
+        "id": "statefulset_total",
+        "title": "StatefulSet 总数"
+      },
+      {
+        "id": "daemonset_total",
+        "title": "DaemonSet 总数"
+      },
+      {
+        "id": "service_total",
+        "title": "Service 总数"
+      },
+      {
+        "id": "pod_total",
+        "title": "Pod 总数"
+      },
+      {
+        "id": "container_total",
+        "title": "容器总数"
+      },
+      {
+        "id": "cpu_res",
         "title": "CPU 资源",
         "tip": "集群 CPU 容量 vs requests / limits / allocatable（millicore）。",
-        "expressionLabels": ["容量", "Requests", "Limits", "Allocatable"]
+        "expressionLabels": [
+          "容量",
+          "Requests",
+          "Limits",
+          "Allocatable"
+        ]
       },
       {
+        "id": "mem_res",
         "title": "内存资源",
         "tip": "集群内存 requests / allocatable / limits / total。",
-        "expressionLabels": ["Requests", "Allocatable", "Limits", "Total"]
+        "expressionLabels": [
+          "Requests",
+          "Allocatable",
+          "Limits",
+          "Total"
+        ]
       },
       {
+        "id": "storage_res",
         "title": "存储资源",
         "tip": "集群临时存储 total vs allocatable。",
-        "expressionLabels": ["Total", "Allocatable"]
+        "expressionLabels": [
+          "Total",
+          "Allocatable"
+        ]
       },
       {
+        "id": "node_status",
         "title": "节点状态",
         "tip": "各节点当前为 true/unknown 的 Kubernetes 条件（Ready、*Pressure …）。",
-        "tableHeaders": ["节点 · 条件", ""]
+        "tableHeaders": [
+          "节点 · 条件"
+        ]
       },
       {
+        "id": "deployment_status",
         "title": "Deployment 状态",
         "tip": "上报 Available 条件的 Deployment。",
-        "tableHeaders": ["Deployment · Available", ""]
+        "tableHeaders": [
+          "Deployment · Available"
+        ]
       },
       {
+        "id": "deployment_replicas",
         "title": "Deployment 期望副本数",
         "tip": "每个 Deployment 的期望副本数。",
-        "tableHeaders": ["Deployment", "Replicas"]
+        "tableHeaders": [
+          "Deployment",
+          "Replicas"
+        ]
       },
       {
+        "id": "service_pod_status",
         "title": "Service 状态",
         "tip": "每个 K8s Service 背后的 Pod，按阶段划分（Running / Pending / Failed / …）。",
-        "tableHeaders": ["Service · Phase", ""]
+        "tableHeaders": [
+          "Service · Phase"
+        ]
       },
       {
+        "id": "pod_not_running",
         "title": "未运行 Pod",
         "tip": "处于任何非 Running 阶段的 Pod。",
-        "tableHeaders": ["Pod · 状态", ""]
+        "tableHeaders": [
+          "Pod · 状态"
+        ]
       },
       {
+        "id": "pod_waiting",
         "title": "Pod 状态：Waiting",
         "tip": "处于 Waiting 状态的容器，按原因分组。",
-        "tableHeaders": ["Container · Pod · Reason", ""]
+        "tableHeaders": [
+          "Container · Pod · Reason"
+        ]
       }
     ],
     "instance": [
-      { "title": "节点状态" },
-      { "title": "节点上的 Pod" },
-      { "title": "节点 CPU 使用", "tip": "CPU 使用量，单位 millicore。" },
-      { "title": "Pod 总数", "tip": "当前调度到该节点的 Pod（所有阶段）。" },
       {
+        "id": "node_status",
+        "title": "节点状态"
+      },
+      {
+        "id": "node_pod_total",
+        "title": "节点上的 Pod"
+      },
+      {
+        "id": "node_cpu_usage",
+        "title": "节点 CPU 使用",
+        "tip": "CPU 使用量，单位 millicore。"
+      },
+      {
+        "id": "node_pod_count",
+        "title": "Pod 总数",
+        "tip": "当前调度到该节点的 Pod（所有阶段）。"
+      },
+      {
+        "id": "node_cpu_resources",
         "title": "节点 CPU 资源",
-        "expressionLabels": ["total", "allocatable", "requests", "limits"]
+        "expressionLabels": [
+          "total",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
       },
-      { "title": "节点内存使用" },
       {
+        "id": "node_memory_usage",
+        "title": "节点内存使用"
+      },
+      {
+        "id": "node_memory_resources",
         "title": "节点内存资源",
-        "expressionLabels": ["total", "allocatable", "requests", "limits"]
+        "expressionLabels": [
+          "total",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
       },
       {
+        "id": "node_network_io",
         "title": "节点网络 I/O",
-        "expressionLabels": ["receive", "transmit"]
+        "expressionLabels": [
+          "receive",
+          "transmit"
+        ]
       },
       {
+        "id": "node_storage_resources",
         "title": "节点存储资源",
-        "expressionLabels": ["total", "allocatable"]
+        "expressionLabels": [
+          "total",
+          "allocatable"
+        ]
       }
     ]
   }

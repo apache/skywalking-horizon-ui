@@ -30,6 +30,11 @@
 # then prepares a next-version PR.
 #
 # Usage:  bash scripts/release.sh
+#
+# The signing key is taken from HORIZON_RELEASE_GPG_KEY, else git's
+# user.signingkey, else the sole secret key in the keyring — and it is
+# pinned on every signing call, so a machine holding several secret keys
+# cannot sign with one key while the script reported another.
 
 set -e -o pipefail
 
@@ -44,14 +49,8 @@ CLONE_DIR="${WORK_DIR}/skywalking-horizon-ui"
 
 # ========================== Helpers ==========================
 
-err() { echo "ERROR: $*" >&2; }
-note() { echo ""; echo "=== $* ==="; }
-
-confirm() {
-    local prompt="$1"
-    read -r -p "${prompt} [y/N] " ans
-    [[ "$ans" == "y" || "$ans" == "Y" ]]
-}
+# shellcheck source=scripts/release-common.sh
+. "${SCRIPT_DIR}/release-common.sh"
 
 # Extract the root package.json "version" without depending on jq —
 # we want this script to be runnable on stock macOS / Alpine.
@@ -67,36 +66,38 @@ file_has() {
 # ========================== Step 1: GPG signer ==========================
 note "Step 1 — GPG signer check"
 
-GPG_KEY_ID=$(git config user.signingkey 2>/dev/null || true)
-if [ -z "$GPG_KEY_ID" ]; then
-    GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -A1 '^sec' | tail -1 | awk '{print $1}' || true)
-fi
-if [ -z "$GPG_KEY_ID" ]; then
-    err "No GPG secret key found. Configure your Apache GPG key first."
+command -v gpg >/dev/null || { err "gpg is not installed."; exit 1; }
+
+# One key, named by its full fingerprint — every later signing call pins it.
+GPG_KEY_ID=$(gpg_resolve_signing_key) || exit 1
+
+# Identity is checked on THAT key only. Scanning every uid in the keyring
+# would happily accept some other key's @apache.org address as proof that
+# the selected key is an Apache one.
+if ! GPG_APACHE_UID=$(gpg_apache_uid "${GPG_KEY_ID}"); then
+    err "GPG key ${GPG_KEY_ID} has no @apache.org user ID — Apache releases must be signed with an @apache.org key."
+    err "User IDs on this key:"
+    gpg_key_uids "${GPG_KEY_ID}" | sed 's/^/  /' >&2 || true
     exit 1
 fi
-
-GPG_UIDS=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep 'uid' | sed 's/.*] //')
-GPG_EMAIL=$(echo "$GPG_UIDS" | grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' | head -1)
-
-if [[ "$GPG_EMAIL" != *"@apache.org" ]]; then
-    err "GPG key email '${GPG_EMAIL}' is not @apache.org — Apache releases must be signed with an @apache.org key."
-    exit 1
-fi
-echo "GPG Signer: ${GPG_UIDS}"
+echo "GPG Signer: ${GPG_APACHE_UID}"
 echo "GPG Key:    ${GPG_KEY_ID}"
 confirm "Is this the correct signer?" || { echo "Aborted."; exit 1; }
 
-export GPG_TTY=$(tty)
+# `set -e` + a bare assignment means a failed `tty` would abort the release;
+# it fails whenever stdin is not a terminal. gpg only needs GPG_TTY to draw a
+# passphrase prompt, so a missing tty is not fatal here — leave it unset.
+GPG_TTY=$(tty 2>/dev/null || true)
+export GPG_TTY
 echo "Verifying GPG signing works (you may be prompted for the passphrase)…"
 TEST_FILE=$(mktemp); echo "test" > "${TEST_FILE}"
-if ! gpg --armor --detach-sig "${TEST_FILE}" 2>/dev/null; then
+if ! gpg_sign_and_verify "${TEST_FILE}" "${GPG_KEY_ID}"; then
     rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-    err "GPG signing failed. Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
+    err "Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
     exit 1
 fi
 rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-echo "GPG signing OK."
+echo "GPG signing OK — signatures verify back to ${GPG_KEY_ID}."
 
 # ========================== Step 2: Required tools ==========================
 note "Step 2 — Tool check"
@@ -131,10 +132,12 @@ if [ "${CURRENT_VERSION}" = "${RELEASE_VERSION}" ]; then
     err "main should carry the dev-suffixed version between releases — bump it before running this script."
     exit 1
 fi
-MAJOR=$(echo "$RELEASE_VERSION" | cut -d. -f1)
-MINOR=$(echo "$RELEASE_VERSION" | cut -d. -f2)
-NEXT_MINOR=$((MINOR + 1))
-NEXT_RELEASE_VERSION="${MAJOR}.${NEXT_MINOR}.0"
+# Proposed next version: the next minor. Computed in a pipeline on purpose —
+# nothing derived from the version may survive as a variable across the prompt
+# below, where the operator can replace RELEASE_VERSION. Anything split out up
+# here (MAJOR / MINOR / …) would still describe the rejected version and be
+# read as current further down.
+NEXT_RELEASE_VERSION=$(echo "$RELEASE_VERSION" | awk -F. '{ printf "%d.%d.0", $1, $2 + 1 }')
 
 echo "Current (in package.json): ${CURRENT_VERSION}"
 echo "Release:                   ${RELEASE_VERSION}"
@@ -175,8 +178,17 @@ check_file_has_version() {
 # Every code-side marker carries the dev-suffixed version (`-dev`) on
 # main between releases. Strip-and-tag happens later in the clone, NOT
 # in the local working tree.
+# Kept explicit rather than globbed: `test/e2e/playwright` is a workspace that
+# carries a version this release deliberately does not bump, so a glob would
+# start rewriting it. A path that no longer exists is a hard error — a deleted
+# workspace must fail HERE, not midway through a version bump.
 for pj in package.json packages/api-client/package.json packages/design-tokens/package.json \
-          packages/templates/package.json apps/bff/package.json apps/ui/package.json; do
+          apps/bff/package.json apps/ui/package.json; do
+    if [ ! -f "${PROJECT_DIR}/${pj}" ]; then
+        err "${pj} is listed for version bumping but does not exist — update the list in this script"
+        CONSISTENT=false
+        continue
+    fi
     check_file_has_version "$pj" "\"version\": \"${CURRENT_VERSION}\""
 done
 check_file_has_version "apps/bff/src/server.ts" "'${CURRENT_VERSION}'"
@@ -201,25 +213,12 @@ if ! $CONSISTENT; then
 fi
 echo "Code markers all at ${CURRENT_VERSION}; container docs are release-check compatible."
 
-# ========================== Step 5: Doc + Changelog check ==========================
-note "Step 5 — Docs + CHANGELOG check"
+# ========================== Step 5: Release-file check ==========================
+note "Step 5 — Release-file check"
 
-if ! grep -q "^## ${RELEASE_VERSION}$" "${PROJECT_DIR}/CHANGELOG.md"; then
-    err "CHANGELOG.md has no '## ${RELEASE_VERSION}' section heading."
-    exit 1
-fi
-# Reject the placeholder body. Operators MUST fill the section in before
-# casting a vote — a stub CHANGELOG line in a release tarball is a
-# review smell.
-if awk -v v="${RELEASE_VERSION}" '
-    $0 == "## " v        { in_sec=1; next }
-    in_sec && /^## /     { in_sec=0 }
-    in_sec               { print }
-' "${PROJECT_DIR}/CHANGELOG.md" | grep -q "In development"; then
-    err "CHANGELOG.md ${RELEASE_VERSION} section still contains the '(In development …)' placeholder. Fill it in."
-    exit 1
-fi
-echo "CHANGELOG.md has a non-placeholder section for ${RELEASE_VERSION}."
+# The changelog file is NOT checked here: what ships is the freshly cloned tree
+# of Step 7, not this one, so it is gated in Step 8b against the exact commit
+# being tagged.
 
 # Make sure LICENSE / NOTICE exist at the repo root (they ship in src+bin tarballs).
 for f in LICENSE NOTICE HEADER; do
@@ -264,15 +263,20 @@ git checkout -b "${RELEASE_BRANCH_NAME}"
 # release-tagged commit must carry the bare semver.
 node -e "
 const fs = require('fs');
+// Must match the preflight list above. A missing path is fatal rather than
+// skipped: a half-bumped set of manifests is worse than a stopped release.
 const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
-  'packages/templates/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];
 for (const f of files) {
+  if (!fs.existsSync(f)) {
+    console.error(`release.sh: ${f} is listed for version bumping but does not exist`);
+    process.exit(1);
+  }
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   j.version = '${RELEASE_VERSION}';
   fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
@@ -302,6 +306,23 @@ fi
 # to), and repo CI does not run on tags — only on pull_request and pushes to
 # main. So this is the only gate the release artifact ever gets.
 note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
+
+# The changelog file is part of the release artifact — it ships in both
+# tarballs, the vote email links it at ${TAG}, and release-finalize.sh reads
+# the GitHub release body out of the tag — so it is gated on the clone, on the
+# commit about to be tagged. Checking the caller's tree instead can pass here
+# while the tagged tree carries no notes at all, or still carries the stub.
+# Cheapest gate in the battery, so it runs first.
+node "${CLONE_DIR}/scripts/changelog-version.mjs" check "${RELEASE_VERSION}" --repo-root "${CLONE_DIR}"
+
+# Same reason, and `pnpm license:check` cannot stand in for it: HEADER is in
+# the license-eye paths-ignore list, so nothing else looks at the copy that
+# actually ships.
+for f in LICENSE NOTICE HEADER; do
+    [ -f "${CLONE_DIR}/${f}" ] || { err "${f} missing at the root of the release commit."; exit 1; }
+done
+echo "LICENSE / NOTICE / HEADER present on the release commit."
+
 pnpm install --frozen-lockfile
 pnpm -r run type-check
 pnpm --filter @skywalking-horizon-ui/ui build
@@ -338,6 +359,12 @@ git -C "${CLONE_DIR}" archive --format=tar --prefix="${SRC_STAGE_NAME}/" "${TAG}
     | tar -C "${WORK_DIR}" -xf -
 # Drop the CI publish workflow from the source release (ASF-infra specific).
 rm -f "${WORK_DIR}/${SRC_STAGE_NAME}/.github/workflows/publish-image.yaml"
+# ASF convention puts a CHANGELOG at the ROOT of a release, where a reviewer
+# looks for it. The repo has no such file — notes live one file per version
+# under docs/changelog/ — so this release's file is copied there. A packaging
+# artifact only; it is never committed to git.
+cp "${WORK_DIR}/${SRC_STAGE_NAME}/docs/changelog/${RELEASE_VERSION}.md" \
+   "${WORK_DIR}/${SRC_STAGE_NAME}/CHANGELOG.md"
 tar -C "${WORK_DIR}" -czf "${SRC_TAR}" "${SRC_STAGE_NAME}"
 
 echo "Source tarball: ${SRC_TAR}"
@@ -361,7 +388,8 @@ node "${CLONE_DIR}/scripts/check-dist-licenses.mjs"
 BIN_STAGE="${WORK_DIR}/${PRODUCT_NAME}-${RELEASE_VERSION}-bin"
 rm -rf "${BIN_STAGE}"
 cp -R "${CLONE_DIR}/dist" "${BIN_STAGE}"
-cp "${CLONE_DIR}/CHANGELOG.md" "${BIN_STAGE}/CHANGELOG.md"
+# Same packaging convention as the source tarball.
+cp "${CLONE_DIR}/docs/changelog/${RELEASE_VERSION}.md" "${BIN_STAGE}/CHANGELOG.md"
 cp "${CLONE_DIR}/README.md"    "${BIN_STAGE}/README.md"
 # dist/LICENSE and dist/NOTICE were just generated by the collector and
 # are the BINARY-flavored versions (Apache-2.0 + bundled-dep summary +
@@ -409,7 +437,9 @@ note "Step 12 — GPG sign + sha512"
 
 cd "${WORK_DIR}"
 for t in "${SRC_TAR}" "${BIN_TAR}"; do
-    gpg --armor --detach-sig "${t}"
+    # Signs with --local-user ${GPG_KEY_ID} and re-reads the .asc to confirm
+    # the signature really came from that key.
+    gpg_sign_and_verify "${t}" "${GPG_KEY_ID}"
     shasum -a 512 "$(basename "${t}")" > "${t}.sha512"
 done
 
@@ -417,12 +447,9 @@ echo "Artifacts:"
 ls -lh "${SRC_TAR}" "${SRC_TAR}.asc" "${SRC_TAR}.sha512" \
        "${BIN_TAR}" "${BIN_TAR}.asc" "${BIN_TAR}.sha512"
 
-# Verify signatures locally before publishing.
-gpg --verify "${SRC_TAR}.asc" "${SRC_TAR}"
-gpg --verify "${BIN_TAR}.asc" "${BIN_TAR}"
 shasum -a 512 -c "${SRC_TAR}.sha512"
 shasum -a 512 -c "${BIN_TAR}.sha512"
-echo "Self-verify OK."
+echo "Self-verify OK — both artifacts signed by ${GPG_KEY_ID} (${GPG_APACHE_UID}), checksums match."
 
 # ========================== Step 13: SVN upload ==========================
 note "Step 13 — Upload to ${SVN_DEV_URL}/${RELEASE_VERSION}"
@@ -497,7 +524,7 @@ version ${RELEASE_VERSION}.
 
 Release notes:
 
- * https://github.com/apache/skywalking-horizon-ui/blob/${TAG}/CHANGELOG.md
+ * https://github.com/apache/skywalking-horizon-ui/blob/${TAG}/docs/changelog/${RELEASE_VERSION}.md
 
 Release Candidate:
 
@@ -518,6 +545,8 @@ Release CommitID:
 Keys to verify the Release Candidate:
 
  * https://dist.apache.org/repos/dist/release/skywalking/KEYS
+ * Signed by ${GPG_APACHE_UID}
+   fingerprint ${GPG_KEY_ID}
 
 Guide to build the release from source:
 
@@ -541,7 +570,9 @@ EOF
 # ========================== Step 15: Next-dev bump + release PR ==========================
 note "Step 15 — Add next-dev bump (${NEXT_RELEASE_VERSION}-dev) + open release PR"
 
-if ! confirm "Add the next-dev bump on ${RELEASE_BRANCH_NAME} and open the release PR now?"; then
+echo "  Commit ${NEXT_RELEASE_VERSION}-dev on ${RELEASE_BRANCH_NAME}, push it to ${REPO_URL},"
+echo "  and open a PR ${RELEASE_BRANCH_NAME} -> ${REPO_BRANCH}. Tag ${TAG} is already pushed and stays put."
+if ! confirm "Do that now?"; then
     echo "Skipping the next-dev commit + PR. Release artifacts are in ${WORK_DIR}/."
     echo "Release branch ${RELEASE_BRANCH_NAME} + tag ${TAG} are already pushed; open the PR manually when ready."
     exit 0
@@ -557,15 +588,20 @@ git checkout "${RELEASE_BRANCH_NAME}"
 NEXT_DEV_VERSION="${NEXT_RELEASE_VERSION}-dev"
 node -e "
 const fs = require('fs');
+// Must match the preflight list above. A missing path is fatal rather than
+// skipped: a half-bumped set of manifests is worse than a stopped release.
 const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
-  'packages/templates/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];
 for (const f of files) {
+  if (!fs.existsSync(f)) {
+    console.error(`release.sh: ${f} is listed for version bumping but does not exist`);
+    process.exit(1);
+  }
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   j.version = '${NEXT_DEV_VERSION}';
   fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
@@ -580,18 +616,11 @@ rm apps/bff/src/server.ts.bak
 # commit just bumped them). They stay there — docs always reference the
 # last released tag, not the in-flight dev version.
 
-# Rotate CHANGELOG: insert a fresh placeholder at the top.
-node -e "
-const fs = require('fs');
-const path = 'CHANGELOG.md';
-const txt = fs.readFileSync(path, 'utf8');
-const insertion = '## ${NEXT_RELEASE_VERSION}\n\n(In development — fill in highlights here before cutting the release.)\n\n';
-// Insert above the first '## <prev>' heading.
-const out = txt.replace(/^## /m, insertion + '## ');
-fs.writeFileSync(path, out);
-"
+# Open the next cycle: an empty docs/changelog/${NEXT_RELEASE_VERSION}.md plus
+# its docs/menu.yml entry. The released version's file is not touched.
+node "${CLONE_DIR}/scripts/changelog-version.mjs" seed "${NEXT_RELEASE_VERSION}" --repo-root "${CLONE_DIR}"
 
-git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts CHANGELOG.md
+git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts docs/changelog docs/menu.yml
 git commit -m "Prepare next release ${NEXT_DEV_VERSION}"
 git push origin "${RELEASE_BRANCH_NAME}"
 
@@ -604,7 +633,8 @@ Release branch for ${RELEASE_VERSION}. Two commits:
    \`${RELEASE_VERSION}\`. Tagged \`${TAG}\` (the release-candidate commit the
    vote runs against).
 2. \`Prepare next release ${NEXT_DEV_VERSION}\` — bumps every marker to
-   \`${NEXT_DEV_VERSION}\` and rotates CHANGELOG for the next cycle.
+   \`${NEXT_DEV_VERSION}\` and seeds \`docs/changelog/${NEXT_RELEASE_VERSION}.md\`
+   (with its \`docs/menu.yml\` entry) for the next cycle.
 
 Merge after the [VOTE] passes so \`${REPO_BRANCH}\` returns to a \`-dev\`
 version with the release in its history. The \`${TAG}\` tag is immutable and
@@ -623,7 +653,15 @@ echo "  Release tag:        ${TAG}"
 echo ""
 echo "Next steps:"
 echo "  1. Send the vote email above to dev@skywalking.apache.org."
-echo "  2. After the vote passes, run:  svn mv ${SVN_DEV_URL}/${RELEASE_VERSION} \\"
-echo "         https://dist.apache.org/repos/dist/release/skywalking/horizon-ui/${RELEASE_VERSION}"
+echo "  2. After the vote passes, promote the image tags, then finalize:"
+echo "       a) Run the publish-image workflow (workflow_dispatch, tag ${TAG}) to attach"
+echo "          the stable image tags — a tag push publishes only the immutable digest,"
+echo "          because a tag is a candidate until the vote passes."
+echo "       b) bash scripts/release-finalize.sh"
+echo "          It verifies that the candidate directory holds exactly the six voted"
+echo "          artifacts, their sha512, both .asc signatures and the signer identity"
+echo "          BEFORE promoting dev -> release on SVN, then publishes the GitHub"
+echo "          release and confirms the Docker Hub tags. Do NOT 'svn mv' by hand:"
+echo "          that skips every one of those checks."
 echo "  3. Merge the release PR (${RELEASE_BRANCH_NAME} → ${REPO_BRANCH}): brings the"
 echo "     version strip + next-dev bump into ${REPO_BRANCH}; tag ${TAG} stays put."

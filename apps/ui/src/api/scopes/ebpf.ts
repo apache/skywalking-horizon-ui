@@ -24,13 +24,15 @@ import type {
   EBPFTaskListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.ebpf` — fixed-time eBPF profiling (ON_CPU / OFF_CPU). */
 export class EbpfApi {
   constructor(private readonly bff: BffClient) {}
 
-  tasks(layerKey: string, service: string): Promise<EBPFTaskListResponse> {
-    const qs = new URLSearchParams({ service });
+  /** Scoped by the roster row the screen picked — id and name together. */
+  tasks(layerKey: string, service: ServiceRef): Promise<EBPFTaskListResponse> {
+    const qs = new URLSearchParams(serviceRefFields(service));
     return this.bff.request<EBPFTaskListResponse>(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/ebpf/tasks?${qs.toString()}`,

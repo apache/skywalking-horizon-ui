@@ -25,6 +25,7 @@
 
 import { computed, ref, watch, watchEffect, type ComputedRef, type Ref } from 'vue';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { pushEvent } from '@/controls/eventLog';
 import { MAX_LOCKED } from '@/state/layerSelection';
@@ -32,7 +33,11 @@ import { MAX_LOCKED } from '@/state/layerSelection';
 export function useEndpointCascade(
   layerKey: Ref<string>,
   scope: ComputedRef<string>,
-  serviceName: ComputedRef<string | null>,
+  /** The picked service, id AND name — non-null only once it has resolved,
+   *  which is what enforces the landing → service → endpoint cascade. */
+  service: ComputedRef<ServiceRef | null>,
+  /** Whether anything is picked at all, before resolution — the trigger for
+   *  seeding the first landing row on a fresh visit. */
   selectedId: ComputedRef<string | null>,
   landingRows: ComputedRef<Array<{ serviceId: string }>>,
   setSelectedService: (id: string) => void,
@@ -57,11 +62,9 @@ export function useEndpointCascade(
     endpointSearchInput.value = '';
     endpointQuery.value = '';
   }
-  // Same cascade-strict rule as instance list — endpoint list
-  // waits for `serviceName` (post-landing), not the URL handle.
   const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
     layerKey,
-    serviceName,
+    service,
     endpointQuery,
     endpointLimit,
   );
@@ -76,7 +79,7 @@ export function useEndpointCascade(
     return endpointList.value.some((e) => e.name === pinned) ? '' : pinned;
   });
   const { endpoints: pinnedEndpointMatches, isFetching: pinnedEndpointLoading } =
-    useLayerEndpoints(layerKey, serviceName, pinnedEndpointQuery, endpointLimit);
+    useLayerEndpoints(layerKey, service, pinnedEndpointQuery, endpointLimit);
   // Endpoint-scope orchestration — explicit sequence so the loading
   // flow is deterministic:
   //   1. wait for landing rows
@@ -113,15 +116,16 @@ export function useEndpointCascade(
       pushEvent(
         'fallback',
         'info',
-        `URL endpoint "${selectedEndpoint.value}" not found in ${serviceName.value} · falling back to "${list[0].name}"`,
+        `URL endpoint "${selectedEndpoint.value}" not found in ${service.value?.name} · falling back to "${list[0].name}"`,
       );
       setSelectedEndpoint(list[0].name);
     }
   });
   // Drop stale endpoint when service ACTUALLY changes — same rule as
-  // the instance counterpart above: the `null → name` landing-resolution
-  // transition must not clear the URL `?endpoint=`.
-  watch(serviceName, (next, prev) => {
+  // the instance counterpart above: the `null → <service>` landing-resolution
+  // transition must not clear the URL `?endpoint=`. Keyed on the id, since
+  // `service` is a fresh object on every recompute.
+  watch(() => service.value?.id ?? null, (next, prev) => {
     if (!prev || !next) return;
     if (next !== prev && selectedEndpoint.value) {
       setSelectedEndpoint(null);

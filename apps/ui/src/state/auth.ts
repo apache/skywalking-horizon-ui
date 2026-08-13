@@ -19,6 +19,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { BffApiError, bffClient, type MeResponse } from '@/api/client';
 import { useTemplatePreference } from '@/controls/templatePreference';
+import { resetSessionState } from '@/state/sessionReset';
 import { i18n } from '@/i18n';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -39,6 +40,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(username: string, password: string): Promise<boolean> {
     loginError.value = null;
+    // Before the request, not after: whatever a previous session left behind
+    // (a logout that never reached the BFF, a 401 handled while the tab was
+    // backgrounded) must be gone by the time `user` names the new operator,
+    // or their first render is served the previous one's cached responses.
+    resetSessionState();
     try {
       user.value = await bffClient.session.login(username, password);
       // New login session → re-prompt the local-vs-remote template choice.
@@ -74,7 +80,19 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       // swallow — even if logout fails we clear local state
     }
+    endSession();
+  }
+
+  /**
+   * Tear down the local session: forget the user AND every cached response
+   * read under it. Called by {@link logout} and by the BFF client's 401 hook
+   * (a session the server ended mid-flight — there is no logout call left to
+   * make). Both statements run in one tick so nothing can refetch in between
+   * while `isAuthenticated` is still true.
+   */
+  function endSession(): void {
     user.value = null;
+    resetSessionState();
   }
 
   // Mirrors the BFF's matchOne (apps/bff/src/rbac/verbs.ts) exactly. This UI gate
@@ -102,6 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
     bootstrap,
     login,
     logout,
+    endSession,
     hasVerb,
   };
 });

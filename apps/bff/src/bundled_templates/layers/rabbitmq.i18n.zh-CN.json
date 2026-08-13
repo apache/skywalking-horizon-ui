@@ -7,63 +7,160 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "队列" },
-      { "label": "Channel" },
-      { "label": "连接" },
-      { "label": "未确认" }
+      {
+        "label": "队列"
+      },
+      {
+        "label": "Channel"
+      },
+      {
+        "label": "连接"
+      },
+      {
+        "label": "未确认"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "Block 前可用内存（MB）" },
-      { "title": "Block 前可用磁盘（GB）" },
       {
+        "id": "mem_available",
+        "title": "Block 前可用内存（MB）"
+      },
+      {
+        "id": "disk_available",
+        "title": "Block 前可用磁盘（GB）"
+      },
+      {
+        "id": "fds",
         "title": "文件描述符 + Socket",
-        "expressionLabels": ["fds", "sockets"]
+        "expressionLabels": [
+          "fds",
+          "sockets"
+        ]
       },
-      { "title": "Ready 消息" },
-      { "title": "待 Ack" },
       {
+        "id": "messages_ready",
+        "title": "Ready 消息"
+      },
+      {
+        "id": "messages_pending",
+        "title": "待 Ack"
+      },
+      {
+        "id": "publish_pipeline",
         "title": "发布流水线",
-        "expressionLabels": ["published", "confirmed", "routed", "unconfirmed"]
+        "expressionLabels": [
+          "published",
+          "confirmed",
+          "routed",
+          "unconfirmed"
+        ]
       },
       {
+        "id": "unroutable",
         "title": "无法路由消息",
-        "expressionLabels": ["dropped", "returned"]
+        "expressionLabels": [
+          "dropped",
+          "returned"
+        ]
       },
       {
+        "id": "queue_totals",
         "title": "队列",
-        "expressionLabels": ["total", "declared", "created", "deleted"]
+        "expressionLabels": [
+          "total",
+          "declared",
+          "created",
+          "deleted"
+        ]
       },
       {
+        "id": "channel_totals",
         "title": "Channel",
-        "expressionLabels": ["total", "opened", "closed"]
+        "expressionLabels": [
+          "total",
+          "opened",
+          "closed"
+        ]
       },
       {
+        "id": "conn_totals",
         "title": "连接",
-        "expressionLabels": ["total", "opened", "closed"]
+        "expressionLabels": [
+          "total",
+          "opened",
+          "closed"
+        ]
       }
     ],
     "instance": [
-      { "title": "Ready 消息" },
-      { "title": "入站消息" },
-      { "title": "出站消息" },
-      { "title": "未确认消息" },
-      { "title": "连接" },
-      { "title": "Publisher" },
-      { "title": "Consumer" },
-      { "title": "Channel" },
-      { "title": "队列" },
-      { "title": "已分配使用率 %" },
-      { "title": "已分配总量（MB）" },
       {
-        "title": "内存（MB）",
-        "expressionLabels": ["used", "unused", "resident"]
+        "id": "ready_msgs",
+        "title": "Ready 消息"
       },
-      { "title": "按类型分配（MB）" },
       {
+        "id": "incoming",
+        "title": "入站消息"
+      },
+      {
+        "id": "outgoing",
+        "title": "出站消息"
+      },
+      {
+        "id": "unack",
+        "title": "未确认消息"
+      },
+      {
+        "id": "conns",
+        "title": "连接"
+      },
+      {
+        "id": "publishers",
+        "title": "Publisher"
+      },
+      {
+        "id": "consumers",
+        "title": "Consumer"
+      },
+      {
+        "id": "channels",
+        "title": "Channel"
+      },
+      {
+        "id": "queues",
+        "title": "队列"
+      },
+      {
+        "id": "memory_pct",
+        "title": "已分配使用率 %"
+      },
+      {
+        "id": "memory_bytes_total",
+        "title": "已分配总量（MB）"
+      },
+      {
+        "id": "memory_bytes",
+        "title": "内存（MB）",
+        "expressionLabels": [
+          "used",
+          "unused",
+          "resident"
+        ]
+      },
+      {
+        "id": "alloc_by_type",
+        "title": "按类型分配（MB）"
+      },
+      {
+        "id": "blocks",
         "title": "多块/单块内存（MB）",
-        "expressionLabels": ["multi used", "multi unused", "single used", "single unused"]
+        "expressionLabels": [
+          "multi used",
+          "multi unused",
+          "single used",
+          "single unused"
+        ]
       }
     ]
   }

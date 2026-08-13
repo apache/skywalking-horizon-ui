@@ -459,7 +459,7 @@ export interface InspectServerTimeResponse {
  *  declared in. */
 export interface InspectCatalogEntry extends MetricRow {
   attribution: {
-    source: 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'LAL→MAL' | 'unknown';
+    source: 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'MAL·Meter' | 'LAL→MAL' | 'unknown';
     file: string | null;
     candidates?: string[];
   };
@@ -523,11 +523,12 @@ export interface AlarmMessage {
   layerKey: string | null;
 }
 export interface AlarmsResponse {
-  total: number;
+  /** Rows on this page — NOT a cross-page total, which OAP does not expose. */
+  returned: number;
   pageNum: number;
   pageSize: number;
-  /** True iff `total === pageSize`. The page should warn the operator
-   *  that there may be more alarms than shown. */
+  /** OAP held more rows than the fetch allowed. The page warns the operator
+   *  to tighten the window; it does not say how many more. */
   truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
@@ -543,7 +544,14 @@ export interface AlarmsQuery {
   pageSize?: number;
   /** New-API mode only — narrows to alarms in this OAP layer. */
   layer?: string;
+  /** The picked service's NAME — the half OAP's alarm entity filter takes; its
+   *  query has no id form. Travels with `normal`, never alone. */
   service?: string;
+  /** `normal` flag of `service` — false for a conjectural (virtual)
+   *  service. Part of the OAP entity id, so the wrong flag filters to
+   *  no rows and a guessed one is worse than none: the BFF refuses a
+   *  `service` that arrives without it. */
+  normal?: boolean;
   instance?: string;
   endpoint?: string;
 }
@@ -812,9 +820,11 @@ export class BffClient {
     if (res.status === 401) {
       // 401 is normal-ish (session expired) — log at 'info' rather
       // than 'err' so it doesn't read as a failure when it's just the
-      // re-auth dance.
-      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
+      // re-auth dance. Logged AFTER the hook, not before: the hook ends the
+      // session, which empties the event log — and this is the one line that
+      // explains why everything else in the ticker just vanished.
       this.on401?.();
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
       throw new BffApiError(401, 'unauthenticated', null);
     }
     if (!res.ok) {
@@ -876,8 +886,9 @@ export class BffClient {
       throw new BffApiError(0, `Cannot reach the server — the BFF is unreachable (${detail}).`, null);
     }
     if (res.status === 401) {
-      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
+      // Hook first, then log — see request(): the hook clears the event log.
       this.on401?.();
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
       throw new BffApiError(401, 'unauthenticated', null);
     }
     if (!res.ok) {

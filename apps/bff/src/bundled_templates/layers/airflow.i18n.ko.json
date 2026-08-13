@@ -7,50 +7,125 @@
   },
   "layer-header": {
     "columns": [
-      { "label": "DAG bag 크기" },
-      { "label": "DAG 총 파싱 시간" },
-      { "label": "Executor 여유 슬롯" },
-      { "label": "예약된 슬롯" }
+      {
+        "label": "DAG bag 크기"
+      },
+      {
+        "label": "DAG 총 파싱 시간"
+      },
+      {
+        "label": "Executor 여유 슬롯"
+      },
+      {
+        "label": "예약된 슬롯"
+      }
     ]
   },
   "dashboards": {
     "service": [
-      { "title": "실행 가능 작업" },
-      { "title": "실행 중 작업" },
-      { "title": "예약된 슬롯" },
-      { "title": "대기 작업" },
-      { "title": "Executor 여유 슬롯" },
-      { "title": "DAG 파일 큐 크기" },
-      { "title": "DAG 가져오기 오류" },
-      { "title": "DAG bag 크기" },
-      { "title": "DAG 총 파싱 시간" },
-      { "title": "DAG 파일 새로고침 오류" },
-      { "title": "Asset 업데이트" }
+      {
+        "id": "tasks_executable",
+        "title": "실행 가능 작업"
+      },
+      {
+        "id": "running_tasks",
+        "title": "실행 중 작업"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "예약된 슬롯"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "대기 작업"
+      },
+      {
+        "id": "open_slots",
+        "title": "Executor 여유 슬롯"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "DAG 파일 큐 크기"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "DAG 가져오기 오류"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "DAG bag 크기"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "DAG 총 파싱 시간"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "DAG 파일 새로고침 오류"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset 업데이트"
+      }
     ],
     "instance": [
       {
+        "id": "pool_slots",
         "title": "Pool 여유 / 지연 / 실행 슬롯",
-        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ]
       },
       {
+        "id": "running_tasks",
         "title": "실행 중 작업 / 예약된 슬롯",
-        "expressionLabels": ["running tasks", "scheduled slots"]
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ]
       },
-      { "title": "스케줄러 하트비트" },
       {
+        "id": "scheduler_heartbeat",
+        "title": "스케줄러 하트비트"
+      },
+      {
+        "id": "executor_slots",
         "title": "Executor 여유 / 대기 슬롯",
-        "expressionLabels": ["open slots", "queued tasks"]
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ]
       },
-      { "title": "Asset 업데이트" },
-      { "title": "Asset 트리거 DagRun" },
-      { "title": "트리거러 하트비트" },
       {
+        "id": "asset_updates",
+        "title": "Asset 업데이트"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset 트리거 DagRun"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "트리거러 하트비트"
+      },
+      {
+        "id": "triggerer_capacity",
         "title": "실행 중 트리거 / 남은 용량",
-        "expressionLabels": ["triggers running", "capacity left"]
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ]
       },
       {
+        "id": "triggers",
         "title": "트리거 차단 / 실패 / 성공",
-        "expressionLabels": ["blocked", "failed", "succeeded"]
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ]
       }
     ]
   }

@@ -41,6 +41,7 @@ import type {
 } from '@/api/client';
 import { bffClient } from '@/api/client';
 import { useTimeRangeStore } from '@/controls/timeRange';
+import { serviceRef } from '@/utils/serviceRef';
 
 interface ExpansionOptions {
   layerKey: Ref<string>;
@@ -91,6 +92,11 @@ export function useEndpointDependencyExpansion(opts: ExpansionOptions) {
   async function expandNode(node: EndpointDependencyNode): Promise<void> {
     const key = node.id;
     if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
+    // The graph node carries its owning service whole — id, name, and (as
+    // `isReal`) the normal flag OAP tagged it with, which is what the builder
+    // scopes the expanded node's own endpoint MQE by.
+    const owner = serviceRef(node.serviceId, node.serviceName, node.isReal);
+    if (!owner) return;
     const loading = new Set(expansionsLoading.value);
     loading.add(key);
     expansionsLoading.value = loading;
@@ -98,7 +104,7 @@ export function useEndpointDependencyExpansion(opts: ExpansionOptions) {
       const before = new Set(nodes.value.map((n) => n.id));
       const resp = await bffClient.layer.endpointDependency(
         layerKey.value,
-        node.serviceName,
+        owner,
         node.name,
         { step: timeRange.step, startMs: timeRange.range.startMs, endMs: timeRange.range.endMs },
       );

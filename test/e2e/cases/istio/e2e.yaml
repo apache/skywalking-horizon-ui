@@ -1,0 +1,166 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Istio case — Horizon against a real service mesh, on kind rather than
+# compose. The MESH layer is built from Envoy access logs, so nothing here can
+# be reproduced by an agent-instrumented fixture.
+#
+# Run it:  e2e run -c test/e2e/cases/istio/e2e.yaml
+#          make -C test/e2e run CASE=istio
+#
+# Profiling needs rover, which attaches eBPF probes and so needs a Linux
+# kernel. Set E2E_SKIP_PROFILING=true to drop the rover deployment and the
+# profiling verification and run everything else — which is how the mesh
+# coverage is debugged on macOS:
+#
+#          make -C test/e2e run-istio-without-profiling
+#
+# CI never sets it. One fixture, one case file: the flag removes a deployment
+# and its verification, it does not fork the scenario.
+
+setup:
+  env: kind
+  file: kind.yaml
+  timeout: 40m
+  init-system-environment: ../../script/env
+  kind:
+    import-images:
+      # infra-e2e pulls each of these on the HOST if missing, then side-loads
+      # it into the node.
+      #
+      # Docker Hub images are named WITHOUT the `docker.io/` prefix, which is
+      # how the local daemon lists them. Spelled with the prefix, infra-e2e's
+      # "already present?" check misses an image that is sitting right there
+      # and pulls anyway — so a run needs Hub reachability it should not need,
+      # and fails when Hub is down even though nothing is missing.
+      #
+      # Horizon is built from this checkout and exists nowhere else. The rest
+      # are here because the node's own containerd is a second network path
+      # that has to reach Docker Hub on its own — it inherits none of the
+      # host's proxy or registry-mirror configuration, and it is where a rate
+      # limit lands as an opaque ImagePullBackOff five minutes into an istio
+      # install. Pulling once on the host and loading is both faster and the
+      # only version of this that works on a machine whose daemon reaches
+      # Docker Hub but whose kind node does not.
+      #
+      # EVERY image the cluster runs is listed. That is deliberate: with the
+      # list complete, the node never contacts a registry at all, so the case
+      # does not depend on the node having working outbound access. It does
+      # not always have it — kind copies HTTP_PROXY/HTTPS_PROXY out of the
+      # environment into the node, and a proxy on the host's loopback (the
+      # usual shape) resolves inside the node to the NODE's loopback, where
+      # nothing is listening. That surfaces as ImagePullBackOff against every
+      # registry, ghcr included, several minutes into an install.
+      #
+      # Adding a component to this fixture means adding its image here.
+      - ${HORIZON_E2E_IMAGE}
+      - ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}
+      - ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}
+      # The chart's wait-for-banyandb init container asks for an UNTAGGED
+      # `image: curlimages/curl` with no value to override it, so the
+      # side-load must name `:latest`. The CONTENT is pinned instead —
+      # `make images` re-tags SW_CURL_IMAGE as this name.
+      - curlimages/curl:latest
+      - ${SW_ROVER_IMAGE}
+      - istio/pilot:${ISTIO_VERSION}
+      - istio/proxyv2:${ISTIO_VERSION}
+      # bookinfo pins its own image tags, independent of the Istio version —
+      # taken from the manifest the `demo` stage applies.
+      - istio/examples-bookinfo-productpage-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-details-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-ratings-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v2:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v3:${BOOKINFO_VERSION}
+      - ${TRAFFIC_GEN_IMAGE}
+    expose-ports:
+      # For the readiness checks only — the browser reaches Horizon over the
+      # node's NodePort instead, so the browser half needs no host port.
+      - namespace: istio-system
+        resource: service/skywalking-oap
+        port: 12800
+      - namespace: istio-system
+        resource: service/horizon
+        port: 8081
+  steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh istio
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    - name: install kubectl
+      command: bash test/e2e/script/prepare/install.sh kubectl
+    - name: install helm
+      command: bash test/e2e/script/prepare/install.sh helm
+    - name: install istioctl
+      command: bash test/e2e/script/prepare/install.sh istioctl
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+    - name: install istio
+      command: bash test/e2e/script/prepare/istio-up.sh istio
+    - name: install skywalking
+      command: bash test/e2e/script/prepare/istio-up.sh skywalking
+      wait:
+        - namespace: istio-system
+          resource: deployments/skywalking-oap
+          for: condition=available
+    - name: deploy horizon
+      command: bash test/e2e/script/prepare/istio-up.sh horizon
+      wait:
+        - namespace: istio-system
+          resource: deployments/horizon
+          for: condition=available
+    - name: deploy bookinfo
+      command: bash test/e2e/script/prepare/istio-up.sh demo
+      wait:
+        - namespace: default
+          resource: pod
+          for: condition=Ready
+    # No-ops when profiling is off — see profiling-enabled.sh.
+    - name: install rover
+      command: bash test/e2e/script/prepare/istio-up.sh rover
+    # Traffic runs in-cluster; kind has no load balancer for a host-side
+    # trigger to call. This is why the case has no `trigger` block.
+    - name: generate traffic
+      path: traffic-gen.yaml
+      wait:
+        - namespace: default
+          resource: pod
+          for: condition=Ready
+
+verify:
+  # ALS-derived metrics take longer to appear than agent-reported ones: Envoy
+  # batches access logs, OAP analyses them into the mesh entities, and only
+  # then persists on its usual cycle.
+  retry:
+    count: 60
+    interval: 10s
+  cases:
+    - includes:
+        - verify-mesh.yaml
+    # Each case inside reports itself skipped, loudly, when the flag is set.
+    - includes:
+        - verify-profiling.yaml
+
+cleanup:
+  on: always

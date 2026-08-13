@@ -25,6 +25,7 @@
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { useLayerInstances } from '@/layer/useLayerInstances';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { pushEvent } from '@/controls/eventLog';
 import { MAX_LOCKED } from '@/state/layerSelection';
@@ -40,7 +41,9 @@ export interface LayerInstance {
 export function useInstanceCascade(
   layerKey: Ref<string>,
   scope: ComputedRef<string>,
-  serviceName: ComputedRef<string | null>,
+  /** The picked service, id AND name — non-null only once it has resolved,
+   *  which is what enforces the landing → service → instance cascade. */
+  service: ComputedRef<ServiceRef | null>,
   layer: ComputedRef<LayerDef | null>,
 ) {
   const {
@@ -51,13 +54,13 @@ export function useInstanceCascade(
     isInstanceLocked,
   } = useSelectedInstance();
 
-  // Instance list waits for `serviceName` (post-landing), not the URL
-  // id fallback. Enforces the cascade: landing → service → instance →
-  // metrics, each step firing exactly once after the prior resolves.
   const { instances: instanceList, isFetching: instancesLoading } = useLayerInstances(
     layerKey,
-    serviceName,
+    service,
   );
+  // Cascade-clear keys on the id: `service` is a fresh object on every
+  // recompute, so watching it directly would fire on re-resolution.
+  const serviceKey = computed<string | null>(() => service.value?.id ?? null);
 
   /** Track which row's attributes panel is open. Mutually exclusive —
    *  expanding one collapses the previous so the list stays compact. */
@@ -75,13 +78,13 @@ export function useInstanceCascade(
 
   // Drop the stale instance whenever the service ACTUALLY changes —
   // the new service's instance list almost never matches the previous
-  // pick. The transition `null → "service-name"` (initial landing
+  // pick. The transition `null → <service>` (initial landing
   // resolution) is NOT a service change and must not clear the URL
   // `?instance=` — doing so blew away the operator's URL pick before
   // the auto-pick / fallback path could even read it, and the dashboard
   // query then waited for the next instance list + auto-pick cycle.
-  // Only fire when both ends of the transition are real service names.
-  watch(serviceName, (next, prev) => {
+  // Only fire when both ends of the transition are real services.
+  watch(serviceKey, (next, prev) => {
     if (!prev || !next) return;
     if (next !== prev && selectedInstance.value) {
       setSelectedInstance(null);
@@ -115,7 +118,7 @@ export function useInstanceCascade(
       pushEvent(
         'fallback',
         'info',
-        `URL instance "${selectedInstance.value}" not in ${serviceName.value} · falling back to "${list[0].name}"`,
+        `URL instance "${selectedInstance.value}" not in ${service.value?.name} · falling back to "${list[0].name}"`,
       );
       setSelectedInstance(list[0].name);
     }

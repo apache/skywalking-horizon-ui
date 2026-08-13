@@ -23,16 +23,18 @@
   "dashboards": {
     "service": [
       {
+        "id": "pod_total",
         "title": "サービス Pod"
       },
       {
+        "id": "pod_waiting",
         "title": "待機中の Pod",
         "tableHeaders": [
-          "コンテナ · Pod · 理由",
-          ""
+          "コンテナ · Pod · 理由"
         ]
       },
       {
+        "id": "pod_restarts",
         "title": "Pod の再起動",
         "tableHeaders": [
           "Pod",
@@ -40,6 +42,7 @@
         ]
       },
       {
+        "id": "cpu_resources",
         "title": "CPU リソース",
         "expressionLabels": [
           "リクエスト",
@@ -47,6 +50,7 @@
         ]
       },
       {
+        "id": "memory_resources",
         "title": "メモリリソース",
         "expressionLabels": [
           "リクエスト",
@@ -54,18 +58,23 @@
         ]
       },
       {
+        "id": "pod_cpu_usage",
         "title": "Pod CPU 使用率"
       },
       {
+        "id": "pod_memory_usage",
         "title": "Pod メモリ使用率"
       },
       {
+        "id": "http_call_cpm",
         "title": "HTTP リクエスト RPM"
       },
       {
+        "id": "http_call_time",
         "title": "HTTP 応答時間"
       },
       {
+        "id": "http_status",
         "title": "HTTP ステータスコード RPM",
         "tip": "クラス別のステータスコード数（1xx / 2xx / 3xx / 4xx / 5xx）。",
         "expressionLabels": [
@@ -77,6 +86,7 @@
         ]
       },
       {
+        "id": "http_req_resp_size",
         "title": "HTTP リクエスト / レスポンスサイズ",
         "expressionLabels": [
           "リクエストヘッダ",
@@ -86,6 +96,7 @@
         ]
       },
       {
+        "id": "tcp_connect",
         "title": "TCP 接続",
         "tip": "クライアント側の接続試行と成功（毎分）。",
         "expressionLabels": [
@@ -94,12 +105,15 @@
         ]
       },
       {
+        "id": "tcp_connect_time",
         "title": "TCP Connect 所要時間"
       },
       {
+        "id": "tcp_accept",
         "title": "TCP Accept"
       },
       {
+        "id": "tcp_packets",
         "title": "TCP パケット",
         "tip": "毎分の読み取り + 書き込みパケット数（再送を含む）。",
         "expressionLabels": [
@@ -109,6 +123,7 @@
         ]
       },
       {
+        "id": "tcp_bytes",
         "title": "TCP バイト",
         "expressionLabels": [
           "読み取り",
@@ -118,12 +133,15 @@
     ],
     "instance": [
       {
+        "id": "pod_http_cpm",
         "title": "Pod HTTP RPM"
       },
       {
+        "id": "pod_http_time",
         "title": "Pod HTTP 応答時間"
       },
       {
+        "id": "pod_http_status",
         "title": "Pod HTTP ステータスコード RPM",
         "expressionLabels": [
           "1xx",
@@ -134,6 +152,7 @@
         ]
       },
       {
+        "id": "pod_http_sizes",
         "title": "Pod HTTP サイズ",
         "expressionLabels": [
           "リクエストヘッダ",
@@ -143,6 +162,7 @@
         ]
       },
       {
+        "id": "pod_tcp_connect",
         "title": "Pod TCP Connect",
         "expressionLabels": [
           "接続",
@@ -150,6 +170,7 @@
         ]
       },
       {
+        "id": "pod_tcp_packets",
         "title": "Pod TCP パケット",
         "expressionLabels": [
           "読み取り",
@@ -158,6 +179,7 @@
         ]
       },
       {
+        "id": "pod_tcp_bytes",
         "title": "Pod TCP バイト",
         "expressionLabels": [
           "読み取り",
@@ -167,12 +189,15 @@
     ],
     "endpoint": [
       {
+        "id": "ep_http_cpm",
         "title": "エンドポイント HTTP RPM"
       },
       {
+        "id": "ep_http_time",
         "title": "エンドポイント HTTP 応答時間"
       },
       {
+        "id": "ep_http_status",
         "title": "エンドポイントステータスコード RPM",
         "expressionLabels": [
           "1xx",
@@ -183,6 +208,7 @@
         ]
       },
       {
+        "id": "ep_http_req_sizes",
         "title": "エンドポイントリクエストサイズ",
         "expressionLabels": [
           "ヘッダ",
@@ -190,6 +216,7 @@
         ]
       },
       {
+        "id": "ep_http_resp_sizes",
         "title": "エンドポイントレスポンスサイズ",
         "expressionLabels": [
           "ヘッダ",
@@ -201,44 +228,72 @@
   "topology": {
     "nodeMetrics": [
       {
+        "id": "httpCpm",
         "label": "RPM"
       },
       {
+        "id": "httpSuccess",
         "label": "成功率"
       },
       {
+        "id": "httpRespTime",
         "label": "レイテンシ"
       }
     ],
     "linkServerMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       }
     ],
     "linkClientMetrics": [
       {
+        "id": "cpm",
         "label": "RPM"
       },
       {
+        "id": "respTime",
         "label": "平均応答時間"
       }
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "label": "RPM" },
-        { "label": "成功率" },
-        { "label": "レイテンシ" }
+        {
+          "id": "httpCpm",
+          "label": "RPM"
+        },
+        {
+          "id": "httpSuccess",
+          "label": "成功率"
+        },
+        {
+          "id": "httpRespTime",
+          "label": "レイテンシ"
+        }
       ],
       "linkServerMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        }
       ],
       "linkClientMetrics": [
-        { "label": "RPM" },
-        { "label": "平均応答時間" }
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "respTime",
+          "label": "平均応答時間"
+        }
       ]
     }
   },

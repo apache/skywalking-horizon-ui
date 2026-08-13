@@ -1,0 +1,53 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# The profiling half, which needs rover.
+#
+# Both cases below report themselves skipped on stderr and pass when profiling
+# is off — the same condition that decided whether rover was deployed at all,
+# so the two halves can never disagree. See profiling-enabled.sh: explicitly
+# via E2E_SKIP_PROFILING=true, or automatically on a non-Linux host, where
+# rover has no kernel to attach eBPF probes to. CI runs on Linux and sets
+# nothing, so nothing is skipped where it can actually run.
+
+cases:
+  # READINESS: rover reported processes for the service.
+  #
+  # The profiling SPECS below assert only that their pages mount, so strictly
+  # they do not need this. It stays because it is the one check that proves
+  # the rover half of the fixture is alive at all — without it, rover could
+  # stop working entirely and this case would still be green while claiming
+  # to be "kind + Istio + rover".
+  - query: |
+      if ! bash test/e2e/script/prepare/profiling-enabled.sh; then
+        echo "SKIPPED: rover process check" >&2
+        echo "hasProcesses: true"
+      else
+        bash test/e2e/script/prepare/rover-processes.sh \
+          "http://${service_skywalking_oap_host}:${service_skywalking_oap_12800}/graphql" \
+          productpage
+      fi
+    expected: expected/has-processes.yml
+
+  - query: |
+      if ! bash test/e2e/script/prepare/profiling-enabled.sh; then
+        echo "SKIPPED: profiling specs never ran" >&2
+        echo "passed: true"
+      else
+        bash test/e2e/script/prepare/playwright.sh istio-profiling
+      fi
+    expected: expected/passed.yml

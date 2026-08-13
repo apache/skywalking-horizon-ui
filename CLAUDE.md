@@ -47,6 +47,17 @@ Every OAP metric lives under exactly one entity scope (Service / ServiceInstance
 - **OAP IDs are not always per-record unique.** Some wire `id` fields key on the alarmed/related entity, not the firing instance. Disambiguate composite keys with timestamp before using `id` as a row key.
 - **Widget type follows MQE shape.** A widget whose MQE collapses to a single scalar must be `type: "card"`, not `type: "line"`. The tell-tale is the outermost call: `latest(...)`, `max(...)`, `min(...)`, `avg(<plain-metric>)`, `sum(<plain-metric>)` all reduce the window to one number — line-charting a single point is wasteful and misleads operators into thinking the metric is time-varying. Series-shaped wrappers (`relabels(...)`, `top_n(...)`, `histogram*(...)`, `aggregate_labels(...)` without an outer scalar collapse, `rate(...)`, `increase(...)`) stay `line`. When adding or porting a widget, look at the outermost function first.
 
+### Template source: `live` means REMOTE, never bundled
+
+`templates.mode` decides where a dashboard/overview/alert template comes from, and the rule is absolute:
+
+- **`live` (default) — the OAP-stored row is the ONLY source.** Horizon seeds the bundle into OAP's `ui_template` store at boot and from then on renders what OAP holds. If the template store is unreachable, or the layer's row is admin-disabled, the route is **blocked**: it serves nothing and the UI surfaces the connectivity banner. It must NOT quietly substitute the disk bundle — an operator whose OAP-stored dashboards can't be read is better served by an honest empty state than by shipped defaults presented as their configuration.
+- **The disk bundle reaches the runtime through exactly two doors:** `templates.mode: readonly`, and bundled **preview** mode in the admin editor. Nothing else.
+
+The practical consequence: an OAP that has no `/ui-management/templates*` surface (any 10.x — template management lived on the query port's GraphQL there, which Horizon does not speak) **requires `templates.mode: readonly`**. That is the supported configuration, not a fallback Horizon applies for you.
+
+This has been broken once by "helpfully" adding a bundled fallback to the unreachable path. Blocking is the design, not an oversight — if you are about to make an unreachable store render *something*, you are changing the product's contract, not fixing a bug.
+
 ## Design source of truth
 
 Design tokens live in the runtime token CSS of the design-tokens workspace package (`packages/design-tokens/src/tokens.css`, imported app-wide as `@skywalking-horizon-ui/design-tokens/tokens.css`) — that copy is canonical. The early-build HTML/JSX prototype bundle has been retired now that every screen has a Vue implementation with visual sign-off. When a new screen is needed, the existing dark-dense vocabulary in the rendered UI is the spec; match it.
@@ -104,13 +115,29 @@ English is the source of truth. Every UI string and every translatable template 
 
 **Never** add `Co-Authored-By: Claude` (or any AI / Anthropic / claude.com / `noreply@anthropic.com` line) to commit messages or PR bodies. Do not append the "🤖 Generated with Claude Code" footer. Per-project directive.
 
-## Changelog (`CHANGELOG.md`)
+## Changelog (`docs/changelog/`)
 
-Keep `CHANGELOG.md` current as part of the change, not as an afterthought. Written from the operator's point of view — what's new on screen and what's now possible — never file-by-file implementation (that's the git log).
+Keep the changelog current as part of the change, not as an afterthought. Written from the operator's point of view — what's new on screen and what's now possible — never file-by-file implementation (that's the git log).
 
-- **New features go in the changelog.** Any operator-visible capability — a new page / tab / widget, a new component flag, **bundled template changes** (a layer gaining a capability, new dashboards / widgets / metrics), a new admin surface — must be recorded under the current **unreleased** version section. If a change alters what an operator sees or can do, it belongs here.
-- **Released version sections are frozen.** A version that's been tagged/released only ever receives **bug-fix** entries afterward (and only for fixes shipped to that line). Never add a new feature to an already-released version's section — features always land under the current/next unreleased version. The current version is `*-dev` in `package.json`; the newest released line is the latest `v*` git tag.
-- **One line per paragraph and per list item — do not hard-wrap prose.** A GitHub **Release** body (rendered by the same engine as issue / PR / discussion comments) turns every single newline into a literal `<br>` (GFM hard line breaks), so a paragraph hard-wrapped at ~80 cols renders as a ragged column of short lines with a sea of right-hand whitespace. The repo file view collapses those same newlines to spaces, so the damage is invisible there — you only see it on the release page. Keep each paragraph / bullet on one physical line and it renders correctly in both. Separate items with a blank line; nested bullets each take their own line. This is the house style for `CHANGELOG.md` **and** Markdown under `docs/`. The release pipeline still unwraps at publish time as a backstop (`scripts/changelog-release-notes.mjs`); run it with `--whole-file` to normalize an existing file to this style.
+**The layout: one file per version, kept forever.** `docs/changelog/<version>.md` — every shipped version has one, and so does the version in flight. There is **no root `CHANGELOG.md`**. Each file is a website page: an H1 title carrying the version, then the notes, listed in `docs/menu.yml` under **Release Notes**.
+
+- **Add your entry to the file whose version matches `package.json`.** The in-development version is the `*-dev` one there, so `1.0.0-dev` means `docs/changelog/1.0.0.md`. Any operator-visible capability — a new page / tab / widget, a new component flag, **bundled template changes** (a layer gaining a capability, new dashboards / widgets / metrics), a new admin surface — must be recorded in it. If a change alters what an operator sees or can do, it belongs in the changelog.
+- **Released files are frozen, and the file boundary is what enforces it.** A shipped version's prose sits in its own file that no release ever rewrites, so there is no released section to accidentally append a feature to. Never edit a released version's file: it is the historical record of what shipped. A bug fix that ships in the next release from main goes in the in-development file like anything else; a bug fix released as a **patch** off an already-released tag is written on that patch line's own branch, in its own `docs/changelog/<patch>.md`.
+- **A release moves nothing.** `scripts/release.sh` READS the release version's file (vote email, both tarballs, the GitHub release body) and SEEDS the next cycle — an empty `docs/changelog/<next>.md` plus its `docs/menu.yml` entry, written by `scripts/changelog-version.mjs seed`. Run that command by hand when no release seeds the file for you (opening a patch line: `node scripts/changelog-version.mjs seed 1.0.1`). The seeded file carries a stub line the pre-tag gate rejects, so a release whose notes were never written fails before the tag exists.
+- **The `CHANGELOG.md` at the root of a source tarball is made during packaging.** ASF convention puts one there for release reviewers, so `scripts/release.sh` copies `docs/changelog/<version>.md` to the tarball root as it assembles it. It is a packaging artifact — do not re-create it in git.
+- **One line per paragraph and per list item — do not hard-wrap prose.** A GitHub **Release** body (rendered by the same engine as issue / PR / discussion comments) turns every single newline into a literal `<br>` (GFM hard line breaks), so a paragraph hard-wrapped at ~80 cols renders as a ragged column of short lines with a sea of right-hand whitespace. The repo file view collapses those same newlines to spaces, so the damage is invisible there — you only see it on the release page. Keep each paragraph / bullet on one physical line and it renders correctly in both. Separate items with a blank line; nested bullets each take their own line. This is the house style for the changelog files **and** every other Markdown page under `docs/`. The release pipeline still unwraps at publish time as a backstop (`scripts/changelog-release-notes.mjs`); run it with `--whole-file <file>` to normalize an existing file to this style.
+
+## Naming and wording
+
+Code and prose are read by people who already know this ecosystem. **Use the word they already have for the thing.** Kubernetes, Istio, Envoy, Prometheus and OAP have settled vocabularies; borrowing from them makes a comment searchable, translatable and unambiguous, while a coined term forces every reader to learn a private language first.
+
+- **Reach for the upstream noun before inventing one.** Kubernetes says *condition*, *readiness probe*, *precondition*, *reconcile*; Prometheus says *scrape*, *target*, *series*, *label*; Envoy says *listener*, *cluster*, *filter*; OAP says *entity*, *scope*, *layer*, *metric*. If a reader could grep the term in upstream docs and land somewhere useful, it is the right term.
+- **Prefer the plain description over the metaphor.** "Check the roster is populated first" beats "gate on the roster". Metaphors read as precise to the person who picked them and as vague to everyone else — and they translate badly, which matters in a project shipping seven locales.
+- **A term must survive being read literally.** Someone will take it at face value: `gate` implies something that opens and closes, `smoke` implies a scope nobody defined, `spine` implies a structure that does not exist in the code. If the literal reading misleads, the word is wrong.
+- **Name the thing by what it does, not by how it feels.** `wait-for-banyandb`, `readiness check`, `retry budget`, `fail-fast marker` — each says what happens. Judge a name by whether a reviewer who has never seen the file can predict the behaviour from it.
+- **One name per concept, everywhere.** The same idea in a comment, a doc, a test name and a log line should use the same word. Two names for one thing reads as two things.
+
+This applies to prose as much as identifiers: file comments, `docs/`, changelog entries, commit messages, test names and CI output are all read by people deciding whether to trust the code.
 
 ## Common AI failure modes to avoid
 

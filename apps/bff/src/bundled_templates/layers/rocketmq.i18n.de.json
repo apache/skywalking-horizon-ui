@@ -20,87 +20,60 @@
   "dashboards": {
     "service": [
       {
-        "title": "Heute erzeugt",
-        "expressions": [
-          null
-        ]
+        "id": "today_produced",
+        "title": "Heute erzeugt"
       },
       {
-        "title": "Heute verbraucht",
-        "expressions": [
-          null
-        ]
+        "id": "today_consumed",
+        "title": "Heute verbraucht"
       },
       {
-        "title": "Gestern erzeugt",
-        "expressions": [
-          null
-        ]
+        "id": "yesterday_produced",
+        "title": "Gestern erzeugt"
       },
       {
-        "title": "Gestern verbraucht",
-        "expressions": [
-          null
-        ]
+        "id": "yesterday_consumed",
+        "title": "Gestern verbraucht"
       },
       {
+        "id": "tps",
         "title": "Producer / Consumer TPS",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "producer",
           "consumer"
         ]
       },
       {
+        "id": "msg_size",
         "title": "Producer / Consumer-Nachrichtengröße (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "erzeugt",
           "verbraucht"
         ]
       },
       {
-        "title": "Max. Consumer-Latenz",
-        "expressions": [
-          null
-        ]
+        "id": "consumer_lag",
+        "title": "Max. Consumer-Latenz"
       },
       {
-        "title": "Max. CommitLog-Disk-Ratio (%)",
-        "expressions": [
-          null
-        ]
+        "id": "commitlog_ratio_total",
+        "title": "Max. CommitLog-Disk-Ratio (%)"
       },
       {
-        "title": "Topics",
-        "expressions": [
-          null
-        ]
+        "id": "topic_count",
+        "title": "Topics"
       },
       {
-        "title": "Broker",
-        "expressions": [
-          null
-        ]
+        "id": "broker_count",
+        "title": "Broker"
       },
       {
-        "title": "CommitLog Disk-Verhältnis (%)",
-        "expressions": [
-          null
-        ]
+        "id": "commitlog_ratio",
+        "title": "CommitLog Disk-Verhältnis (%)"
       },
       {
+        "id": "queue_wait",
         "title": "ThreadPool Queue-Head-Wartezeit (ms)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "pull",
           "senden"
@@ -109,100 +82,71 @@
     ],
     "instance": [
       {
-        "title": "Erzeugungs-TPS",
-        "expressions": [
-          null
-        ]
+        "id": "produce_tps",
+        "title": "Erzeugungs-TPS"
       },
       {
-        "title": "Konsum-QPS",
-        "expressions": [
-          null
-        ]
+        "id": "consume_qps",
+        "title": "Konsum-QPS"
       },
       {
-        "title": "Producer-Msg-Größe (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "producer_size",
+        "title": "Producer-Msg-Größe (MB)"
       },
       {
-        "title": "Consumer-Msg-Größe (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "consumer_size",
+        "title": "Consumer-Msg-Größe (MB)"
       }
     ],
     "endpoint": [
       {
-        "title": "Max. Producer-Nachrichtengröße (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "max_msg_producer_total",
+        "title": "Max. Producer-Nachrichtengröße (MB)"
       },
       {
-        "title": "Max. Consumer-Nachrichtengröße (MB)",
-        "expressions": [
-          null
-        ]
+        "id": "max_msg_consumer_total",
+        "title": "Max. Consumer-Nachrichtengröße (MB)"
       },
       {
-        "title": "Consumer-Group-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "consumer_groups",
+        "title": "Consumer-Group-Anzahl"
       },
       {
-        "title": "Broker-Anzahl",
-        "expressions": [
-          null
-        ]
+        "id": "brokers",
+        "title": "Broker-Anzahl"
       },
       {
+        "id": "tps",
         "title": "Producer / Consumer-Group TPS",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "producer",
           "consumer group"
         ]
       },
       {
+        "id": "msg_size",
         "title": "Nachrichtengröße (MB)",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "erzeugt",
           "verbraucht"
         ]
       },
       {
+        "id": "offsets",
         "title": "Producer / Consumer-Offsets",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "producer",
           "consumer group"
         ]
       },
       {
+        "id": "backlog",
         "title": "Rückständige Nachrichten",
-        "tip": "Producer-Offset minus Consumer-Group-Offset — der Topic-Lag.",
-        "expressions": [
-          null
-        ]
+        "tip": "Producer-Offset minus Consumer-Group-Offset — der Topic-Lag."
       },
       {
-        "title": "Consumer-Latenz (s)",
-        "expressions": [
-          null
-        ]
+        "id": "consumer_latency",
+        "title": "Consumer-Latenz (s)"
       }
     ]
   },

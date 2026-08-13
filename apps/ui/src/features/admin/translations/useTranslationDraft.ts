@@ -43,8 +43,15 @@ import {
   type TranslatableField,
 } from '@/features/admin/_shared/translatableFields';
 import { SUPPORTED_LOCALES, type Locale } from '@/i18n';
+import { useAdminFeatures } from '@/shell/useAdminFeatures';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
+import {
+  alignOverlayToSource,
+  canonicalizeOverlay,
+  mergeLocalizedNode,
+  stampOverlayIds,
+} from '@skywalking-horizon-ui/api-client';
 
 /** Effective SOURCE for the picked template — strictly REMOTE. */
 export interface EffectiveSource { source: Record<string, unknown> }
@@ -84,6 +91,10 @@ export interface UseTranslationDraftReturn {
 export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslationDraftReturn {
   const { selectedKind, selectedName, effective } = args;
   const localEdits = useLocalTranslationEdits();
+  // `templates.mode`, not the page's broader read-only flag: an
+  // unreachable admin port must NOT fall back to the disk catalog either
+  // (nothing renders from it), and that flag folds the two together.
+  const { templatesMode } = useAdminFeatures();
 
   /** Operator's in-progress overlay, keyed by template-name → locale →
    *  field-path → translation. Editor reads/writes here; Push serializes
@@ -99,46 +110,81 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     return `${name}:${locale}`;
   }
 
-  /** Walk an overlay into the draft for (name, locale). Translatable
-   *  leaves only; existing draft values are NEVER clobbered (preserves
-   *  the operator's in-progress typing across locale switches). */
-  function applyOverlayToDraft(name: string, loc: string, overlay: unknown, eff: EffectiveSource): void {
-    if (!overlay) return;
-    const fields = walkTranslatable(eff.source);
-    const m: Record<string, string> = {};
-    for (const f of fields) {
-      const v = getAtPath(overlay, f.segments);
-      if (typeof v === 'string' && v.length > 0) m[f.path] = v;
+  /** Read one overlay's translatable leaves into a path → text map.
+   *
+   *  The overlay is realigned to the current source first, so an
+   *  id-addressed entry is read at the position its widget occupies
+   *  TODAY — the draft follows a reordered widget instead of picking up
+   *  its neighbour's translation. */
+  function overlayFieldMap(overlay: unknown, eff: EffectiveSource): Record<string, string> {
+    const aligned = alignOverlayToSource(eff.source, overlay);
+    const out: Record<string, string> = {};
+    for (const f of walkTranslatable(eff.source)) {
+      const v = getAtPath(aligned, f.segments);
+      if (typeof v === 'string' && v.length > 0) out[f.path] = v;
+    }
+    return out;
+  }
+
+  /** Layer overlays into the draft for (name, locale), LATER overlays
+   *  winning per leaf. Existing draft values are never clobbered by any
+   *  of them, which is what preserves the operator's in-progress typing
+   *  across a locale switch.
+   *
+   *  Precedence has to be applied in one pass: applying overlays one call
+   *  at a time makes the FIRST one win, because everything it wrote is
+   *  "existing draft" by the time the second arrives. */
+  function applyOverlaysToDraft(name: string, loc: string, overlays: unknown[], eff: EffectiveSource): void {
+    let seed: Record<string, string> = {};
+    for (const overlay of overlays) {
+      if (!overlay) continue;
+      seed = { ...seed, ...overlayFieldMap(overlay, eff) };
     }
     const tplMap = { ...(draft.value[name] ?? {}) };
     const cur = tplMap[loc] ?? {};
-    tplMap[loc] = { ...m, ...cur };
+    tplMap[loc] = { ...seed, ...cur };
     draft.value = { ...draft.value, [name]: tplMap };
   }
 
-  /** Seed the draft for one (template, locale) from:
-   *    1. disk overlay (BFF-shipped sibling catalog)
-   *    2. OAP overlay row (previously-pushed translations) — wins over disk
-   *    3. local-staged draft (operator's in-progress) — wins over both
-   *  Existing draft values still take precedence over (1) and (2) so
-   *  active typing isn't disturbed. */
+  function applyOverlayToDraft(name: string, loc: string, overlay: unknown, eff: EffectiveSource): void {
+    applyOverlaysToDraft(name, loc, [overlay], eff);
+  }
+
+  /** The overlay a locale currently RENDERS — the editor's baseline.
+   *
+   *  Same contract as the templates themselves: the remote row wins, and
+   *  the disk catalog reaches the runtime through exactly two doors —
+   *  `templates.mode: readonly`, and the editor's explicit reset-to-
+   *  bundled preview. So in live mode this is the OAP row and nothing
+   *  else; where no row exists the locale renders English and the draft
+   *  starts empty, which is the honest baseline and the one boot-seeding
+   *  resolves. Falling back to disk here would show a translation for a
+   *  field the live site serves in English, and publish it on the next
+   *  push. */
+  function renderedOverlay(snap: OverlaySnapshot | undefined): unknown {
+    if (templatesMode.value === 'readonly') return snap?.disk ?? null;
+    return snap?.oap ?? null;
+  }
+
+  /** Seed the draft for one (template, locale), lowest precedence first:
+   *    1. what the locale renders today (see {@link renderedOverlay})
+   *    2. the operator's local-staged draft
+   *  All of it in ONE pass, because each pass treats what the previous
+   *  one wrote as untouchable draft — layering across calls would make
+   *  the FIRST source win, silently replacing a staged edit with the
+   *  published value. In-memory typing still beats both. */
   async function ensureOverlayFetched(name: string, loc: Locale, eff: EffectiveSource): Promise<void> {
     if (loc === 'en') return;
     const k = overlayKey(name, loc);
     if (Object.prototype.hasOwnProperty.call(fetchedOverlays.value, k)) return;
+    let snap: OverlaySnapshot = { disk: null, oap: null };
     try {
-      const { disk, oap } = await bff.templateSync.overlay(name, loc);
-      fetchedOverlays.value = { ...fetchedOverlays.value, [k]: { disk, oap } };
-      // Disk first, then OAP on top — OAP wins per-leaf where set.
-      applyOverlayToDraft(name, loc, disk, eff);
-      applyOverlayToDraft(name, loc, oap, eff);
+      snap = await bff.templateSync.overlay(name, loc);
     } catch {
-      fetchedOverlays.value = { ...fetchedOverlays.value, [k]: { disk: null, oap: null } };
+      /* leave the snapshot empty — the draft then starts from English */
     }
-    // Local stage wins over everything — apply last so it survives the
-    // seed even when an OAP row exists.
-    const staged = localEdits.get<unknown>(name, loc);
-    if (staged) applyOverlayToDraft(name, loc, staged, eff);
+    fetchedOverlays.value = { ...fetchedOverlays.value, [k]: snap };
+    applyOverlaysToDraft(name, loc, [renderedOverlay(snap), localEdits.get<unknown>(name, loc)], eff);
   }
 
   // `target` MUST be declared above the `watch(effective, ...)` below
@@ -173,7 +219,13 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
   });
 
   /** Build the overlay object (source-shape mirror) for one (name, locale)
-   *  from the in-memory draft. Returns null when the draft is empty. */
+   *  from the in-memory draft. Returns null when the draft is empty.
+   *
+   *  Entries of an id-addressable array are stamped with their source
+   *  widget's `id`, which is what lets the merger follow that widget
+   *  through a later reorder. Untranslated slots stay holes here;
+   *  `draftOverlayForTarget` canonicalizes before anything is compared
+   *  or pushed. */
   function buildOverlayContent(name: string, loc: string, eff: EffectiveSource): Record<string, unknown> | null {
     const fields = walkTranslatable(eff.source);
     const overlay: Record<string, unknown> = {};
@@ -182,36 +234,21 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
       const v = m[f.path];
       if (v && v.length > 0) setAtPath(overlay, f.segments, v);
     }
-    return Object.keys(overlay).length === 0 ? null : overlay;
+    if (Object.keys(overlay).length === 0) return null;
+    return stampOverlayIds(eff.source, overlay) as Record<string, unknown>;
   }
 
   /** The source as the preview should render it — the target locale's
-   *  current draft is merged onto English. */
+   *  current draft is merged onto English through the SAME merger the
+   *  BFF renders with, so the preview cannot disagree with what the
+   *  locale actually shows. */
   const localizedSource = computed<unknown>(() => {
     const eff = effective.value;
     if (!eff) return null;
     const overlay = buildOverlayContent(selectedName.value, target.value, eff);
     if (!overlay) return eff.source;
-    return deepMerge(eff.source, overlay);
+    return mergeLocalizedNode(eff.source, overlay);
   });
-
-  function deepMerge(src: unknown, ovl: unknown): unknown {
-    if (Array.isArray(src)) {
-      if (!Array.isArray(ovl)) return src;
-      return src.map((item, i) => deepMerge(item, ovl[i]));
-    }
-    if (src !== null && typeof src === 'object') {
-      if (!ovl || typeof ovl !== 'object' || Array.isArray(ovl)) return src;
-      const ovlMap = ovl as Record<string, unknown>;
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(src as Record<string, unknown>)) {
-        out[k] = deepMerge(v, ovlMap[k]);
-      }
-      return out;
-    }
-    if (typeof src === 'string' && typeof ovl === 'string' && ovl.length > 0) return ovl;
-    return src;
-  }
 
   const localizedOverview = computed<OverviewDashboard | null>(() => {
     if (selectedKind.value !== 'overview') return null;
@@ -247,28 +284,42 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     draft.value = { ...draft.value, [name]: tplMap };
   }
 
-  /** OAP overlay row content for (selected template, target locale).
-   *  Used as the LEFT side of the push diff. */
+  /** OAP overlay row content for (selected template, target locale),
+   *  canonicalized against the source. Used as the LEFT side of the push
+   *  diff. Canonicalizing is what keeps a legacy positional row — or a
+   *  row the seeder wrote — from reading as a pending edit: the same
+   *  translations always render as the same bytes. */
   const oapOverlayForTarget = computed<unknown>(() => {
+    const eff = effective.value;
     const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
-    return snap?.oap ?? null;
+    if (!eff || !snap?.oap) return snap?.oap ?? null;
+    return canonicalizeOverlay(eff.source, snap.oap);
   });
 
   /** Operator's would-be next OAP overlay for (selected template, target
-   *  locale) — built from the in-memory draft. */
+   *  locale) — built from the in-memory draft, in the same canonical
+   *  shape as the left side so the diff shows only real changes. This is
+   *  what Push writes. */
   const draftOverlayForTarget = computed<Record<string, unknown> | null>(() => {
     const eff = effective.value;
     if (!eff || !selectedName.value) return null;
-    return buildOverlayContent(selectedName.value, target.value, eff);
+    const overlay = buildOverlayContent(selectedName.value, target.value, eff);
+    return overlay === null ? null : (canonicalizeOverlay(eff.source, overlay) as Record<string, unknown>);
   });
 
   /** The in-use overlay for (selected template, target locale): the OAP row
    *  (what's published) wins, else the disk-shipped seed. A pushed row is
    *  already the full merged overlay, so this is the complete in-use copy. */
   const inUseOverlayForTarget = computed<Record<string, unknown> | null>(() => {
+    const eff = effective.value;
     const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
     const v = snap?.oap ?? snap?.disk ?? null;
-    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+    if (!v || typeof v !== 'object') return null;
+    // Exported in canonical form so the file carries widget ids and can
+    // be imported onto an OAP whose template has since been re-laid-out.
+    return eff
+      ? (canonicalizeOverlay(eff.source, v) as Record<string, unknown>)
+      : (v as Record<string, unknown>);
   });
 
   /** Diff state — true when the draft differs from what's on OAP. The
@@ -298,12 +349,14 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     editorSource.value = hasStagedLocal.value ? 'local' : 'remote';
   });
 
-  /** Rebuild the draft for one (name, locale) from a specific source.
-   *  - `remote` reproduces the default layering (disk overlay first, OAP
-   *    overlay wins per leaf) — the canonical baseline the operator
-   *    sees in the live UI.
-   *  - `bundled` shows ONLY the disk-shipped overlay, ignoring OAP. Use
-   *    this to compare against the on-disk seed without OAP overrides. */
+  /** Rebuild the draft for one (name, locale) from a specific source,
+   *  discarding whatever is in it.
+   *  - `remote` restores the baseline the locale renders today — see
+   *    {@link renderedOverlay}.
+   *  - `bundled` loads the disk-shipped catalog. This is the preview
+   *    door: the one place a live-mode editor may show a translation
+   *    that isn't published, so the operator can adopt the shipped
+   *    wording and push it. */
   function rebuildDraftForLocale(name: string, loc: string, src: 'remote' | 'bundled'): void {
     const eff = effective.value;
     if (!eff) return;
@@ -312,10 +365,7 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     draft.value = { ...draft.value, [name]: tplMap };
     const snap = fetchedOverlays.value[overlayKey(name, loc)];
     if (!snap) return;
-    applyOverlayToDraft(name, loc, snap.disk, eff);
-    if (src === 'remote') {
-      applyOverlayToDraft(name, loc, snap.oap, eff);
-    }
+    applyOverlaysToDraft(name, loc, [src === 'remote' ? renderedOverlay(snap) : snap.disk], eff);
   }
 
   /** Drop the (name, locale) draft slot entirely — used before overwriting
