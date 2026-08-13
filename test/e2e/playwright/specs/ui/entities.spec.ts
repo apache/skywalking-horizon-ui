@@ -42,9 +42,19 @@ test('the instance tab renders a dashboard for a real instance', async ({ page, 
   // selected — so the assertion passed whether or not an entity resolved,
   // which is the thing it exists to prove.
   await expect(page.locator('.ib-row.on')).toContainText('provider1', { timeout: 45_000 });
-  // And the grid drew something for it: a resolved entity with 68 empty tiles
-  // is the exact symptom of the wrong-scope query described above.
-  await expect(page.locator('.widget .time-chart').first()).toBeVisible({ timeout: 45_000 });
+  // And the grid drew DATA, not merely tiles. A `.time-chart` renders for an
+  // all-null series too, so it cannot tell a resolved scope from an empty one
+  // — the very symptom described above. The widget COUNT can: this scope
+  // declares 74 widgets of which 71 are gated on an `exists` MQE, and a gated
+  // widget whose metric came back with no non-null value is dropped before the
+  // page ever sees it. Anything above the 3 ungated ones therefore proves
+  // instance-scope metrics arrived.
+  await expect
+    .poll(async () => widgets.count(), {
+      timeout: 45_000,
+      message: 'only the ungated widgets rendered — instance-scope metrics came back empty',
+    })
+    .toBeGreaterThan(3);
 
   expect(pageErrors).toEqual([]);
 });
@@ -57,6 +67,13 @@ test('the endpoint tab renders a dashboard for a real endpoint', async ({ page, 
   await expect(widgets.first()).toBeVisible({ timeout: 45_000 });
   // Scoped to the picked row for the same reason as the instance tab.
   await expect(page.locator('.ib-row.on')).toContainText(AN_ENDPOINT, { timeout: 45_000 });
+  // A render check only, deliberately. The chart element appears even for an
+  // all-null series, so it proves the widget dispatched, not that data arrived
+  // — and the count trick used on the instance tab does not transfer: this
+  // scope declares 5 widgets with a single gated one ("MQ Avg Consuming
+  // Latency"), which the demo app correctly never reports. Proving endpoint
+  // data would need a readiness check on an endpoint metric, not a stricter
+  // assertion here.
   await expect(page.locator('.widget .time-chart').first()).toBeVisible({ timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);

@@ -37,13 +37,17 @@ test('the services overview renders its widget vocabulary', async ({ page, pageE
   const tiles = page.locator('.sw-card.tile');
   await expect(tiles.first()).toBeVisible({ timeout: 45_000 });
   await expect.poll(async () => tiles.count(), { timeout: 45_000 }).toBeGreaterThan(1);
-  // `.count` renders "—" when the value is null, so its visibility is
-  // satisfied by an overview that resolved nothing. The fixture drives traffic
-  // through general, so at least one KPI tile must carry a digit.
+  // `.kpi-value`, NOT `.count`. The count row is the tile's service tally,
+  // which is always numeric — it prints "0" for a layer OAP never answered for
+  // — so requiring a digit there passed on exactly the build this is meant to
+  // catch. The KPI rows are the MQE-bound ones (general's is
+  // `sum(top_n(service_cpm, …))`, the metric the case's readiness check already
+  // gates on), and they render an em dash when nothing bound.
   await expect
     .poll(
-      async () => (await tiles.locator('.count').allTextContents()).filter((t) => /\d/.test(t)).length,
-      { timeout: 60_000, message: 'every KPI tile rendered an em dash — the overview bound no values' },
+      async () =>
+        (await tiles.locator('.kpi-value').allTextContents()).filter((t) => /\d/.test(t)).length,
+      { timeout: 30_000, message: 'every KPI row rendered an em dash — the overview bound no values' },
     )
     .toBeGreaterThan(0);
 
