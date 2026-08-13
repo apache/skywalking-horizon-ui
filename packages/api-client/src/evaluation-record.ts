@@ -33,6 +33,7 @@ export interface EvaluationRecordQueryRequest {
   valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   minScore?: number | null;
   maxScore?: number | null;
+  booleanValue?: boolean | null;
   taskName?: string | null;
   evaluationLevel?: string | null;
   judgeModel?: string | null;

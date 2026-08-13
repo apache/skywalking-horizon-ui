@@ -140,8 +140,10 @@ const traceIdInput = ref('');
 // the UI exposes ??service / instance / endpoint / traceID / tags ??// are all indexed dimensions and cover the booster-ui condition set.
 const page = ref(1);
 const pageSize = ref(50);
+const valueType = ref<'SCORE' | 'BOOLEAN'>('SCORE');
 const minScore = ref<number | null>(null);
 const maxScore = ref<number | null>(null);
+const booleanValue = ref<boolean | null>(null);
 const taskName = ref('');
 const judgeModel = ref('');
 const sortField = ref<'EVALUATION_TIME' | 'SCORE_VALUE'>('EVALUATION_TIME');
@@ -155,6 +157,13 @@ const serviceId = ref('');
 const providerIdRef = computed<string | null>(() => providerIdParam.value ?? selectedId.value);
 const modelIdRef = computed<string | null>(() => modelIdParam.value ?? selectedInstanceObj.value?.id ?? null);
 const keywordsRef = computed<string[]>(() => []);
+
+function changeValueType(): void {
+  minScore.value = null;
+  maxScore.value = null;
+  booleanValue.value = null;
+  page.value = 1;
+}
 
 // Time-range picker. Logs blocks the global topbar picker (see
 // `TIME_RANGE_OPT_OUT` in AppTopbar), so this is the source of truth
@@ -244,8 +253,10 @@ const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = u
   serviceId: computed(() => serviceId.value.trim() || null),
   providerId: providerIdRef,
   modelId: modelIdRef,
+  valueType,
   minScore,
   maxScore,
+  booleanValue,
   taskName: computed(() => taskName.value.trim() || null),
   evaluationLevel: computed(() => selectedLevel.value ? LEVEL_TAG_VALUES[selectedLevel.value] : null),
   judgeModel: computed(() => judgeModel.value.trim() || null),
@@ -424,12 +435,27 @@ function jumpToTrace(traceId: string, ts?: number): void {
           </select>
         </label>
         <label class="cf">
+          <span>Value type</span>
+          <select v-model="valueType" class="cf-input" @change="changeValueType">
+            <option value="SCORE">Score</option>
+            <option value="BOOLEAN">Boolean</option>
+          </select>
+        </label>
+        <label v-if="valueType === 'SCORE'" class="cf">
           <span>Min score</span>
           <input v-model.number="minScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
         </label>
-        <label class="cf">
+        <label v-if="valueType === 'SCORE'" class="cf">
           <span>Max score</span>
           <input v-model.number="maxScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
+        </label>
+        <label v-if="valueType === 'BOOLEAN'" class="cf">
+          <span>Boolean value</span>
+          <select v-model="booleanValue" class="cf-input" @change="page = 1">
+            <option :value="null">All</option>
+            <option :value="true">True</option>
+            <option :value="false">False</option>
+          </select>
         </label>
         <label class="cf">
           <span>Task name</span>

@@ -62,8 +62,10 @@ export interface EvaluationRecordParams {
   serviceId?: Ref<string | null>;
   providerId?: Ref<string | null>;
   modelId?: Ref<string | null>;
+  valueType?: Ref<'SCORE' | 'BOOLEAN'>;
   minScore?: Ref<number | null>;
   maxScore?: Ref<number | null>;
+  booleanValue?: Ref<boolean | null>;
   taskName?: Ref<string | null>;
   evaluationLevel?: Ref<string | null>;
   judgeModel?: Ref<string | null>;
@@ -87,8 +89,10 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       params.serviceId ?? computed(() => null),
       params.providerId ?? computed(() => null),
       params.modelId ?? computed(() => null),
+      params.valueType ?? computed(() => 'SCORE'),
       params.minScore ?? computed(() => null),
       params.maxScore ?? computed(() => null),
+      params.booleanValue ?? computed(() => null),
       params.taskName ?? computed(() => null),
       params.evaluationLevel ?? computed(() => null),
       params.judgeModel ?? computed(() => null),
@@ -107,8 +111,10 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
         ...(params.serviceId?.value ? { serviceId: params.serviceId.value } : {}),
         ...(params.providerId?.value ? { providerId: params.providerId.value } : {}),
         ...(params.modelId?.value ? { modelId: params.modelId.value } : {}),
-        ...(params.minScore?.value != null ? { minScore: params.minScore.value } : {}),
-        ...(params.maxScore?.value != null ? { maxScore: params.maxScore.value } : {}),
+        ...(params.valueType?.value ? { valueType: params.valueType.value } : {}),
+        ...(params.valueType?.value === 'SCORE' && params.minScore?.value != null ? { minScore: params.minScore.value } : {}),
+        ...(params.valueType?.value === 'SCORE' && params.maxScore?.value != null ? { maxScore: params.maxScore.value } : {}),
+        ...(params.valueType?.value === 'BOOLEAN' && params.booleanValue?.value != null ? { booleanValue: params.booleanValue.value } : {}),
         ...(params.taskName?.value ? { taskName: params.taskName.value } : {}),
         ...(params.evaluationLevel?.value ? { evaluationLevel: params.evaluationLevel.value } : {}),
         ...(params.judgeModel?.value ? { judgeModel: params.judgeModel.value } : {}),

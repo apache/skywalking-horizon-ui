@@ -52,6 +52,7 @@ export interface EvaluationRecordRouteDeps {
 }
 
 const DEFAULT_WINDOW_MIN = 30;
+const SCORE_SCALE = 1_000_000;
 /** OAP feeds `paging.pageSize` straight to its storage layer as a
  *  LIMIT clause. The cap is `performance.limits.maxPageSize.logs`
  *  (default 100); mirror that server-side so the cap holds against
@@ -63,6 +64,12 @@ function clampPageSize(requested: number | undefined, fallback: number, max: num
 
 function optionalFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function scoreBoundToStoredValue(value: number | null, lowerBound: boolean): number | null {
+  if (value == null) return null;
+  const scaled = value * SCORE_SCALE;
+  return lowerBound ? Math.ceil(scaled) : Math.floor(scaled);
 }
 
 /** Build the log query window as SECOND-precision strings. Logs are
@@ -164,7 +171,7 @@ function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow 
     modelId: r.modelId ?? null,
     modelName: r.modelName ?? null,
     operationName: r.operationName ?? null,
-    scoreValue: r.scoreValue ?? null,
+    scoreValue: r.scoreValue == null ? null : r.scoreValue / SCORE_SCALE,
     segmentId: r.segmentId ?? null,
     spanId: r.spanId ?? null,
     spanType: r.spanType ?? null,
@@ -189,6 +196,7 @@ export interface EvaluationRecordFetchScope {
   valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   minScore?: number | null;
   maxScore?: number | null;
+  booleanValue?: boolean | null;
   taskName?: string | null;
   evaluationLevel?: string | null;
   judgeModel?: string | null;
@@ -209,8 +217,12 @@ export async function fetchEvaluationRecords(
     paging: { pageNum: number; pageSize: number },
     coldStage: boolean,
 ): Promise<EvaluationRecordsResponse> {
-  const minScore = optionalFiniteNumber(scope.minScore);
-  const maxScore = optionalFiniteNumber(scope.maxScore);
+  const minScore = scope.valueType === 'SCORE'
+    ? scoreBoundToStoredValue(optionalFiniteNumber(scope.minScore), true)
+    : null;
+  const maxScore = scope.valueType === 'SCORE'
+    ? scoreBoundToStoredValue(optionalFiniteNumber(scope.maxScore), false)
+    : null;
   const evaluationRecordCondition = {
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.providerId ? { providerId: scope.providerId } : {}),
@@ -218,6 +230,7 @@ export async function fetchEvaluationRecords(
     ...(scope.valueType ? { valueType: scope.valueType } : {}),
     ...(minScore != null ? { minScore } : {}),
     ...(maxScore != null ? { maxScore } : {}),
+    ...(scope.valueType === 'BOOLEAN' && scope.booleanValue != null ? { booleanValue: scope.booleanValue } : {}),
     ...(scope.taskName ? { taskName: scope.taskName } : {}),
     ...(scope.evaluationLevel ? { evaluationLevel: scope.evaluationLevel } : {}),
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
@@ -301,6 +314,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
               valueType: body.valueType,
               minScore: body.minScore,
               maxScore: body.maxScore,
+              booleanValue: body.booleanValue,
               taskName: body.taskName,
               evaluationLevel: body.evaluationLevel,
               judgeModel: body.judgeModel,
