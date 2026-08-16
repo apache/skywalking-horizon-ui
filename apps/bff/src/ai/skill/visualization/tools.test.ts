@@ -28,8 +28,11 @@ vi.mock('../../../logic/oap/instance-topology.js', () => ({ buildInstanceTopolog
 vi.mock('../../../logic/oap/deployment.js', () => ({ buildDeployment: vi.fn() }));
 vi.mock('../../../logic/oap/endpoint-dependency.js', () => ({ buildEndpointDependency: vi.fn() }));
 vi.mock('../../../logic/layers/effective.js', () => ({ resolveEffectiveLayer: vi.fn() }));
-vi.mock('../../../logic/layers/loader.js', () => ({
-  widgetsForScope: vi.fn(() => []),
+// Only the map CONFIG resolvers are stubbed. The widget resolvers stay
+// REAL so `show_widget`'s lookup runs the same whole-scope enumeration
+// production does — stubbing it would prove the stub, not the resolution.
+vi.mock('../../../logic/layers/loader.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../logic/layers/loader.js')>()),
   topologyConfigFor: vi.fn(() => ({ nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] })),
   deploymentConfigFor: vi.fn(() => null),
   instanceTopologyConfigFor: vi.fn(() => ({ nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] })),
@@ -99,6 +102,32 @@ function byName(ctx: AiRequestContext): Record<string, StructuredToolInterface> 
   return map;
 }
 const base = { title: 'T', layer: 'GENERAL', service: 'agent::songs' };
+
+/** A widget an operator added on an EXTENSION page only — absent from
+ *  `dashboards.service`, so it is reachable solely through the whole-scope
+ *  enumeration `show_widget` performs. */
+const extPageTemplate = {
+  key: 'GENERAL',
+  dashboards: { service: [{ id: 'service_load', type: 'line', title: 'Load', expressions: ['service_cpm'] }] },
+  dashboardExtPages: {
+    service: [
+      {
+        id: 'runtime',
+        name: 'Runtime',
+        widgets: [
+          {
+            id: 'jvm_heap',
+            type: 'line',
+            title: 'JVM heap',
+            expressions: ['instance_jvm_memory_heap'],
+            unit: 'MB',
+            tip: 'Heap after the last GC',
+          },
+        ],
+      },
+    ],
+  },
+};
 
 beforeEach(() => {
   runWidgetsMock.mockReset();
@@ -275,5 +304,38 @@ describe('visualization render tools', () => {
     );
     expect(out).toMatch(/permission|topology:read/i);
     expect(emitInstanceTopology).not.toHaveBeenCalled();
+  });
+
+  it('show_widget renders a widget that lives ONLY on an extension page', async () => {
+    resolveEff.mockResolvedValue({ blocked: false, template: extPageTemplate });
+    runWidgetsMock.mockResolvedValueOnce({ widgets: [{ id: 'jvm_heap', series: [{ data: [1, 2] }] }] });
+    const { ctx, emitFigure } = mockCtx();
+    const out = String(
+      await byName(ctx).show_widget.invoke({ layer: 'GENERAL', service: 'agent::songs', widgetId: 'jvm_heap' }),
+    );
+    // The default grid holds only `service_load`, so finding this one is
+    // what proves the lookup enumerates the extension pages — and it
+    // arrives with the template's own config rather than a rebuilt spec.
+    expect(runWidgetsMock).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'jvm_heap', unit: 'MB', tip: 'Heap after the last GC' })],
+      expect.objectContaining({ service: 'agent::songs', serviceId: 'svc-1', scope: 'service' }),
+      expect.anything(),
+      expect.anything(),
+    );
+    const fig = emitFigure.mock.calls[0]![0] as { title: string; figures: Array<{ spec: { unit?: string } }> };
+    expect(fig.title).toBe('JVM heap');
+    expect(fig.figures[0]!.spec.unit).toBe('MB');
+    expect(out).toContain('Heap after the last GC');
+  });
+
+  it('show_widget reports an unknown widget id without running anything', async () => {
+    resolveEff.mockResolvedValue({ blocked: false, template: extPageTemplate });
+    const { ctx, emitFigure } = mockCtx();
+    const out = String(
+      await byName(ctx).show_widget.invoke({ layer: 'GENERAL', service: 'agent::songs', widgetId: 'nope' }),
+    );
+    expect(out).toMatch(/no widget "nope"/i);
+    expect(runWidgetsMock).not.toHaveBeenCalled();
+    expect(emitFigure).not.toHaveBeenCalled();
   });
 });

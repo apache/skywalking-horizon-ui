@@ -28,12 +28,15 @@
  */
 import { computed, reactive, ref, onMounted, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router';
+import { firstLayerMenuRow, FALLBACK_LAYER_ROW } from '@skywalking-horizon-ui/api-client';
+import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import type { AdminLayerTemplate } from '@/api/client';
 
 import { bff, bffClient, BffApiError } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
+import { composeLayerPickerList } from './layerPickerList';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
 import { pushErrorLines } from '@/features/admin/_shared/pushError';
@@ -42,6 +45,7 @@ import { stableStringify } from '@/utils/stableJson';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { type AdminScope, SCOPES } from './layer-dashboards.scopes';
+import { draftPageIdIssues } from './useExtPages';
 
 export function useLayerTemplateStore() {
   // OAP UI-template sync status for layer dashboards. Drives the banner +
@@ -57,6 +61,11 @@ export function useLayerTemplateStore() {
   // first Save (published to OAP).
   const rawTemplates = ref<AdminLayerTemplate[]>([]);
   const { layers: menuLayers } = useLayers();
+  // Declared HERE, above `templates`: that computed reads it, and watches
+  // evaluate their source during setup — a later declaration leaves it in
+  // the TDZ at that moment, which aborts setup and renders a blank page
+  // with no console trace.
+  const sources = useTemplateSources('layer');
   function blankTemplateFor(key: string, alias: string, color?: string): AdminLayerTemplate {
     return {
       key,
@@ -68,18 +77,23 @@ export function useLayerTemplateStore() {
       widgets: [],
     };
   }
-  const templates = computed<AdminLayerTemplate[]>(() => {
-    const present = new Set(rawTemplates.value.map((t) => t.key.toUpperCase()));
-    const synthesized = menuLayers.value
-      .filter((L) => !present.has(L.key.toUpperCase()))
-      .map((L) => blankTemplateFor(L.key.toUpperCase(), L.name, L.color))
-      .sort((a, b) => a.key.localeCompare(b.key));
-    return [...rawTemplates.value, ...synthesized];
-  });
+  // Composition lives in `layerPickerList.ts` so it can be exercised
+  // directly; this only supplies the four sources.
+  const templateList = computed(() =>
+    composeLayerPickerList(
+      rawTemplates.value,
+      sources.remoteNames(),
+      (name) => sources.remote<AdminLayerTemplate>(name),
+      menuLayers.value.map((L) => ({ key: L.key, name: L.name, color: L.color })),
+      blankTemplateFor,
+    ),
+  );
+  const templates = computed<AdminLayerTemplate[]>(() => templateList.value.list);
   // Layers the roster reports that carry no dashboard template yet (the
-  // synthesized blanks above). Surfaced in the sync banner so the operator
-  // reads the picker's total as "configured + not-configured-yet".
-  const unconfiguredCount = computed(() => Math.max(0, templates.value.length - rawTemplates.value.length));
+  // synthesized blanks above). Counted from those alone: a stored-only
+  // layer IS configured, and folding it in here would report the
+  // operator's own published template as "not configured yet".
+  const unconfiguredCount = computed(() => templateList.value.unconfigured);
   // The shared sync banner counts only TEMPLATED layers (synced / diverged /
   // local). On this layer-list view we append the not-yet-configured count so
   // the summary explains the full picker. Other admin pages keep the plain
@@ -94,6 +108,9 @@ export function useLayerTemplateStore() {
   const error = ref<string | null>(null);
   const selectedKey = ref<string>('');
   const activeScope = ref<AdminScope>('service');
+  /** Which page of `activeScope` is being edited — `null` is the
+   *  component's default grid, which every layer has. */
+  const activePage = ref<string | null>(null);
   const isSaving = ref(false);
 
   const saveMsg = ref<string | null>(null);
@@ -150,8 +167,12 @@ export function useLayerTemplateStore() {
   }
   /** A layer with no dashboard template yet — present only via the merged live
    *  roster (a synthesized blank), not in the BFF's loaded template set. */
+  // Straight from the composition, so the filter and the count cannot
+  // disagree: "unconfigured" means the picker synthesized a blank for it,
+  // not merely that it ships no bundled JSON — a stored-only layer ships
+  // none and is configured.
   function isUnconfiguredRow(key: string): boolean {
-    return !rawTemplates.value.some((t) => t.key.toUpperCase() === key.toUpperCase());
+    return templateList.value.unconfiguredKeys.has(key.toUpperCase());
   }
   // Declared HERE — before divergedCount / localCount and their watches.
   // Those watches evaluate their source at setup, and `templates` can already
@@ -159,8 +180,8 @@ export function useLayerTemplateStore() {
   // `localEdits` synchronously — it must be initialized first (TDZ otherwise).
   const localEdits = useLocalTemplateEdits();
   // Server-side bundled + remote content for the Reset-to / Preview editor
-  // sources. Local (browser draft) comes from `localEdits`.
-  const sources = useTemplateSources('layer');
+  // sources. Local (browser draft) comes from `localEdits`. (Declared above,
+  // beside `templates`, which reads it during setup.)
   const sourcesReady = computed(() => !sources.isLoading.value);
   const previewOverride = usePreviewOverride();
   const divergedCount = computed(() => templates.value.filter((t) => isDivergedRow(t.key)).length);
@@ -169,6 +190,15 @@ export function useLayerTemplateStore() {
   /** Working copy — reactively edited. Diffs against `templates` to drive
    *  the Save / Reset state. */
   const draft = reactive<{ template: AdminLayerTemplate | null }>({ template: null });
+
+  /** A `?layer=` naming a template the picker had not listed yet. Applied
+   *  by the watcher below when it appears; cleared once it does. */
+  let pendingQueryLayer: string | null = null;
+  /** The `?page=` that arrived with it. Held alongside, because applying
+   *  the layer MOVES `selectedKey`, and the layer-change watcher clears
+   *  the page — so a deep link kept its page everywhere except on the
+   *  stored-only layers that need the wait. */
+  let pendingQueryPage: string | null = null;
 
   async function loadAll(): Promise<void> {
     isLoading.value = true;
@@ -179,17 +209,32 @@ export function useLayerTemplateStore() {
       // Hydrate from `?layer=&scope=` first; fall back to the first
       // template only when the URL doesn't pin a layer. This preserves
       // refresh state.
+      // Matched against the PICKER's list, not the loaded bundles: a
+      // stored-only layer is in the picker and not in `res.templates`, so
+      // matching there sent its deep link to whichever layer happened to
+      // be first — and an edit meant for the link's template landed on
+      // that one. The list may still be filling in (`sources` loading),
+      // which is why a miss holds the key rather than falling back; the
+      // watcher below applies it once the list resolves.
       const queryLayer = String(route.query.layer ?? '').toUpperCase();
-      const matchedQuery = res.templates.find((t) => t.key === queryLayer);
+      const matchedQuery = templates.value.find((t) => t.key.toUpperCase() === queryLayer);
       if (matchedQuery) {
         selectedKey.value = matchedQuery.key;
-      } else if (res.templates.length > 0 && !selectedKey.value) {
-        selectedKey.value = res.templates[0].key;
+      } else if (queryLayer) {
+        pendingQueryLayer = queryLayer;
+        pendingQueryPage = String(route.query.page ?? '') || null;
+      } else if (templates.value.length > 0 && !selectedKey.value) {
+        selectedKey.value = templates.value[0].key;
       }
       const queryScope = String(route.query.scope ?? '');
       if (SCOPES.includes(queryScope as AdminScope)) {
         activeScope.value = queryScope as AdminScope;
       }
+      const queryPage = String(route.query.page ?? '');
+      activePage.value = queryPage || null;
+      // Validated below once the draft exists — a `?page=` naming a page
+      // this layer does not have would otherwise leave the canvas reading
+      // an empty grid whose writes go nowhere.
       // Seed the editor only once the config-bundle (and hence
       // `remoteAvailable` / `hasLocalDraft`) has resolved — otherwise
       // syncDraft falls through to bundled and the editor visibly
@@ -211,23 +256,58 @@ export function useLayerTemplateStore() {
     }
   }
 
-  // URL ↔ state sync. Pushes `?layer=&scope=` on every selection change
-  // so refreshing the page (or sharing the URL) keeps the admin focused
-  // on the same layer + scope. Skipped while initial templates load so
-  // the boot-up `loadAll()` hydrate doesn't bounce the URL.
+  // URL ↔ state sync. Pushes `?layer=&scope=&page=` on every selection
+  // change so refreshing the page (or sharing the URL) keeps the admin
+  // focused on the same layer, scope and page. Skipped while initial
+  // templates load so the boot-up `loadAll()` hydrate doesn't bounce the
+  // URL.
   const { t } = useI18n();
   const route = useRoute();
   const router = useRouter();
   let suppressRouteSync = true;
   watch(
-    [selectedKey, activeScope],
-    ([key, scope]) => {
+    [selectedKey, activeScope, activePage],
+    ([key, scope, page]) => {
       if (suppressRouteSync) return;
       if (!key) return;
-      const q = { ...route.query, layer: key, scope };
+      // The default page carries no `page=`, so an untouched admin URL is
+      // exactly what it was before pages existed.
+      const q: LocationQueryRaw = { ...route.query, layer: key, scope };
+      if (page) q.page = page;
+      else delete q.page;
       void router.replace({ path: route.path, query: q });
     },
   );
+
+  /**
+   * Drop an `activePage` the current draft cannot satisfy.
+   *
+   * Three ways to get there: a hand-typed or stale `?page=`, switching the
+   * editor source (local / bundled / remote), and Reset — the last two
+   * replace the template wholesale. The canvas would otherwise read an
+   * empty grid and, worse, WRITE into nothing: `useExtPages` looks the
+   * page up by id and silently does nothing when it is absent, so an
+   * operator could add widgets that vanish on the next render.
+   */
+  watch([() => draft.template, activeScope, activePage], () => {
+    const tpl = draft.template;
+    const page = activePage.value;
+    if (!tpl || !page) return;
+    const scope = activeScope.value;
+    const pageable = scope === 'service' || scope === 'instance' || scope === 'endpoint';
+    const exists = pageable && !!tpl.dashboardExtPages?.[scope]?.some((p) => p.id === page);
+    if (!exists) activePage.value = null;
+  });
+
+  // Changing layer or scope drops back to that component's default page:
+  // a page id belongs to one component of one layer, so carrying it across
+  // would select a page that does not exist there. Suppressed during the
+  // initial hydrate, where these same refs are being SEEDED from the URL —
+  // resetting there would discard the `?page=` the operator deep-linked to.
+  watch([selectedKey, activeScope], () => {
+    if (suppressRouteSync) return;
+    activePage.value = null;
+  });
 
   /* ── Editor sources ───────────────────────────────────────────────
    * The editor loads from one of three sources: LOCAL (browser draft),
@@ -341,19 +421,13 @@ export function useLayerTemplateStore() {
 
   /** First per-layer tab segment for the live route, derived from enabled
    *  components (mirrors the sidebar's firstLayerTab fallback order). */
+  /** Where "Open live page" lands: the layer's FIRST resolved row, the
+   *  same one the sidebar click uses. A hard-coded component chain here
+   *  ignored both extension pages and an operator-defined menu order, so
+   *  preview opened somewhere the real menu would not. */
   function firstTabFor(tpl: AdminLayerTemplate | null): string {
-    const c = tpl?.components ?? {};
-    if (c.service) return 'service';
-    if (c.instances) return 'instance';
-    if (c.endpoints) return 'endpoint';
-    if (c.topology) return 'topology';
-    if (c.endpointDependency) return 'dependency';
-    if (c.traces) return 'trace';
-    if (c.logs) return 'logs';
-    if (c.traceProfiling) return 'trace-profiling';
-    if (c.ebpfProfiling) return 'ebpf-profiling';
-    if (c.asyncProfiling) return 'async-profiling';
-    return 'service';
+    if (!tpl) return FALLBACK_LAYER_ROW;
+    return firstLayerMenuRow(layerContentToDef(tpl as unknown as LayerTemplateContent));
   }
   // "Preview ▾" dropdown — open the REAL layer page in a new tab rendering
   // the chosen source (local / bundled / remote). Writes the content to the
@@ -382,6 +456,31 @@ export function useLayerTemplateStore() {
   // the false → true edge.
   watch(sourcesReady, (ready, wasReady) => {
     if (ready && !wasReady && selectedKey.value) {
+      syncDraft();
+    }
+  });
+  // A deep link to a layer the picker had not listed yet. Stored-only
+  // layers arrive with `sources`, after `loadAll` has already read the
+  // URL, so the link is applied here rather than dropped — otherwise it
+  // lands on another layer and every edit goes to the wrong template.
+  watch(templates, (list) => {
+    if (!pendingQueryLayer) return;
+    const match = list.find((t) => t.key.toUpperCase() === pendingQueryLayer);
+    if (match) {
+      pendingQueryLayer = null;
+      const page = pendingQueryPage;
+      pendingQueryPage = null;
+      selectedKey.value = match.key;
+      // Re-applied AFTER the layer-change watcher has run, not beside the
+      // assignment: that watcher is queued, so a page set in the same tick
+      // is cleared a moment later.
+      if (page) void nextTick(() => (activePage.value = page));
+      if (sourcesReady.value) syncDraft();
+    } else if (!selectedKey.value && list.length > 0 && sourcesReady.value) {
+      // The list has settled and it is genuinely not there — a stale
+      // bookmark. Fall back rather than leave the editor with nothing.
+      pendingQueryLayer = null;
+      selectedKey.value = list[0].key;
       syncDraft();
     }
   });
@@ -430,6 +529,18 @@ export function useLayerTemplateStore() {
    *  only "save" — it never writes OAP. Publish later with "Push local → OAP". */
   function save(): void {
     if (!draft.template) return;
+    // Named here, not at push: the schema refuses these too, but only
+    // after the operator has committed to publishing and read a server
+    // error — and an imported template can arrive carrying them.
+    const pageIssues = draftPageIdIssues(draft.template);
+    if (pageIssues.length > 0) {
+      // Names as well as ids, so the message says "pages", not "ids".
+      error.value = `Fix these pages before saving — ${pageIssues.join('; ')}`;
+      return;
+    }
+    // A save that succeeds clears the last failure: leaving it up showed
+    // the refusal and the confirmation on screen at the same time.
+    error.value = null;
     stripEmptyDeployment(draft.template);
     persistLocal(draft.template);
     editorSource.value = 'local';
@@ -571,6 +682,23 @@ export function useLayerTemplateStore() {
     confirmFn = null;
     if (fn) void fn();
   }
+  /** Raise the shared confirm modal for any destructive editor action.
+   *  Callers own their own wording; this only owns the modal. */
+  function askConfirm(o: {
+    title: string;
+    message: string;
+    label: string;
+    danger?: boolean;
+    run: () => void | Promise<void>;
+  }): void {
+    confirmTitle.value = o.title;
+    confirmMessage.value = o.message;
+    confirmLabel.value = o.label;
+    confirmIsDanger.value = o.danger !== false;
+    confirmFn = o.run;
+    deleteOpen.value = true;
+  }
+
   function askDeleteLayer(): void {
     const key = selectedKey.value;
     if (!key || !editName.value) return;
@@ -658,6 +786,7 @@ export function useLayerTemplateStore() {
     draft,
     selectedKey,
     activeScope,
+    activePage,
     editorSource,
     loadedSnapshot,
     selectedTpl,
@@ -717,6 +846,7 @@ export function useLayerTemplateStore() {
     confirmLabel,
     confirmIsDanger,
     runConfirm,
+    askConfirm,
     askDeleteLayer,
     askReactivateLayer,
     doDeleteLayer,

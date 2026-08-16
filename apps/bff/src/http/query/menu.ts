@@ -24,11 +24,15 @@ import type {
   MenuResponse,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
+import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
+import type { LayerDefaultFilters, LayerExtPages } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
-import type { LayerComponentFlags, LayerTemplate } from '../../logic/layers/loader.js';
+import type { LayerTemplate } from '../../logic/layers/loader.js';
+import { ENTITY_DASHBOARD_SCOPES } from '../../logic/layers/loader.js';
+import { capsForTemplate } from '../../logic/layers/caps.js';
 import { ambiguousConflicts, getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
@@ -40,41 +44,6 @@ import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 import { linkSchemeIssue, linkDomainIssue } from '../../util/link-policy.js';
 import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
-
-/**
- * Map the JSON config's `components.*` flags onto the wire `caps`
- * shape — caps are the cap-driven feature toggles each per-layer page
- * consults. We expand a few aliases (service ⇒ no separate cap; the
- * components flag is the source of truth for whether the page exists).
- */
-function componentsToCaps(components: LayerComponentFlags): LayerCaps {
-  return {
-    dashboards: components.service !== false,
-    instances: !!components.instances,
-    endpoints: !!components.endpoints,
-    endpointDependency: !!components.endpointDependency,
-    serviceMap: !!components.topology,
-    // instanceTopology is gated by the presence of the
-    // topology.instanceTopology config block, not the component flag —
-    // overridden per-layer at the call site (see resolveLayerDef).
-    instanceTopology: false,
-    // deployment rides the component flag here; the call site
-    // ANDs it with the presence of the top-level config block.
-    deployment: !!components.deployment,
-    processTopology: !!components.topology,
-    traces: !!components.traces,
-    logs: !!components.logs,
-    browserErrors: !!components.browserErrors,
-    traceProfiling: !!components.traceProfiling,
-    ebpfProfiling: !!components.ebpfProfiling,
-    asyncProfiling: !!components.asyncProfiling,
-    networkProfiling: !!components.networkProfiling,
-    pprofProfiling: !!components.pprofProfiling,
-    continuousProfiling: !!components.continuousProfiling,
-    podLogs: !!components.podLogs,
-    events: false,
-  };
-}
 
 export interface MenuRouteDeps {
   config: ConfigSource;
@@ -295,6 +264,61 @@ function deriveLayer(
   // features block in that state while the sidebar still navigates.
   const rawTpl = resolveLayerTemplate(rawKey, layerRowsByName);
   const tpl = rawTpl ? localizeContent<LayerTemplate>(rawTpl, oapOverlay, locale) : null;
+  return withMenuRows(buildLayerDef(rawKey, tpl, rawTpl, { active, level, serviceCount, normal }));
+}
+
+/** Attach the resolved sub-page rows. Every `LayerDef` the menu serves
+ *  goes through here, so the sidebar and the landing routes read one list
+ *  instead of re-deriving it from `caps` / `slots`. */
+function withMenuRows(def: LayerDef): LayerDef {
+  return { ...def, menuRows: resolveLayerMenuRows(def) };
+}
+
+/** The template's extension pages as menu refs — id, localized name, and
+ *  the entity filter the page declares. Widgets stay out: they ride the config
+ *  bundle, and the menu is fetched on every page load. */
+function extPageRefs(tpl: LayerTemplate | null): LayerExtPages | undefined {
+  if (!tpl?.dashboardExtPages) return undefined;
+  const out: LayerExtPages = {};
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    const pages = tpl.dashboardExtPages[scope];
+    if (!pages?.length) continue;
+    out[scope] = pages.map((p) => ({
+      id: p.id,
+      name: p.name,
+      ...(p.alias === undefined ? {} : { alias: p.alias }),
+      ...(p.serviceFilter === undefined ? {} : { serviceFilter: p.serviceFilter }),
+      ...(p.instanceFilter === undefined ? {} : { instanceFilter: p.instanceFilter }),
+      ...(p.instanceAttributes === undefined ? {} : { instanceAttributes: p.instanceAttributes }),
+    }));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Same shape as a page ref's filter half, for the page that has no ref. */
+function defaultFilterRefs(tpl: LayerTemplate | null): LayerDefaultFilters | undefined {
+  if (!tpl?.dashboardDefaultFilters) return undefined;
+  const out: LayerDefaultFilters = {};
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    const f = tpl.dashboardDefaultFilters[scope];
+    if (!f) continue;
+    const ref = {
+      ...(f.serviceFilter === undefined ? {} : { serviceFilter: f.serviceFilter }),
+      ...(f.instanceFilter === undefined ? {} : { instanceFilter: f.instanceFilter }),
+      ...(f.instanceAttributes === undefined ? {} : { instanceAttributes: f.instanceAttributes }),
+    };
+    if (Object.keys(ref).length > 0) out[scope] = ref;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function buildLayerDef(
+  rawKey: string,
+  tpl: LayerTemplate | null,
+  rawTpl: LayerTemplate | null,
+  live: { active: boolean; level: number | null; serviceCount: number; normal: boolean | null },
+): LayerDef {
+  const { active, level, serviceCount, normal } = live;
   if (tpl) {
     return {
       key: rawKey.toLowerCase(),
@@ -316,28 +340,15 @@ function deriveLayer(
       // instanceTopology cap follows the served topology config's
       // `instanceTopology` block (same source the topology routes read),
       // so the Instance-map drill-down only appears where it's configured.
-      caps: ((): LayerCaps => {
-        const c = componentsToCaps(tpl.components);
-        // Read the EFFECTIVE (remote) template — the same one the
-        // topology routes serve — so the Instance-map drill-down is
-        // available iff it's enabled on the in-use template, matching the
-        // admin. Gate on the parent Topology component (`serviceMap` =
-        // `components.topology`): instance topology is a drill-down OF the
-        // topology map, so disabling the Topology component must hide it
-        // too — even if a stale `topology.instanceTopology` block lingers.
-        c.instanceTopology = c.serviceMap && !!rawTpl?.topology?.instanceTopology;
-        // Deployment is its own tab (not a drill-down of the
-        // service map), so it's gated only on its own config block presence
-        // AND its component flag — independent of `serviceMap`.
-        c.deployment =
-          c.deployment && !!rawTpl?.deployment;
-        return c;
-      })(),
+      caps: capsForTemplate(tpl, rawTpl),
       metrics: tpl.metrics,
       log: tpl.log,
       traces: tpl.traces,
       naming: tpl.naming,
       instances: tpl.instances,
+      extPages: extPageRefs(tpl),
+      defaultFilters: defaultFilterRefs(tpl),
+      menuOrder: tpl.menuOrder,
     };
   }
   const def = LAYER_DEFAULTS[rawKey] ?? DEFAULT_FOR_UNKNOWN_LAYER;

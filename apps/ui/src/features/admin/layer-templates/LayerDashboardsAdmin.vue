@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
-import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
+import type { DashboardWidget, InstanceAttributePredicate } from '@skywalking-horizon-ui/api-client';
 
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
@@ -46,6 +46,15 @@ import ServiceListMetricsEditor from './ServiceListMetricsEditor.vue';
 import LayerBrowseRail from './LayerBrowseRail.vue';
 import LayerHeaderBar from './LayerHeaderBar.vue';
 import ScopeTabsBar from './ScopeTabsBar.vue';
+import PageSelectorBar from './PageSelectorBar.vue';
+import PageEntityFilter from './PageEntityFilter.vue';
+import { useExtPages, isPageableScope } from './useExtPages';
+import {
+  componentOwnedCount,
+  disableEntityComponent,
+  type EntityScope,
+} from './componentDisable';
+import { useLayerServices } from '@/layer/useLayerServices';
 import WidgetEditorCanvas from './WidgetEditorCanvas.vue';
 import {
   type AdminScope,
@@ -106,11 +115,185 @@ const {
   confirmLabel,
   confirmIsDanger,
   runConfirm,
+  askConfirm,
   askDeleteLayer,
   askReactivateLayer,
+  activePage,
 } = useLayerTemplateStore();
 
 const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
+
+const readOnly = computed(() => sync.readOnly.value);
+
+const pageableScope = computed(() => isPageableScope(activeScope.value));
+/** Every entity scope narrows the SERVICE list; the mode names the
+ *  second list previewed beneath it. `null` hides the zone. */
+const filterMode = computed<'service' | 'instance' | 'endpoint' | null>(() =>
+  activeScope.value === 'instance'
+    ? 'instance'
+    : activeScope.value === 'endpoint'
+      ? 'endpoint'
+      : activeScope.value === 'service'
+        ? 'service'
+        : null,
+);
+// Gated on `filterMode`, not a second scope list: the zone consuming the
+// roster is gated on it too, and drift leaves a filter that can be
+// authored but never checked. Failure is a missing count, not a block.
+const { services: layerServices } = useLayerServices(
+  computed(() => (filterMode.value ? selectedKey.value : '')),
+  { rideTicker: false },
+);
+/** The filter being edited: an extension page's, or — with DEFAULT
+ *  selected — the component's own. Both narrow the same pickers; the
+ *  default page is only special in that it cannot be renamed or removed. */
+const activeFilter = computed(() =>
+  activePage.value
+    ? (extPages.pages.value.find((p) => p.id === activePage.value) ?? null)
+    : extPages.defaultFilter.value ?? {},
+);
+const extPages = useExtPages(selectedTpl, computed(() => activeScope.value as string), activePage);
+
+/** Extension pages only: the DEFAULT page is named by the layer's own
+ *  Menu labels, so it has no alias of its own to edit. */
+const activePageAlias = computed(() =>
+  activePage.value ? extPages.pages.value.find((p) => p.id === activePage.value)?.alias : undefined,
+);
+
+/** One writer for both targets, so the two cannot drift apart. */
+function writeFilter(which: 'service' | 'instance', value: string): void {
+  const id = activePage.value;
+  if (id) extPages.setEntityFilter(which, id, value);
+  else extPages.setDefaultEntityFilter(which, value);
+}
+function writeAttributes(attributes: InstanceAttributePredicate[]): void {
+  const id = activePage.value;
+  if (id) extPages.setInstanceAttributes(id, attributes);
+  else extPages.setDefaultInstanceAttributes(attributes);
+}
+
+/** Component turned off → its extension pages go with it. Silent by
+ *  design: disabling the component is already the destructive gesture the
+ *  operator confirmed, and its own dashboard grid is dropped the same way. */
+const COMPONENT_TO_PAGEABLE_SCOPE: Record<string, string> = {
+  service: 'service',
+  instances: 'instance',
+  endpoints: 'endpoint',
+};
+
+/**
+ * Switching an entity component off destroys everything only that
+ * component could reach — its widget grid, its extension pages and their
+ * widgets, and its rows in a custom menu order. It asks first, and names
+ * what goes, because none of it is visible again once the component is
+ * off and none of it survives the next save.
+ *
+ * Translations are NOT touched, and do not go on their own: a push is
+ * blocked while a language carries entries the template no longer has,
+ * until they are removed on the Translations page. The confirmation says
+ * so rather than implying they clean themselves up.
+ */
+/** Non-entity components that own a configuration block — the MQE an
+ *  operator tuned for that one view. It is as unreachable as a widget
+ *  grid once the component is off, and it would come back unannounced if
+ *  the component were re-enabled later. */
+const COMPONENT_TO_OWNED_BLOCK: Record<string, 'topology' | 'deployment' | 'endpointDependency'> = {
+  topology: 'topology',
+  deployment: 'deployment',
+  endpointDependency: 'endpointDependency',
+};
+/** The label the Components list shows, so the confirmation names the
+ *  control the operator just clicked. */
+const COMPONENT_LABEL: Record<string, () => string> = {
+  topology: () => t('Topology'),
+  deployment: () => t('Deployment'),
+  endpointDependency: () => t('API dependency'),
+};
+const componentLabel = (key: string): string => COMPONENT_LABEL[key]?.() ?? key;
+
+function onConfirmDisable(key: string): void {
+  const tpl = selectedTpl.value;
+  const block = COMPONENT_TO_OWNED_BLOCK[key];
+  if (tpl && block) {
+    const has = (tpl as Record<string, unknown>)[block] !== undefined;
+    const off = (): void => {
+      (tpl.components as Record<string, boolean | undefined>)[key] = false;
+      delete (tpl as Record<string, unknown>)[block];
+    };
+    // Nothing configured yet — no point asking about deleting nothing.
+    // The menu-order rows go with it either way, pruned by the editor
+    // when it sees the component list change.
+    if (!has) return off();
+    askConfirm({
+      title: t('Turn off {component}?', { component: componentLabel(key) }),
+      message: t(
+        'This removes the {component} configuration this layer carries, and its row in the menu order. This only changes your draft until you push.',
+        { component: componentLabel(key) },
+      ),
+      label: t('Turn off and delete'),
+      run: off,
+    });
+    return;
+  }
+  const scope = COMPONENT_TO_PAGEABLE_SCOPE[key];
+  if (!tpl || !scope) return;
+  // The legacy flat list IS the service grid for a template that never
+  // split, so counting only `dashboards` let it be deleted without ever
+  // being mentioned in the confirmation.
+  const owned = componentOwnedCount(tpl, scope as EntityScope);
+  const { grid, pageWidgets } = owned;
+  const pages = tpl.dashboardExtPages?.[scope as EntityScope] ?? [];
+  // Component-owned settings that are not widgets. Counted, or disabling a
+  // component whose ONLY configuration is one of these takes the
+  // "nothing configured" path and deletes it without asking.
+  const ownedSettings =
+    (scope === 'instance' && (tpl as { instances?: unknown }).instances ? 1 : 0) +
+    // The default page's filter is owned by this component too, and the
+    // publish validator refuses one under a component that is off — so
+    // leaving it behind builds a draft that cannot be pushed.
+    (tpl.dashboardDefaultFilters?.[scope as 'service' | 'instance' | 'endpoint'] ? 1 : 0);
+
+  const disable = (): void => {
+    disableEntityComponent(tpl, key, scope as EntityScope);
+    if (activeScope.value === scope) activeScope.value = visibleScopes.value[0] ?? 'service';
+  };
+
+  // Nothing configured yet — no point asking about deleting nothing.
+  if (grid === 0 && pages.length === 0 && ownedSettings === 0) {
+    disable();
+    return;
+  }
+  askConfirm({
+    title: t('Turn off {component}?', { component: scopeLabel(scope as AdminScope) }),
+    message: t(
+      'This removes its {grid} widget(s), {pages} extra page(s) with {pageWidgets} widget(s), {settings} of its own setting(s), and its rows in the menu order. Their translations stay stored until you clear them on the Translations page. This only changes your draft until you push.',
+      { grid, pages: pages.length, pageWidgets, settings: ownedSettings },
+    ),
+    label: t('Turn off and delete'),
+    danger: true,
+    run: disable,
+  });
+}
+
+/** Deleting a page destroys its widgets, so it asks first — the widgets
+ *  are not recoverable from the editor once the draft is saved. */
+function confirmDeletePage(id: string): void {
+  const page = extPages.pages.value.find((p) => p.id === id);
+  if (!page) return;
+  const count = page.widgets.length;
+  askConfirm({
+    title: t('Delete page?'),
+    message: t(
+      'Delete the “{name}” page and its {n} widget(s)? This only changes your draft until you push.',
+      { name: page.name, n: count },
+    ),
+    label: t('Delete page'),
+    danger: true,
+    run: () => {
+      extPages.deletePage(id);
+    },
+  });
+}
 
 /** Enabled OAP record ids for a duplicated layer name — the browse rail
  *  marks those rows so the operator sees the ambiguity before selecting. */
@@ -185,9 +368,14 @@ const TRACE_SOURCE_OPTIONS = computed<Array<{ value: TraceSource; label: string;
 /** Menu-preview click: focus the component's scope (if surfaced) and
  *  scroll the scope editor into view so config + preview follow the
  *  selection. */
-function jumpToComponent(scope: AdminScope): void {
-  if (visibleScopes.value.includes(scope)) activeScope.value = scope;
+/** Menu-preview click → open that row's editor. An extension-page row
+ *  selects its PAGE as well as its component, so clicking the row an
+ *  operator sees in the sidebar lands on the grid that row renders. */
+function jumpToComponent(target: { scope: AdminScope; page: string | null }): void {
+  if (visibleScopes.value.includes(target.scope)) activeScope.value = target.scope;
+  // After the scope, so the scope watcher's reset does not clear it.
   void nextTick(() => {
+    activePage.value = target.page;
     document.getElementById('scope-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
@@ -360,8 +548,10 @@ const namingTest = computed<NamingTestResult>(() => {
         <LayerSetupEditor
           v-model:template="selectedTpl"
           :active-scope="activeScope"
+          :active-page="activePage"
           :instance-topology-enabled="instanceTopologyEnabled"
           @jump="jumpToComponent"
+          @confirm-disable="onConfirmDisable"
         />
 
 
@@ -578,11 +768,53 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <WidgetEditorCanvas
-          v-else
-          :draft="draft"
-          :active-scope="activeScope"
-        />
+        <div v-else class="canvas-with-pages">
+          <PageSelectorBar
+            v-if="pageableScope"
+            :pages="extPages.pages.value"
+            :active-page="activePage"
+            :can-add="extPages.canAddPage.value"
+            :scope-label="scopeLabel(activeScope)"
+            :read-only="readOnly"
+            @select="activePage = $event"
+            @add="extPages.addPage($event.name, $event.id)"
+            @rename="extPages.renamePage($event.id, $event.name)"
+            @delete="confirmDeletePage($event)"
+          />
+          <!-- The entity set this page shows, in its own zone: it is
+               configuration of a different kind from the page's identity
+               above it and the widgets below, and the rendered page shows
+               none of it. -->
+          <section v-if="activeFilter && filterMode" class="sw-card editor-card filter-card">
+            <div class="card-head">
+              <h4>{{ filterMode === 'instance' ? t('Which instances this page shows') : t('Which services this page shows') }}</h4>
+              <span class="sub">{{ t('Authored here and nowhere else — the page itself shows the result and never the filter.') }}</span>
+            </div>
+            <div class="filter-card-body">
+              <PageEntityFilter
+                :mode="filterMode"
+                :layer-key="selectedKey"
+                :alias="activePageAlias"
+                :show-alias="!!activePage"
+                :service-filter="activeFilter.serviceFilter ?? ''"
+                :instance-filter="activeFilter.instanceFilter"
+                :attributes="activeFilter.instanceAttributes"
+                :services="layerServices"
+                :read-only="readOnly"
+                @update:alias="activePage && extPages.setPageAlias(activePage, $event)"
+                @update:service-filter="writeFilter('service', $event)"
+                @update:instance-filter="writeFilter('instance', $event)"
+                @update:attributes="writeAttributes($event)"
+              />
+            </div>
+          </section>
+          <WidgetEditorCanvas
+            :draft="draft"
+            :active-scope="activeScope"
+            :active-page="activePage"
+            @update:active-page="activePage = $event"
+          />
+        </div>
       </main>
 
     </div>
@@ -785,6 +1017,19 @@ const namingTest = computed<NamingTestResult>(() => {
 /* overflow: visible overrides .sw-card's `overflow: hidden`, which would
  * otherwise clip the sticky header inside the card (so it wouldn't pin). */
 .editor-card { padding: 0; overflow: visible; }
+/* `.editor-card` is padding-free by convention; each body supplies its own. */
+/* A visible boundary. The zone sits between the page bar above and the
+   widget canvas below, and all three are dark on dark — without an edge
+   of its own it reads as one continuous area, which is exactly the "all
+   together" it was split out of. */
+.canvas-with-pages { display: flex; flex-direction: column; gap: 12px; }
+.filter-card {
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  background: var(--sw-bg-1);
+  overflow: hidden;
+}
+.filter-card-body { padding: 14px 16px 16px; }
 /* Topology / endpoint-dep config preview — read-only JSON view. */
 .topo-cfg-body { padding: 12px 14px 16px; }
 .topo-cfg-help {

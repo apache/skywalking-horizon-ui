@@ -118,10 +118,16 @@ export interface BundleSyncStatus {
   unreadable?: UnreadableTemplateRow[];
 }
 
+/** Extension-page widget sets for one layer, keyed `<component>/<pageId>`. */
+export type BundleExtPageMap = Record<string, DashboardWidget[]>;
+
 export interface ConfigBundle {
   etag: string;
   generatedAt: number;
   layers: Record<string, BundleScopeMap>;
+  /** Absent when no layer declares extension pages, which is every
+   *  deployment running only bundled templates. */
+  layerExtPages?: Record<string, BundleExtPageMap>;
   overviews: OverviewDashboard[];
   syncStatus: BundleSyncStatus;
 }

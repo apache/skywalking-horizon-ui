@@ -49,6 +49,7 @@ import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 import {
   alignOverlayToSource,
   canonicalizeOverlay,
+  staleOverlayPaths,
   mergeLocalizedNode,
   stampOverlayIds,
 } from '@skywalking-horizon-ui/api-client';
@@ -57,7 +58,14 @@ import {
 export interface EffectiveSource { source: Record<string, unknown> }
 
 /** OAP + disk overlay snapshots already fetched from the BFF. */
-interface OverlaySnapshot { disk: unknown; oap: unknown }
+interface OverlaySnapshot {
+  disk: unknown;
+  oap: unknown;
+  /** The read FAILED — not "this language has no row". The two are the
+   *  same shape otherwise, and a sweep that cannot tell them apart
+   *  reports a language as clean when it was never looked at. */
+  unread?: true;
+}
 
 export interface UseTranslationDraftArgs {
   selectedKind: Ref<'overview' | 'layer'>;
@@ -75,6 +83,14 @@ export interface UseTranslationDraftReturn {
   allFields: ComputedRef<TranslatableField[]>;
   filledCount: ComputedRef<number>;
   oapOverlayForTarget: ComputedRef<unknown>;
+  /** Stored-overlay paths the current template cannot place. */
+  staleOverlayForTarget: ComputedRef<string[]>;
+  /** Leftover paths for any locale already fetched. */
+  staleForLocale: (loc: string) => string[];
+  /** Fetch and seed one locale. `false` when the read failed — the caller
+   *  must not report that language as checked. */
+  ensureOverlayFor: (loc: Locale) => Promise<boolean>;
+  overlayForLocale: (loc: string) => Record<string, unknown> | null;
   draftOverlayForTarget: ComputedRef<Record<string, unknown> | null>;
   inUseOverlayForTarget: ComputedRef<Record<string, unknown> | null>;
   dirty: ComputedRef<boolean>;
@@ -181,7 +197,10 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     try {
       snap = await bff.templateSync.overlay(name, loc);
     } catch {
-      /* leave the snapshot empty — the draft then starts from English */
+      // The draft starts from English, as before — but the snapshot says
+      // it is a failure rather than an absence, so a caller that needs to
+      // report coverage can.
+      snap = { disk: null, oap: null, unread: true };
     }
     fetchedOverlays.value = { ...fetchedOverlays.value, [k]: snap };
     applyOverlaysToDraft(name, loc, [renderedOverlay(snap), localEdits.get<unknown>(name, loc)], eff);
@@ -289,6 +308,51 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
    *  diff. Canonicalizing is what keeps a legacy positional row — or a
    *  row the seeder wrote — from reading as a pending edit: the same
    *  translations always render as the same bytes. */
+  /**
+   * Paths in the STORED OAP overlay that the template can no longer place
+   * — text for a widget, page or scope that has since been removed.
+   *
+   * Read from the RAW snapshot on purpose. `oapOverlayForTarget` below
+   * canonicalizes against the source, and that drops SOME of these but
+   * not all: an entry inside an array the source still has is dropped,
+   * while a key the source lost entirely is copied through verbatim.
+   * Checking there would therefore miss a whole class — and the class it
+   * misses is the one where `dirty` goes true, so the operator would be
+   * offered an ordinary push that silently takes the leftovers with it.
+   *
+   * Nothing renders from them — the merger ignores them, which is what
+   * lets a catalog survive a template edit. They are surfaced because they
+   * are otherwise invisible, and because reusing a removed page's id later
+   * would pick up its old text.
+   */
+  function staleForLocale(loc: string): string[] {
+    const eff = effective.value;
+    const snap = fetchedOverlays.value[overlayKey(selectedName.value, loc)];
+    if (!eff || !snap?.oap) return [];
+    return staleOverlayPaths(eff.source, snap.oap);
+  }
+
+  const staleOverlayForTarget = computed<string[]>(() => staleForLocale(target.value));
+
+  /** Fetch and seed one locale of the selected template on demand.
+   *  A sweep needs languages the operator has not selected, and a draft
+   *  that was never seeded would rebuild as empty — deleting the row
+   *  instead of cleaning it. */
+  async function ensureOverlayFor(loc: Locale): Promise<boolean> {
+    const eff = effective.value;
+    if (!eff || !selectedName.value) return false;
+    const k = overlayKey(selectedName.value, loc);
+    // Retry a language whose last read failed, rather than inheriting the
+    // failure for the rest of the session.
+    if (fetchedOverlays.value[k]?.unread) {
+      const next = { ...fetchedOverlays.value };
+      delete next[k];
+      fetchedOverlays.value = next;
+    }
+    await ensureOverlayFetched(selectedName.value, loc, eff);
+    return !fetchedOverlays.value[k]?.unread;
+  }
+
   const oapOverlayForTarget = computed<unknown>(() => {
     const eff = effective.value;
     const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
@@ -300,12 +364,20 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
    *  locale) — built from the in-memory draft, in the same canonical
    *  shape as the left side so the diff shows only real changes. This is
    *  what Push writes. */
-  const draftOverlayForTarget = computed<Record<string, unknown> | null>(() => {
+  /** What a push would write for one locale — canonical, so a row an
+   *  operator publishes is byte-identical to one the seeder writes.
+   *  `null` means the rebuilt overlay is empty, which the push path reads
+   *  as "remove the row". */
+  function overlayForLocale(loc: string): Record<string, unknown> | null {
     const eff = effective.value;
     if (!eff || !selectedName.value) return null;
-    const overlay = buildOverlayContent(selectedName.value, target.value, eff);
+    const overlay = buildOverlayContent(selectedName.value, loc, eff);
     return overlay === null ? null : (canonicalizeOverlay(eff.source, overlay) as Record<string, unknown>);
-  });
+  }
+
+  const draftOverlayForTarget = computed<Record<string, unknown> | null>(() =>
+    overlayForLocale(target.value),
+  );
 
   /** The in-use overlay for (selected template, target locale): the OAP row
    *  (what's published) wins, else the disk-shipped seed. A pushed row is
@@ -386,6 +458,10 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
     allFields,
     filledCount,
     oapOverlayForTarget,
+    staleOverlayForTarget,
+    staleForLocale,
+    ensureOverlayFor,
+    overlayForLocale,
     draftOverlayForTarget,
     inUseOverlayForTarget,
     dirty,

@@ -23,7 +23,7 @@
 import type { DashboardScope, UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import { resolveEffectiveLayer } from './effective.js';
 import {
-  widgetsForScope,
+  allWidgetsForScope,
   topologyConfigFor,
   instanceTopologyConfigFor,
   deploymentConfigFor,
@@ -34,7 +34,7 @@ import {
   type LayerComponentFlags,
   type TopologyMetricDef,
 } from './loader.js';
-import { flattenTabWidgets } from '../dashboard/gates.js';
+import { flattenEveryTabPanel } from '../dashboard/gates.js';
 
 export interface MetricLegend {
   id: string;
@@ -113,7 +113,7 @@ function componentList(flags: LayerComponentFlags): string[] {
 }
 
 function scopeCount(template: LayerTemplate, scope: DashboardScope): number {
-  return flattenTabWidgets(widgetsForScope(template, scope)).length;
+  return flattenEveryTabPanel(allWidgetsForScope(template, scope)).length;
 }
 
 export async function layerCapabilities(

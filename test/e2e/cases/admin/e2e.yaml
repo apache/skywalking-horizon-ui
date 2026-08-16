@@ -132,7 +132,62 @@ verify:
           | yq -P '{"applyStatus": .applyStatus, "hasApplyId": (.applyId != null and .applyId != "")}'
       expected: expected/reverted.yml
 
-    # 10. The admin SCREENS, in a real browser — last, so they render the
+    # 10. A layer template carrying EXTENSION PAGES and a custom menu order
+    #     publishes. No bundled layer declares either field, and the browser
+    #     coverage in `core` deliberately stays in a local draft — so without
+    #     this, nothing proves the store accepts the shape at all. The key is
+    #     not a bundled one, so the push adds a `remote-only` row rather than
+    #     making a bundled row `diverged`.
+    - query: |
+        bash test/e2e/script/prepare/layer-template-push.sh \
+          "http://${horizon_host}:${horizon_8081}" valid
+      expected: expected/layer-template-saved.yml
+
+    # 11. …and the publish boundary REFUSES a page id equal to a real layer
+    #     route segment. Path sniffers elsewhere in the app test the whole
+    #     route, so such an id changes unrelated behaviour rather than merely
+    #     colliding. The operator sees a generic error on screen, so the
+    #     refusal and its reason are only observable here.
+    - query: |
+        bash test/e2e/script/prepare/layer-template-push.sh \
+          "http://${horizon_host}:${horizon_8081}" bad-page
+      expected: expected/layer-template-refused.yml
+
+    # 12. …and refuses an order naming a row the layer does not expose, which
+    #     is a SEPARATE push because structure is parsed before anything
+    #     cross-references it: a payload carrying both faults is refused for
+    #     the page id alone and never reaches this check. The runtime skips
+    #     such an entry rather than breaking, so publish is the only place
+    #     the operator can be told the instruction does nothing.
+    - query: |
+        bash test/e2e/script/prepare/layer-template-push.sh \
+          "http://${horizon_host}:${horizon_8081}" bad-order
+      expected: expected/layer-template-refused.yml
+
+    # 13. …and the stored pages reach the route the RENDERER reads, each page
+    #     serving its own widgets rather than the component's default grid,
+    #     with an undeclared id answering 404. This case runs no telemetry, so
+    #     OAP lists no layer and there is no sidebar to assert against; the
+    #     resolved order and landing target are covered by unit tests.
+    - query: |
+        bash test/e2e/script/prepare/layer-template-push.sh \
+          "http://${horizon_host}:${horizon_8081}" read-back
+      expected: expected/layer-template-pages.yml
+
+    # 14. A second layer is published with a page, and that page's name is
+    #     translated into two languages. Fixture setup only: it establishes
+    #     a valid state, with no bundled JSON and no services reporting —
+    #     this case runs no
+    #     telemetry. Removing the page — which is what strands them — is
+    #     done in the browser below, through the layer editor, because
+    #     reaching that editor for a layer that exists only on OAP is
+    #     itself part of what this case covers.
+    - query: |
+        bash test/e2e/script/prepare/layer-template-push.sh \
+          "http://${horizon_host}:${horizon_8081}" stale-seed
+      expected: expected/stale-seeded.yml
+
+    # 15. The admin SCREENS, in a real browser — last, so they render the
     #     state the wire cases above established. Everything asserted over the
     #     wire says nothing about whether an operator can see it, and these are
     #     among the heaviest pages in the app.

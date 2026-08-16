@@ -98,7 +98,7 @@ Per-tab feature toggles. A `false` value hides the tab.
 }
 ```
 
-The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available. Only the **service** dashboard is on when its key is omitted; every other tab is **off unless explicitly set `true`** — the bundled templates enable each tab they want (`general.json` sets every flag `true` for exactly this reason). The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instances → endpoints → endpointDependency → topology → traces → logs → traceProfiling`.
+The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available. Only the **service** dashboard is on when its key is omitted; every other tab is **off unless explicitly set `true`** — the bundled templates enable each tab they want (`general.json` sets every flag `true` for exactly this reason). The row a layer opens on is the **first enabled** in the order `service → instances → endpoints → topology → deployment → endpointDependency → traces → logs → profiling`. See [Menu and layers](menu-structure.md) for the full row order and how to change it.
 
 `deployment` is the exception: it is **off by default** and only appears when the layer also carries a [`deployment`](#deployment) config block — see [Deployment](#deployment) below.
 
@@ -257,6 +257,119 @@ The stored shape — a container with empty `expressions` and a `tabs[]` array o
   ]
 }
 ```
+
+## `dashboardExtPages`
+
+A component's `dashboards` grid is its **default page**. When one grid grows past what an operator can scan — or when a group of services deserves its own view — a component can expose additional pages. Each becomes its own row under the layer, with its own URL.
+
+Only the three entity components can carry them: **service**, **instance**, and **endpoint**. Topology, traces, logs and the profilings are single-page features.
+
+### Authoring them
+
+Open **Dashboard setup → Layer dashboards**, pick a layer and a component, then use the **Page** dropdown above the widget canvas. The component's existing grid is listed as `DEFAULT` and cannot be renamed or removed. **+ Page** adds one; with a page selected, **Rename** and **Delete** act on it. Each page shows its id beside its name, because two pages may share a display name.
+
+Adding widgets works exactly as it does on the default page — the canvas edits whichever page is selected.
+
+A few rules the editor enforces as you type:
+
+- A page's **id** is derived from its name and may not collide with a built-in tab (`topology`, `pprof`, `zipkin-trace`, …), because pages and tabs share a URL space. The name itself is never refused: calling a page "Topology" simply gives it the id `topology-2`.
+- A page is created with a **name** and an **id**. The id is proposed from the name and can be edited before the page is added — after that it is fixed. It is the page's URL segment, its entry in a custom menu order, and the key its translations are stored under, so renaming the page later never moves it. An id is at most 48 characters and a name at most 64. The id is shown again on the **Menu key** line when the entry is selected in the Setup tab's menu preview.
+- Two pages of one component may share a display name; they are told apart by their ids.
+- A widget id must be unique across **all** pages of one component. The editor mints ids for you, so this only matters when importing a template by hand.
+- Twelve pages per component is the maximum.
+
+### Choosing which entities a page is about
+
+A page can narrow the pickers it sits above, so it shows only the entities it is about.
+
+**Every** entity page can filter the **service** list — an Instance or Endpoint page shows the service picker too, because a service is picked before the entity the page is about. An **Instance** page can additionally filter the instance list within that service, and match on instance attributes.
+
+This includes the **default** page. It is the page every component already has, not an unfiltered one: the same fields appear with DEFAULT selected, and the only thing that makes it special is that it cannot be renamed or removed.
+
+Name matching is the same for both:
+
+- `agent` — case-insensitive substring
+- `/^agent::/` — regular expression
+
+The **regex** switch beside the field writes and reads those slashes for you. Both forms match the **full name** as OAP reports it, including any `group::` or `namespace.` prefix — that is what lets a page target one group without a separate group control.
+
+An **Instance** page can also require attributes:
+
+- `namespace` **exists** — the instance carries that attribute, with a non-empty value
+- `language` **equals** `java` — case-insensitive
+
+Attribute names are matched case-insensitively, and `language` counts as an attribute. Every condition must hold, and they apply on top of the name filter. These are the same words a widget's visibility rule uses, and they mean the same thing there.
+
+**Checking a filter before it reaches anyone.** **Preview matches** opens the list the filter selects, twenty entities at a time, with an **All / Filtered** switch — All lists every candidate with the selected ones lit, so a pattern that matches the wrong thing is visible, not just a smaller number. On an Instance or Endpoint page it also lists what sits under a sampled service, since those pages show the service picker first.
+
+**Naming what a page lists.** An extension page can set an **Entity label** — what that page calls the entity it shows, used by its picker and its back-link. Leave it blank and the layer's own **Menu labels** apply, which is what names the default page. The label is translatable like any other display text.
+
+**The filter is configuration, not a control.** The page shows the entities it selects and nothing else — no filter box, no pattern, no way to widen it. The person reading the page did not write the filter and does not need to know one exists; the page's name is what tells them what it holds. An operator's own search box inside the picker still works, and searches within the page's set.
+
+Because the filter is invisible on the page, the editor is where you check it. It lists every candidate and lights the ones the page will show, and warns when nothing matches — on the page itself, an over-narrow filter is indistinguishable from a layer with nothing reporting. Instance conditions preview against a sample service you pick, since instances only exist under one.
+
+What filtering does to the current selection differs by component, and deliberately:
+
+- On a **Service** page the service you had picked stays picked, even if the page's filter excludes it — the page narrows the list you choose from, not the choice you already made.
+- On an **Instance** page the page's set owns what the widgets read: an instance the page excludes is replaced, for that page only, by the first one in its set. Your selection is untouched everywhere else in the layer and comes back when you leave the page.
+
+The layer header's KPIs and its service count stay layer-wide either way; the picker's own count reads within the page's set.
+
+### Stored shape
+
+```json
+{
+  "dashboardExtPages": {
+    "service": [
+      {
+        "id": "resource",
+        "name": "Resource usage",
+        "widgets": [ ... ]
+      },
+      {
+        "id": "agents",
+        "name": "Agents",
+        "serviceFilter": "/^agent::/",
+        "widgets": [ ... ]
+      }
+    ],
+    "instance": [
+      {
+        "id": "brokers",
+        "name": "Broker JVMs",
+        "instanceFilter": "/^broker-/",
+        "instanceAttributes": [
+          { "attribute": "language", "op": "eq", "value": "java" },
+          { "attribute": "namespace", "op": "exists" }
+        ],
+        "widgets": [ ... ]
+      }
+    ]
+  }
+}
+```
+
+`id` is the URL segment (`/layer/<key>/service/resource`) and the key translations are attached to, so it is stable across renames and reordering. `name` is translatable; `widgets` uses the same widget schema as `dashboards`.
+
+`serviceFilter` may appear on any entity page, because all three show the service picker, and on `dashboardDefaultFilters.<scope>` — the same fields for the page that has no page object of its own. `alias` is an extension page's entity label. `instanceFilter` and `instanceAttributes` belong to Instance pages; placed on another component they are refused, because they would otherwise travel to the browser and be ignored, which reads as a filter that does not work. `op` is `exists` or `eq` (the editor labels it **equals**), an `eq` needs a value, and a page carries at most eight conditions.
+
+Bundled templates ship no extension pages — the default grids are the pages every layer has.
+
+## `menuOrder`
+
+By default a layer's rows follow the built-in order, with each component's pages directly after it. `menuOrder` overrides that for one layer.
+
+Edit it through **Rearrange menu** in the Setup tab rather than by hand; see [Menu and layers](menu-structure.md#rearranging-the-menu).
+
+```json
+{
+  "menuOrder": ["service", "service/agents", "topology", "instance", "logs"]
+}
+```
+
+Entries are row paths — a component is its own name, an extension page is `<component>/<pageId>`. Display names never appear, so renaming a page does not move it.
+
+Absence means the built-in order. A row the list does not mention keeps its default placement and is appended, so enabling a component later adds its row instead of hiding it.
 
 ## `topology`
 

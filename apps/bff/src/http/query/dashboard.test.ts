@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildFragment, type MqeResultShape } from '../../logic/dashboard/mqe.js';
 import { parseSeries, avgOf, parseLabeledSeries, parseTopList } from '../../logic/dashboard/parsers.js';
-import { flattenTabWidgets } from '../../logic/dashboard/gates.js';
+import { flattenEveryTabPanel, flattenTabWidgets } from '../../logic/dashboard/gates.js';
 import { widgetSchema } from '../../logic/dashboard/schema.js';
 import type { Window } from '../../util/window.js';
 import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
@@ -422,5 +422,49 @@ describe('widgetSchema — accepts the tab container', () => {
       tabs: [{ name: 'T', widgets: [{ id: 'c', title: 'C', type: 'card', expressions: [] }] }],
     });
     expect(r.success).toBe(false);
+  });
+});
+
+/**
+ * The two flatteners answer different questions, and the difference is
+ * the whole reason both exist.
+ *
+ * The query one mirrors what the UI lazily fetches, so it stops at the
+ * first panel — a tab group must never fan out wider than the screen
+ * asked for. Enumeration asks what a component HAS, and stopping there
+ * hid every widget behind a second tab from the AI catalog, from
+ * `show_widget`, and from the capability count.
+ */
+describe('flattenEveryTabPanel — enumeration sees every panel', () => {
+  const leaf = (id: string) => ({ id, type: 'line', title: id, expressions: ['x'] }) as DashboardWidget;
+  const tabs = (id: string, panels: DashboardWidget[][]) =>
+    ({
+      id,
+      type: 'tab',
+      title: id,
+      expressions: [],
+      tabs: panels.map((widgets, i) => ({ name: `P${i}`, widgets })),
+    }) as DashboardWidget;
+
+  it('returns leaves from panels the query path skips', () => {
+    const ws = [tabs('t', [[leaf('a')], [leaf('b')], [leaf('c')]])];
+    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['a']);
+    expect(flattenEveryTabPanel(ws).map((w) => w.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('descends a tab nested inside a tab, which the query path drops', () => {
+    const ws = [tabs('outer', [[leaf('a'), tabs('inner', [[leaf('deep')]])]])];
+    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['a']);
+    expect(flattenEveryTabPanel(ws).map((w) => w.id)).toEqual(['a', 'deep']);
+  });
+
+  it('agrees with the query path when nothing is behind a tab', () => {
+    const ws = [leaf('a'), leaf('b')];
+    expect(flattenEveryTabPanel(ws)).toEqual(flattenTabWidgets(ws));
+  });
+
+  it('emits no tab container itself — only queryable leaves', () => {
+    const ws = [tabs('t', [[leaf('a')], [leaf('b')]])];
+    expect(flattenEveryTabPanel(ws).some((w) => w.type === 'tab')).toBe(false);
   });
 });

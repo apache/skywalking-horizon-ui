@@ -150,6 +150,12 @@ export const bodySchema = z.object({
   // flattens to many leaves) — see the handler.
   widgets: z.array(widgetSchema).max(MAX_REQUEST_WIDGETS).optional(),
   scope: scopeSchema.optional(),
+  /** Which page of `scope` to render. Omitted means the component's
+   *  default grid; an id the template doesn't declare is a 404. Declared
+   *  here because the body schema strips unknown keys — without it a
+   *  `page` would vanish silently and the default grid would come back
+   *  with a 200. */
+  page: z.string().optional(),
   /** Global time-range, forwarded by the SPA's time picker. When all
    *  three are present the BFF queries OAP at the requested precision
    *  and window; otherwise it falls back to the last-hour MINUTE

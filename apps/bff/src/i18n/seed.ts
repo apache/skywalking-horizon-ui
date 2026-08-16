@@ -69,8 +69,9 @@ const STRING_FIELDS = new Set([
   'tip',
   'label',
   'group',
-  // A `tab` widget's panel labels (`tabs[].name`) — the only `name` field in a
-  // template; translatable like a widget title.
+  // Two `name` fields, both translatable like a widget title: a `tab`
+  // widget's panel labels (`tabs[].name`) and an extension page's display
+  // name (`dashboardExtPages.<scope>[].name`).
   'name',
 ]);
 

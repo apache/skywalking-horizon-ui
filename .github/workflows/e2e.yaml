@@ -86,14 +86,18 @@
 #   admin     core, kept separate because it MUTATES OAP        ACTIVE
 #             tests: template push to OAP and the DSL write lifecycle, both
 #             on the wire — a browser cannot drive them without racing the
-#             case's own state. The admin pages themselves are covered only
-#             as far as MOUNTING and listing; editing and pushing from the
-#             page are not exercised
+#             case's own state. The layer-template admin is driven END TO
+#             END here: authoring a dashboard page, editing and pushing it,
+#             translating it, deleting it, and clearing the translations a
+#             template edit leaves behind. Every route a layer with pages
+#             exposes is asserted against the PUBLISHED template — each
+#             component and each component+page returns its own widgets, an
+#             unknown page 404s, and a stored menu order is honoured
 #             components: DslCatalogView, DebugHistoryView,
 #             LiveDebuggerView (the live debug page itself — no capture is
 #             started here; the MAL / LAL / OAL runs live in `deployment`
-#             and `core`), OverviewTemplatesAdmin, LayerDashboardsAdmin
-#             — mount + list
+#             and `core`), OverviewTemplatesAdmin — mount + list;
+#             LayerDashboardsAdmin + TranslationsView — full edit / push
 #
 #   deployment  BanyanDB as a CLUSTER on kind, via its helm chart  ACTIVE
 #             with FODC, plus an OTel collector

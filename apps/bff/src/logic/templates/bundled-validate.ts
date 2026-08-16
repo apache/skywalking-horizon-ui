@@ -213,6 +213,24 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
     });
   }
 
+  // Extension-page widgets get the same fidelity walk. Without this an
+  // unknown field inside one is stripped by the parse and reported
+  // nowhere — the widget renders, quietly missing whatever the author
+  // wrote.
+  const rawExtPages = isRecord(raw.dashboardExtPages) ? raw.dashboardExtPages : {};
+  for (const [scope, rawPages] of Object.entries(rawExtPages)) {
+    if (!Array.isArray(rawPages)) continue;
+    rawPages.forEach((page, pi) => {
+      if (!isRecord(page) || !Array.isArray(page.widgets)) return;
+      page.widgets.forEach((w, i) => {
+        const p = widgetSchema.safeParse(w);
+        if (p.success) {
+          checkWidgetFidelity(w, p.data, src.label, `dashboardExtPages.${scope}.${pi}.widgets.${i}`, findings);
+        }
+      });
+    });
+  }
+
   for (const issue of layerCrossRefIssues(tpl, { complete: true })) {
     findings.push({ file: src.label, path: issue.path, message: issue.message });
   }

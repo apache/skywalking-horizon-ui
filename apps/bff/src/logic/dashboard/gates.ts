@@ -48,22 +48,12 @@ export function mqeGatePass(op: 'exists' | 'gt' | 'lt', value: number | undefine
   return vals.length > 0; // exists
 }
 
-/** Attribute lookup for the selected instance: `language` + named
- *  attributes, keyed lower-case. Empty values are dropped so `exists`
- *  means present-AND-non-empty (OAP reports `namespace`/`cluster` as
- *  empty-string keys). */
-export function buildAttrMap(
-  language: string | null | undefined,
-  attrs: Array<{ name: string; value: string }>,
-): Map<string, string> {
-  const m = new Map<string, string>();
-  if (language && language.trim()) m.set('language', language.trim());
-  for (const a of attrs) {
-    const v = a.value == null ? '' : String(a.value);
-    if (v.trim() !== '') m.set(a.name.toLowerCase(), v);
-  }
-  return m;
-}
+// `buildAttrMap` lives in the shared package: an extension page's
+// `instanceAttributes` asks the same question of the same bag, in the
+// browser, and "exists" must not mean present-and-non-empty on one side
+// and merely-present on the other.
+export { buildAttrMap } from '@skywalking-horizon-ui/api-client';
+import { attrPredicatePass } from '@skywalking-horizon-ui/api-client';
 
 /** Evaluate an entity gate. `attrs === null` means "no entity context"
  *  (non-Instance scope / probe failed) → no-op (visible). */
@@ -72,9 +62,14 @@ export function entityGatePass(
   attrs: Map<string, string> | null,
 ): boolean {
   if (!attrs) return true;
-  const val = attrs.get(vw.attribute.toLowerCase());
-  if (vw.op === 'eq') return val !== undefined && val.toLowerCase() === vw.value.toLowerCase();
-  return val !== undefined; // exists (map already excludes empties)
+  // Delegated, not re-implemented: an extension page asks the same
+  // question of the same bag in the browser, and a second copy here is
+  // how `exists` ends up meaning present-and-non-empty on one side and
+  // merely-present on the other.
+  return attrPredicatePass(
+    vw.op === 'eq' ? { attribute: vw.attribute, op: 'eq', value: vw.value } : { attribute: vw.attribute, op: 'exists' },
+    attrs,
+  );
 }
 
 /** Normalize a widget's gate — overlay-sourced widgets may still carry a
@@ -107,5 +102,31 @@ export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[]
       out.push(w);
     }
   }
+  return out;
+}
+
+/**
+ * Every leaf a scope declares, across ALL tab panels and nested groups.
+ *
+ * The sibling above deliberately stops at the first panel, because it
+ * feeds the QUERY pipeline and a tab group must not fan out wider than
+ * the UI lazily asks for. Enumeration is the opposite question — what
+ * does this component HAVE — and answering it with the first panel hides
+ * every widget behind a second tab: the AI catalog never listed them, so
+ * `show_widget` could not resolve an id the operator can plainly see on
+ * screen, and the capability count under-reported the scope.
+ */
+export function flattenEveryTabPanel(widgets: DashboardWidget[]): DashboardWidget[] {
+  const out: DashboardWidget[] = [];
+  const walk = (list: DashboardWidget[]): void => {
+    for (const w of list) {
+      if (w.type !== 'tab') {
+        out.push(w);
+        continue;
+      }
+      for (const tab of w.tabs ?? []) walk(tab.widgets);
+    }
+  };
+  walk(widgets);
   return out;
 }

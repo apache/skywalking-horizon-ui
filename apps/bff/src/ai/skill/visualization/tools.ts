@@ -43,13 +43,13 @@ import type { HierarchyGroup, TopoPeer } from '../../types.js';
 import { runWidgets } from '../../../logic/dashboard/run.js';
 import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
 import {
-  widgetsForScope,
+  allWidgetsForScope,
   topologyConfigFor,
   deploymentConfigFor,
   instanceTopologyConfigFor,
   endpointDependencyConfigFor,
 } from '../../../logic/layers/loader.js';
-import { flattenTabWidgets } from '../../../logic/dashboard/gates.js';
+import { flattenEveryTabPanel } from '../../../logic/dashboard/gates.js';
 import { serviceLayerCatalog } from '../../../logic/services/service-layer-catalog.js';
 import { getServiceHierarchy } from '../../../logic/oap/hierarchy.js';
 import { buildServiceTopology, emptyTopologyResponse } from '../../../logic/oap/service-topology.js';
@@ -348,7 +348,7 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
       if (eff.blocked || !eff.template)
         return `No template for layer "${layer.toUpperCase()}" (${eff.blocked ? 'template store unreachable' : 'unknown layer'}).`;
       const sc: DashboardScope = scope ?? (instance ? 'instance' : endpoint ? 'endpoint' : 'service');
-      const widget = flattenTabWidgets(widgetsForScope(eff.template, sc)).find((w) => w.id === widgetId);
+      const widget = flattenEveryTabPanel(allWidgetsForScope(eff.template, sc)).find((w) => w.id === widgetId);
       if (!widget)
         return `No widget "${widgetId}" on ${layer.toUpperCase()}/${sc}. Call kb_browse_catalog(${layer}, ${sc}) for the widget ids.`;
       if (widget.type === 'tab') return `"${widgetId}" is a tab container — pass one of its inner widget ids.`;

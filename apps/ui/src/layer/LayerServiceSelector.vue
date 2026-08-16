@@ -32,6 +32,7 @@ import { metricMeta } from '@/utils/metricCatalog';
 import { statusForMetrics, thresholdColor } from '@/utils/metricColor';
 import { fmtMetric } from '@/utils/formatters';
 import { resolveServiceIdentity, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
+import { serviceFilterMatcher } from '@/layer/serviceFilter';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { MAX_LOCKED } from '@/state/layerSelection';
@@ -49,6 +50,10 @@ const props = withDefaults(
      *  selector — it's the global service picker, not the topology
      *  view, so per-topology `showGroup` doesn't apply here. */
     namingRule?: ServiceNamingRule | null;
+    /** The page's own set — configuration, not a control. The list is
+     *  narrowed to this BEFORE the operator's search applies, and it is
+     *  never shown: the page's name is what says what it holds. */
+    scopeFilter?: string;
     /** Layer's service-slot alias for the name column header (e.g.
      *  "ActiveMQ clusters", "Databases"). Falls back to the generic
      *  "Service" when the layer defines no alias. */
@@ -101,6 +106,8 @@ function lockTitle(r: PickerRow): string {
   return t('Add to comparison');
 }
 
+// The operator's own search box. Local, and empty on every open: it is
+// theirs, and the page's set is applied beneath it rather than into it.
 const filter = ref('');
 const page = ref(0);
 
@@ -158,10 +165,24 @@ const orderByLabel = computed(() => {
 
 const probedCount = computed(() => props.services.length);
 
+// Matching runs on the RAW OAP service name (`r.name`), not the stripped
+// label the row renders — which is what lets a `/^agent::/` page filter
+// select a group, and still matches a typed display name because the
+// stripped form is a substring of the raw one.
+const matcher = computed(() => serviceFilterMatcher(filter.value));
+/** The page's set, applied FIRST — a page that declares one has made this
+ *  the whole roster as far as this screen is concerned, including the
+ *  count, which would otherwise leak what the page excluded. */
+const scopeMatcher = computed(() => serviceFilterMatcher(props.scopeFilter ?? ''));
+const inScope = computed(() => allRows.value.filter((r) => scopeMatcher.value.match(r.name)));
+const filterInvalid = computed(() => matcher.value.invalid);
 const filtered = computed(() => {
-  const q = filter.value.trim().toLowerCase();
-  if (q.length === 0) return allRows.value;
-  return allRows.value.filter((r) => r.name.toLowerCase().includes(q));
+  // BOTH branches start from the page's set. Returning `allRows` for an
+  // empty search box made the page's filter apply only WHILE the operator
+  // was typing — and the box is empty on arrival, so it did nothing at
+  // all in the state everyone sees.
+  if (matcher.value.empty) return inScope.value;
+  return inScope.value.filter((r) => matcher.value.match(r.name));
 });
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / props.pageSize)));
 const currentPage = computed(() => Math.min(page.value, pageCount.value - 1));
@@ -182,11 +203,20 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
       <input
         v-model="filter"
         class="search"
-        :placeholder="t('filter by name…')"
+        :class="{ invalid: filterInvalid }"
+        :placeholder="t('filter by name, or /regex/…')"
+        :title="filterInvalid ? t('Not a valid regular expression — matching the text literally.') : undefined"
         spellcheck="false"
         autocomplete="off"
       />
-      <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: allRows.length }) }}</span>
+      <button
+        v-if="filter"
+        type="button"
+        class="search-clear"
+        :title="t('Clear filter')"
+        @click="filter = ''"
+      >×</button>
+      <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: inScope.length }) }}</span>
       <span
         v-if="probedCount > 0 && allRows.length > probedCount"
         class="count capped"
@@ -292,7 +322,11 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
         </template>
         <tr v-if="visible.length === 0">
           <td :colspan="columns.length + 1 + (lockEnabled ? 1 : 0)" class="empty">
-            {{ t('No services match') }} <code>{{ filter }}</code>.
+            <template v-if="filter">{{ t('No services match') }} <code>{{ filter }}</code>.</template>
+            <!-- The page's own narrowing gets no wording of its own: the
+                 reader did not write it, and the page's name is what says
+                 what it holds. -->
+            <template v-else>{{ t('No services reported.') }}</template>
           </td>
         </tr>
       </tbody>
@@ -319,6 +353,21 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--sw-line);
+}
+.search.invalid {
+  border-color: var(--sw-warn);
+}
+.search-clear {
+  background: transparent;
+  border: 0;
+  color: var(--sw-fg-2);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--sw-fg-0);
 }
 .search {
   flex: 1;

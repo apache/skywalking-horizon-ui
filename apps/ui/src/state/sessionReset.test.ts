@@ -197,7 +197,7 @@ describe('resetSessionState — the config bundle', () => {
 
     expect(useConfigBundle().bundle.value).toBeNull();
     // …and it must not seed the localStorage copy the next session reads.
-    expect(localStorage.getItem('horizon:configBundle:v3')).toBeNull();
+    expect(localStorage.getItem('horizon:configBundle:v4')).toBeNull();
   });
 
   it('a bundle fetch that FAILS after the switch cannot seed the unreachable placeholder', async () => {
@@ -244,7 +244,7 @@ describe('resetSessionState — the config bundle', () => {
     await refreshing;
 
     expect(useConfigBundle().bundle.value).toBeNull();
-    const cached = JSON.parse(localStorage.getItem('horizon:configBundle:v3')!) as { etag: string };
+    const cached = JSON.parse(localStorage.getItem('horizon:configBundle:v4')!) as { etag: string };
     expect(cached.etag).toBe('W/"1"');
   });
 });

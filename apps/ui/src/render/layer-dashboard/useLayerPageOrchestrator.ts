@@ -54,6 +54,10 @@ import { pushEvent } from '@/controls/eventLog';
 export interface OrchestratorRefs {
   layerKey: Ref<string>;
   scope: Ref<string>;
+  /** Which page of `scope` is rendered; absent on the default grid.
+   *  Part of the arming identity: moving between two pages of one
+   *  component is a full re-read, not a picker change. */
+  pageId?: Ref<string | undefined>;
   /** Dashboard widget config (preload bundle or network). */
   config: Ref<{ widgets?: unknown[] } | null>;
   /** Landing rows — the service list. */
@@ -124,7 +128,7 @@ export function useLayerPageOrchestrator(refs: OrchestratorRefs): {
 } {
   const stamps = reactive(freshStamps());
   const done = ref(false);
-  // The cascade. Each step emits exactly once per (layerKey, scope)
+  // The cascade. Each step emits exactly once per (layerKey, scope, page)
   // arming, only after the prior step is `true`.
 
   function report(phase: Phase, text: string): void {
@@ -300,7 +304,7 @@ export function useLayerPageOrchestrator(refs: OrchestratorRefs): {
   // selection without spamming a fresh "config / services" pair
   // for every picker click.
   watch(
-    [() => refs.layerKey.value, () => refs.scope.value],
+    [() => refs.layerKey.value, () => refs.scope.value, () => refs.pageId?.value],
     (_now, before) => {
       if (before === undefined) return;
       Object.assign(stamps, freshStamps());

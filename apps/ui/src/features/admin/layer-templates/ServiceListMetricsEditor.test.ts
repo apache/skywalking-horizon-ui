@@ -50,6 +50,47 @@ async function renameColumn(w: VueWrapper, i: number, to: string): Promise<void>
   await input.setValue(to);
 }
 
+/**
+ * A template that carries no `metrics` block at all.
+ *
+ * Every bundled template ships one, so this shape only became reachable
+ * when the editor started opening templates that exist solely on OAP. It
+ * threw on mount — the block is seeded through the model, and reading that
+ * model back on the same tick yields the value the parent has not sent
+ * back yet.
+ */
+describe('a template with no metrics block', () => {
+  it('mounts, and seeds the block rather than throwing', () => {
+    const w = mount(ServiceListMetricsEditor, {
+      props: { config: undefined, serviceLabel: 'Service' },
+      global: { plugins: [i18n] },
+    });
+    // The orderBy control renders off the seeded block, so its presence is
+    // what says the block reached the template rather than staying
+    // undefined behind a v-if.
+    expect(w.find('.metrics-keys').exists()).toBe(true);
+    // Seeded through the model, so the parent receives the block the
+    // editor is about to write into — and it is the SAME object, which is
+    // what makes the editor's in-place mutations reach the draft. The
+    // template's own reads have already put `columns` on it by now.
+    const seeded = w.emitted('update:config')?.[0]?.[0] as { columns?: unknown[] };
+    expect(seeded).toBeTypeOf('object');
+    expect(seeded.columns).toEqual([]);
+  });
+
+  it('accepts a column straight away', async () => {
+    const w = mount(ServiceListMetricsEditor, {
+      props: { config: undefined, serviceLabel: 'Service' },
+      global: { plugins: [i18n] },
+    });
+    await w.get('.card-head .add').trigger('click');
+    // The seeded object is the one the parent now holds, so the column
+    // landed where the draft can see it.
+    const seeded = w.emitted('update:config')?.[0]?.[0] as { columns?: unknown[] };
+    expect(seeded.columns).toHaveLength(1);
+  });
+});
+
 describe('service-list metrics editor — drafts the push route accepts', () => {
   it('never re-mints a metric id a surviving column still holds', async () => {
     const draft: Metrics = { columns: [] };

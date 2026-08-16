@@ -87,11 +87,14 @@ function preferParam(): 'local' | 'remote' {
   }
 }
 
-// v2 (2026-05) added `syncStatus`; v3 added `syncStatus.mode` (live/readonly).
+// v2 (2026-05) added `syncStatus`; v3 added `syncStatus.mode` (live/readonly);
+// v4 added `layerExtPages`. The bump matters even though the field is
+// optional: a cached v3 bundle has no pages, so a returning operator would
+// paint an extension page as empty before the fetch lands.
 // A returning operator's stale cache lacking `mode` would read as live even
 // when the BFF is in readonly — bump the key so older shapes are discarded and
 // the next fetch repopulates.
-const STORAGE_KEY = 'horizon:configBundle:v3';
+const STORAGE_KEY = 'horizon:configBundle:v4';
 const state = ref<ConfigBundle | null>(null);
 let loadPromise: Promise<void> | null = null;
 
@@ -110,7 +113,7 @@ function readStorage(): ConfigBundle | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ConfigBundle;
-    // Strict shape check: a v3 bundle MUST carry syncStatus with a mode. Older
+    // Strict shape check: a v4 bundle MUST carry syncStatus with a mode. Older
     // shapes are silently discarded — the next bundle fetch repopulates.
     if (!parsed?.etag || !parsed?.layers || !parsed?.syncStatus?.mode) return null;
     return parsed;
@@ -235,21 +238,61 @@ export async function setTemplateRenderMode(mode: 'local' | 'remote'): Promise<v
   await refreshConfigBundle();
 }
 
-/** Sync lookup. Returns null when the bundle hasn't loaded yet OR
- *  when the (layer, scope) pair has no widgets configured. */
+/**
+ * Sync lookup of one page's widgets. `page` selects an extension page;
+ * omitted means the component's default grid.
+ *
+ * `null` means "nothing here" — the bundle hasn't loaded, or this
+ * (layer, scope, page) has no widgets — and the caller answers it with a
+ * network fetch. That is what turns an unknown page into a 404 instead of
+ * a silent fall back to the component's default grid.
+ */
+/** A page the PREVIEWED draft does not declare. Distinct from `null`
+ *  ("not in the bundle, ask the network") and from `[]` ("a real page with
+ *  no widgets"). */
+export const MISSING_PAGE: DashboardWidget[] & { __missing?: true } = Object.freeze(
+  Object.assign([] as DashboardWidget[], { __missing: true as const }),
+);
+
+export function isMissingPage(v: unknown): boolean {
+  return Array.isArray(v) && (v as { __missing?: true }).__missing === true;
+}
+
 export function getDashboardConfig(
   layerKey: string,
   scope: 'service' | 'instance' | 'endpoint',
+  page?: string,
 ): DashboardWidget[] | null {
   // In preview mode, overlay the previewed source's content for this layer.
-  type LayerContent = { dashboards?: Record<string, DashboardWidget[]>; widgets?: DashboardWidget[] };
+  type LayerContent = {
+    dashboards?: Record<string, DashboardWidget[]>;
+    dashboardExtPages?: Record<string, Array<{ id: string; widgets: DashboardWidget[] }>>;
+    widgets?: DashboardWidget[];
+  };
   const draft = previewContentFor<LayerContent>(layerEditName(layerKey));
   if (draft) {
-    const d = draft.dashboards?.[scope] ?? (scope === 'service' ? draft.widgets : undefined);
-    if (d !== undefined) return d;
+    if (page) {
+      const p = draft.dashboardExtPages?.[scope]?.find((x) => x.id === page);
+      if (p) return p.widgets;
+      // The draft is a FULL template copy, so it is authoritative about
+      // which pages exist — including when it declares none. Gating this
+      // on `dashboardExtPages` being present missed the case that matters
+      // most: deleting the LAST page removes the property entirely, and
+      // the lookup then fell through and resurrected the published page.
+      //
+      // `MISSING_PAGE` rather than `[]`: an empty array is a real page
+      // with no widgets, which renders as a blank dashboard instead of
+      // not-found. `null` would be wrong too — that means "ask the
+      // network", which holds the copy the operator just deleted.
+      return MISSING_PAGE;
+    } else {
+      const d = draft.dashboards?.[scope] ?? (scope === 'service' ? draft.widgets : undefined);
+      if (d !== undefined) return d;
+    }
   }
   const b = state.value;
   if (!b) return null;
+  if (page) return b.layerExtPages?.[layerKey.toLowerCase()]?.[`${scope}/${page}`] ?? null;
   const layer = b.layers[layerKey.toLowerCase()] as BundleScopeMap | undefined;
   return layer?.[scope] ?? null;
 }

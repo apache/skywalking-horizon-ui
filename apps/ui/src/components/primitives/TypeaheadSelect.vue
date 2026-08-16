@@ -62,7 +62,51 @@ const open = ref(false);
 const query = ref('');
 const activeIdx = ref(0);
 const root = ref<HTMLElement | null>(null);
+const panel = ref<HTMLElement | null>(null);
 const searchEl = ref<HTMLInputElement | null>(null);
+
+/**
+ * The panel renders in a Teleport, positioned from the trigger's viewport
+ * rect. An absolutely-positioned panel is clipped by any scrolling
+ * ancestor — a modal body, a scrollable card — which left the list cut
+ * off or invisible with no way to reach it. Fixed coordinates in `body`
+ * cannot be cropped, at the cost of having to re-measure while open.
+ */
+const panelStyle = ref<Record<string, string>>({});
+const GAP = 4;
+const EDGE = 8;
+
+function place(): void {
+  const trigger = root.value?.querySelector('.tas__trigger') as HTMLElement | null;
+  if (!trigger) return;
+  const r = trigger.getBoundingClientRect();
+  const width = Math.max(r.width, props.minPanelWidth ?? 220);
+  const below = window.innerHeight - r.bottom - GAP - EDGE;
+  const above = r.top - GAP - EDGE;
+  // Flip up only when below genuinely cannot hold a usable list AND above
+  // is roomier — otherwise the panel jumps around as the list is filtered.
+  const up = below < 180 && above > below;
+  panelStyle.value = {
+    left: `${Math.max(EDGE, Math.min(r.left, window.innerWidth - width - EDGE))}px`,
+    width: `${width}px`,
+    maxHeight: `${Math.max(140, up ? above : below)}px`,
+    ...(up ? { bottom: `${window.innerHeight - r.top + GAP}px` } : { top: `${r.bottom + GAP}px` }),
+  };
+}
+
+/** Re-measure on ANY ancestor scroll (capture), not just the window's:
+ *  the trigger moves with the container it sits in, and a panel pinned to
+ *  stale coordinates detaches from it. */
+function trackTrigger(on: boolean): void {
+  const fn = on ? window.addEventListener : window.removeEventListener;
+  fn('scroll', place, true);
+  fn('resize', place);
+}
+watch(open, (v) => {
+  trackTrigger(v);
+  if (v) void nextTick(place);
+});
+onBeforeUnmount(() => trackTrigger(false));
 
 const selectedLabel = computed<string>(() => {
   const m = props.options.find((o) => o.value === props.modelValue);
@@ -153,7 +197,10 @@ function onKey(e: KeyboardEvent): void {
 
 function onDocClick(e: MouseEvent): void {
   if (!root.value) return;
-  if (!root.value.contains(e.target as Node)) open.value = false;
+  const t = e.target as Node;
+  // The panel is no longer a descendant of the root, so a click inside it
+  // has to be excused explicitly or the list closes under the pointer.
+  if (!root.value.contains(t) && !panel.value?.contains(t)) open.value = false;
 }
 document.addEventListener('click', onDocClick);
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
@@ -175,58 +222,67 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
       </span>
       <span class="tas__caret" aria-hidden="true">▾</span>
     </button>
-    <div
-      v-if="open"
-      class="tas__panel"
-      :style="{ minWidth: (minPanelWidth ?? 220) + 'px' }"
-      @keydown="onKey"
-    >
-      <input
-        ref="searchEl"
-        v-model="query"
-        type="text"
-        class="tas__search"
-        :placeholder="t('Filter…')"
+    <Teleport to="body">
+      <div
+        v-if="open"
+        ref="panel"
+        class="tas__panel"
+        :style="panelStyle"
         @keydown="onKey"
-      />
-      <!-- Optional filter row, directly under the search — the same shape the
-           layer-template picker uses. Kept a slot so the primitive stays
-           feature-agnostic: it provides the place, the caller provides the
-           predicate and does its own filtering of `options`. -->
-      <div v-if="$slots.filters" class="tas__filters">
-        <slot name="filters" />
+      >
+        <input
+          ref="searchEl"
+          v-model="query"
+          type="text"
+          class="tas__search"
+          :placeholder="t('Filter…')"
+          @keydown="onKey"
+        />
+        <!-- Optional filter row, directly under the search — the same shape the
+             layer-template picker uses. Kept a slot so the primitive stays
+             feature-agnostic: it provides the place, the caller provides the
+             predicate and does its own filtering of `options`. -->
+        <div v-if="$slots.filters" class="tas__filters">
+          <slot name="filters" />
+        </div>
+        <!-- `.prevent` on the row, not decoration: callers wrap this control
+             in a <label>, and a click on a plain <li> inside a label runs the
+             label's activation behaviour — a synthetic click on its labeled
+             control, which here is the trigger. The panel closed on `pick`
+             and then reopened, so choosing an option left a list floating
+             over the page and the next click landed on a row. -->
+        <ul class="tas__list" role="listbox">
+          <li v-if="filtered.length === 0" class="tas__empty">{{ t('No matches') }}</li>
+          <template v-for="g in grouped" :key="g.name || '_'">
+            <li v-if="showGroups && g.name" class="tas__group">{{ g.name }}</li>
+            <li
+              v-for="{ o, i } in g.rows"
+              :key="String(o.value)"
+              class="tas__row"
+              role="option"
+              :aria-selected="o.value === modelValue"
+              :class="{ 'is-active': i === activeIdx, 'is-selected': o.value === modelValue }"
+              @mouseenter="activeIdx = i"
+              @click.prevent="pick(o)"
+            >
+              <span class="tas__row-label">{{ o.label }}</span>
+              <span
+                v-if="o.hint"
+                class="tas__row-hint"
+                :class="{ 'tas__row-hint--accent': o.hintTone === 'accent' }"
+              >{{ o.hint }}</span>
+            </li>
+          </template>
+        </ul>
+        <!-- Never a silent cut: name what is held back and how to reach it. -->
+        <div v-if="heldBack" class="tas__more">
+          <span>{{ t('Showing {shown} of {total}', { shown: visible.length, total: filtered.length }) }}</span>
+          <button type="button" class="tas__more-btn" @mousedown.prevent="page += 1">
+            {{ t('Show more') }}
+          </button>
+        </div>
       </div>
-      <ul class="tas__list" role="listbox">
-        <li v-if="filtered.length === 0" class="tas__empty">{{ t('No matches') }}</li>
-        <template v-for="g in grouped" :key="g.name || '_'">
-          <li v-if="showGroups && g.name" class="tas__group">{{ g.name }}</li>
-          <li
-            v-for="{ o, i } in g.rows"
-            :key="String(o.value)"
-            class="tas__row"
-            role="option"
-            :aria-selected="o.value === modelValue"
-            :class="{ 'is-active': i === activeIdx, 'is-selected': o.value === modelValue }"
-            @mouseenter="activeIdx = i"
-            @click="pick(o)"
-          >
-            <span class="tas__row-label">{{ o.label }}</span>
-            <span
-              v-if="o.hint"
-              class="tas__row-hint"
-              :class="{ 'tas__row-hint--accent': o.hintTone === 'accent' }"
-            >{{ o.hint }}</span>
-          </li>
-        </template>
-      </ul>
-      <!-- Never a silent cut: name what is held back and how to reach it. -->
-      <div v-if="heldBack" class="tas__more">
-        <span>{{ t('Showing {shown} of {total}', { shown: visible.length, total: filtered.length }) }}</span>
-        <button type="button" class="tas__more-btn" @mousedown.prevent="page += 1">
-          {{ t('Show more') }}
-        </button>
-      </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -260,10 +316,11 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
 .tas__caret { font-size: 10px; color: var(--sw-fg-3); flex: 0 0 auto; }
 
 .tas__panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 50;
+  position: fixed;
+  /* Above the modal (1000): the panel exists to be usable from inside one. */
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line-2);
   border-radius: 4px;
@@ -281,7 +338,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
 .tas__search:focus { outline: none; border-color: var(--sw-accent); }
 .tas__list {
   list-style: none; margin: 0; padding: 0;
-  max-height: 320px; overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
 }
 .tas__empty { padding: 10px 8px; font-size: 12px; color: var(--sw-fg-3); text-align: center; }
 .tas__group {

@@ -31,7 +31,7 @@
   real dashboard without a query per keystroke.
 -->
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import type {
@@ -39,12 +39,10 @@ import type {
   DashboardTab,
 } from '@skywalking-horizon-ui/api-client';
 import { collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import { useExtPages } from './useExtPages';
+import { useCanvasResize } from './useCanvasResize';
+import { useCanvasReorder } from './useCanvasReorder';
 import {
-  CANVAS_COLS,
-  CANVAS_ROW_PX,
-  CANVAS_GAP_PX,
-  SUBGRID_ROW_PX,
-  SUBGRID_GAP_PX,
   DRAWER_COL,
   widgetSpan,
   widgetRowSpan,
@@ -60,11 +58,15 @@ import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue'
 
 // `draft` is the parent's shared reactive wrapper around the live template;
 // every edit here mutates it IN PLACE (the draft is shared by reference — never
-// clone). `activeScope` is the scope whose widget list the canvas edits.
+// clone). `activeScope` is the scope whose widget list the canvas edits, and
+// `activePage` picks WHICH of that component's pages — `null` for its default
+// grid.
 const props = defineProps<{
   draft: { template: AdminLayerTemplate | null };
   activeScope: AdminScope;
+  activePage?: string | null;
 }>();
+const emit = defineEmits<{ (e: 'update:activePage', v: string | null): void }>();
 
 const { t } = useI18n();
 
@@ -72,28 +74,21 @@ function scopeLabel(s: AdminScope): string {
   return scopeLabelOf(props.draft.template, s);
 }
 
+// Which page of the active scope the canvas edits — `null` is the
+// component's DEFAULT grid. Storage lives in `useExtPages`, so every
+// mutation below is page-aware without knowing which kind of page it is.
+const extPages = useExtPages(
+  computed(() => props.draft.template),
+  computed(() => props.activeScope as string),
+  computed({ get: () => props.activePage ?? null, set: (v) => emit('update:activePage', v) }),
+);
+
 function widgetsFor(scope: AdminScope): DashboardWidget[] {
-  const tpl = props.draft.template;
-  if (!tpl) return [];
-  // Read from `dashboards.<scope>`, falling back to legacy `widgets`
-  // for the service scope so the existing JSONs keep their content
-  // until we explicitly migrate them.
-  const scoped = tpl.dashboards?.[scope];
-  if (scoped) return scoped;
-  if (scope === 'service' && tpl.widgets) return tpl.widgets;
-  return [];
+  return extPages.readWidgets(scope, props.activePage ?? null);
 }
 
 function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
-  const tpl = props.draft.template;
-  if (!tpl) return;
-  const dashboards = tpl.dashboards ?? {};
-  dashboards[scope] = widgets;
-  tpl.dashboards = dashboards;
-  // Drop the legacy `widgets` once we've split — keeps the JSON clean.
-  if (scope === 'service' && tpl.widgets) {
-    (tpl as unknown as { widgets?: DashboardWidget[] }).widgets = undefined;
-  }
+  extPages.writeWidgets(scope, props.activePage ?? null, widgets);
 }
 
 /** Every widget id in the draft — all scopes + tab children. Ids are the wire
@@ -101,10 +96,7 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
  *  collisions a count-based id hits after a delete + re-add. */
 function allWidgetIds(): Set<string> {
   const ids = new Set<string>();
-  const tpl = props.draft.template;
-  if (!tpl) return ids;
-  if (tpl.dashboards) for (const ws of Object.values(tpl.dashboards)) collectWidgetIds(ws, ids);
-  if (tpl.widgets) collectWidgetIds(tpl.widgets, ids);
+  for (const ws of extPages.allWidgetLists()) collectWidgetIds(ws, ids);
   return ids;
 }
 /** Widget ids are minted against the WHOLE draft, not the list being appended
@@ -184,7 +176,7 @@ watch([selectedIdx, subSel], () => void nextTick(positionDrawer));
  *  doesn't refer to a widget that no longer exists. A layer switch / import /
  *  reset replaces `draft.template` (a fresh object), so watching its reference
  *  reproduces the parent's old `[activeScope, selectedKey]` reset trigger. */
-watch([() => props.activeScope, () => props.draft.template], () => {
+watch([() => props.activeScope, () => props.activePage, () => props.draft.template], () => {
   selectedIdx.value = null;
   subSel.value = null;
   // A different scope/layer has its own tab widgets; a stale per-id active-tab
@@ -227,238 +219,36 @@ function addToTab(widgetId: string, type: DashboardWidget['type']): void {
   subSel.value = { widgetId, tabIdx: ti, subIdx: widgets.length - 1 };
 }
 
-const canvasEl = ref<HTMLDivElement | null>(null);
+// Declared above the canvas composables that consume it: a `const` used
+// before its declaration is a TDZ ReferenceError that aborts setup and
+// leaves the page blank with no trace.
+const currentWidgets = computed(() => widgetsFor(props.activeScope));
 
-/** Active resize session: tracks the starting span/rowSpan + pixel
- *  origin so we can compute the new span from the mouse delta. */
-const resize = reactive<{
-  active: boolean;
-  idx: number;
-  sub: { widgetId: string; tabIdx: number; subIdx: number } | null;
-  startX: number;
-  startY: number;
-  startSpan: number;
-  startRowSpan: number;
-  cellW: number;
-  cellH: number;
-}>({
-  active: false,
-  idx: -1,
-  sub: null,
-  startX: 0,
-  startY: 0,
-  startSpan: 1,
-  startRowSpan: 1,
-  cellW: 1,
-  cellH: 1,
+const { canvasEl, resize, onResizeStart, onSubResizeStart } = useCanvasResize({
+  currentWidgets,
+  setWidgets: (widgets) => setWidgetsFor(props.activeScope, widgets),
+  subWidgetsOf,
+  commitSubWidgets,
+  selectedIdx,
+  selectSub,
 });
 
-function onResizeStart(e: MouseEvent, i: number): void {
-  e.preventDefault();
-  e.stopPropagation();
-  const widgets = currentWidgets.value;
-  const w = widgets[i];
-  if (!w || !canvasEl.value) return;
-  const rect = canvasEl.value.getBoundingClientRect();
-  // The canvas grid uses 12 equal-width columns with a fixed gap. Column
-  // width is therefore (canvasWidth - 11 gaps - 2 padding) / 12. We snap
-  // the dragged span based on this cell pitch.
-  const cellW = (rect.width - 2 * 12 - CANVAS_GAP_PX * (CANVAS_COLS - 1)) / CANVAS_COLS;
-  resize.active = true;
-  resize.idx = i;
-  resize.startX = e.clientX;
-  resize.startY = e.clientY;
-  resize.startSpan = widgetSpan(w);
-  resize.startRowSpan = widgetRowSpan(w);
-  resize.cellW = cellW + CANVAS_GAP_PX;
-  resize.cellH = CANVAS_ROW_PX + CANVAS_GAP_PX;
-  selectedIdx.value = i;
-  window.addEventListener('mousemove', onResizeMove);
-  window.addEventListener('mouseup', onResizeEnd);
-}
-/** Resize a widget INSIDE a tab — same drag as the top level, but snapped to
- *  the tab's own 12-col sub-grid pitch (measured from the .cw-subgrid). */
-function onSubResizeStart(e: MouseEvent, widgetId: string, tabIdx: number, subIdx: number): void {
-  e.preventDefault();
-  e.stopPropagation();
-  const sw = subWidgetsOf(widgetId, tabIdx)[subIdx];
-  const grid = (e.target as HTMLElement).closest('.cw-subgrid') as HTMLElement | null;
-  if (!sw || !grid) return;
-  const rect = grid.getBoundingClientRect();
-  const cellW = (rect.width - SUBGRID_GAP_PX * (CANVAS_COLS - 1)) / CANVAS_COLS;
-  resize.active = true;
-  resize.idx = -1;
-  resize.sub = { widgetId, tabIdx, subIdx };
-  resize.startX = e.clientX;
-  resize.startY = e.clientY;
-  resize.startSpan = widgetSpan(sw);
-  resize.startRowSpan = widgetRowSpan(sw);
-  resize.cellW = cellW + SUBGRID_GAP_PX;
-  resize.cellH = SUBGRID_ROW_PX + SUBGRID_GAP_PX;
-  selectSub(widgetId, tabIdx, subIdx);
-  window.addEventListener('mousemove', onResizeMove);
-  window.addEventListener('mouseup', onResizeEnd);
-}
-function onResizeMove(e: MouseEvent): void {
-  if (!resize.active) return;
-  const dx = e.clientX - resize.startX;
-  const dy = e.clientY - resize.startY;
-  const newSpan = Math.max(1, Math.min(CANVAS_COLS, resize.startSpan + Math.round(dx / resize.cellW)));
-  const newRowSpan = Math.max(1, Math.min(8, resize.startRowSpan + Math.round(dy / resize.cellH)));
-  if (resize.sub) {
-    const { widgetId, tabIdx, subIdx } = resize.sub;
-    const ws = [...subWidgetsOf(widgetId, tabIdx)];
-    const w = ws[subIdx];
-    if (w && (w.span !== newSpan || w.rowSpan !== newRowSpan)) {
-      ws[subIdx] = { ...w, span: newSpan, rowSpan: newRowSpan };
-      commitSubWidgets(widgetId, tabIdx, ws);
-    }
-    return;
-  }
-  const widgets = [...currentWidgets.value];
-  const w = widgets[resize.idx];
-  if (!w) return;
-  if (w.span !== newSpan || w.rowSpan !== newRowSpan) {
-    widgets[resize.idx] = { ...w, span: newSpan, rowSpan: newRowSpan };
-    setWidgetsFor(props.activeScope, widgets);
-  }
-}
-function onResizeEnd(): void {
-  resize.active = false;
-  resize.sub = null;
-  window.removeEventListener('mousemove', onResizeMove);
-  window.removeEventListener('mouseup', onResizeEnd);
-}
-
-/** Active reorder session: tracks the dragged widget index and the
- *  current hover target. Drop reorders the array — no live mutation
- *  during the drag (the dragged widget keeps its slot but dims, the
- *  hover target gets a leading marker). */
-const reorder = reactive<{
-  active: boolean;
-  from: number;
-  over: number;
-  sub: { widgetId: string; tabIdx: number; subIdx: number } | null;
-}>({
-  active: false,
-  from: -1,
-  over: -1,
-  sub: null,
-});
-
-function onReorderStart(e: DragEvent, i: number): void {
-  // Only allow drag from the widget's header. The header sets
-  // draggable=true; resize handles + drawer inputs do not.
-  reorder.active = true;
-  reorder.from = i;
-  reorder.over = i;
-  reorder.sub = null;
-  selectedIdx.value = i;
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(i));
-  }
-}
-/** Start dragging a widget that lives INSIDE a tab — dropping it on the
- *  top-level canvas (or a top-level widget) moves it OUT of the tab. */
-function onSubReorderStart(e: DragEvent, widgetId: string, tabIdx: number, subIdx: number): void {
-  reorder.active = true;
-  reorder.from = -1;
-  reorder.over = -1;
-  reorder.sub = { widgetId, tabIdx, subIdx };
-  selectSub(widgetId, tabIdx, subIdx);
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', 'sub');
-  }
-}
-/** Move the dragged in-tab widget out to the scope's top-level grid. */
-function moveSubToScope(insertAt: number | null): void {
-  if (!reorder.sub) return;
-  const { widgetId, tabIdx, subIdx } = reorder.sub;
-  const scope = [...widgetsFor(props.activeScope)];
-  const twIdx = scope.findIndex((w) => w.id === widgetId && w.type === 'tab');
-  const tw = twIdx >= 0 ? scope[twIdx] : null;
-  const sub = tw?.tabs?.[tabIdx]?.widgets[subIdx];
-  if (!tw?.tabs || !sub) return;
-  const tabs = [...tw.tabs];
-  tabs[tabIdx] = { ...tabs[tabIdx], widgets: tabs[tabIdx].widgets.filter((_, j) => j !== subIdx) };
-  scope[twIdx] = { ...tw, tabs };
-  const at = insertAt == null ? scope.length : Math.min(insertAt, scope.length);
-  scope.splice(at, 0, sub);
-  setWidgetsFor(props.activeScope, scope);
-  subSel.value = null;
-  selectedIdx.value = scope.indexOf(sub);
-}
-/** Drop on the canvas background (not on a widget) — moves a dragged in-tab
- *  widget OUT to the end of the top-level grid. */
-function onCanvasDrop(e: DragEvent): void {
-  if (!reorder.active || !reorder.sub) return;
-  e.preventDefault();
-  moveSubToScope(null);
-  reorder.active = false;
-  reorder.from = -1;
-  reorder.over = -1;
-  reorder.sub = null;
-}
-function onReorderOver(e: DragEvent, i: number): void {
-  if (!reorder.active) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-  if (reorder.over !== i) reorder.over = i;
-}
-function onReorderDrop(e: DragEvent, i: number): void {
-  if (!reorder.active) return;
-  e.preventDefault();
-  // Dragging a widget OUT of a tab, dropped over a top-level widget → insert
-  // it into the scope at that position.
-  if (reorder.sub) {
-    moveSubToScope(i);
-    reorder.active = false;
-    reorder.from = -1;
-    reorder.over = -1;
-    reorder.sub = null;
-    return;
-  }
-  const from = reorder.from;
-  const to = i;
-  if (from !== to) {
-    const widgets = [...currentWidgets.value];
-    const target = widgets[to];
-    const dragged = widgets[from];
-    if (target && dragged && target.type === 'tab' && dragged.type !== 'tab') {
-      // Dropped a leaf onto a tab container → MOVE it into that tab's ACTIVE
-      // panel (it leaves the top-level grid).
-      widgets.splice(from, 1);
-      const tabs = [...(target.tabs ?? [])];
-      if (tabs.length === 0) tabs.push({ name: 'Tab 1', widgets: [] });
-      const ti = Math.min(activeTabOf(target.id), tabs.length - 1);
-      tabs[ti] = { ...tabs[ti], widgets: [...tabs[ti].widgets, dragged] };
-      const tIdx = widgets.indexOf(target);
-      widgets[tIdx] = { ...target, tabs };
-      setWidgetsFor(props.activeScope, widgets);
-      selectedIdx.value = tIdx;
-    } else {
-      widgets.splice(from, 1);
-      widgets.splice(to, 0, dragged);
-      setWidgetsFor(props.activeScope, widgets);
-      selectedIdx.value = to;
-    }
-  }
-  reorder.active = false;
-  reorder.from = -1;
-  reorder.over = -1;
-}
-function onReorderEnd(): void {
-  reorder.active = false;
-  reorder.from = -1;
-  reorder.over = -1;
-  reorder.sub = null;
-}
-
-onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', onResizeMove);
-  window.removeEventListener('mouseup', onResizeEnd);
+const {
+  reorder,
+  onReorderStart,
+  onSubReorderStart,
+  onCanvasDrop,
+  onReorderOver,
+  onReorderDrop,
+  onReorderEnd,
+} = useCanvasReorder({
+  currentWidgets,
+  readWidgets: () => widgetsFor(props.activeScope),
+  setWidgets: (widgets) => setWidgetsFor(props.activeScope, widgets),
+  selectedIdx,
+  subSel,
+  selectSub,
+  activeTabOf,
 });
 
 /** Convenience: the currently-selected widget — a top-level widget
@@ -772,7 +562,6 @@ function removeExpr(i: number): void {
   w.expressionAxes = drop(w.expressionAxes);
 }
 
-const currentWidgets = computed(() => widgetsFor(props.activeScope));
 
 /**
  * Structured `visibleWhen` editor. The gate is one of:

@@ -42,6 +42,8 @@ export interface FanoutRange {
 /** Single-entity dashboard request body (subset of the BFF contract). */
 export interface DashboardBody {
   service?: string;
+  /** Which page of `scope`; absent on the component's default grid. */
+  page?: string;
   serviceInstance?: string;
   endpoint?: string;
   scope?: string;
@@ -103,8 +105,15 @@ export function entityDashboardBody(
   entityName: string,
   range: FanoutRange | null,
   widgets: DashboardWidget[] | null,
+  /** Which page of `scope` these widgets came from. A comparison request
+   *  is the SAME page against a different entity, so it must be qualified
+   *  exactly as the primary is — including being OMITTED in a preview,
+   *  where the page exists only in the browser's draft. The caller passes
+   *  the one value it computed for both. */
+  page?: string,
 ): DashboardBody {
   const body: DashboardBody = { scope };
+  if (page) body.page = page;
   if (entityService) body.service = entityService;
   if (scope === 'instance' && entityName) body.serviceInstance = entityName;
   if (scope === 'endpoint' && entityName) body.endpoint = entityName;
@@ -130,12 +139,14 @@ export function entityDashboardKey(
   mockTop: number,
   rangeKey: string | null,
   widgetsJson: string | null,
+  page?: string,
 ): Array<string | number | null> {
   return [
     'dashboard',
     layerKey,
     entityService,
     scope,
+    page ?? null,
     mockTop,
     scope === 'instance' ? entityName : null,
     scope === 'endpoint' ? entityName : null,

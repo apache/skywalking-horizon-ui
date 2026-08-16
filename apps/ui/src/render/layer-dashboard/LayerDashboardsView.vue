@@ -27,7 +27,7 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import type { LayerDef, DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
@@ -50,37 +50,33 @@ import { useSetupStore } from '@/state/setup';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { type CompareScope, compoundKey } from '@/state/layerSelection';
+import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
-// Scope is inferred from the active sub-route. Profiling is split
-// into three independent scopes (trace / eBPF / async), each with its
-// own widget set on the layer template; the route segment is
-// kebab-cased so the URL stays readable.
-const ROUTE_TO_SCOPE: Record<string, string> = {
-  instance: 'instance',
-  endpoint: 'endpoint',
-  trace: 'trace',
-  logs: 'logs',
-  topology: 'topology',
-  dependency: 'dependency',
-  'trace-profiling': 'traceProfiling',
-  'ebpf-profiling': 'ebpfProfiling',
-  'async-profiling': 'asyncProfiling',
-};
-const scope = computed<string>(() => {
-  const path = route.path;
-  for (const segment of Object.keys(ROUTE_TO_SCOPE)) {
-    if (path.endsWith(`/${segment}`)) return ROUTE_TO_SCOPE[segment];
-  }
-  return 'service';
+// Scope comes from the matched route record, not from the URL text. The
+// previous rule tested whether the path ENDED WITH a known segment, which
+// a page id breaks: `/layer/K/instance/runtime` ends with neither, so it
+// resolved `service` and would have queried Service-scope metrics on an
+// Instance page — a grid that renders and is wrong.
+const scope = computed<string>(() => String(route.meta.dashboardScope ?? 'service'));
+// Absent on the component's default grid, set on an extension page. The
+// distinction is the route shape, so it needs no separate flag.
+const pageId = computed<string | undefined>(() => {
+  const p = route.params.pageId;
+  return typeof p === 'string' && p.length > 0 ? p : undefined;
 });
 const { selectedId, lockedServiceIds } = useSelectedService();
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+// Case-insensitive, like `LayerShell`: menu keys are lower-case but a URL
+// can arrive upper-cased from a hand-typed address or an external link.
+// An exact match dropped the layer entirely there — taking the page name,
+// the slot aliases and the seeded filter with it.
+const layer = computed<LayerDef | null>(
+  () => layers.value.find((l) => l.key.toLowerCase() === layerKey.value.toLowerCase()) ?? null,
+);
 
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -142,7 +138,49 @@ const mockTop = computed<number>(() => {
   return Number.isFinite(n) && n > 0 ? Math.min(40, n) : 0;
 });
 
-const { config, isLoading: configLoading } = useLayerDashboardConfig(layerKey, scope);
+const { config, isLoading: configLoading, notFound: configNotFound } = useLayerDashboardConfig(layerKey, scope, pageId);
+/**
+ * The page is gone if EITHER source says so.
+ *
+ * The config bundle is fetched once; `/api/menu` refreshes every minute.
+ * When another operator deletes a page, the menu stops listing it while
+ * the cached bundle still carries its widgets — and widgets in hand
+ * suppress the config request that would have 404'd. The route then kept
+ * rendering a page that no longer exists until someone reloaded.
+ */
+const pageNotFound = computed<boolean>(() => {
+  if (configNotFound.value) return true;
+  const id = pageId.value;
+  if (!id) return false;
+  const s = scope.value as 'service' | 'instance' | 'endpoint';
+  const pages = layer.value?.extPages?.[s];
+  // Only once the menu has actually resolved for this layer: absent
+  // metadata is "not known yet", not "deleted".
+  if (!layer.value || !['service', 'instance', 'endpoint'].includes(s)) return false;
+  return pages !== undefined && !pages.some((p) => p.id === id);
+});
+// The operator's own page name, already localized by the BFF. Empty on a
+// component's default grid, which needs no heading — the sidebar row and
+// the entity pickers already say which component it is.
+/** What the "go back" link is called — the component's own alias where the
+ *  layer renames it. */
+const scopeFallbackLabel = computed<string>(() => {
+  const slots = layer.value?.slots ?? {};
+  // The page's own noun first: the layer's aliases name the DEFAULT page.
+  const own = activePageRef.value?.alias;
+  if (own) return own;
+  if (scope.value === 'instance') return slots.instances ?? t('Instance');
+  if (scope.value === 'endpoint') return slots.endpoints ?? t('Endpoint');
+  return slots.services ?? t('Service');
+});
+
+const activePageRef = computed(() => {
+  if (!pageId.value) return null;
+  const s = scope.value as 'service' | 'instance' | 'endpoint';
+  return layer.value?.extPages?.[s]?.find((p) => p.id === pageId.value) ?? null;
+});
+
+const pageName = computed<string>(() => activePageRef.value?.name ?? '');
 
 /** Auto-pick the first available service whenever the operator lands
  *  on the page with no service selected — applies to every scope, not
@@ -176,7 +214,10 @@ watch(landingRows, (rows) => {
 // auto-pick / fallback, service-change reset, and `effective*` gate
 // (see useInstanceCascade / useEndpointCascade for the full rationale).
 const {
-  selectedInstance,
+  // Only the SETTER: the operator's pick belongs to the layer and crosses
+  // pages, but nothing on this page may present it — a page that filters
+  // it out shows `effectiveInstance`, and reading the shared value here is
+  // how metrics for one instance got labelled with another's name.
   setSelectedInstance,
   lockedInstanceNames,
   toggleLockInstance,
@@ -185,9 +226,16 @@ const {
   instancesLoading,
   instanceBadge,
   effectiveInstance,
+  pageAllowsInstance,
   instanceResolvable,
   instAtCap,
-} = useInstanceCascade(layerKey, scope, service, layer);
+} = useInstanceCascade(
+  layerKey,
+  scope,
+  service,
+  layer,
+  computed(() => pageId.value ?? null),
+);
 const {
   selectedEndpoint,
   setSelectedEndpoint,
@@ -270,7 +318,15 @@ const compareScope = computed<CompareScope | null>(() => {
 });
 const activeSet = computed<string[]>(() => {
   if (compareScope.value === 'service') return lockedServiceIds.value;
-  if (compareScope.value === 'instance') return lockedInstanceNames.value;
+  // Held to the page's own rule: a pin the page excludes would otherwise
+  // be fanned out with THIS page's configuration and charted beside
+  // entities the page is about.
+  if (compareScope.value === 'instance') {
+    return lockedInstanceNames.value.filter((k) => {
+      const { service: svc, name } = splitCompound(k);
+      return pageAllowsInstance(svc, name);
+    });
+  }
   if (compareScope.value === 'endpoint') return lockedEndpointNames.value;
   return [];
 });
@@ -283,7 +339,7 @@ const scopePrimaryKey = computed<string | null>(() => {
   if (compareScope.value === 'service') return selectedId.value;
   const svc = selectedId.value ?? '';
   if (compareScope.value === 'instance') {
-    return selectedInstance.value ? compoundKey(svc, selectedInstance.value) : null;
+    return effectiveInstance.value ? compoundKey(svc, effectiveInstance.value) : null;
   }
   if (compareScope.value === 'endpoint') {
     return selectedEndpoint.value ? compoundKey(svc, selectedEndpoint.value) : null;
@@ -304,6 +360,7 @@ const {
   layerKey,
   serviceName,
   scope,
+  pageId,
   mockTop,
   { instance: effectiveInstance, endpoint: effectiveEndpoint },
   rangeRef,
@@ -368,6 +425,7 @@ const {
 useLayerPageOrchestrator({
   layerKey,
   scope,
+  pageId,
   config,
   serviceList: landingRows,
   effectiveService: serviceName,
@@ -389,7 +447,7 @@ useLayerPageOrchestrator({
 // looking frozen on the prior widgets.
 const fetchKey = computed(
   () =>
-    `${layerKey.value}|${scope.value}|${serviceName.value ?? ''}|${selectedInstance.value ?? ''}|${selectedEndpoint.value ?? ''}|${timeRange.range.startMs}|${timeRange.range.endMs}|${timeRange.step}`,
+    `${layerKey.value}|${scope.value}|${pageId.value ?? ''}|${serviceName.value ?? ''}|${effectiveInstance.value ?? ''}|${selectedEndpoint.value ?? ''}|${timeRange.range.startMs}|${timeRange.range.endMs}|${timeRange.step}`,
 );
 const lastFreshKey = ref<string | null>(null);
 // `immediate` marks a warm-cache remount fresh, else the "Reading data…" gate hangs.
@@ -519,7 +577,7 @@ function onDrillPoint(
   };
   if (mode === 'latency') query.dValue = String(ms);
   if (selectedId.value) query.service = selectedId.value;
-  if (scope.value === 'instance' && selectedInstance.value) query.dInstance = selectedInstance.value;
+  if (scope.value === 'instance' && effectiveInstance.value) query.dInstance = effectiveInstance.value;
   if (scope.value === 'endpoint' && selectedEndpoint.value) query.dEndpoint = selectedEndpoint.value;
   const band = p.seriesName ? `${p.seriesName} · ` : '';
   drill.value = {
@@ -631,6 +689,20 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
 
 <template>
   <div class="dash-tab">
+    <!-- A page this layer does not have. It REPLACES the dashboard rather
+         than sitting above it: leaving the pickers, the reading-data hint
+         and "no widgets defined" on screen described a page that exists
+         and is empty, which is a different thing and the one an operator
+         would act on differently. -->
+    <div v-if="pageNotFound" class="page-missing">
+      <strong>{{ t('Page not found.') }}</strong>
+      <p>{{ t('This layer has no page with that name. It may have been renamed or removed.') }}</p>
+      <RouterLink class="sw-btn xs" :to="`/layer/${layerKey}/${scope}`">
+        {{ t('Go to {component}', { component: scopeFallbackLabel }) }}
+      </RouterLink>
+    </div>
+
+    <template v-else>
     <header v-if="isFetching || compareLoading || !reachable" class="dash-head">
       <span v-if="isFetching || compareLoading" class="badge fetch">{{ t('refreshing') }}</span>
       <span v-else-if="!reachable" class="badge err">{{ t('OAP unreachable') }}</span>
@@ -641,17 +713,27 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
       {{ errorText ?? t('Widgets are showing nothing — check the BFF is up and OAP is reachable.') }}
     </div>
 
+    <!-- Names the page an operator is on, since several pages of one
+         component share the entity pickers and otherwise look alike.
+         Deliberately NOT `.widget`: `layout.spec.ts` proves widgets tile
+         by measuring `boxes[0]`, and `entities.spec.ts` proves metrics
+         arrived by counting `.widget` — a full-width non-metric element
+         counted as a widget would make that assertion pass on a page with
+         no metrics at all. -->
+    <div v-if="pageName" class="page-heading">{{ pageName }}</div>
+
+
     <!-- Instance / endpoint pickers — the sticky list on the left when
          the respective scope is active. Each owns its fetch / auto-pick
          via the cascade composables; these are the presentational shells. -->
     <LayerInstancePicker
       v-if="scope === 'instance'"
-      :slot-label="safeLayer.slots.instances || ''"
+      :slot-label="(scope === 'instance' ? activePageRef?.alias : '') || safeLayer.slots.instances || ''"
       :service-name="serviceName"
       :selected-id="selectedId"
       :instances="instanceList"
       :loading="instancesLoading"
-      :selected="selectedInstance"
+      :selected="effectiveInstance"
       :at-cap="instAtCap"
       :is-locked="isInstanceLocked"
       :row-hue="rowHue"
@@ -662,7 +744,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
 
     <LayerEndpointPicker
       v-if="scope === 'endpoint'"
-      :slot-label="safeLayer.slots.endpoints || ''"
+      :slot-label="(scope === 'endpoint' ? activePageRef?.alias : '') || safeLayer.slots.endpoints || ''"
       :service-name="serviceName"
       :selected-id="selectedId"
       :endpoints="endpointList"
@@ -699,8 +781,8 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         <i18n-t v-else keypath="Reading data for {name}" tag="span" scope="global">
           <template #name>
             <b>{{ serviceName }}</b>
-            <template v-if="scope === 'instance' && selectedInstance">
-              / <b>{{ selectedInstance }}</b>
+            <template v-if="scope === 'instance' && effectiveInstance">
+              / <b>{{ effectiveInstance }}</b>
             </template>
             <template v-else-if="scope === 'endpoint' && selectedEndpoint">
               / <b>{{ selectedEndpoint }}</b>
@@ -812,10 +894,19 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         </button>
       </div>
     </FloatingPanel>
+    </template>
   </div>
 </template>
 
 <style scoped>
+.page-heading {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  padding: 2px 2px 6px;
+  letter-spacing: 0.01em;
+}
+
 .dash-tab {
   display: flex;
   flex-direction: column;
