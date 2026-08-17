@@ -41,7 +41,8 @@ import { metricMeta } from '@/utils/metricCatalog';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore } from '@/controls/timeRange';
-import { useLayers, firstLayerTab } from '@/shell/useLayers';
+import { isBuiltInLayerRow, FALLBACK_LAYER_ROW } from '@skywalking-horizon-ui/api-client';
+import { useLayers, firstLayerTab, layerMenuRows } from '@/shell/useLayers';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServices } from '@/layer/useLayerServices';
@@ -185,48 +186,88 @@ const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('dashboard:re
 // other tabs (Instance / Logs / …). Fires once per change so the
 // browser-back button works as expected.
 //
-// Matrix of route segments that need the layer cap to be present:
-//   service     ⇒ caps.dashboards
-//   instance    ⇒ slots.instances
-//   endpoint    ⇒ slots.endpoints
-//   topology    ⇒ caps.serviceMap | caps.instanceTopology | caps.processTopology
-//   dependency  ⇒ caps.endpointDependency
-//   trace       ⇒ caps.traces
-//   logs        ⇒ caps.logs
-//   *-profiling ⇒ caps.*Profiling
-const SCOPE_CAP_PREDICATE: Record<string, (L: LayerDef) => boolean> = {
-  service: (L) => Boolean(L.caps?.dashboards),
-  instance: (L) => Boolean(L.slots?.instances),
-  endpoint: (L) => Boolean(L.slots?.endpoints),
-  topology: (L) => Boolean(L.caps?.serviceMap || L.caps?.instanceTopology || L.caps?.processTopology),
-  'deployment': (L) => Boolean(L.caps?.deployment),
-  dependency: (L) => Boolean(L.caps?.endpointDependency),
-  trace: (L) => Boolean(L.caps?.traces),
-  logs: (L) => Boolean(L.caps?.logs),
-  'browser-errors': (L) => Boolean(L.caps?.browserErrors),
-  'trace-profiling': (L) => Boolean(L.caps?.traceProfiling),
-  'ebpf-profiling': (L) => Boolean(L.caps?.ebpfProfiling),
-  'async-profiling': (L) => Boolean(L.caps?.asyncProfiling),
-  'network-profiling': (L) => Boolean(L.caps?.networkProfiling),
-  pprof: (L) => Boolean(L.caps?.pprofProfiling),
-  'continuous-profiling': (L) => Boolean(L.caps?.continuousProfiling),
-};
+// The layer's resolved rows decide what is reachable — the same list the
+// sidebar renders — so a tab the sidebar offers can never bounce the
+// operator off it, and a tab it hides can never be sat on.
+//
+// A bare `/layer/:key` resolves here rather than in the router because the
+// answer is per-layer: the router has no menu data, so a static redirect
+// could only ever guess `service` and let this watcher correct it on the
+// next tick. Waiting for the layer costs the same paint and lands once.
 watch(
-  [() => route.path, layer],
-  ([path, L]) => {
+  [() => route.path, layer, layerMissing],
+  ([path, L, missing]) => {
+    const bare = /^\/layer\/[^/]+\/?$/.test(path);
+    if (bare) {
+      if (L) void router.replace({ path: `/layer/${L.key}/${firstLayerTab(L)}`, query: route.query });
+      // Unknown layer, menu settled: still leave a real route behind so the
+      // shell can render its not-found card against a concrete sub-page.
+      else if (missing) void router.replace({ path: `/layer/${layerKey.value}/${FALLBACK_LAYER_ROW}`, query: route.query });
+      return;
+    }
     if (!L) return;
     const m = path.match(/^\/layer\/[^/]+\/([^/?]+)/);
     if (!m) return;
     const scope = m[1];
-    const predicate = SCOPE_CAP_PREDICATE[scope];
-    if (!predicate) return; // unknown scope — let the router resolve
-    if (predicate(L)) return; // layer supports this scope, nothing to do
+    if (layerMenuRows(L).some((r) => r.path === scope)) return; // layer exposes it
+    if (!isBuiltInLayerRow(scope)) return; // not a layer sub-page — let the router resolve
+    // `zipkin-trace` is reachable WITHOUT being a row. The row exists only
+    // when a layer carries both formats and needs two tabs; a pure-zipkin
+    // layer shows one Traces row that embeds the same explorer, and the
+    // standalone URL still opens it in full. The predicate this watcher
+    // replaced had no entry for the path and so never bounced it — routing
+    // it by row alone redirected the URL onto the embedded view, which
+    // renders without its own toolbar.
+    if (scope === 'zipkin-trace' && L.caps?.traces) return;
     const fallback = firstLayerTab(L);
     if (fallback === scope) return; // already at the best fallback
     void router.replace({ path: `/layer/${L.key}/${fallback}`, query: route.query });
   },
   { immediate: true },
 );
+/**
+ * The service list this page is about, as the page's author defined it.
+ *
+ * It is CONFIGURATION, not a control: derived from the route and the
+ * menu, never held as editable state. The operator is not told a filter
+ * exists — the page has a name that carries the meaning, and the pattern
+ * is template syntax they did not write. Their own search box inside the
+ * picker is a separate thing and filters within this set.
+ *
+ * Being derived is also what removed three bugs the editable version had:
+ * a filter that outlived its page, one that survived into another layer,
+ * and one an operator could widen past what the page's author intended.
+ */
+/** The route's entity scope and page id, once, for the page-scoped
+ *  lookups below. */
+const routePage = computed(() => {
+  const m = route.path.match(/^\/layer\/([^/]+)\/([^/?]+)(?:\/([^/?]+))?/);
+  const scope = m?.[2] ?? '';
+  const ok = scope === 'service' || scope === 'instance' || scope === 'endpoint';
+  return { scope: (ok ? scope : '') as '' | 'service' | 'instance' | 'endpoint', pageId: m?.[3] };
+});
+/** The extension page being rendered, when the route names one. */
+const activePageRef = computed(() => {
+  const { scope, pageId } = routePage.value;
+  if (!scope || !pageId) return null;
+  return layer.value?.extPages?.[scope]?.find((p) => p.id === pageId) ?? null;
+});
+const pageScopeFilter = computed<string>(() => {
+  const m = route.path.match(/^\/layer\/([^/]+)\/([^/?]+)(?:\/([^/?]+))?/);
+  const scope = m?.[2] ?? '';
+  const pageId = m?.[3];
+  // Any entity page may narrow the service picker: an Instance or
+  // Endpoint page shows it too, because you pick a service before the
+  // entity the page is about.
+  if (scope !== 'service' && scope !== 'instance' && scope !== 'endpoint') return '';
+  const entity = scope as 'service' | 'instance' | 'endpoint';
+  // No page id is the component's DEFAULT page, which narrows too — it is
+  // the page every component already has, not an unfiltered one.
+  if (!pageId) return layer.value?.defaultFilters?.[entity]?.serviceFilter ?? '';
+  const pages = layer.value?.extPages?.[entity];
+  return pages?.find((p) => p.id === pageId)?.serviceFilter ?? '';
+});
+
 const store = useSetupStore();
 const cfg = computed(() => {
   if (!layer.value) return null;
@@ -438,7 +479,14 @@ function initialsFor(name: string): string {
 }
 const displayName = computed(() => cfg.value?.displayName || layer.value?.name || layerKey.value);
 const initials = computed(() => initialsFor(displayName.value));
-const serviceSlotLabel = computed(() => layer.value?.slots.services || t('services'));
+/** The layer's own noun, unaffected by which page is open. */
+const layerServiceNoun = computed(() => layer.value?.slots.services || t('services'));
+const serviceSlotLabel = computed(
+  () =>
+    (routePage.value.scope === 'service' ? activePageRef.value?.alias : '') ||
+    layer.value?.slots.services ||
+    t('services'),
+);
 
 // Header KPI strip: at most 5 metrics from the layer's setup columns;
 // service count always leads. Each KPI is read from
@@ -533,7 +581,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
             <span v-else-if="!layer.active" class="sw-badge">{{ t('no data') }}</span>
           </div>
           <div class="sub">
-            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${serviceSlotLabel.toLowerCase()}` : t('no service data') }}
+            <!-- The LAYER's noun, never the page's: this count is layer-wide
+                 and a page alias here reads as "128 agents" beside a picker
+                 showing 4. -->
+            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${layerServiceNoun.toLowerCase()}` : t('no service data') }}
             <span v-if="layer.documentLink">·
               <a :href="layer.documentLink" target="_blank" rel="noopener noreferrer">{{ t('docs ↗') }}</a>
             </span>
@@ -648,9 +699,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       :selected-id="selectedId"
       :accent="layer.color"
       :naming-rule="layer.naming ?? null"
-      :service-label="layer.slots.services"
+      :service-label="serviceSlotLabel"
       :lock-enabled="comparable"
       :locked-ids="lockedServiceIds"
+      :scope-filter="pageScopeFilter"
       @select="pickService"
       @toggle-lock="toggleLockService"
     />
@@ -863,6 +915,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
   text-transform: uppercase;
   vertical-align: middle;
 }
+
 .icon-tile {
   width: 40px;
   height: 40px;

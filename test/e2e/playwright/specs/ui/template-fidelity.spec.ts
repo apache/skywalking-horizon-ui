@@ -57,6 +57,22 @@ function widgetsOf(layer: string, scope: string): Widget[] {
 }
 
 /**
+ * Every PAGE a component declares beyond its default grid, as
+ * `{ route suffix, widgets }`.
+ *
+ * No bundled template carries one today, so this yields nothing and the
+ * page-route test skips. It exists so that the day a template does gain a
+ * page, the fidelity check covers it without anyone remembering to come
+ * back here — the failure it guards (a page whose widgets silently do not
+ * render) looks identical to a page that simply has none.
+ */
+function extPagesOf(layer: string, scope: string): Array<{ suffix: string; widgets: Widget[] }> {
+  const raw = JSON.parse(readFileSync(resolve(TEMPLATES, `${layer}.json`), 'utf8'));
+  const pages = (raw.dashboardExtPages?.[scope] ?? []) as Array<{ id: string; widgets: Widget[] }>;
+  return pages.map((p) => ({ suffix: `${scope}/${p.id}`, widgets: p.widgets ?? [] }));
+}
+
+/**
  * Widgets that must render for THIS fixture's entities.
  *
  * `visibleWhen` is evaluated BFF-side per entity: a required widget is dropped
@@ -113,10 +129,11 @@ const EMPTY_STATE = '.muted, .empty';
 const NO_DATA = /^no data$/i;
 
 async function assertScopeMatchesTemplate(page: Page, scope: string, path: string) {
-  const declared = unconditional(widgetsOf(LAYER, scope));
-  expect(declared.length, `${LAYER}.${scope} declares no widgets — wrong fixture?`).toBeGreaterThan(
-    0,
-  );
+  await assertWidgetsRender(page, unconditional(widgetsOf(LAYER, scope)), path, `${LAYER}.${scope}`);
+}
+
+async function assertWidgetsRender(page: Page, declared: Widget[], path: string, what: string) {
+  expect(declared.length, `${what} declares no widgets — wrong fixture?`).toBeGreaterThan(0);
 
   await page.goto(path);
   await expect(page.locator('.widget').first()).toBeVisible({ timeout: 45_000 });
@@ -205,6 +222,20 @@ async function assertScopeMatchesTemplate(page: Page, scope: string, path: strin
     }
   }
 }
+
+test('every extension page renders exactly what its template declares', async ({ page, pageErrors }) => {
+  const pages = (['service', 'instance', 'endpoint'] as const).flatMap((scope) =>
+    extPagesOf(LAYER, scope),
+  );
+  // Bundled layers ship no extension pages. Skipping says so out loud
+  // rather than passing on an empty loop, which would read as coverage.
+  test.skip(pages.length === 0, `${LAYER} declares no extension pages`);
+
+  for (const p of pages) {
+    await assertWidgetsRender(page, unconditional(p.widgets), `/layer/${LAYER}/${p.suffix}`, `${LAYER}.${p.suffix}`);
+  }
+  expect(pageErrors).toEqual([]);
+});
 
 test('the service dashboard renders exactly what its template declares', async ({
   page,

@@ -17,7 +17,18 @@
 
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { LayerDef, LayerMenuRow } from '@skywalking-horizon-ui/api-client';
+import {
+  firstLayerMenuRow,
+  isSingleFeatureLayer,
+  resolveLayerMenuRows,
+} from '@skywalking-horizon-ui/api-client';
+
+// Re-exported from its old home so call sites are unchanged. It moved to
+// the shared package because the bundled-layer regression test runs in the
+// BFF, where a UI import does not resolve — restating the formula there is
+// what let it drift.
+export { isSingleFeatureLayer };
 import { bffClient } from '@/api/client';
 import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 import { usePreviewOverride } from '@/controls/previewOverride';
@@ -133,52 +144,20 @@ export function useLayers() {
 }
 
 /**
- * A layer whose only worthwhile screen is the services list — no tabs to
- * expand into. The sidebar renders it as a direct link, not an accordion.
- * Pure (capability-only) so the row component and its parent can both gate
- * on it without re-deriving.
+ * The layer's sub-page rows, in sidebar order. Prefers the list the BFF
+ * resolved and served; falls back to resolving locally so a layer built
+ * in the browser from an unpushed draft (preview) behaves identically.
  */
-export function isSingleFeatureLayer(L: LayerDef): boolean {
-  const hasInstances = L.caps.instances ?? Boolean(L.slots.instances);
-  const hasEndpoints = L.caps.endpoints ?? Boolean(L.slots.endpoints);
-  if (hasInstances || hasEndpoints) return false;
-  if (L.caps.serviceMap || L.caps.instanceTopology || L.caps.processTopology) return false;
-  const c = L.caps;
-  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
-  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
-  return true;
+export function layerMenuRows(L: LayerDef | undefined | null): LayerMenuRow[] {
+  if (!L) return [];
+  return L.menuRows ?? resolveLayerMenuRows(L);
 }
 
 /**
- * Pick the first sub-route a layer should land on, based on its
- * declared components (slots / caps). Some layers turn off the service
- * tab entirely (`mesh_dp` instance-only, `so11y_*_agent` per-agent
- * JVM metrics) — without this helper, the sidebar + the bare-route
- * redirect both shove the operator at `/service` and they land on an
- * empty grid. Order mirrors the visible tab order in the sidebar.
+ * The sub-route a layer lands on — its first row. Some layers turn the
+ * service page off entirely (`mesh_dp` sidecar-only, `so11y_*_agent`
+ * per-JVM), so this is not always `service`.
  */
 export function firstLayerTab(L: LayerDef | undefined): string {
-  if (!L) return 'service';
-  // `caps.dashboards` (derived from `components.service !== false`) is the
-  // authoritative enable-flag for the per-service page. Some layers (MESH_DP
-  // — sidecar-only; SO11Y_*_AGENT — per-JVM) carry a non-empty
-  // `slots.services` label but no service component; gating on the slot label
-  // instead of caps would land them on an empty `/service` page.
-  if (L.caps?.dashboards) return 'service';
-  if (L.caps?.instances ?? Boolean(L.slots?.instances)) return 'instance';
-  if (L.caps?.endpoints ?? Boolean(L.slots?.endpoints)) return 'endpoint';
-  if (L.caps?.serviceMap || L.caps?.instanceTopology || L.caps?.processTopology) return 'topology';
-  if (L.caps?.deployment) return 'deployment';
-  if (L.caps?.endpointDependency) return 'dependency';
-  if (L.caps?.traces) return 'trace';
-  if (L.caps?.logs) return 'logs';
-  if (L.caps?.browserErrors) return 'browser-errors';
-  if (L.caps?.podLogs) return 'pod-logs';
-  if (L.caps?.traceProfiling) return 'trace-profiling';
-  if (L.caps?.ebpfProfiling) return 'ebpf-profiling';
-  if (L.caps?.networkProfiling) return 'network-profiling';
-  if (L.caps?.asyncProfiling) return 'async-profiling';
-  if (L.caps?.pprofProfiling) return 'pprof';
-  if (L.caps?.continuousProfiling) return 'continuous-profiling';
-  return 'service';
+  return firstLayerMenuRow(L);
 }

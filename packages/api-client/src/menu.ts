@@ -15,6 +15,10 @@
  * limitations under the License.
  */
 
+// Type-only, so the cycle with `layer-menu.ts` (which needs LayerCaps /
+// LayerSlots) is erased at compile time.
+import type { LayerDefaultFilters, LayerExtPages, LayerMenuRow } from './layer-menu.js';
+
 /**
  * Wire types for `GET /api/menu`. The BFF aliases three OAP GraphQL queries
  * (`listLayers`, `getMenuItems`, `listLayerLevels`) into a single roundtrip
@@ -195,6 +199,22 @@ export interface LayerDef {
   documentLink?: string;
   slots: LayerSlots;
   caps: LayerCaps;
+  /** The layer's navigable sub-pages, in sidebar order, resolved by the
+   *  BFF from the in-use template. Authoritative: the sidebar renders
+   *  these rows, and `menuRows[0]` is where the layer's own click, the
+   *  bare `/layer/:key` URL and the unsupported-route fallback land.
+   *  Optional only because a `LayerDef` built in the browser from an
+   *  unpushed draft fills it locally — see `resolveLayerMenuRows`. */
+  menuRows?: LayerMenuRow[];
+  /** Extension pages per entity component, names already localized.
+   *  Carries what the runtime needs to route to a page and to seed its
+   *  service filter; the page's widgets ride the config bundle. */
+  extPages?: LayerExtPages;
+  /** Narrowing applied to each component's default page. */
+  defaultFilters?: LayerDefaultFilters;
+  /** Operator-defined row order, applied by the resolver. Absent means
+   *  the built-in default order. */
+  menuOrder?: string[];
   /** Per-layer page header / service-list table config. Came from the
    *  JSON template's `layer-header` block (or legacy `metrics`). UI
    *  uses it for the per-layer Service page picker columns. Falls

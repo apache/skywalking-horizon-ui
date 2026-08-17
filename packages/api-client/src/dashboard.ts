@@ -304,6 +304,8 @@ export interface DashboardConfig {
   layer: string;
   /** Widget set for the requested scope. */
   scope?: DashboardScope;
+  /** Which page of the scope this is; absent for the default grid. */
+  page?: string;
   /** Order is irrelevant — flow grid drives placement. */
   widgets: DashboardWidget[];
 }

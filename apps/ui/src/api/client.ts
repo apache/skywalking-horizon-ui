@@ -45,6 +45,7 @@ import type {
   TopologyConfig,
   TracesConfig,
   Catalog,
+  InstanceAttributePredicate,
 } from '@skywalking-horizon-ui/api-client';
 
 import { pushEvent } from '@/controls/eventLog';
@@ -293,6 +294,26 @@ export interface MeResponse {
 }
 
 /** Wire shape returned by GET /api/admin/layer-templates. */
+/** One operator-authored extension page. `id` is the route segment and the
+ *  translation-overlay key, unique within its component. */
+/** The entity narrowing a page applies. Shared by extension pages and by
+ *  each component's default page. */
+export interface AdminEntityFilter {
+  /** Narrows the service list. Legal under any entity scope. */
+  serviceFilter?: string;
+  /** Instance scope only — the same, for the instance list. */
+  instanceFilter?: string;
+  instanceAttributes?: InstanceAttributePredicate[];
+}
+
+export interface AdminExtPage extends AdminEntityFilter {
+  id: string;
+  name: string;
+  /** What this page calls the entity it lists. */
+  alias?: string;
+  widgets: DashboardWidget[];
+}
+
 export interface AdminLayerTemplate {
   key: string;
   alias?: string;
@@ -341,6 +362,16 @@ export interface AdminLayerTemplate {
   /** Per-scope widget sets (keyed by AdminScope); `widgets` is the legacy
    *  service-scope fallback. */
   dashboards?: Record<string, DashboardWidget[]>;
+  /** Additional pages for the three entity components, beyond the default
+   *  grid each keeps in `dashboards`. A sibling block, so adding pages
+   *  leaves every existing widget and translation path untouched. */
+  dashboardExtPages?: Partial<Record<'service' | 'instance' | 'endpoint', AdminExtPage[]>>;
+  /** The same narrowing for each component's default page, which has no
+   *  page object of its own to carry it. */
+  dashboardDefaultFilters?: Partial<Record<'service' | 'instance' | 'endpoint', AdminEntityFilter>>;
+  /** Operator-defined sidebar row order. Row paths, never display names.
+   *  Absent means the built-in default order. */
+  menuOrder?: string[];
   topology?: TopologyConfig;
   deployment?: DeploymentConfig;
   endpointDependency?: EndpointDependencyConfig;

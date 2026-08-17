@@ -45,8 +45,26 @@
  */
 
 import { z } from 'zod';
+import {
+  isBuiltInLayerRow,
+  menuOrderIssues,
+  resolveLayerMenuRows,
+  walkWidgets,
+} from '@skywalking-horizon-ui/api-client';
+import type { DashboardWidget, LayerExtPages } from '@skywalking-horizon-ui/api-client';
+import { MAX_EXT_PAGE_ID_LENGTH, MAX_EXT_PAGE_NAME_LENGTH } from '@skywalking-horizon-ui/api-client';
 import { widgetSchema, scopeSchema } from '../dashboard/schema.js';
 import { linkSchemeIssue } from '../../util/link-policy.js';
+import {
+  defaultGridFor,
+  ENTITY_DASHBOARD_SCOPES,
+  MAX_INSTANCE_ATTRIBUTE_PREDICATES,
+  EXT_PAGE_ID_RE,
+  MAX_EXT_PAGES_PER_SCOPE,
+  type EntityDashboardScope,
+  type LayerComponentFlags,
+} from '../layers/loader.js';
+import { componentsToCaps } from '../layers/caps.js';
 
 /** Cross-side rollup of per-service values into one layer KPI. Mirrors
  *  `AggregationKind` — the landing route rejects anything else. */
@@ -83,9 +101,15 @@ const headerColumnSchema = z
  *  every header column, so an 11th would 400 the whole service list. */
 const MAX_HEADER_COLUMNS = 10;
 
-/** `LayerComponentFlags` — a misspelled flag silently leaves its tab off,
- *  which is exactly why this is strict. */
-const componentsSchema = z
+/**
+ * `LayerComponentFlags` — a misspelled flag silently leaves its tab off,
+ * which is exactly why this is strict.
+ *
+ * This is also the COMPLETE component list, exported so the menu-row suite
+ * can assert every component still resolves to a row: a flag added here
+ * without one would ship a feature the sidebar can never reach.
+ */
+export const componentsSchema = z
   .object({
     service: z.boolean().optional(),
     instances: z.boolean().optional(),
@@ -152,6 +176,88 @@ const pushWidgetSchema = z.preprocess(fillBlankExpressions, widgetSchema);
 function dashboardsSchemaFor<T extends z.ZodTypeAny>(widget: T) {
   const shape: Record<string, z.ZodOptional<z.ZodArray<T>>> = {};
   for (const scope of scopeSchema.options) shape[scope] = z.array(widget).optional();
+  return z.object(shape).strict();
+}
+
+/** The entity-narrowing fields. Shared verbatim by an extension page and
+ *  by `dashboardDefaultFilters`, so the default page and the pages beside
+ *  it cannot drift into two grammars. */
+function entityFilterFields() {
+  return {
+    serviceFilter: z.string().optional(),
+    instanceFilter: z.string().optional(),
+    instanceAttributes: z
+      .array(
+        z
+          .object({
+            attribute: z.string().transform((v) => v.trim()).pipe(z.string().min(1)),
+            op: z.enum(['exists', 'eq']),
+            value: z.string().optional(),
+          })
+          .strict()
+          // `eq` without a value matches nothing, which reads on screen as
+          // a page with no instances rather than a half-written condition.
+          .refine((p) => p.op !== 'eq' || (p.value !== undefined && p.value.trim() !== ''), {
+            message: 'an "eq" condition needs a value',
+            path: ['value'],
+          }),
+      )
+      .max(MAX_INSTANCE_ATTRIBUTE_PREDICATES)
+      .optional(),
+  };
+}
+
+/** `dashboardDefaultFilters.<scope>` — the same narrowing for the page
+ *  every component already has. The default page is a bare widget array,
+ *  so its filters cannot live beside its widgets the way a page's do. */
+function defaultFiltersSchema() {
+  const shape: Record<string, z.ZodOptional<z.ZodTypeAny>> = {};
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    shape[scope] = z.object(entityFilterFields()).strict().optional();
+  }
+  return z.object(shape).strict();
+}
+
+/** `dashboardExtPages.<scope>` — built from the three ENTITY scopes only,
+ *  not from `scopeSchema`. The other seven scopes are single-page features
+ *  (topology, traces, logs, the profilings); accepting pages under them
+ *  would validate config that no route can ever reach. */
+function extPagesSchemaFor<T extends z.ZodTypeAny>(widget: T) {
+  const pageSchema = z
+    .object({
+      id: z
+        .string()
+        .max(MAX_EXT_PAGE_ID_LENGTH, `must be at most ${MAX_EXT_PAGE_ID_LENGTH} characters`)
+        .regex(EXT_PAGE_ID_RE, 'must be lowercase alphanumeric with hyphens, starting with a letter or digit')
+        // A page id becomes a path segment, and several features sniff the
+        // WHOLE route path rather than one segment — `/zipkin-trace` decides
+        // trace mode and hides the layer header in three places. Rejecting
+        // the collision here is cheaper and more honest than hardening
+        // every such regex against a page that impersonates a tab.
+        .refine((v) => !isBuiltInLayerRow(v), (v) => ({
+          message: `"${v}" is a built-in layer tab — pick an id that is not a layer route`,
+        })),
+      // Names may repeat; identity is the id. Blank is rejected at BOTH
+      // bars, unlike the work-in-progress holes the push bar tolerates
+      // elsewhere: a page's name is its sidebar row, so publishing an
+      // empty one ships a row nobody can read or click. The editor always
+      // supplies one, so this only catches hand-edited or imported JSON.
+      // Trimmed: `" "` clears `.min(1)` but renders an unreadable row.
+      name: z
+        .string()
+        .transform((v) => v.trim())
+        .pipe(z.string().min(1).max(MAX_EXT_PAGE_NAME_LENGTH)),
+      /** What this page calls the entity it lists. Translatable, and the
+       *  layer's own `aliases` name only the DEFAULT page. */
+      alias: z.string().optional(),
+      ...entityFilterFields(),
+      widgets: z.array(widget),
+    })
+    .strict();
+  const shape: Record<string, z.ZodOptional<z.ZodArray<typeof pageSchema>>> = {};
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    shape[scope] = z.array(pageSchema).max(MAX_EXT_PAGES_PER_SCOPE).optional();
+  }
   return z.object(shape).strict();
 }
 
@@ -353,6 +459,12 @@ function buildLayerSchemas(complete: boolean) {
       // Legacy alias the loader still reads (older / operator-exported files).
       metrics: headerSchema.optional(),
       dashboards: dashboardsSchema.optional(),
+      dashboardExtPages: extPagesSchemaFor(complete ? widgetSchema : pushWidgetSchema).optional(),
+      dashboardDefaultFilters: defaultFiltersSchema().optional(),
+      // Row paths, so `service` and `service/agents` are both legal. The
+      // cross-reference pass decides whether each names a row this layer
+      // actually resolves.
+      menuOrder: z.array(z.string().min(1)).max(64).optional(),
       widgets: z.array(complete ? widgetSchema : pushWidgetSchema).optional(),
       topology: topologySchema.optional(),
       endpointDependency: endpointDependencySchema.optional(),
@@ -455,9 +567,12 @@ export function layerCrossRefIssues(tpl: PushLayer, opts: { complete: boolean })
   }
 
   for (const [scope, widgets] of Object.entries(tpl.dashboards ?? {})) {
-    checkWidgetIds(widgets, `dashboards.${scope}`, add);
+    checkWidgetIds(widgets as DashboardWidget[], `dashboards.${scope}`, add);
   }
-  checkWidgetIds(tpl.widgets, 'widgets', add);
+  checkWidgetIds(tpl.widgets as DashboardWidget[] | undefined, 'widgets', add);
+  checkExtPages(tpl, add);
+  checkDefaultFilters(tpl, add);
+  checkMenuOrder(tpl, add);
 
   const regexRules: Array<[string, RegexRule]> = tpl.naming ? [['naming', tpl.naming]] : [];
   for (const rule of ['clusterBy', 'siblingBy', 'roleBy'] as const) {
@@ -503,15 +618,245 @@ export function layerCrossRefIssues(tpl: PushLayer, opts: { complete: boolean })
 
 /** Dashboard results come back keyed by widget id, so a duplicate makes one of
  *  the two unaddressable. */
+/** Which component flag decides whether a scope's pages can be reached. */
+const EXT_PAGE_COMPONENT: Record<EntityDashboardScope, 'service' | 'instances' | 'endpoints'> = {
+  service: 'service',
+  instance: 'instances',
+  endpoint: 'endpoints',
+};
+
+/**
+ * The rules that need the whole template in hand: page-id uniqueness,
+ * component gating, `serviceFilter` placement, and widget-id uniqueness
+ * across every page of one component.
+ *
+ * The widget-id rule is stricter than the per-array check applied to
+ * legacy templates, and deliberately only applies to a component that
+ * declares extension pages. Consumers address a widget as
+ * `layer + scope + widgetId` (the AI metric catalog, the visualization
+ * resolver), so the same id on two pages of one component is ambiguous —
+ * but the same id under Service and under Instance stays fine, and a
+ * legacy template is not rejected for a collision this feature invented.
+ */
+/**
+ * The rules an entity filter obeys wherever it sits — on an extension
+ * page or on the component's default page.
+ *
+ * `serviceFilter` is legal under ANY entity scope: all three show the
+ * service picker, since an Instance or Endpoint page has you pick a
+ * service before the entity it is about. The instance fields are not:
+ * placed elsewhere they are not merely useless, they ride all the way to
+ * the client and are silently ignored, which reads as a filter that does
+ * not work.
+ */
+function checkEntityFilter(
+  scope: string,
+  base: string,
+  filter: {
+    serviceFilter?: string;
+    instanceFilter?: string;
+    instanceAttributes?: Array<{ attribute: string; op: string; value?: string }>;
+  },
+  add: (path: string, message: string) => void,
+): void {
+  if (scope !== 'instance' && filter.instanceFilter !== undefined) {
+    add(`${base}.instanceFilter`, 'only an Instance page can filter the instance list');
+  }
+  if (scope !== 'instance' && filter.instanceAttributes !== undefined) {
+    add(`${base}.instanceAttributes`, 'only an Instance page can filter by instance attributes');
+  }
+  const filterIssue = filterPatternIssue(filter.serviceFilter);
+  if (filterIssue) add(`${base}.serviceFilter`, filterIssue);
+  const instanceIssue = filterPatternIssue(filter.instanceFilter);
+  if (instanceIssue) add(`${base}.instanceFilter`, instanceIssue);
+  // Conditions AND, so a repeat can only ever be redundant.
+  const seen = new Set<string>();
+  (filter.instanceAttributes ?? []).forEach((pred, ai) => {
+    const key = `${pred.attribute.trim().toLowerCase()}|${pred.op}|${(pred.value ?? '').toLowerCase()}`;
+    if (seen.has(key)) add(`${base}.instanceAttributes.${ai}`, `duplicate condition on "${pred.attribute}"`);
+    seen.add(key);
+  });
+}
+
+/** The default page's filters answer to the same rules, and to the same
+ *  component gate: a filter under a component that is off narrows a
+ *  picker no route reaches. */
+function checkDefaultFilters(tpl: PushLayer, add: (path: string, message: string) => void): void {
+  const byScope = tpl.dashboardDefaultFilters;
+  if (!byScope) return;
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    const filter = byScope[scope];
+    if (!filter) continue;
+    const flag = EXT_PAGE_COMPONENT[scope];
+    const enabled = flag === 'service' ? tpl.components?.service !== false : !!tpl.components?.[flag];
+    if (!enabled) {
+      add(`dashboardDefaultFilters.${scope}`, `the ${scope} component is off — its default page has no picker to narrow`);
+      continue;
+    }
+    checkEntityFilter(scope, `dashboardDefaultFilters.${scope}`, filter, add);
+  }
+}
+
+function checkExtPages(tpl: PushLayer, add: (path: string, message: string) => void): void {
+  const byScope = tpl.dashboardExtPages;
+  if (!byScope) return;
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    const pages = byScope[scope];
+    if (!pages || pages.length === 0) continue;
+
+    // `service` defaults to ON when the flag is absent — same rule
+    // `componentsToCaps` applies — so only an explicit false disables it.
+    const flag = EXT_PAGE_COMPONENT[scope];
+    const enabled = flag === 'service' ? tpl.components?.service !== false : !!tpl.components?.[flag];
+    if (!enabled) {
+      add(
+        `dashboardExtPages.${scope}`,
+        `${pages.length} page(s) declared but the ${flag} component is disabled — they would have no menu row`,
+      );
+    }
+
+    const seenIds = new Set<string>();
+    // Widget id → the page that already claimed it, so the message can
+    // name both sides of a collision.
+    const widgetOwner = new Map<string, string>();
+    // The EFFECTIVE grid, resolved exactly as the runtime resolves it —
+    // a scope with no grid of its own falls back to Service's and then to
+    // the legacy flat list. Comparing against the literal
+    // `dashboards.<scope>` let an Instance page reuse an id that the
+    // Instance page really does render, because it was showing Service's
+    // widgets. Shared with the renderer so the two cannot drift.
+    const effective = defaultGridFor(
+      tpl as { dashboards?: Record<string, DashboardWidget[]>; widgets?: DashboardWidget[] },
+      scope,
+    );
+    const where =
+      tpl.dashboards?.[scope] !== undefined
+        ? `dashboards.${scope}`
+        : tpl.dashboards?.service !== undefined
+          ? 'dashboards.service'
+          : 'widgets';
+    const defaultGrid: Array<[DashboardWidget[] | undefined, string]> = [[effective, where]];
+    for (const [list, where] of defaultGrid) {
+      for (const w of walkWidgets(list)) {
+        // First writer wins, so a duplicate INSIDE the default grid keeps
+        // pointing at where it was first seen rather than being silently
+        // overwritten by its own repeat.
+        if (!widgetOwner.has(w.id)) widgetOwner.set(w.id, where);
+      }
+    }
+    pages.forEach((page, pi) => {
+      const base = `dashboardExtPages.${scope}.${pi}`;
+      if (seenIds.has(page.id)) {
+        add(`${base}.id`, `duplicate page id "${page.id}" within ${scope}`);
+      }
+      seenIds.add(page.id);
+
+      checkEntityFilter(scope, base, page, add);
+
+      for (const w of walkWidgets(page.widgets as DashboardWidget[])) {
+        const owner = widgetOwner.get(w.id);
+        if (owner) {
+          add(
+            `${base}.widgets`,
+            `widget id "${w.id}" already exists in ${owner} — ids must be unique across all ${scope} pages`,
+          );
+        } else {
+          widgetOwner.set(w.id, base);
+        }
+      }
+    });
+  }
+}
+
+/**
+ * `menuOrder` must name rows this layer actually has, once each.
+ *
+ * The runtime is lenient — a stale entry is skipped and an unnamed row
+ * keeps its default position — so nothing here is required for the menu to
+ * render. It is required for the order to MEAN what the operator saved:
+ * an entry naming a row that does not exist is an instruction that
+ * silently does nothing, and publishing is the last place to say so.
+ */
+function checkMenuOrder(tpl: PushLayer, add: (path: string, message: string) => void): void {
+  const order = tpl.menuOrder;
+  if (!order?.length) return;
+  const rows = resolveLayerMenuRows({
+    // The ONE caps mapping, shared with the menu route — a private copy
+    // here would decide row existence differently from the runtime it is
+    // validating against.
+    caps: componentsToCaps(tpl.components as LayerComponentFlags),
+    slots: tpl.slots ?? tpl.aliases ?? {},
+    traces: tpl.traces,
+    extPages: extPageRefsOf(tpl),
+  });
+  for (const { path, issue } of menuOrderIssues(order, rows)) {
+    const i = order.indexOf(path);
+    add(
+      `menuOrder.${i}`,
+      issue === 'duplicate'
+        ? `"${path}" is listed more than once`
+        : `"${path}" is not a row this layer exposes (${rows.map((r) => r.path).join(', ')})`,
+    );
+  }
+}
+
+function extPageRefsOf(tpl: PushLayer): LayerExtPages | undefined {
+  const src = tpl.dashboardExtPages;
+  if (!src) return undefined;
+  const out: LayerExtPages = {};
+  for (const scope of ENTITY_DASHBOARD_SCOPES) {
+    const pages = src[scope];
+    if (!pages?.length) continue;
+    out[scope] = pages.map((p) => ({ id: p.id, name: p.name }));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** A stored entity filter that cannot be applied. Only the `/…/` form is
+ *  checked — a bare term is a literal substring and cannot be malformed. */
+function filterPatternIssue(filter: string | undefined): string | null {
+  if (filter === undefined) return null;
+  if (!(filter.length > 2 && filter.startsWith('/') && filter.endsWith('/'))) return null;
+  const body = filter.slice(1, -1);
+  try {
+    new RegExp(body);
+    return null;
+  } catch (e) {
+    return `not a valid regular expression: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+/**
+ * Widget ids within one grid, INCLUDING inside tab panels.
+ *
+ * A tab panel's leaves share the id space with the grid that holds them:
+ * dashboard results come back keyed by id alone, so a nested repeat is as
+ * unaddressable as a top-level one. The render path resolves it
+ * last-writer-wins and the AI catalog first-match-wins, which is two
+ * consumers disagreeing about which widget an id means.
+ *
+ * Only the cross-PAGE half of this was enforced. A duplicate with both
+ * ends inside one default grid, at least one of them nested, published
+ * with no issue at all.
+ */
 function checkWidgetIds(
-  widgets: ReadonlyArray<{ id: string }> | undefined,
+  widgets: ReadonlyArray<DashboardWidget> | undefined,
   path: string,
   add: (path: string, message: string) => void,
 ): void {
   const seen = new Set<string>();
+  const check = (id: string, where: string): void => {
+    if (seen.has(id)) add(where, `duplicate widget id "${id}"`);
+    seen.add(id);
+  };
   (widgets ?? []).forEach((w, i) => {
-    if (seen.has(w.id)) add(`${path}.${i}.id`, `duplicate widget id "${w.id}"`);
-    seen.add(w.id);
+    check(w.id, `${path}.${i}.id`);
+    if (w.type !== 'tab') return;
+    (w.tabs ?? []).forEach((tab, ti) => {
+      tab.widgets.forEach((child, ci) => {
+        check(child.id, `${path}.${i}.tabs.${ti}.widgets.${ci}.id`);
+      });
+    });
   });
 }
 

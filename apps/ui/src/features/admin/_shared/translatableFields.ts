@@ -29,8 +29,9 @@
  *  the seeder had put there.
  *
  *  Two entries are easy to mistake for non-translatable:
- *  `name` is a `tab` widget's panel label (`tabs[].name`), the only
- *  `name` in a template; and `naming.alias` is the dimension caption
+ *  `name` covers a `tab` widget's panel label (`tabs[].name`) and an
+ *  extension page's display name (`dashboardExtPages.<scope>[].name`);
+ *  and `naming.alias` is the dimension caption
  *  ("namespace", "tenant") the topology and 3D map print beside a
  *  cluster — the naming rule's capture groups are `displayGroup` /
  *  `valueGroup`, which are absent here and so never offered. */

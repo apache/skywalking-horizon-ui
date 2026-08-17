@@ -78,7 +78,7 @@ Bundled template changes need a BFF restart (templates are loaded once at startu
 ### 7. Verify in the UI
 
 - The layer appears in the sidebar **Layers** section (assuming `visibility: public` and at least one service).
-- Click it — should land on the `service` tab (or whichever tab is first-enabled per `components`).
+- Click it — should land on its first menu row: usually `service`, or the first enabled component when the service component is off. A custom menu order, if the layer has one, decides it instead. See [Menu and layers](menu-structure.md).
 - Service list picker shows the columns from `header.columns` with the right values.
 - Per-service drill-down shows the widgets from `dashboards.service`.
 

@@ -26,17 +26,42 @@ const placeholder = () => import('@/shell/PlaceholderView.vue');
 // reads `:layerKey` from the URL and pulls layer config / live data.
 // Sub-route components fill the tab body via a nested router-view; the
 // canonical landing is `/service`.
+/**
+ * The default grid for an entity component plus its extension pages —
+ * `/layer/:layerKey/service` and `/layer/:layerKey/service/:pageId`.
+ *
+ * Both records point at the same view and carry the scope in `meta`, so
+ * the view reads which component it renders instead of deriving it from
+ * the URL. `pageId` is absent on the first record, which is exactly how
+ * the view tells "the component's default page" from "a named one".
+ */
+function entityDashboardRoutes(scope: 'service' | 'instance' | 'endpoint'): RouteRecordRaw[] {
+  const component = () => import('@/render/layer-dashboard/LayerDashboardsView.vue');
+  return [
+    { path: scope, component, meta: { dashboardScope: scope } },
+    { path: `${scope}/:pageId`, component, meta: { dashboardScope: scope } },
+  ];
+}
+
 function layerRoute(): RouteRecordRaw {
   return {
     path: 'layer/:layerKey',
     component: () => import('@/layer/LayerShell.vue'),
     children: [
-      { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }) },
+      // No redirect here: which sub-page a layer lands on depends on the
+      // layer's resolved rows, which the router cannot see. `LayerShell`
+      // owns it — see the bare-path branch of its route watcher.
+      { path: '', component: () => import('@/layer/LayerLanding.vue') },
       // Same view component, scope inferred from the URL — widget set
       // differs per scope via the JSON template's `dashboards.<scope>` array.
-      { path: 'service', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
-      { path: 'instance', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
-      { path: 'endpoint', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
+      // Scope travels in `meta`, not in the URL shape. The view used to
+      // infer it by testing whether the path ENDED WITH a known segment,
+      // which a second segment breaks: `/layer/K/instance/runtime` matches
+      // nothing and would fall through to `service`, querying Service
+      // metrics on an Instance page and rendering a plausible wrong grid.
+      ...entityDashboardRoutes('service'),
+      ...entityDashboardRoutes('instance'),
+      ...entityDashboardRoutes('endpoint'),
       {
         path: 'topology',
         component: () => import('@/layer/service-map/LayerTopologyTab.vue'),

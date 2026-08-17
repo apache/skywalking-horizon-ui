@@ -56,7 +56,31 @@ export {
   canonicalizeOverlay,
   idAddressableIds,
   indexOverlayById,
+  staleOverlayPaths,
+  hasStaleOverlay,
+  pruneOverlayToSource,
 } from './template-i18n.js';
+export { MAX_EXT_PAGE_ID_LENGTH, MAX_EXT_PAGE_NAME_LENGTH } from './layer-menu.js';
+export { MAX_INSTANCE_ATTRIBUTE_PREDICATES } from './instance-filter.js';
+export {
+  resolveLayerMenuRows,
+  firstLayerMenuRow,
+  isSingleFeatureLayer,
+  isBuiltInLayerRow,
+  menuOrderIssues,
+  DEFAULT_LAYER_ROW_ORDER,
+  FALLBACK_LAYER_ROW,
+} from './layer-menu.js';
+export type {
+  LayerMenuRow,
+  LayerMenuRowIcon,
+  LayerMenuInput,
+  BuiltInLayerRow,
+  DashboardPageRef,
+  LayerExtPages,
+  EntityFilterRef,
+  LayerDefaultFilters,
+} from './layer-menu.js';
 export type {
   TopologyMetricDef,
   TopologyConfig,
@@ -386,3 +410,10 @@ export {
   type DebugErrorBody,
   type DebugErrorCode,
 } from './dsl-debugging.js';
+
+export {
+  buildAttrMap,
+  attrPredicatePass,
+  attrPredicatesPass,
+  type InstanceAttributePredicate,
+} from './instance-filter.js';

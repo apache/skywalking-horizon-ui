@@ -67,8 +67,14 @@ export class LayerApi {
     );
   }
 
-  dashboardConfig(layerKey: string, scope?: string): Promise<DashboardConfig> {
-    const qs = scope ? `?scope=${encodeURIComponent(scope)}` : '';
+  /** `page` selects one of the component's extension pages; omitted means
+   *  its default grid. An id the layer doesn't declare comes back 404 — it
+   *  is never quietly answered with the default. */
+  dashboardConfig(layerKey: string, scope?: string, page?: string): Promise<DashboardConfig> {
+    const params = new URLSearchParams();
+    if (scope) params.set('scope', scope);
+    if (page) params.set('page', page);
+    const qs = params.size > 0 ? `?${params.toString()}` : '';
     return this.bff.request<DashboardConfig>(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/dashboard/config${qs}`,
@@ -79,6 +85,9 @@ export class LayerApi {
     layerKey: string,
     body: {
       service?: string;
+      /** Which page of `scope` the widgets came from. Absent on the
+       *  component's default grid. */
+      page?: string;
       /** Active instance — only honored when `scope === 'instance'`. */
       serviceInstance?: string;
       /** Active endpoint — only honored when `scope === 'endpoint'`. */

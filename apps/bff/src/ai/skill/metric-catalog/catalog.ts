@@ -33,8 +33,8 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../../config/loader.js';
 import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
-import { widgetsForScope } from '../../../logic/layers/loader.js';
-import { flattenTabWidgets } from '../../../logic/dashboard/gates.js';
+import { allWidgetsForScope } from '../../../logic/layers/loader.js';
+import { flattenEveryTabPanel } from '../../../logic/dashboard/gates.js';
 
 export interface CatalogEntry {
   layer: string;
@@ -108,7 +108,10 @@ export async function getLayerCatalog(
 ): Promise<CatalogEntry[]> {
   const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layer);
   if (eff.blocked || !eff.template) return [];
-  const widgets = flattenTabWidgets(widgetsForScope(eff.template, scope));
+  // Every page of the scope, not just the default grid — a widget is
+  // addressed as layer + scope + id, which is what makes ids unique
+  // across a component's pages.
+  const widgets = flattenEveryTabPanel(allWidgetsForScope(eff.template, scope));
   return widgets.map((w) => ({
     layer: layer.toUpperCase(),
     scope,

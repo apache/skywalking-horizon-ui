@@ -43,7 +43,16 @@ defineProps<{ serviceLabel: string }>();
 const MAX_COLUMNS = 10;
 
 function ensure(): NonNullable<AdminLayerTemplate['metrics']> {
-  if (!config.value) config.value = {};
+  // Return the object we just seeded, not `config.value`: writing through a
+  // model emits to the parent, and the value has not flowed back on this
+  // tick — so the read yielded `undefined` and the caller dereferenced it.
+  // The parent stores this very object, so mutating it here is the same
+  // thing as mutating the draft.
+  if (!config.value) {
+    const seed: NonNullable<AdminLayerTemplate['metrics']> = {};
+    config.value = seed;
+    return seed;
+  }
   return config.value;
 }
 onMounted(ensure);
@@ -51,10 +60,7 @@ onMounted(ensure);
 // Mirrors the legacy metricsModel: seeds the block on access so the orderBy
 // control + columns table render even before the operator touches the JSON
 // (the block is part of the live draft and is mutated in place).
-const metricsModel = computed(() => {
-  ensure();
-  return config.value;
-});
+const metricsModel = computed(() => ensure());
 const metricsColumns = computed(() => {
   const m = ensure();
   if (!m.columns) m.columns = [];

@@ -31,10 +31,13 @@
   parent via the emitted `jump` event.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { isBuiltInOrder, pruneMenuOrder } from './menuOrder';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { AdminScope, ComponentKey, SlotKey } from './layer-dashboards.scopes';
+import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
+import { componentsToCaps } from '@/shell/layerFromTemplate';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -45,9 +48,17 @@ const { t } = useI18n({ useScope: 'global' });
 const template = defineModel<AdminLayerTemplate>('template', { required: true });
 const props = defineProps<{
   activeScope: AdminScope;
+  /** Page currently open in the editor, so the preview row for it can
+   *  show as active — a row that can never highlight looks inert even
+   *  though clicking it works. */
+  activePage?: string | null;
   instanceTopologyEnabled: boolean;
 }>();
-const emit = defineEmits<{ jump: [scope: AdminScope] }>();
+const activePage = computed(() => props.activePage ?? null);
+const emit = defineEmits<{
+  jump: [target: { scope: AdminScope; page: string | null }];
+  'confirm-disable': [key: ComponentKey];
+}>();
 
 /**
  * Component toggles surfaced in the admin editor. Each entry binds to
@@ -78,78 +89,241 @@ function ensureComponents(): AdminLayerTemplate['components'] {
   }
   return template.value.components;
 }
+/**
+ * Turning an entity component OFF destroys the config only it can reach:
+ * its widget grid, its extension pages and their widgets, and its rows in
+ * a custom menu order. None of that is recoverable from the editor once
+ * the draft is saved, and none of it is visible while the component is
+ * off — so the parent confirms first and performs the removal.
+ *
+ * Turning one ON, and every non-entity component, is the plain toggle it
+ * has always been.
+ */
 function toggleComponent(key: ComponentKey): void {
   const c = ensureComponents();
+  if (c[key] && DESTRUCTIVE_OFF.has(key)) {
+    emit('confirm-disable', key);
+    return;
+  }
   c[key] = !c[key];
 }
 
-/** Inverse of SCOPE_COMPONENT, narrowed to the toggle keys — maps each
- *  Components checkbox to the editor scope its config lives under, so a
- *  menu-preview click can jump straight to that scope's widget editor. */
-const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
+/**
+ * Drop order entries for rows the layer no longer has.
+ *
+ * A stored order naming a row that does not resolve is refused at
+ * publish, and switching a component off is how one gets there: preview
+ * stops drawing the row, so the draft looks correct while the push
+ * fails. Filtering against the rows that ACTUALLY resolve covers every
+ * component rather than a table of which owns what — Traces alone owns
+ * two rows, and a component added later would own more.
+ *
+ * Turning a component back ON needs no counterpart: an unnamed row keeps
+ * its default position, which is what absence from the order means.
+ */
+// Watched rather than called from the toggle: the destructive path flips
+// the flag itself, after its confirmation, so a toggle-only hook would
+// have covered half the ways a component goes off.
+// Watches everything that decides which rows EXIST, not just the
+// component flags: pages (deleting one prunes its entry) and `traces`,
+// whose `source` gates the zipkin-trace row. Miss one and the preview
+// stops drawing a row while the stored order keeps naming it — the draft
+// looks right and the push is refused for a row the editor no longer
+// shows anywhere.
+watch(
+  () => [
+    JSON.stringify(template.value.components ?? {}),
+    JSON.stringify(template.value.dashboardExtPages ?? {}),
+    JSON.stringify(template.value.traces ?? {}),
+  ].join('|'),
+  () => pruneMenuOrderToRows(),
+);
+
+function pruneMenuOrderToRows(): void {
+  const order = template.value.menuOrder;
+  if (!Array.isArray(order)) return;
+  const kept = pruneMenuOrder(order, menuRows.value.map((r) => r.path));
+  // Normalised here rather than only on a drag: a page deleted or a
+  // component switched off can leave an order that says exactly what
+  // absence says, and storing that is a pending change against OAP that
+  // moves no menu.
+  if (isBuiltInOrder(kept, builtInOrder.value)) {
+    delete template.value.menuOrder;
+    return;
+  }
+  if (kept.length !== order.length) template.value.menuOrder = kept;
+}
+
+/** Components whose OFF destroys configuration only they can reach.
+ *
+ *  The three entity ones own a widget grid and its pages. The rest own a
+ *  config block each — the MQE an operator tuned for that view — which is
+ *  just as unreachable once the component is off, and just as invisible:
+ *  it would sit in the draft, unrendered, until a future toggle brought
+ *  back a configuration nobody remembered writing. `traces` is absent on
+ *  purpose: its `traces.source` picks a receiver, not a view's content,
+ *  and it is one enum an operator retypes in a second. */
+const DESTRUCTIVE_OFF = new Set<ComponentKey>([
+  'service',
+  'instances',
+  'endpoints',
+  'topology',
+  'deployment',
+  'endpointDependency',
+]);
+
+
+/**
+ * The layer's REAL sidebar rows, resolved exactly as the runtime resolves
+ * them — components, their extension pages, and every feature tab. This is
+ * the menu-order editor, so it has to be the menu, not a summary of it.
+ */
+const ROW_TO_ADMIN_SCOPE: Record<string, AdminScope | undefined> = {
   service: 'service',
-  instances: 'instance',
-  endpoints: 'endpoint',
-  endpointDependency: 'dependency',
+  instance: 'instance',
+  endpoint: 'endpoint',
   topology: 'topology',
   deployment: 'deployment',
-  traces: 'trace',
+  dependency: 'dependency',
+  trace: 'trace',
   logs: 'logs',
-  // Browser Errors + Pod Logs have no editable widget grid — filler to
-  // satisfy the exhaustive Record; the menu-preview click no-ops for them.
-  browserErrors: 'logs',
-  podLogs: 'logs',
-  traceProfiling: 'traceProfiling',
-  ebpfProfiling: 'ebpfProfiling',
-  asyncProfiling: 'asyncProfiling',
-  // Continuous profiling authors POLICIES, not widgets — there is no scope of
-  // its own to edit, so this points at the eBPF scope it arms tasks for.
-  continuousProfiling: 'ebpfProfiling',
-  // Legacy umbrella flag — no checkbox of its own (the three granular
-  // profiling toggles drive the menu), so this entry only satisfies the
-  // exhaustive Record; it is never surfaced as a menu item.
-  profiling: 'traceProfiling',
+  'network-profiling': 'networkProfiling',
 };
-/** Component → slot-alias key. The layer's `slots` carry per-layer term
- *  aliases (services → "ClickHouse clusters", instances → "Nodes", …);
- *  the menu preview shows these instead of the generic component label,
- *  matching what the real sidebar renders. */
-const COMPONENT_SLOT: Partial<Record<ComponentKey, SlotKey>> = {
-  service: 'services',
-  instances: 'instances',
-  endpoints: 'endpoints',
-  endpointDependency: 'endpointDependency',
-  topology: 'topology',
-  deployment: 'deployment',
-};
-/** The layer's sidebar menu as the operator would see it — only the
- *  enabled components, in COMPONENT_TOGGLES order, labelled with the
- *  layer's slot aliases where defined. Drives the menu preview. */
-const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope; child?: boolean }>>(() => {
-  const slots = template.value.slots ?? {};
-  const items = COMPONENT_TOGGLES.value.filter((t) => !!template.value.components?.[t.key]).map((t) => {
-    const slotKey = COMPONENT_SLOT[t.key];
+
+/** The order this layer resolves to with NO stored arrangement — what
+ *  "the built-in order" means for these components and pages. */
+const builtInOrder = computed<string[]>(() => {
+  const tpl = template.value;
+  return resolveLayerMenuRows({
+    caps: componentsToCaps(tpl.components, tpl.topology, tpl.deployment),
+    slots: tpl.slots ?? {},
+    traces: tpl.traces,
+    extPages: extPagesForPreview(tpl),
+  }).map((r) => r.path);
+});
+
+const menuRows = computed(() => {
+  const tpl = template.value;
+  const rows = resolveLayerMenuRows({
+    caps: componentsToCaps(tpl.components, tpl.topology, tpl.deployment),
+    slots: tpl.slots ?? {},
+    traces: tpl.traces,
+    extPages: extPagesForPreview(tpl),
+    menuOrder: tpl.menuOrder,
+  });
+  return rows.map((r) => {
+    const [component, pageId] = r.path.split('/');
     return {
-      key: t.key as string,
-      label: (slotKey && slots[slotKey]) || t.label,
-      scope: COMPONENT_SCOPE[t.key],
-      child: false,
+      path: r.path,
+      // A page carries its own name; a built-in row is labelled by its slot
+      // alias where the layer renames it, else by the row's own wording.
+      label: r.name ?? labelForRow(r.path),
+      // Two pages may share a display name — the id is what tells them
+      // apart, here and in the page selector.
+      hint: pageId,
+      page: !!pageId,
+      scope: ROW_TO_ADMIN_SCOPE[component],
+      pageId,
+      // Profiling, pod logs and browser errors have no editable config, so
+      // their rows are labels rather than dead buttons.
+      jumpable: !!ROW_TO_ADMIN_SCOPE[component],
     };
   });
-  // Instance topology has no component flag of its own (it's a drill-down
-  // of the topology tab, not a sidebar entry); show it as a NESTED child
-  // under Topology so the preview reads "reached from Topology" — and so
-  // it doesn't double-highlight when the topology scope is active. Only
-  // when the Topology component is itself enabled (`topoIdx >= 0`): a
-  // drill-down of a disabled tab must not appear, even if a stale
-  // `topology.instanceTopology` block lingers in the config.
-  const topoIdx = items.findIndex((i) => i.key === 'topology');
-  if (props.instanceTopologyEnabled && topoIdx >= 0) {
-    const instItem = { key: 'instanceTopology', label: slots.instanceTopology || t('Instance map'), scope: 'topology' as AdminScope, child: true };
-    items.splice(topoIdx + 1, 0, instItem);
-  }
-  return items;
 });
+
+function extPagesForPreview(tpl: AdminLayerTemplate) {
+  const src = tpl.dashboardExtPages;
+  if (!src) return undefined;
+  const out: Record<string, Array<{ id: string; name: string }>> = {};
+  for (const scope of ['service', 'instance', 'endpoint'] as const) {
+    const pages = src[scope];
+    if (pages?.length) out[scope] = pages.map((p) => ({ id: p.id, name: p.name }));
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function labelForRow(path: string): string {
+  const slots = template.value.slots ?? {};
+  switch (path) {
+    case 'service': return slots.services || t('Service');
+    case 'instance': return slots.instances || t('Instance');
+    case 'endpoint': return slots.endpoints || t('Endpoint');
+    case 'topology': return slots.topology || t('Topology');
+    case 'deployment': return slots.deployment || t('Deployment');
+    case 'dependency': return slots.endpointDependency || t('Dependency');
+    case 'trace': return t('Traces');
+    case 'zipkin-trace': return t('OTel & Zipkin Traces');
+    case 'logs': return t('Logs');
+    case 'browser-errors': return t('Browser Logs');
+    case 'pod-logs': return t('Pod Logs');
+    case 'trace-profiling': return t('Trace Profiling');
+    case 'ebpf-profiling': return t('eBPF Profiling');
+    case 'network-profiling': return t('Network Profiling');
+    case 'continuous-profiling': return t('Continuous Profiling');
+    case 'pprof': return t('pprof (Go)');
+    case 'async-profiling': return t('Async Profiling');
+    default: return path;
+  }
+}
+
+/** A stored arrangement exists. Independent of whether dragging is on:
+ *  closing the drag mode must not throw the arrangement away. */
+const customOrder = computed(() => Array.isArray(template.value.menuOrder));
+/** Dragging is a MODE, not the setting: closing it keeps the arrangement,
+ *  and it starts off — an operator arrives to read the menu, not to move
+ *  it. Reset on a layer change because the parent reuses this component
+ *  across layers, which left the next layer in drag mode. */
+const rearranging = ref(false);
+watch(() => template.value.key, () => (rearranging.value = false));
+/** The row the editor is currently on, so its id can be shown once
+ *  rather than on every row. */
+const selectedRow = computed(
+  () => menuRows.value.find((m) => m.scope === props.activeScope && (m.pageId ?? null) === (activePage.value ?? null)) ?? null,
+);
+
+/** Turning the mode on stores NOTHING: an arrangement identical to the
+ *  built-in one is still a stored field, and would show as a pending
+ *  change against OAP that says nothing. The first drop writes it. */
+function setRearranging(on: boolean): void {
+  rearranging.value = on;
+}
+
+/** The only way back to the built-in order. Absence IS that order, so
+ *  this deletes the field rather than storing a second spelling of it. */
+function resetOrder(): void {
+  delete template.value.menuOrder;
+  rearranging.value = false;
+}
+
+const dragFrom = ref<number | null>(null);
+const dragOver = ref<number | null>(null);
+function onOrderDragStart(i: number): void {
+  dragFrom.value = i;
+}
+function onOrderDrop(to: number): void {
+  const from = dragFrom.value;
+  dragFrom.value = null;
+  dragOver.value = null;
+  if (from === null || from === to) return;
+  // Always store the FULL resolved order, never a partial list — a stored
+  // order that names only some rows leaves the rest to default placement,
+  // which is not what dragging one row is meant to express.
+  const paths = menuRows.value.map((r) => r.path);
+  const [moved] = paths.splice(from, 1);
+  paths.splice(to, 0, moved);
+  writeOrder(paths);
+}
+
+/** Storing an order equal to the built-in one is storing nothing: absence
+ *  IS that order, so the field would be a pending change against OAP that
+ *  changes no menu. Dragging back to where you started removes it. */
+function writeOrder(paths: string[]): void {
+  if (isBuiltInOrder(paths, builtInOrder.value)) {
+    delete template.value.menuOrder;
+    return;
+  }
+  template.value.menuOrder = paths;
+}
 
 /** The configurable slot aliases. Shown for the components the
  *  layer actually exposes so the editor mirrors the menu. */
@@ -202,21 +376,74 @@ function setSlot(slot: SlotKey, value: string): void {
           <span class="menu-preview-title">{{ template.alias || template.key }}</span>
           <code v-if="template.alias && template.alias !== template.key" class="key-tag">{{ template.key }}</code>
         </div>
-        <p v-if="menuItems.length === 0" class="menu-preview-empty">
+        <p v-if="menuRows.length === 0" class="menu-preview-empty">
           {{ t('No components enabled — toggle one on the right to populate the menu.') }}
         </p>
+        <!-- A switch, not a checkbox: this turns a MODE on — the rows
+             stop being links and become draggable — rather than ticking
+             an option that takes effect on save. The checkbox beside the
+             component list means the other thing, and reading both as the
+             same control is what made this one look like a setting. -->
+        <label v-else class="order-toggle">
+          <input
+            type="checkbox"
+            role="switch"
+            class="order-switch"
+            :aria-checked="rearranging"
+            :checked="rearranging"
+            @change="setRearranging(!rearranging)"
+          />
+          <span>{{ t('Rearrange menu') }}</span>
+          <span class="order-hint">{{
+            rearranging
+              ? t('drag an entry to move it')
+              : customOrder
+                ? t('the menu uses your order')
+                : t('the menu follows the built-in order')
+          }}</span>
+        </label>
+        <button v-if="customOrder" type="button" class="sw-btn xs ghost order-reset" @click="resetOrder">
+          {{ t('Reset to built-in order') }}
+        </button>
         <button
-          v-for="m in menuItems"
-          :key="m.key"
+          v-for="(m, i) in menuRows"
+          :key="m.path"
           type="button"
           class="menu-item"
-          :class="{ on: activeScope === m.scope && !m.child, 'is-child': m.child }"
-          :title="t('Jump to {label} config', { label: m.label })"
-          @click="emit('jump', m.scope)"
+          :class="{
+            on: activeScope === m.scope && (m.pageId ?? null) === (activePage ?? null),
+            'is-page': !!m.page,
+            'is-inert': !m.jumpable,
+            draggable: rearranging,
+            over: dragOver === i,
+          }"
+          :disabled="!rearranging && !m.jumpable"
+          :draggable="rearranging"
+          :title="rearranging
+            ? t('Drag to move {label}', { label: m.hint ? `${m.label} (${m.hint})` : m.label })
+            : m.jumpable
+              ? t('Jump to {label} config', { label: m.label })
+              : t('{label} has no editable configuration', { label: m.label })"
+          @dragstart="onOrderDragStart(i)"
+          @dragover.prevent="dragOver = i"
+          @drop.prevent="onOrderDrop(i)"
+          @dragend="dragFrom = null; dragOver = null"
+          @click="!rearranging && m.jumpable && emit('jump', { scope: m.scope!, page: m.pageId ?? null })"
         >
-          <span class="menu-item-label">{{ m.child ? '↳ ' : '' }}{{ m.label }}</span>
-          <span class="menu-item-arrow">›</span>
+          <span v-if="rearranging" class="menu-grip">⠿</span>
+          <span class="menu-item-label">{{ m.label }}</span>
+          <!-- Shown because two pages may share a display name; the id is
+               what tells them apart. Not in the runtime sidebar. -->
+          <code v-if="m.hint" class="menu-item-hint">{{ m.hint }}</code>
+          <span v-if="!rearranging && m.jumpable" class="menu-item-arrow">›</span>
         </button>
+        <!-- The key is the route segment, the `menuOrder` entry and the
+             translation anchor. Hidden while rearranging. -->
+        <p v-if="!rearranging && selectedRow" class="menu-detail">
+          <span class="menu-detail-field">{{ t('Menu key') }}</span>
+          <code>{{ selectedRow.path }}</code>
+          <span class="menu-detail-kind">{{ selectedRow.page ? t('extra page') : t('built-in entry') }}</span>
+        </p>
       </div>
       <div class="setup-right">
         <label class="alias-field">
@@ -344,6 +571,96 @@ function setSlot(slot: SlotKey, value: string): void {
   padding: 1px 5px;
   border-radius: 3px;
 }
+.order-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px 8px;
+  font-size: 11px;
+  color: var(--sw-fg-1);
+  cursor: pointer;
+}
+/* A track with a knob, sized off the label's own line-height so it sits
+   on the text baseline rather than floating above it. */
+.order-switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 26px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 999px;
+  background: var(--sw-bg-2);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.order-switch::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sw-fg-3);
+  transition: transform 120ms ease, background 120ms ease;
+}
+.order-switch:checked {
+  background: color-mix(in srgb, var(--sw-accent) 30%, transparent);
+  border-color: var(--sw-accent);
+}
+.order-switch:checked::after {
+  transform: translateX(12px);
+  background: var(--sw-accent);
+}
+.order-switch:focus-visible { outline: 1px solid var(--sw-accent); outline-offset: 2px; }
+.order-hint {
+  color: var(--sw-fg-3);
+  font-size: 10.5px;
+}
+.menu-detail {
+  margin: 8px 0 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  font-size: 11px;
+  color: var(--sw-fg-3);
+}
+.menu-detail-field { color: var(--sw-fg-3); }
+.menu-detail code { font-family: var(--sw-mono); color: var(--sw-fg-1); }
+.menu-detail-kind { color: var(--sw-fg-3); }
+.menu-item-id {
+  font-size: 9.5px;
+  color: var(--sw-fg-3);
+  margin-left: 4px;
+}
+.menu-item:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.menu-grip {
+  color: var(--sw-fg-3);
+  cursor: grab;
+  margin-right: 2px;
+}
+/* No indent: pages are FLAT siblings in the sidebar, and a custom order
+   can place one anywhere — an indent would claim a parent three rows
+   away. The id chip beside the label is what marks a page. */
+.menu-item.is-page .menu-item-label {
+  color: var(--sw-fg-1);
+}
+.menu-item.draggable {
+  cursor: grab;
+}
+.menu-item.is-inert {
+  cursor: default;
+  opacity: 0.72;
+}
+.menu-item.over {
+  box-shadow: inset 0 2px 0 var(--sw-accent);
+}
 .menu-item {
   display: flex;
   align-items: center;
@@ -366,6 +683,13 @@ function setSlot(slot: SlotKey, value: string): void {
   box-shadow: inset 2px 0 0 var(--sw-accent);
 }
 .menu-item-label { flex: 1; }
+.menu-item-hint {
+  font-family: var(--sw-mono);
+  font-size: 10px;
+  color: var(--sw-fg-3);
+  margin-left: auto;
+  padding-left: 8px;
+}
 .menu-item-arrow { color: var(--sw-fg-3); font-size: 13px; }
 .menu-item.on .menu-item-arrow { color: var(--sw-accent-2); }
 /* Instance map — a nested drill-down of Topology, not a sidebar entry. */
