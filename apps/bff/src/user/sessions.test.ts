@@ -306,3 +306,61 @@ describe('SessionStore.close', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+/**
+ * `auth.ldap.displayNameAttr` and a provider's `namePath` were both config an
+ * operator could set and nothing could observe: each was resolved and then
+ * dropped on the floor. The address is a poor label for a person — LDAP has
+ * `cn`, GitHub has the handle — but it is the only thing that may act as the
+ * identity.
+ */
+describe('a display name is shown, never trusted', () => {
+  it('carries the display name onto the session', () => {
+    const store = new SessionStore({ ttlMinutes: 60, reapIntervalMs: MINUTE });
+    const s = store.create('wusheng@tetrate.io', ['admin'], 'wu-sheng');
+    expect(store.get(s.sid)?.displayName).toBe('wu-sheng');
+    // The identity is untouched: roles re-resolve from this on every request,
+    // and a display name is neither unique nor supplied by us.
+    expect(store.get(s.sid)?.username).toBe('wusheng@tetrate.io');
+  });
+
+  it('is optional, and its absence changes nothing', () => {
+    const store = new SessionStore({ ttlMinutes: 60, reapIntervalMs: MINUTE });
+    const s = store.create('alice', ['viewer']);
+    expect(store.get(s.sid)?.displayName).toBeUndefined();
+    expect(store.get(s.sid)?.username).toBe('alice');
+  });
+});
+
+/**
+ * The account page exists to tell an operator what they can DO about a
+ * forgotten password, and the answer differs per credential — operator config,
+ * the directory, or the identity provider. Before this the session recorded
+ * only who you are, so the page could not tell local from LDAP from SSO.
+ */
+describe('a session remembers how it was opened', () => {
+  const store = () => new SessionStore({ ttlMinutes: 60, reapIntervalMs: MINUTE });
+
+  it('records the source and, for SSO, which provider', () => {
+    const st = store();
+    const s = st.create('wusheng@tetrate.io', ['admin'], 'Wu Sheng', 'sso', 'google');
+    expect(st.get(s.sid)?.authSource).toBe('sso');
+    expect(st.get(s.sid)?.provider).toBe('google');
+  });
+
+  it('leaves the provider empty for every non-SSO source', () => {
+    const st = store();
+    for (const src of ['local', 'ldap', 'break-glass'] as const) {
+      const s = st.create('alice', ['viewer'], undefined, src);
+      expect(st.get(s.sid)?.authSource, src).toBe(src);
+      expect(st.get(s.sid)?.provider, src).toBeUndefined();
+    }
+  });
+
+  /** Defaulting to `local` keeps every existing caller — and the many tests
+   *  that build a session with two arguments — meaning what they meant. */
+  it('defaults to a local account when the caller says nothing', () => {
+    const st = store();
+    expect(st.get(st.create('alice', ['viewer']).sid)?.authSource).toBe('local');
+  });
+});

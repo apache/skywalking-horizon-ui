@@ -17,10 +17,30 @@
 
 import { randomBytes } from 'node:crypto';
 
+/**
+ * How this person proved who they are.
+ *
+ * Deliberately NOT `AuthKind` from the middleware, which answers a different
+ * question — the credential's SHAPE (cookie / api token / oauth token) — and
+ * collapses local, LDAP, break-glass and SSO into one value. This union is
+ * what an operator needs to be told about their own account, because what they
+ * can do about a forgotten password differs in each case.
+ */
+export type AuthSource = 'local' | 'ldap' | 'break-glass' | 'sso' | 'api-token' | 'oauth-token';
+
 export interface Session {
+  /** How this person signed in. Reported to them; never a permission input. */
+  authSource?: AuthSource;
+  /** The SSO provider id, when authSource is 'sso'. Absent otherwise. */
+  provider?: string;
+  /** Display only — see VerifiedUser.displayName. */
+  displayName?: string;
   sid: string;
   username: string;
   roles: string[];
+  /** Set only for an OAuth-issued credential — the consented scope's verb cap.
+   *  See `VerbSubject` in rbac/policy.ts for why it can only narrow. */
+  verbCap?: string[];
   createdAt: number;
   lastSeenAt: number;
 }
@@ -51,10 +71,18 @@ export class SessionStore {
     return this.ttlMinutes() * 60_000;
   }
 
-  create(username: string, roles: string[]): Session {
+  create(
+    username: string,
+    roles: string[],
+    displayName?: string,
+    authSource: AuthSource = 'local',
+    provider?: string,
+  ): Session {
     const sid = randomBytes(32).toString('base64url');
     const now = Date.now();
-    const session: Session = { sid, username, roles, createdAt: now, lastSeenAt: now };
+    const session: Session = {
+      sid, username, roles, displayName, authSource, provider, createdAt: now, lastSeenAt: now,
+    };
     this.sessions.set(sid, session);
     return session;
   }

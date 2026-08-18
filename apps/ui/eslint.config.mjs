@@ -22,7 +22,7 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'public/**', '*.cjs'],
+    ignores: ['dist/**', 'dist-mcp-app/**', 'node_modules/**', 'coverage/**', 'public/**', '*.cjs'],
   },
   ...pluginVue.configs['flat/essential'],
   ...vueTsEslintConfig(),

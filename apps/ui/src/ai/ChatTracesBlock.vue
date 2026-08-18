@@ -59,7 +59,7 @@ function openZipkinTab(): void {
 <template>
   <div class="ctr">
     <div class="ctr__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="ctr__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
 
     <div v-if="noTraces" class="ctr__note">{{ t('This layer has no traces component.') }}</div>
@@ -92,11 +92,17 @@ function openZipkinTab(): void {
   gap: 10px;
 }
 .ctr__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.ctr__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .ctr__note {
   font-size: var(--sw-fs-sm);

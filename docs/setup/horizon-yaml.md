@@ -9,21 +9,22 @@ This page is the top-level map. Each subsection has its own detail page:
 | `server` | HTTP listener and static asset path. | [server](server.md) |
 | `templates` | Template source mode: OAP-backed (`live`) or local read-only bundle (`readonly`). | [below](#template-source-mode) |
 | `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth, MQE override. | [oap](oap.md) |
-| `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass. | [auth](auth.md) |
+| `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass, single sign-on, API tokens. | [auth](auth.md) |
 | `rbac` | Role definitions, permission grants, landing route per role. | [rbac](rbac.md) |
 | `session` | Cookie name, TTL, secure flag. | [session](session.md) |
-| `audit` | Audit trail switch + log file path. | [audit](audit.md) |
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
 | `query` | Per-request query limits (layer-landing service cap, Overview top-N). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
 | `ai` | AI assistant: provider, model, credentials, prompt overrides, history cap. | [AI Assistant](../operate/ai-assistant.md) |
+| `mcp` | Whether an external agent may read this Horizon over the Model Context Protocol. | [MCP](../operate/mcp.md) |
+| `oauth` | Horizon as an authorization server, so an MCP client can sign its operator in through a browser. Off by default. | [MCP](../operate/mcp.md) |
 | `performance` | How hard the BFF fans queries out to OAP, plus render caps and the largest page a list may display. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
 
 ```yaml
-server: { host, port, staticDir? }
+server: { host, port, staticDir?, publicUrl? }   # publicUrl = the PUBLIC base URL
 
 templates: { mode? }          # live (default) | readonly
 
@@ -40,6 +41,11 @@ auth:
   local?: { users: [{ username, passwordHash, roles? }] }
   ldap?: { ... }
   breakGlass?: { username, passwordHash, roles? }
+  sso?:                        # single sign-on — Horizon as the CLIENT
+    providers: [{ id, displayName?, kind?, issuer?, clientId, clientSecret?,
+                  allowedDomains? }]      # HOW you sign in, per provider
+    roles?: { defaultRoles?, roleByEmail?, roleByDomain? }   # WHAT you get, ONE table
+  tokensFile?: string          # path to API tokens for callers with no browser
 
 rbac:
   enabled?: boolean
@@ -47,7 +53,6 @@ rbac:
   landingByRole?: { <name>: "/route" }
 
 session: { ttlMinutes?, cookieName?, cookieSecure? }
-audit:   { enabled?, file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
 query:   { landingServiceCap?, overviewTopN? }
 sourceMaps: { enabled?, maxFileBytes?, maxTotalBytes?, maxFileCount?, bootMountDir? }
@@ -62,6 +67,16 @@ ai:
   systemPrompt?: string        # blank → bundled default
   starters?: [string, ...]     # blank → bundled defaults
   history?: { maxMb? }
+
+mcp:
+  enabled?: boolean            # ON by default
+
+oauth:                         # authorization server — OFF by default
+  enabled?: boolean
+  issuer?: string              # defaults to server.publicUrl
+  signingKey?: string          # secret — env only, 32+ chars (openssl rand -base64 32)
+  accessTokenMinutes?: number
+  refreshTokenDays?: number    # 0 disables refresh tokens
 
 performance:
   bulk:
@@ -78,6 +93,10 @@ layers:  { excluded?: [{ key, reason? }] }
 ```
 
 The `ai` block's fields, env-var forms, and provider recipes are documented on [AI Assistant](../operate/ai-assistant.md).
+
+`ai` and `mcp` are independent. `ai` configures the model **this Horizon talks to** for its own assistant panel, and is off until you give it one. `mcp` lets an **external** agent — Claude Code, Codex, Claude Desktop — read this Horizon through the Model Context Protocol, with the model staying on the caller's side; it needs no provider and no key, so it is on by default. Turn it off with `enabled: false` (or `HORIZON_MCP_ENABLED=false`) and `POST /api/mcp` answers 503.
+
+`oauth` is a third, separate thing again: it makes Horizon an **authorization server** — the role Google plays when an application offers "Sign in with Google", except here Horizon is the one issuing and the login page shown is its own. It lets an MCP client send its operator through a browser login instead of being handed a token. It is off by default and needs two values to start — a public base URL (from `server.publicUrl`, or `oauth.issuer` to override it) and `signingKey`, a secret. Both are required: with either missing the server stays off and its endpoints answer 404, and a warning names what is missing at boot. See [MCP](../operate/mcp.md).
 
 ## Environment variable interpolation
 

@@ -75,15 +75,20 @@ describe('the content security policy keeps the properties it was derived for', 
     expect(directive('frame-ancestors')).toBe("frame-ancestors 'none'");
   });
 
-  // The AI chat route hijacks the reply, so it bypasses the global onSend hook
-  // and writes its own head. It must spread this same map rather than restate
-  // the headers, or the two silently diverge — which is exactly how the CSP
-  // would come to be missing on one route only.
-  it('is the single source both emitters use', () => {
-    const sse = readFileSync(join(HERE, '../ai/http/chat.ts'), 'utf8');
-    expect(sse).toContain('...SECURITY_HEADERS');
-    expect(sse).not.toContain("'X-Frame-Options': 'DENY'");
+  // Two routes hijack the reply — the AI chat stream and MCP — so they bypass
+  // the global onSend hook and write their own head. Each must read this same
+  // map rather than restate the headers, or they silently diverge, which is
+  // exactly how the CSP would come to be missing on one route only.
+  it.each([
+    ['../ai/chat-assistant/route.ts', '...SECURITY_HEADERS'],
+    ['../ai/mcp/route.ts', 'Object.entries(SECURITY_HEADERS)'],
+  ])('%s reads the shared map', (file, marker) => {
+    const src = readFileSync(join(HERE, file), 'utf8');
+    expect(src).toContain(marker);
+    expect(src).not.toContain("'X-Frame-Options': 'DENY'");
+  });
 
+  it('is the single source the global hook uses too', () => {
     const server = readFileSync(join(HERE, '../server.ts'), 'utf8');
     expect(server).toContain('Object.entries(SECURITY_HEADERS)');
   });

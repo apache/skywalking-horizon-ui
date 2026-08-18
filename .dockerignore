@@ -21,6 +21,10 @@
 
 **/node_modules
 **/dist
+# The card renderer builds outside any directory named `dist`, so `**/dist`
+# does not reach it. Both stages are host-built and rebuilt by `pnpm package`.
+**/dist-mcp-app
+apps/bff/src/ai/mcp/app
 .git
 .github
 .pnpm-store
@@ -32,7 +36,6 @@ scripts/.finalize-work
 # horizon.yaml is the committed, env-driven config (package.mjs reads it into
 # dist/, the Dockerfile bakes it as /app/horizon.yaml) — keep it in the context.
 # Runtime state files carry local data; never ship them.
-horizon-audit.jsonl
 horizon-wire.jsonl
 horizon-setup.json
 horizon-alarms.json

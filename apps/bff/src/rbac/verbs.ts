@@ -66,12 +66,19 @@ export const VERBS = {
    *  the caller's read scopes — never widens them. */
   aiRead: 'ai:read',
 
+  /** Connect an external agent over MCP. Separate from `ai:read` because the
+   *  two differ in who runs the model: the assistant sends the conversation to
+   *  the provider Horizon is configured with, while MCP leaves the model on
+   *  the caller's side and Horizon only answers tool calls. A deployment can
+   *  reasonably allow one and not the other. The same per-tool read verbs
+   *  apply on both paths. */
+  mcpRead: 'mcp:read',
+
   userRead: 'user:read',
   userWrite: 'user:write',
   roleRead: 'role:read',
   roleWrite: 'role:write',
   authRead: 'auth:read',
-  auditRead: 'audit:read',
   admin: 'admin',
 } as const;
 
@@ -94,7 +101,6 @@ export type KnownVerb = (typeof VERBS)[keyof typeof VERBS];
  */
 export const RESERVED_VERBS: readonly Verb[] = [
   'alarm-rule:write',
-  'audit:read',
   'role:write',
   'user:write',
 ];

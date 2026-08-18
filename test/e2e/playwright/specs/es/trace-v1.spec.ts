@@ -16,7 +16,7 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { DEMO_ENDPOINTS, LAYER } from '../fixture.js';
+import { LAYER } from '../fixture.js';
 
 // What a NON-BANYANDB backend changes for the operator. Everything here is
 // unreachable on the default stack, which is the whole justification for
@@ -42,10 +42,23 @@ test('the traces tab reports the pre-v2 query API', async ({ page, pageErrors })
   // assertion doubles as proof the storage override actually took effect.
   await expect(page.locator('.tr-api-banner code')).toHaveText('queryBasicTraces');
 
-  const endpoint = await rows.first().locator('.tr-ep').textContent();
+  // A v1 row is a SEGMENT, not a trace — which is the whole subject of the
+  // sibling test below, and it decides what this list can be asked to prove.
+  // The demo's segments are overwhelmingly JDBC: a run produced eleven rows,
+  // every one of them `HikariCP/Connection/*` or `H2/JDBC/Statement/*`, and not
+  // a single HTTP endpoint. So an assertion that a demo ROUTE appears among
+  // them is not a weak assertion, it is a false one — it encodes what a v2
+  // trace list looks like and fails on a deployment behaving exactly right.
+  //
+  // What the list can prove is that the pre-v2 path returned this deployment's
+  // segments: rows carry a trace id and a duration. That these are OUR traces
+  // is established where it can be — the sibling test opens a row and finds
+  // `e2e-service-provider` inside the full trace it fetches.
+  const ids = await rows.locator('.trace-id-snip').allTextContents();
+  expect(ids.length, 'the v1 list returned no segments').toBeGreaterThan(0);
   expect(
-    DEMO_ENDPOINTS.some((known) => endpoint?.includes(known)),
-    `unexpected endpoint in the trace list: ${endpoint}`,
+    ids.every((id) => id.trim().length > 1),
+    `a segment row carried no trace id: ${ids.join(', ')}`,
   ).toBe(true);
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);

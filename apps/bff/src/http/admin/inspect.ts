@@ -53,11 +53,10 @@ import {
   type InspectValuesRequest,
   type ForeignMetricInput,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { AuditLogger } from '../../audit/logger.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { sessionHasVerb } from '../../rbac/policy.js';
-import type { Session, SessionStore } from '../../user/sessions.js';
+import type { Session } from '../../user/sessions.js';
 import { buildOapClients, type OapClients } from '../../client/index.js';
 import { AttributionCache, attributeOrUnknown } from '../../logic/inspect/attribution.js';
 import { MqeTargetCache } from '../../util/mqe-target.js';
@@ -65,10 +64,7 @@ import { parseExecBody, fireMqe, MqeFireError } from '../../logic/inspect/exec.j
 import { ServerTimeCache } from '../../util/time.js';
 import { wireFetch } from '../../client/wire-log.js';
 
-export interface InspectRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
-  audit: AuditLogger;
+export interface InspectRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 
@@ -484,7 +480,7 @@ function ensureVerb(
     reply.code(401).send({ error: 'unauthenticated' });
     return false;
   }
-  if (!sessionHasVerb(deps.config.current, session.roles, verb)) {
+  if (!sessionHasVerb(deps.config.current, session, verb)) {
     reply.code(403).send({ error: 'permission_denied', verb });
     return false;
   }

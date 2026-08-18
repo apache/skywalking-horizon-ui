@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch --include 'src/ai/resources/**' src/server.ts",
+    "dev": "NODE_ENV=development tsx watch --include 'src/ai/lib/skills/**' src/server.ts",
     "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.js --packages=external",
     "cli:hash": "tsx src/cli/hash.ts",
     "i18n:seed": "tsx src/i18n/seed.ts",
@@ -18,7 +18,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test:unit": "vitest run --root src/ --pool=threads",
-    "test:unit:watch": "vitest --root src/ --pool=threads"
+    "test:unit:watch": "vitest --root src/ --pool=threads",
+    "cli:token": "tsx src/cli/token.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
@@ -29,10 +30,12 @@
     "@langchain/core": "^1.2.4",
     "@langchain/langgraph": "^1.4.8",
     "@langchain/openai": "^1.5.5",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@skywalking-horizon-ui/api-client": "workspace:*",
     "argon2": "^0.41.1",
     "chokidar": "^4.0.3",
     "fastify": "^5.11.0",
+    "jose": "^6.2.9",
     "ldapts": "^8.2.0",
     "pino": "^9.14.0",
     "pino-pretty": "^11.3.0",

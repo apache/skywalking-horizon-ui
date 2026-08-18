@@ -33,9 +33,8 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -43,9 +42,7 @@ import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js'
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
-export interface EndpointRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface EndpointRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

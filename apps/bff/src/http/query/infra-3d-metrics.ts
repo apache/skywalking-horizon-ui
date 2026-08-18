@@ -42,8 +42,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import {
@@ -53,9 +52,7 @@ import {
   type Window,
 } from '../../util/window.js';
 
-export interface Infra3dMetricsDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface Infra3dMetricsDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

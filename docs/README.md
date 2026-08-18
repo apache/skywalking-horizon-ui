@@ -10,7 +10,7 @@ The sidebar on the left of this site is the canonical entry point — every sect
 - **Compatibility** — OAP version, network ports, required modules, and cluster-status checks.
 - **Features & Capabilities** — one page per feature: AI Assistant, Service Map, 3D Infrastructure Map, Traces, Logs, Browser Logs, Alarms, Events, Profiling, the Metrics / Trace / Log Inspect tools, Runtime Rules, Live Debugger, Cluster Status, Data Retention, and OAP Configuration.
 - **Bundled Dashboards** — the ready-made dashboards Horizon ships, one page each: the Services and Mesh overview dashboards, then every supported technology layer from ActiveMQ to Windows.
-- **Access Control** — local users, LDAP login, break-glass access, roles, audit log, and admin pages.
+- **Access Control** — local users, LDAP login, break-glass access, roles, and admin pages.
 - **Customization** — layer menus, layer and overview dashboard templates, adding a layer, languages and translations, and themes and global defaults.
 - **Reference** — design target and widget reference for template authors.
 - **Release Notes** — what changed in each release, one page per version. One version line covers everything Horizon ships: the browser UI, the Horizon server, and the server's reported version.

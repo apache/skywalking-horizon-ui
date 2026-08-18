@@ -69,7 +69,7 @@ jobs:
       # shipping defect rather than operator error — and the loader only
       # JSON.parses them, which is how an orderBy naming a nonexistent column
       # and an unsupported aggregation both shipped.
-      - name: Lint, source budget, i18n, security, bundled templates
+      - name: Lint, source budget, i18n, security, docs links, bundled templates
         run: pnpm lint
 
       # Advisories against what actually SHIPS. `--prod` matches the scope the
@@ -163,7 +163,7 @@ jobs:
           set -eu
           # No HORIZON_STATIC_DIR on purpose: the packaged layout must serve
           # the UI from the static/ dir beside server.js without being told.
-          HORIZON_SERVER_PORT=8099 HORIZON_AUDIT_FILE=/tmp/ci-audit.jsonl \
+          HORIZON_SERVER_PORT=8099 \
             node dist/server.js > /tmp/ci-boot.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf -o /dev/null "http://127.0.0.1:8099/api/health" && break

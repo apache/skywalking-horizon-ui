@@ -95,6 +95,7 @@ describe('resolveEffectiveLayer — an unreachable template store blocks', () =>
     expect(await resolveEffectiveLayer(templateClient('unreachable'), 'GENERAL')).toEqual({
       template: null,
       blocked: true,
+      reason: 'store-unreachable',
     });
   });
 
@@ -102,6 +103,7 @@ describe('resolveEffectiveLayer — an unreachable template store blocks', () =>
     expect(await resolveEffectiveLayer(templateClient('unreachable'), 'general')).toEqual({
       template: null,
       blocked: true,
+      reason: 'store-unreachable',
     });
   });
 
@@ -109,6 +111,7 @@ describe('resolveEffectiveLayer — an unreachable template store blocks', () =>
     expect(await resolveEffectiveLayer(templateClient('unreachable'), 'NOT_A_BUNDLED_LAYER')).toEqual({
       template: null,
       blocked: true,
+      reason: 'store-unreachable',
     });
   });
 });
@@ -128,7 +131,7 @@ describe('resolveEffectiveLayer — a reachable store decides per row', () => {
       'general',
     );
 
-    expect(eff).toEqual({ template: null, blocked: true });
+    expect(eff).toEqual({ template: null, blocked: true, reason: 'layer-disabled' });
   });
 
   it('falls to in-code defaults when the store answers but holds no row for the layer', async () => {
@@ -137,7 +140,7 @@ describe('resolveEffectiveLayer — a reachable store decides per row', () => {
     // bundled side must NOT be resurrected as the rendered template.
     const eff = await resolveEffectiveLayer(templateClient([]), 'GENERAL');
 
-    expect(eff).toEqual({ template: null, blocked: false });
+    expect(eff).toEqual({ template: null, blocked: false, reason: 'no-remote-row' });
   });
 });
 
@@ -159,7 +162,7 @@ describe('resolveEffectiveLayer — a record that is not this layer', () => {
       'general',
     );
 
-    expect(eff).toEqual({ template: null, blocked: false });
+    expect(eff).toEqual({ template: null, blocked: false, reason: 'no-remote-row' });
   });
 
   it('ignores a row stored under a name no reader computes, and still serves the readable one', async () => {
@@ -178,6 +181,7 @@ describe('resolveEffectiveLayer — no template client wired', () => {
     expect(await resolveEffectiveLayer(undefined, 'GENERAL')).toEqual({
       template: null,
       blocked: false,
+      reason: 'no-remote-row',
     });
   });
 });

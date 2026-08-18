@@ -38,15 +38,12 @@ import type {
   SourceMapListResponse,
   SourceMapUploadResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { SourceMapStore } from '../../logic/browser-errors/store.js';
 import { resolveStack } from '../../logic/browser-errors/resolve.js';
 
-export interface SourceMapRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface SourceMapRouteDeps extends AuthDeps {
   store: SourceMapStore;
 }
 

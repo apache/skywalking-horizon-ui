@@ -28,8 +28,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   findOverviewFile,
@@ -37,9 +36,7 @@ import {
   loadOverviewDashboards,
 } from '../../logic/overview/loader.js';
 
-export interface OverviewTemplatesAdminDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface OverviewTemplatesAdminDeps extends AuthDeps {
 }
 
 export function registerOverviewTemplatesAdminRoutes(

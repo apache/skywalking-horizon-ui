@@ -45,15 +45,12 @@ import type {
   ProfileTaskListResponse,
   ProfileTaskLogsResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
-export interface ProfileRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ProfileRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

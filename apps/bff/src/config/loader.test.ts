@@ -274,3 +274,143 @@ describe('validateBootstrap risky-combination warnings (docs/setup/horizon-yaml.
     }
   });
 });
+
+/**
+ * `oauth.signingKey` is the only secret behind every token, authorization code
+ * and client registration this server issues — and because none of them are
+ * stored, there is no issued-credential list to check a forgery against.
+ * Anyone who can guess the key mints working credentials for any user.
+ */
+describe('a signing key too short to be a secret disables the authorization server', () => {
+  const withKey = (signingKey: string) => {
+    const cfg = configSchema.parse({
+      server: { publicUrl: 'https://horizon.example.com' },
+      oauth: { enabled: true, signingKey, issuer: 'https://horizon.example.com' },
+    });
+    validateBootstrap(cfg);
+    return cfg;
+  };
+
+  it('clears a short key, so every "no key means off" path applies unchanged', () => {
+    expect(withKey('local-test-key').oauth.signingKey).toBe('');
+  });
+
+  it('keeps a key of the minimum length and longer', () => {
+    const ok = 'x'.repeat(32);
+    expect(withKey(ok).oauth.signingKey).toBe(ok);
+    const long = 'y'.repeat(64);
+    expect(withKey(long).oauth.signingKey).toBe(long);
+  });
+
+  it('rejects one character below the floor', () => {
+    expect(withKey('z'.repeat(31)).oauth.signingKey).toBe('');
+  });
+});
+
+/**
+ * The boot report has two levels and the line between them is a contract, not
+ * a style choice: ERROR means you asked for something and it is NOT running,
+ * WARN means it is running with a risk you may have chosen.
+ *
+ * It matters because some of these have no other surface — nothing in the admin
+ * UI shows whether the authorization server came up, so a misconfigured `oauth`
+ * block is visible only in this log. Among warnings an operator scrolls past,
+ * it may as well be silent.
+ */
+describe('boot report: error means it is not running, warn means it is', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const boot = (over: Record<string, unknown>) => {
+    const errors: string[] = [];
+    const warns: string[] = [];
+    vi.spyOn(logger, 'error').mockImplementation(((...a: unknown[]) => {
+      errors.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '));
+    }) as never);
+    vi.spyOn(logger, 'warn').mockImplementation(((...a: unknown[]) => {
+      warns.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '));
+    }) as never);
+    validateBootstrap(configSchema.parse(over));
+    return { errors: errors.join('\n'), warns: warns.join('\n') };
+  };
+
+  it('errors when an enabled authorization server cannot start', () => {
+    const r = boot({
+      server: { publicUrl: 'https://h.example.com' },
+      auth: { local: { users: [{ username: 'a', passwordHash: 'x', roles: ['admin'] }] } },
+      oauth: { enabled: true, signingKey: 'too-short', issuer: 'https://h.example.com' },
+    });
+    expect(r.errors).toMatch(/signingKey is too short/);
+    expect(r.warns).not.toMatch(/signingKey is too short/);
+  });
+
+  it('errors when no login could possibly succeed', () => {
+    expect(boot({ auth: { backend: 'local', local: { users: [] } } }).errors)
+      .toMatch(/auth\.local\.users is empty/);
+  });
+
+  /** Running, and open on purpose for a public demo — the operator's call. */
+  it('only warns about a risk that is still working', () => {
+    const r = boot({
+      auth: {
+        local: { users: [{ username: 'a', passwordHash: 'x', roles: ['admin'] }] },
+        sso: { providers: [{ id: 'g', issuer: 'https://idp.example', clientId: 'c', clientSecret: 's' }] },
+      },
+    });
+    expect(r.warns).toMatch(/allowedDomains is empty/);
+    expect(r.errors).not.toMatch(/allowedDomains is empty/);
+  });
+});
+
+/**
+ * Roles resolve local-first, so a local user NAMED with an email address
+ * answers for the SSO identity at that address. Reproduced before the guard: an
+ * SSO operator whose role table said `viewer` was issued `admin`, and the
+ * consent screen showed the SSO roles while the token carried the local ones.
+ */
+describe('a local username that is an email collides with an SSO identity', () => {
+  const build = (users: { username: string; passwordHash: string; roles: string[] }[], sso = true) => {
+    const cfg = configSchema.parse({
+      auth: {
+        local: { users },
+        ...(sso
+          ? { sso: { providers: [{ id: 'g', issuer: 'https://idp.example', clientId: 'c', clientSecret: 's' }],
+                     roles: { defaultRoles: ['viewer'] } } }
+          : {}),
+      },
+    });
+    validateBootstrap(cfg);
+    return cfg;
+  };
+
+  it('drops the colliding account rather than letting it answer for the address', () => {
+    const cfg = build([
+      { username: 'boss@corp.com', passwordHash: 'x', roles: ['admin'] },
+      { username: 'ops', passwordHash: 'x', roles: ['operator'] },
+    ]);
+    expect(cfg.auth.local.users.map((u) => u.username)).toEqual(['ops']);
+  });
+
+  it('leaves ordinary local users alone', () => {
+    const cfg = build([{ username: 'admin', passwordHash: 'x', roles: ['admin'] }]);
+    expect(cfg.auth.local.users.map((u) => u.username)).toEqual(['admin']);
+  });
+
+  /** With no SSO configured there is no identity to collide with, and an
+   *  email-shaped local username is merely unusual. */
+  it('keeps an email-shaped username when no provider is configured', () => {
+    const cfg = build([{ username: 'boss@corp.com', passwordHash: 'x', roles: ['admin'] }], false);
+    expect(cfg.auth.local.users.map((u) => u.username)).toEqual(['boss@corp.com']);
+  });
+
+  it('drops an email-shaped break-glass username too', () => {
+    const cfg = configSchema.parse({
+      auth: {
+        backend: 'ldap',
+        breakGlass: { username: 'sos@corp.com', passwordHash: 'x', roles: ['admin'] },
+        sso: { providers: [{ id: 'g', issuer: 'https://idp.example', clientId: 'c', clientSecret: 's' }] },
+      },
+    });
+    validateBootstrap(cfg);
+    expect(cfg.auth.breakGlass).toBeUndefined();
+  });
+});

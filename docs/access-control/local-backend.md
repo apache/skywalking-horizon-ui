@@ -45,7 +45,7 @@ A sign-in matches the typed username against `local.users` and verifies the pass
 What this means in practice:
 
 - **Username enumeration is prevented.** A wrong username and a wrong password are indistinguishable — an unknown username still incurs the full password-verification cost, so response timing never reveals whether a username exists.
-- **Successes and failures are recorded** in the audit log (see [Audit Log](audit-log.md)), but the typed password is never logged.
+- **Failures are logged** by the application, but the typed password never is.
 
 ## Operations
 
@@ -68,7 +68,7 @@ The `horizon.yaml` shipped in the repo and image is **env-driven and holds no se
 
 ## Mixing with LDAP
 
-Local users are **ignored** at login time when `backend: ldap` (a warning is logged at startup if both are populated). The two backends are mutually exclusive at runtime. For emergency local access while LDAP is the active backend, use [Break-Glass Access](break-glass.md) instead — it has the audit treatment to match.
+Local users are **ignored** at login time when `backend: ldap` (a warning is logged at startup if both are populated). The two backends are mutually exclusive at runtime. For emergency local access while LDAP is the active backend, use [Break-Glass Access](break-glass.md) instead — it logs a WARN on every use.
 
 ## Common mistakes
 

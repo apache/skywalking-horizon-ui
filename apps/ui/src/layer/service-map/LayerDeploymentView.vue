@@ -115,7 +115,8 @@ const { selectedId: headerSelectedId } = useSelectedService();
 const selectedId = computed<string | null>(() =>
   embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
 );
-const pickedService = useSelectedServiceRef(layerKey);
+const replayRef = computed(() => !!props.replay);
+const pickedService = useSelectedServiceRef(layerKey, replayRef);
 const service = computed<ServiceRef | null>(() =>
   embedded.value ? serviceRef(props.focusServiceId, props.focusService) : pickedService.value,
 );

@@ -32,7 +32,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="cdp">
     <div class="cdp__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="cdp__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="cdp__view">
       <LayerDeploymentView
@@ -59,11 +59,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .cdp__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.cdp__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* The embedded view is content-sized (its canvas carries a bounded pixel
    height), so the block just clips any overflow and keeps its own rounded edge. */

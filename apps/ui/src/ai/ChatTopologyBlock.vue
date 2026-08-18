@@ -32,7 +32,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="ctp">
     <div class="ctp__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="ctp__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="ctp__view">
       <LayerServiceMapView
@@ -61,11 +61,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .ctp__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.ctp__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* The embedded map fills its host (height:100%), so give it a bounded stage.
    Taller than a dashboard cell so a focused one-hop graph reads at a usable

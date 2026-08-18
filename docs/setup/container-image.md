@@ -32,10 +32,10 @@ Pushing a `vX.Y.Z` git tag publishes the `:<sha>` image only — that tag is a r
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
 | `/app/horizon.yaml` | root | no | The **active** config — a **baked, fully tokenized default** (every field is a `${HORIZON_…:default}` env token). The image runs with no mounted file; override any field via env (see [Run with env vars only](#run-with-env-vars-only-no-mounted-file)), or bind-mount your own to replace it. |
 | `/app/bundled_templates/` | horizon | (read) | Bundled layer + overview JSON templates — the read-only **seed source**. In the default `templates.mode: live` they are seeded into OAP's `ui_template` store at boot; in `readonly` mode dashboards render straight from this bundle. Nothing writes here at runtime — admin template edits are stored in OAP, not in the container. |
-| `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
+| `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
 | `/app/sourcemaps/` | **horizon** | (read) | Static source maps for the **Browser Logs** tab. Bind-mount or copy `.map` files here and they're loaded at boot — durable across restarts. Optional; runtime uploads work without it. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
-The runtime stage runs as the non-root user `horizon`. `/data/` is owned by `horizon` so the state files (audit log, wire debug log) can be written without operator intervention.
+The runtime stage runs as the non-root user `horizon`. `/data/` is owned by `horizon` so the wire debug log can be written without operator intervention.
 
 ## Environment variables
 
@@ -46,11 +46,10 @@ The runtime stage runs as the non-root user `horizon`. `/data/` is owned by `hor
 | `HORIZON_VERSION` | (unset → the build's baked version string) | Overrides the version string reported by the public `GET /api/health` probe endpoint. |
 | `HORIZON_CONFIG` | `/app/horizon.yaml` | Where the BFF looks for `horizon.yaml`. Override to mount elsewhere. |
 | `HORIZON_STATIC_DIR` | `/app/static` | Where the BFF serves UI assets from. |
-| `HORIZON_AUDIT_FILE` | `/data/horizon-audit.jsonl` | Default for `audit.file` when `horizon.yaml` doesn't override it. |
-| `HORIZON_WIRE_LOG_FILE` | `/data/horizon-wire.jsonl` | Default for `debugLog.file`. |
+| `HORIZON_WIRE_LOG_FILE` | `/data/horizon-wire.jsonl` | Default for `debugLog.file` when `horizon.yaml` doesn't override it. |
 | `HORIZON_SOURCEMAPS_DIR` | `/app/sourcemaps` | Default for `sourceMaps.bootMountDir` — the directory scanned at boot for statically-provisioned `.map` files. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
-The two `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
+`HORIZON_WIRE_LOG_FILE` seeds the **default** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `debugLog` block) gets the file routed to `/data/` automatically, no manual path override needed.
 
 `server.host` and `server.port` come from the YAML when present. If they are omitted, the image supplies defaults via `HORIZON_SERVER_HOST=0.0.0.0` and `HORIZON_SERVER_PORT=8081`. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
 
@@ -89,7 +88,6 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_DEBUG_LOG_ENABLED` | `false` | bool | OAP wire debug log. |
 | `HORIZON_DEBUG_LOG_MAX_BODY_CHARS` | `8192` | int | Wire-log body truncation. |
 | `HORIZON_DEBUG_LOG_REDACT_AUTH` | `true` | bool | Redact auth headers in the wire log. |
-| `HORIZON_AUDIT_ENABLED` | `true` | bool | Audit trail. On by default; `false` disables audit logging entirely. |
 | `HORIZON_AI_ENABLED` | `false` | bool | AI assistant master switch. See [AI Assistant](../operate/ai-assistant.md). |
 | `HORIZON_AI_PROVIDER` | `openai-compatible` | `openai-compatible` \| `bedrock` | AI transport. Set `bedrock` only for Amazon Bedrock. |
 | `HORIZON_AI_MODEL` | (none) | string | Model id (for `bedrock`, the Bedrock model / inference-profile id). |
@@ -253,13 +251,13 @@ Notes:
 
 - `subPath: horizon.yaml` mounts the single file rather than the directory, so it doesn't shadow `/app`'s other contents.
 - Mount with `readOnly: true` on the config — the BFF only reads it.
-- `/data` is the image's declared `VOLUME` for runtime state (audit log, wire debug). The two `HORIZON_*_FILE` env vars baked into the image point at `/data/*`, so mounting a PVC here is enough — no path overrides in `horizon.yaml` are required.
+- `/data` is the image's declared `VOLUME` for runtime state (the wire debug log). The `HORIZON_WIRE_LOG_FILE` env var baked into the image points at `/data/`, so mounting a PVC here is enough — no path override in `horizon.yaml` is required.
 - `fsGroup: 101` is the typical alpine `nobody` GID that `adduser -S -G horizon horizon` falls into. Run `docker run --rm <image> id horizon` to confirm if you've forked the image.
 - Run a single replica unless you accept that sessions are per-pod (the in-memory session store does not federate; see [session](session.md)).
 
-### Persisting state files (`audit`, `debugLog`)
+### Persisting the wire debug log
 
-The BFF writes runtime state to JSON Lines files. The image declares `/data` as a `VOLUME` and points the two defaults at `/data/*` via env vars, so **no `horizon.yaml` configuration is required** to get writable, persistable paths — operators just mount a volume at `/data`:
+The BFF writes the wire debug log as JSON Lines when `debugLog.enabled` is set. The image declares `/data` as a `VOLUME` and points the default at `/data/` via an env var, so **no `horizon.yaml` configuration is required** to get a writable, persistable path — operators just mount a volume at `/data`:
 
 ```sh
 docker run -d --name horizon \
@@ -271,13 +269,12 @@ docker run -d --name horizon \
 
 Without a mounted volume the writes still land in the container's writable layer at `/data/` (ephemeral, but at least non-failing). Mounting a volume is what makes them durable.
 
-If you want to override the locations, you can either:
+If you want to override the location, you can either:
 
-- Set the env vars: `-e HORIZON_AUDIT_FILE=/var/log/horizon/audit.jsonl ...`, or
-- Set the paths explicitly in `horizon.yaml`:
+- Set the env var: `-e HORIZON_WIRE_LOG_FILE=/var/log/horizon/wire.jsonl`, or
+- Set the path explicitly in `horizon.yaml`:
 
   ```yaml
-  audit:    { file: /var/log/horizon/audit.jsonl }
   debugLog: { file: /var/log/horizon/wire.jsonl }
   ```
 
@@ -321,12 +318,11 @@ The server request logger is on by default and emits one `incoming request` line
 
 Genuine request errors (5xx, request-handler exceptions) are still logged at `error` (50) — they reach stdout under any default that includes `error`.
 
-This is separate from the **audit log** (which records sensitive operations — login, rule edits, break-glass — to a JSONL file at `audit.file`; see [Access Control → Audit Log](../access-control/audit-log.md)) and the **wire-debug log** (which records OAP HTTP request/response payloads when `debugLog.enabled: true`; see [Setup → debugLog](debug-log.md)). Three orthogonal channels:
+This is separate from the **wire-debug log** (which records OAP HTTP request/response payloads when `debugLog.enabled: true`; see [Setup → debugLog](debug-log.md)). Two orthogonal channels:
 
 | Channel | Where | What | Toggle |
 |---|---|---|---|
-| App logs | stdout (JSON in prod, pretty in dev) | Lifecycle + per-request | Always on. `LOG_LEVEL` adjusts. |
-| Audit log | `audit.file` (JSONL) | Logins, RBAC-gated mutations | On by default; `audit.enabled: false` disables. Path = `audit.file`. |
+| App logs | stdout (JSON in prod, pretty in dev) | Lifecycle + per-request, plus sign-ins (`info`), refused sign-ins and break-glass use (`warn`) | Always on. `LOG_LEVEL` adjusts — the default hides the successes. |
 | Wire-debug | `debugLog.file` (JSONL) | Outbound OAP requests/responses | Off by default. `debugLog.enabled: true` opt-in. |
 
 ### Aggregating from Docker

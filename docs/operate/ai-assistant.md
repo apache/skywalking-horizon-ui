@@ -2,6 +2,8 @@
 
 The AI Assistant is an in-app chat that answers questions about your system in plain language. It reads **live data from your OAP backend** through the same query path the dashboards use, and streams back an ordered narrative with **inline figures — line charts, single-value cards, top-N lists, tables and record lists — drawn by the same widgets** you see across the UI (grouped into tabs, a stack or a grid when an answer needs several). It can also embed the real feature views inline — not just text: the dependency graphs (**topology, hierarchy, deployment, instance map, API dependency**), the **trace, log and browser-error** explorers, and **profiling** results (the flame graph, the network process graph). Every one of those blocks is a snapshot captured when the assistant read the data, so an answer keeps showing the evidence behind it. It is **read-only** and **off by default**.
 
+**Prefer your own agent?** The same tools are available over the Model Context Protocol, so Claude Code, Codex or any MCP client can run these investigations from its own window — with the model on your side rather than one Horizon is configured with. See [MCP — connect your own agent](mcp.md).
+
 ## What it can do
 
 - Answer investigative questions — "what's unhealthy right now?", "investigate latency for a service", "which services have the most errors?", "break a service down by its slowest endpoints".
@@ -19,6 +21,8 @@ The AI Assistant is an in-app chat that answers questions about your system in p
 It is **read-only by default**: it observes and explains, and never changes configuration, rules, or dashboards. Every data action it takes checks the **same read permission you already hold**, so the assistant can never see more than you can. The one exception is **profiling**: when metrics and traces can't localise a cause, the assistant may *propose* a profiling task as a decision card (what it found, why profiling, what it expects) — nothing runs until **you approve it** in the popout, and only if you hold the `profile:enable` permission.
 
 **What the assistant will and won't decide for you.** Whether a profiling task is *allowed* is your OAP backend's call, not Horizon's. The assistant checks what it can see beforehand — whether the layer is set up for that profiling type, whether the instances report a runtime the profiler matches, whether any process is reporting eBPF support — but none of those are checks OAP itself performs when a task is created. So it treats them as **caveats, not vetoes**: it shows the card, tells you what looks wrong ("this service reports Java, and pprof is Go-only, so it will probably collect nothing"; "no Rover agent seems to be reporting"), and leaves the decision to you. If OAP does reject the task on approve, the card shows **OAP's own reason** rather than a guess. Two flavour-specific things worth knowing: a **network** profiling task always runs for a fixed **10 minutes** and ignores any window the assistant proposed, and an empty process graph shortly after approval means the task hasn't collected yet — not that profiling is unsupported.
+
+- **Tell you when it can't see, instead of reporting an empty system.** If Horizon cannot read a layer's configuration — OAP's admin endpoint is unreachable, an administrator disabled that layer's template, or the layer was never synced — the assistant names which of those it hit and how much is affected, rather than answering "no metrics available". An unreachable admin endpoint affects **every** layer, so it reports that as the finding and stops instead of trying layer after layer. You can also ask it directly whether Horizon can reach OAP right now, and it reports admin reachability, any unreachable OAP modules, and the template source mode.
 
 ## How it stays grounded
 
@@ -45,7 +49,7 @@ Configure it under the `ai:` block of `horizon.yaml`, or entirely via `HORIZON_A
 | `model` | `HORIZON_AI_MODEL` | Model id to use. |
 | `baseUrl` | `HORIZON_AI_BASE_URL` | Endpoint URL for `openai-compatible`. |
 | `region` | `HORIZON_AI_REGION` | AWS region for `bedrock`. Optional — falls back to `AWS_REGION` / `AWS_DEFAULT_REGION`. |
-| `apiKey` | `HORIZON_AI_API_KEY` | **Secret.** Set via env only — never commit it to the file. Redacted from logs and excluded from the audit trail. |
+| `apiKey` | `HORIZON_AI_API_KEY` | **Secret.** Set via env only — never commit it to the file. Redacted from logs. |
 | `systemPrompt` | `HORIZON_AI_SYSTEM_PROMPT` | Override the bundled system prompt. Blank → bundled default. |
 | `starters` | `HORIZON_AI_STARTERS` | Override the starter example chips (JSON array of strings). Blank → bundled defaults. |
 
@@ -89,6 +93,8 @@ Both prompts ship with sensible bundled defaults and can be replaced entirely on
 
 - **System prompt** (`ai.systemPrompt`) — the assistant's operating instructions. For a multi-line override in `horizon.yaml`, use a YAML block scalar.
 - **Starter prompts** (`ai.starters`) — the example chips shown in an empty chat. Provide your own list to tailor the suggestions to your environment. A starter may embed a `<service>` or `<layer>` placeholder: on click it opens a free-text fill-in (with a live preview) where the user types an approximate name that the model resolves at query time — a quick way to ship parameterized suggestions without hard-coding entity names.
+
+**What an override replaces.** `ai.systemPrompt` replaces the assistant's *method* — how it investigates, what it may query, when to stop. It does **not** replace the presentation rules that tell it how to present an answer in this chat panel; those are always appended. That split exists so a customized prompt cannot, by omission, drop the rule that stops the assistant describing a chart it never drew.
 
 ## Permissions
 

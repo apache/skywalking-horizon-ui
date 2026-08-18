@@ -15,7 +15,8 @@
     "dev:bff": "pnpm --filter @skywalking-horizon-ui/bff dev",
     "build": "pnpm -r run build",
     "type-check": "pnpm -r run type-check",
-    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs && node scripts/check-ui-i18n.mjs && node scripts/check-ui-promises.mjs && node scripts/check-unused-deps.mjs && node scripts/check-e2e-widget-coverage.mjs && node scripts/check-security.mjs && node scripts/check-security-selftest.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate && pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
+    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs && node scripts/check-ui-i18n.mjs && node scripts/check-ui-promises.mjs && node scripts/check-unused-deps.mjs && node scripts/check-e2e-widget-coverage.mjs && node scripts/check-security.mjs && node scripts/check-security-selftest.mjs && node scripts/check-docs-links.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate && pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
+    "lint:docs": "node scripts/check-docs-links.mjs",
     "lint:budget": "node scripts/check-source-budget.mjs",
     "lint:i18n": "node scripts/check-ui-i18n.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate",
     "lint:promises": "node scripts/check-ui-promises.mjs",
@@ -28,7 +29,8 @@
     "licenses:bin:check": "node scripts/collect-dist-licenses.mjs --check && node scripts/check-dist-licenses.mjs",
     "package": "node scripts/package.mjs",
     "start": "HORIZON_CONFIG=${HORIZON_CONFIG:-./horizon.yaml} node dist/server.js",
-    "lint:deps": "node scripts/check-unused-deps.mjs"
+    "lint:deps": "node scripts/check-unused-deps.mjs",
+    "build:mcp-app": "pnpm --filter ui run build:mcp-app && node scripts/build-mcp-app.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.3",

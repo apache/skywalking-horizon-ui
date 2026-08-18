@@ -174,6 +174,9 @@ const targetDetail = computed<string>(() => {
       </p>
     </template>
     <p v-else-if="block.status === 'dismissed'" class="prop__out">{{ t('Dismissed.') }}</p>
+    <!-- Replay: the case it made, with no decision attached. Never the error
+         branch below, which is what an unrecognised status used to reach. -->
+    <p v-else-if="block.status === 'proposed'" class="prop__out">{{ t('Proposed — nothing was started.') }}</p>
     <p v-else class="prop__out prop__out--err">{{ t('Could not start profiling.') }} {{ block.error }}</p>
   </div>
 </template>

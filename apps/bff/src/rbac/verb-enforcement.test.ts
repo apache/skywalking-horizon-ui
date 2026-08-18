@@ -285,13 +285,15 @@ describe('every other verb earns its place', () => {
 });
 
 describe('enforcement detection tells a gate from a log field', () => {
-  const LIVE_DEBUG = join(BFF_SRC, 'http/admin/live-debug.ts');
 
-  it('does not read an audit `verb:` field as a check', () => {
-    const src = readFileSync(LIVE_DEBUG, 'utf8');
-    expect(src, 'live-debug still audits the capability it exercises').toContain(
-      "verb: 'live-debug:write'",
-    );
+  /**
+   * A `verb:` field naming a capability is not a check on it. The audit trail
+   * used to carry such fields, which is what this guards against; the trail is
+   * gone, so the case is stated as source rather than read from a file that no
+   * longer contains one — the detector must stay wrong-proof either way.
+   */
+  it('does not read a `verb:` data field as a check', () => {
+    const src = "record({ action: 'debug.start', verb: 'live-debug:write', outcome: 'ok' });";
     expect([...checkedVerbs(src, { ui: false })]).not.toContain('live-debug:write');
   });
 

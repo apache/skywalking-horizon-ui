@@ -7,7 +7,16 @@ dist-ssr
 # Claude Code per-user settings — user-specific allow-list, not for git.
 .claude/settings.local.json
 .claude/settings.json
-.claude/skills/local-boot/*.key
+# Dev secrets. Deny-by-default rather than a list of known filenames: this
+# directory holds throwaway CONFIG that is safe to commit (dev-users.json,
+# dev-ldap.json) alongside real CREDENTIALS that never are, and an
+# extension-based rule silently fails to cover the next secret someone drops
+# here — which already happened once with a Google client secret in a .json.
+.claude/skills/local-boot/*
+!.claude/skills/local-boot/SKILL.md
+!.claude/skills/local-boot/dev-users.json
+!.claude/skills/local-boot/dev-ldap.json
+!.claude/skills/local-boot/ldap-seed.ldif
 
 # Editor
 .idea
@@ -50,7 +59,6 @@ test/e2e/**/.auth
 Thumbs.db
 
 # BFF runtime files (horizon.yaml itself is committed — the env-driven config)
-horizon-audit.jsonl
 horizon-wire.jsonl
 
 # Release
@@ -58,3 +66,7 @@ scripts/.release-work
 scripts/.finalize-work
 # e2e failure diagnostics — collected on a red run, never committed.
 e2e-logs/
+
+# The ui:// MCP card bundle — a build artifact (`pnpm build:mcp-app`), not source.
+apps/ui/dist-mcp-app/
+apps/bff/src/ai/mcp/app/

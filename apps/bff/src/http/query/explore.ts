@@ -39,8 +39,7 @@ import type {
   LogTagFilter,
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
@@ -51,9 +50,7 @@ import { fetchLogs } from './log.js';
 import { fetchBrowserErrors } from './browser-errors.js';
 import { zipkinFetchTraces } from '../../client/zipkin.js';
 
-export interface ExploreRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ExploreRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

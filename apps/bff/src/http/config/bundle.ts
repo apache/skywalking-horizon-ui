@@ -56,8 +56,7 @@ import type {
   OverviewDashboard,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   allLayerTemplates,
@@ -81,9 +80,7 @@ import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
-export interface ConfigBundleDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ConfigBundleDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
 }
 

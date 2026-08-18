@@ -308,7 +308,14 @@ export type SseEvent =
   | { type: 'error'; message: string }
   | { type: 'done' };
 
-export type ProposalStatus = 'pending' | 'approved' | 'dismissed' | 'failed';
+/**
+ * `proposed` is the REPLAY state: a captured proposal, shown as the case it
+ * made, with no decision attached and no actions offered. It exists because a
+ * frozen card has no live conversation to approve into — and because the
+ * template's catch-all reads any unknown status as a failure, so a card that
+ * merely could not be acted on was announcing that profiling had gone wrong.
+ */
+export type ProposalStatus = 'pending' | 'approved' | 'dismissed' | 'failed' | 'proposed';
 
 export type Block =
   | { kind: 'text'; text: string }

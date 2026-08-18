@@ -21,16 +21,13 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { allLayerTemplates } from '../../logic/layers/loader.js';
 import { documentLinkIssue } from '../../util/link-policy.js';
 import { logger } from '../../logger.js';
 
-export interface LayerTemplateConfigDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface LayerTemplateConfigDeps extends AuthDeps {
 }
 
 export function registerLayerTemplateRoutes(

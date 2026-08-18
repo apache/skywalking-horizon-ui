@@ -27,8 +27,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   widgetsForScopePage,
@@ -40,9 +39,7 @@ import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { scopeSchema } from '../../logic/dashboard/schema.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
-export interface DashboardConfigDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface DashboardConfigDeps extends AuthDeps {
   /** OAP UI-template client — serve the in-use REMOTE widget config,
    *  matching the admin + the config-bundle endpoint. Without one, or with no
    *  readable remote row, the route answers with its in-code defaults. */

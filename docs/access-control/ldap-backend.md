@@ -100,7 +100,7 @@ If the LDAP server uses a private CA, the BFF process must trust it via the OS /
 | Add a role grant | Append to `groupMappings`. Hot-reload picks it up; the next **new** session uses the new mapping. Existing sessions keep their captured role list — they pick up changes on re-login. |
 | Move a user between LDAP groups | Handled by your LDAP admin tool, not Horizon. Next login resolves the new group set. |
 | Test "what roles will user X get?" | Admin → Auth Status page has a **username resolver** — type a username, see the groups returned by LDAP and the resolved Horizon roles. No login required. |
-| Trace a login failure | Audit log entry (`auth.login`, outcome `failure`) carries source IP and timestamp. No password is logged. For LDAP-side debugging, enable LDAP server logging on your directory. |
+| Trace a login failure | The application log carries a `auth: login rejected` warning with the username, source IP and backend. No password is logged, and the reason stays coarse on purpose — "no such user" and "wrong password" are deliberately indistinguishable, so the log cannot be used to enumerate who exists. For LDAP-side debugging, enable LDAP server logging on your directory. |
 
 ## Wire-up to OAP
 

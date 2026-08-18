@@ -1,0 +1,52 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The same checker apache/skywalking and apache/skywalking-banyandb run, with
+# the same pin, so a contributor moving between the repos meets one tool.
+#
+# It covers OUTBOUND links, which need the network and therefore cannot gate a
+# PR reliably. The repo-internal half — relative paths, heading anchors, and
+# docs/menu.yml coverage — is checked offline by scripts/check-docs-links.mjs
+# in the `lint` job of ci.yaml, so a broken cross-reference still fails fast
+# without waiting on anyone else's uptime.
+
+name: Dead Link Checker
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    - cron: '0 18 * * *'  # TimeZone: UTC 0
+
+concurrency:
+  group: dlc-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CheckDeadLinks:
+    if: (github.event_name == 'schedule' && github.repository == 'apache/skywalking-horizon-ui') || (github.event_name != 'schedule')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - run: sudo npm install -g markdown-link-check@3.10.0
+      - run: |
+          for file in $(find . -name "*.md" -not -path "./node_modules/*" -not -path "*/node_modules/*"); do
+            markdown-link-check -c .dlc.json -q "$file"
+          done

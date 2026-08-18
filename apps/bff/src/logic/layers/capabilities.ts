@@ -21,6 +21,7 @@
 // health/load + thresholds). Read at runtime so the agent reasons in the layer's
 // own terms without hardcoding per-layer facts. Descriptor only — no OAP fan-out.
 import type { DashboardScope, UITemplateClient } from '@skywalking-horizon-ui/api-client';
+import type { EffectiveLayerReason } from './effective.js';
 import { resolveEffectiveLayer } from './effective.js';
 import {
   allWidgetsForScope,
@@ -116,13 +117,29 @@ function scopeCount(template: LayerTemplate, scope: DashboardScope): number {
   return flattenEveryTabPanel(allWidgetsForScope(template, scope)).length;
 }
 
+/** Capabilities plus the resolver's reason, from ONE read. Callers that must
+ *  explain a null (the AI tools do — see `metric-catalog/unreadable.ts`) use
+ *  this rather than resolving a second time: the template cache can refresh
+ *  between two calls, which would explain a null with a reason belonging to a
+ *  different read. */
+export async function layerCapabilitiesResult(
+  uiTemplateClient: (() => UITemplateClient) | undefined,
+  layer: string,
+): Promise<{ capabilities: LayerCapabilities | null; reason: EffectiveLayerReason }> {
+  const eff = await resolveEffectiveLayer(uiTemplateClient, layer);
+  if (eff.blocked || !eff.template) return { capabilities: null, reason: eff.reason };
+  return { capabilities: buildCapabilities(eff.template), reason: eff.reason };
+}
+
 export async function layerCapabilities(
   uiTemplateClient: (() => UITemplateClient) | undefined,
   layer: string,
 ): Promise<LayerCapabilities | null> {
-  const eff = await resolveEffectiveLayer(uiTemplateClient, layer);
-  if (eff.blocked || !eff.template) return null;
-  const t = eff.template;
+  return (await layerCapabilitiesResult(uiTemplateClient, layer)).capabilities;
+}
+
+function buildCapabilities(template: LayerTemplate): LayerCapabilities {
+  const t = template;
   const naming = t.naming;
 
   const relations: LayerCapabilities['relations'] = {};

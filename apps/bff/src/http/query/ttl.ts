@@ -39,8 +39,7 @@ import type {
   RecordsTTL,
   TtlStageBreakdown,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { classifyBackend } from '../../logic/oap/backend.js';
@@ -110,9 +109,7 @@ export function deriveStages(raw: TtlRaw): { hot: TtlStageBreakdown; cold: TtlSt
   return { hot, cold };
 }
 
-export interface TtlRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface TtlRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

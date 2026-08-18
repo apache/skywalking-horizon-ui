@@ -31,6 +31,7 @@ Known verbs are grouped into areas:
 | `overview:read` | Public overview dashboards. The template-administration pages read their sync status through it too, so a role built to edit only layer dashboards needs it alongside `dashboard:read`. |
 | `infra-3d:read` | 3D Infrastructure Map — the map's config + live traffic metrics. |
 | `ai:read` | [AI assistant](../operate/ai-assistant.md): send a chat message. Grants no data access by itself — each of the assistant's data tools re-checks its own read verb, so the assistant never reads more than the session could. |
+| `mcp:read` | Connect an external agent over [MCP](../operate/mcp.md) (`POST /api/mcp`). Grants no data access by itself, for the same reason as `ai:read` — the agent's tools re-check their own read verbs. Kept separate from `ai:read` because the two differ in where the model runs: the assistant sends the conversation to the provider this Horizon is configured with, while MCP leaves the model on the caller's side, so a deployment can reasonably allow one and not the other. |
 
 ### Operate — dashboards, rules, diagnostics
 
@@ -67,7 +68,6 @@ Known verbs are grouped into areas:
 | `role:read` | Shows the Roles & Permissions entry and page (`/admin/roles`). The board is drawn from the same status read as the Auth Status page, so grant `auth:read` alongside it or the page opens and reports a load failure. |
 | `role:write` | **Reserved** — role definitions are edited in `horizon.yaml`, not from the UI. |
 | `auth:read` | Auth Status admin page (`/admin/auth-status`) + LDAP probe. Also the data behind the Roles & Permissions board. |
-| `audit:read` | **Reserved** — the audit trail is a file for you to ship to an SIEM; Horizon does not serve it. |
 
 ### Special
 
@@ -78,7 +78,7 @@ Known verbs are grouped into areas:
 
 ### Reserved verbs
 
-Four verbs — `alarm-rule:write`, `user:write`, `role:write`, `audit:read` — are part of the vocabulary but **nothing checks them**. Granting one opens nothing and closes nothing. They keep their names so a `horizon.yaml` that already lists one still validates, and so the name stays stable if a capability is ever bound to it.
+Three verbs — `alarm-rule:write`, `user:write`, `role:write` — are part of the vocabulary but **nothing checks them**. Granting one opens nothing and closes nothing. They keep their names so a `horizon.yaml` that already lists one still validates, and so the name stays stable if a capability is ever bound to it.
 
 No built-in role names a reserved verb — `admin`'s `*` matches them like everything else, which still does nothing — and the Roles & Permissions page marks each one on screen rather than presenting it as a capability. If a custom role of yours grants one, you can drop it: it is doing nothing today, and leaving it in means the grant takes effect silently on the day something enforces it.
 
@@ -104,7 +104,7 @@ Default definitions (used when `rbac.roles` is not overridden):
 Read-only data catalog, the read-only inspect tools, and the AI assistant. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals.
 
 ```
-metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read
+metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read, mcp:read
 ```
 
 ### `maintainer`
@@ -210,7 +210,7 @@ landingByRole:
   auditor: /operate/cluster
 ```
 
-`*:read` grants every read — useful for audit access without write capability.
+`*:read` grants every read — useful for review access without write capability.
 
 ### Separate alarm-triage role
 
