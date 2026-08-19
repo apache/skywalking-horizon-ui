@@ -38,8 +38,7 @@ import type {
   FetchLike,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
@@ -56,9 +55,7 @@ import { bodySchema, MAX_REQUEST_WIDGETS } from '../../logic/dashboard/schema.js
 import { flattenTabWidgets } from '../../logic/dashboard/gates.js';
 import { runWidgets } from '../../logic/dashboard/run.js';
 
-export interface DashboardRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface DashboardRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serve the in-use REMOTE widget set when the
    *  caller doesn't pass explicit widgets. */

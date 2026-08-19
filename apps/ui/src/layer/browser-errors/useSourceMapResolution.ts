@@ -26,6 +26,11 @@
  * Maps load on mount; `loadMaps` is also exposed so the manager's manual
  * refresh re-syncs. `t` is threaded in so the upload/resolve error wording
  * resolves against the host's i18n scope.
+ *
+ * `replay` suppresses the mount-time load. A captured chat block is a frozen
+ * snapshot and must fire NO request on render — this was the one request that
+ * still escaped, because it is a plain call rather than a gated query, so
+ * nothing that disables queries could reach it.
  */
 
 import { onMounted, ref, type Ref } from 'vue';
@@ -57,7 +62,10 @@ export interface SourceMapResolution {
   resolveRow: (row: BrowserErrorRow) => Promise<void>;
 }
 
-export function useSourceMapResolution(t: (key: string, named?: Record<string, unknown>) => string): SourceMapResolution {
+export function useSourceMapResolution(
+  t: (key: string, named?: Record<string, unknown>) => string,
+  replay?: Ref<boolean>,
+): SourceMapResolution {
   const showMaps = ref(false);
   const sourceMaps = ref<SourceMapDescriptor[]>([]);
   const usage = ref<SourceMapUsage | null>(null);
@@ -108,7 +116,10 @@ export function useSourceMapResolution(t: (key: string, named?: Record<string, u
       mapsBusy.value = false;
     }
   }
-  onMounted(loadMaps);
+  onMounted(() => {
+    if (replay?.value) return;
+    void loadMaps();
+  });
 
   function closeExpanded(): void {
     expanded.value = null;

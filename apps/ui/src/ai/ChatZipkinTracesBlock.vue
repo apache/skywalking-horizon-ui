@@ -33,7 +33,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="czt">
     <div class="czt__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="czt__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="czt__view">
       <LayerZipkinTracesView
@@ -59,11 +59,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .czt__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.czt__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* The embedded view fills its host (.ztr-tab is height:100% embedded), so give it
    a bounded fixed stage; the list + waterfall scroll inside. */

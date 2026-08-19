@@ -39,8 +39,7 @@ import type {
   EventsResponse,
   FetchLike,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import {
@@ -50,9 +49,7 @@ import {
 } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
-export interface EventsRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface EventsRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

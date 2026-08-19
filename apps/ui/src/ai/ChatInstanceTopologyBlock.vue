@@ -33,7 +33,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="cit">
     <div class="cit__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="cit__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="cit__view">
       <LayerInstanceTopologyView
@@ -60,11 +60,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .cit__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.cit__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* The embedded view fills its host (.imv is height:100%), so give it a bounded
    fixed stage; fit-to-screen + the zoom controls handle a wider graph. */

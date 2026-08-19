@@ -24,24 +24,24 @@
  *   - `ldap`  → verify by binding as the user against the directory.
  *               If the directory is unreachable AND `auth.breakGlass`
  *               is configured, fall back to verifying the break-glass
- *               credentials. Every break-glass success is audited at
+ *               credentials. Every break-glass success is logged at
  *               WARN level with the source IP.
  *
  * Logout and `/api/auth/me` are backend-agnostic.
  */
 
+import type { AuthDeps } from '../user/middleware.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AuditLogger } from '../audit/logger.js';
 import { badRequest, unauthorized } from '../errors.js';
-import type { ConfigSource } from '../config/loader.js';
 import { resolveVerbsForRoles } from '../rbac/verbs.js';
 import { verifyLocalCredentials, type VerifiedUser } from '../user/local.js';
 import { verifyLdapCredentials } from '../user/ldap.js';
 import { verifyBreakGlass } from '../user/break-glass.js';
 import type { LdapHealth } from '../user/ldap-health.js';
 import type { UserSeenCache, SeenSource } from '../user/seen-cache.js';
-import type { SessionStore } from '../user/sessions.js';
+import type { Session } from '../user/sessions.js';
+import type { HorizonConfig } from '../config/schema.js';
 import { logger } from '../logger.js';
 
 const loginBodySchema = z.object({
@@ -49,16 +49,13 @@ const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
-export interface AuthRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
-  audit: AuditLogger;
+export interface AuthRouteDeps extends AuthDeps {
   ldapHealth: LdapHealth;
   seenCache: UserSeenCache;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
-  const { config: source, sessions, audit, ldapHealth, seenCache } = deps;
+  const { config: source, sessions, ldapHealth, seenCache } = deps;
   const cookieName = () => source.current.session.cookieName;
   const cookieSecure = () => source.current.session.cookieSecure;
   const ttlMs = () => source.current.session.ttlMinutes * 60_000;
@@ -71,7 +68,6 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     const fromIp = req.ip;
 
     let verified: VerifiedUser | null = null;
-    let outcomeDetail: string = 'success';
     let source_: SeenSource = cfg.auth.backend === 'ldap' ? 'ldap' : 'local';
 
     if (cfg.auth.backend === 'local') {
@@ -87,7 +83,6 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
           const bg = await verifyBreakGlass(cfg.auth.breakGlass, username, password);
           if (bg) {
             verified = bg;
-            outcomeDetail = 'break-glass';
             source_ = 'break-glass';
             logger.warn({ username, fromIp }, 'auth: break-glass login granted (LDAP unhealthy)');
           }
@@ -101,30 +96,34 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     }
 
     if (!verified) {
-      audit.record({
-        actor: username,
-        action: 'auth.login',
-        outcome: 'failure',
-        fromIp,
-        details: { backend: cfg.auth.backend },
-      });
+      // The only record a rejected sign-in leaves, and it is `warn` rather than
+      // `info` so that a production default of `warn` still shows a brute-force
+      // attempt rather than nothing at all. The typed password is never
+      // included, and the reason stays coarse on purpose — "no such user" and
+      // "wrong password" must not be distinguishable here.
+      logger.warn(
+        { username, fromIp, backend: cfg.auth.backend },
+        'auth: login rejected',
+      );
       throw unauthorized('invalid credentials');
     }
 
-    const session = sessions.create(verified.username, verified.roles);
+    const session = sessions.create(verified.username, verified.roles, verified.displayName, source_);
+    // The other half of the sign-in record. A refusal is logged at `warn` so a
+    // production default surfaces a brute-force attempt; a SUCCESS is `info`,
+    // because one line per login at `warn` would drown the refusals that matter
+    // — an operator who wants the successes lowers LOG_LEVEL to `info` and gets
+    // them. The roles are included: what someone was granted at sign-in is the
+    // part a browser session then carries until they sign in again.
+    logger.info(
+      { username: verified.username, roles: verified.roles, source: source_, fromIp },
+      'auth: login succeeded',
+    );
     seenCache.record({
       username: verified.username,
       source: source_,
       roles: verified.roles,
       ip: fromIp,
-    });
-    audit.record({
-      actor: session.username,
-      action: outcomeDetail === 'break-glass' ? 'auth.login.break-glass' : 'auth.login',
-      outcome: outcomeDetail,
-      fromIp,
-      sessionId: session.sid,
-      details: { backend: cfg.auth.backend, roles: session.roles },
     });
     reply.setCookie(cookieName(), session.sid, {
       httpOnly: true,
@@ -135,49 +134,54 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     });
     // Same payload as `/api/auth/me` — the UI's auth store doesn't
     // need a second round-trip to know what the new session can do.
-    const verbs = resolveVerbsForRoles(cfg.rbac.roles, session.roles, cfg.rbac.enabled);
-    return {
-      username: session.username,
-      roles: session.roles,
-      verbs,
-      landingRoute: pickLandingRoute(cfg.rbac.landingByRole, session.roles),
-    };
+    return mePayload(cfg, session);
   });
 
   app.post('/api/auth/logout', async (req, reply) => {
     const sid = req.cookies[cookieName()];
-    if (sid) {
-      const session = sessions.touch(sid);
-      if (session) {
-        audit.record({
-          actor: session.username,
-          action: 'auth.logout',
-          outcome: 'success',
-          fromIp: req.ip,
-          sessionId: sid,
-        });
-      }
-      sessions.destroy(sid);
-    }
+    // `touch` used to run first only to name the session in an audit line.
+    if (sid) sessions.destroy(sid);
     reply.clearCookie(cookieName(), { path: '/' });
     return { status: 'ok' };
   });
 
   app.get('/api/auth/me', async (req) => {
-    const sid = req.cookies[cookieName()];
-    if (!sid) throw unauthorized();
-    const session = sessions.touch(sid);
+    // `requireAuth` (attached by the route-policy hook) already resolved the
+    // caller — from a session cookie or an API token. Re-reading the cookie
+    // here would answer 401 to a perfectly valid token holder.
+    const session = req.session;
     if (!session) throw unauthorized();
-    const cfg = source.current;
-    const verbs = resolveVerbsForRoles(cfg.rbac.roles, session.roles, cfg.rbac.enabled);
-    const landing = pickLandingRoute(cfg.rbac.landingByRole, session.roles);
-    return {
-      username: session.username,
-      roles: session.roles,
-      verbs,
-      landingRoute: landing,
-    };
+    return mePayload(source.current, session);
   });
+}
+
+/**
+ * What a caller is told about itself, built in ONE place so login and
+ * `/api/auth/me` cannot drift apart — the UI treats the login reply as a `me`
+ * and would silently lose any field added to only one of them.
+ *
+ * `authSource` and `provider` are reported, never consulted: permissions come
+ * from roles, which re-resolve from the username on every request.
+ */
+function mePayload(cfg: HorizonConfig, session: Session) {
+  return {
+    username: session.username,
+    displayName: session.displayName,
+    authSource: session.authSource,
+    provider: session.provider,
+    providerName: providerLabel(cfg, session.provider),
+    roles: session.roles,
+    verbs: resolveVerbsForRoles(cfg.rbac.roles, session.roles, cfg.rbac.enabled),
+    landingRoute: pickLandingRoute(cfg.rbac.landingByRole, session.roles),
+  };
+}
+
+/** The provider's configured display name — what the operator sees on the
+ *  sign-in button — rather than its config id. */
+function providerLabel(cfg: HorizonConfig, providerId?: string): string | undefined {
+  if (!providerId) return undefined;
+  const p = cfg.auth.sso?.providers.find((x) => x.id === providerId);
+  return p ? p.displayName || p.id : providerId;
 }
 
 /** Pick the landing route for a session — first matching role wins, falling back to '/'. */

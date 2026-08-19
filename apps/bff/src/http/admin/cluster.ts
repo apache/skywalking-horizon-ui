@@ -24,17 +24,12 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { ensureVerb, makeClients } from './dsl/_shared.js';
 import { fetchClusterState } from '../../client/cluster.js';
-import type { AuditLogger } from '../../audit/logger.js';
 
-export interface ClusterRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
-  audit: AuditLogger;
+export interface ClusterRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

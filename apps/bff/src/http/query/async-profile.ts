@@ -48,16 +48,13 @@ import type {
   PprofTaskCreationResponse,
   PprofTaskListResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 
-export interface AsyncProfileRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface AsyncProfileRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

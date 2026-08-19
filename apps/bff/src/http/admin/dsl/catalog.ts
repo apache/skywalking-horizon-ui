@@ -19,7 +19,7 @@
  *   GET /api/catalog/list     — runtime + bundled rule list per catalog.
  *   GET /api/catalog/bundled  — bundled-only list (with raw content opt).
  *
- * Both gated on `rule:read`; read-only — no audit.
+ * Both gated on `rule:read`; read-only.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';

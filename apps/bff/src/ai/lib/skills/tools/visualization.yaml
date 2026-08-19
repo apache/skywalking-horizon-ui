@@ -1,0 +1,173 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `visualization` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/visualization/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+show_figure:
+  description: >-
+    Render a figure in the chat from a raw MQE expression. This is the FALLBACK for a DERIVED query that has no catalog widget (a drilled child scope, a metric you composed); for a metric that IS in the catalog use show_widget instead, which brings the template's full config. Provide the layer, the service name, the MQE expression(s) — catalog MQE verbatim — and the `type` the expression's shape calls for. Pass instance/endpoint to render at that finer scope. Give several related figures the same group label to cluster them.
+  params:
+    type: >-
+      Which figure the MQE's SHAPE calls for, not a style choice. `card` ONLY when the expression collapses the window to a single scalar (latest / max / min / avg of a plain metric / sum of a plain metric) — a scalar drawn as a line is one point and misleads. `line` for a time series (a plain metric, or rate / increase / relabels / histogram* / top_n over time). `top` for a sorted top-N list, an MQE wrapped in top_n(...). `table` for a labeled metric, e.g. latest(...) of a labeled metric, one row per label combination. `record` for RECORD-typed rows such as sampled records or slow-statement lists, top_n(top_n_<record>, N, order).
+    title: >-
+      Human title shown above the figure
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      Service NAME (from list_services)
+    expressions: >-
+      MQE expression(s) — use catalog MQE verbatim
+    labels: >-
+      One short human label PER expression. REQUIRED when you pass 2+ expressions on one chart (e.g. ["read","write"]) — without it every line inherits the title and the operator cannot tell them apart. Omit for a single expression.
+    instance: >-
+      ServiceInstance name → renders at instance scope
+    endpoint: >-
+      Endpoint name → renders at endpoint scope
+    unit: >-
+      Unit suffix, e.g. ms, %, cpm
+    group: >-
+      Optional group label. Give several related figures the SAME group to cluster them into ONE tabbed block (e.g. an entity breakdown); omit for a standalone figure.
+
+show_widget:
+  description: >-
+    PREFERRED way to show a catalog metric: render an EXISTING dashboard widget by its id with the template's FULL config (explanation/tip, unit, format, thresholds, per-rank legends) — identical to the dashboard, no reconstruction. Pass the layer, the scope you browsed, the service NAME, and the widgetId from kb_browse_catalog. Add instance/endpoint (a NAME) for a finer scope. Use show_figure ONLY for a DERIVED MQE with no catalog widget (e.g. a drilled child-scope query).
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    scope: >-
+      the catalog scope you browsed (default service)
+    service: >-
+      service NAME
+    widgetId: >-
+      the widgetId from kb_browse_catalog
+    instance: >-
+      ServiceInstance NAME (instance scope)
+    endpoint: >-
+      Endpoint NAME (endpoint scope)
+    group: >-
+      cluster related figures into one tabbed block
+
+show_hierarchy:
+  description: >-
+    Render a service's CROSS-LAYER hierarchy inline (the topology page's Smartscape overlay): the focused service plus the same logical service projected into its upper layers (e.g. a GENERAL service's MESH / K8S_SERVICE mirrors) and lower layers (backing infrastructure). Use this to show how one service maps across layers — NOT for same-layer dependencies (use show_topology for those). Provide the layer and service name.
+  params:
+    layer: >-
+      OAP layer key of the focused service, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+show_topology:
+  description: >-
+    Render a service's FOCUSED one-hop dependency topology inline (the ego graph): the service plus its DIRECT upstream callers (services that call it) and DIRECT downstream dependencies (services it calls). This is one hop each way — NOT the whole-layer map. Use it to show who a service talks to / walk the dependency step of an investigation. Provide the layer and service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+show_deployment:
+  description: >-
+    Mount the per-service DEPLOYMENT view inline (read-only): the instance-to-instance call graph WITHIN one service (its instances/pods and the intra-service relations between them), the same view as the layer Deployment tab. Use it to show how a service's own instances talk to each other — NOT the cross-service topology (use show_topology for that). NOTE: it reads the SAME OAP instance-relation API as show_instance_topology, but with the one service on BOTH sides — so despite the shared backend it is a DIFFERENT concept: the service's own internal deployment / cluster-node graph, not a cross-service edge. Provide the layer and service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+show_instance_topology:
+  description: >-
+    Mount the per-PAIR INSTANCE-TOPOLOGY view inline (read-only): the instances of a SOURCE (client) service and a DEST (server) service as two columns, with the instance-to-instance calls BETWEEN them (the same instance-map drill-down the Topology tab opens from a call edge). Requires BOTH a source and a dest service that have a call relationship (source calls dest) — use it to show how one service's instances talk to another's. It reads the SAME OAP instance-relation API as show_deployment, but between TWO DIFFERENT services — a CROSS-service instance relationship, a different concept from a service's own deployment graph (show_deployment = one service's OWN instances; show_topology = service-level one-hop). Provide the layer, the source (client) service name, and the dest (server) service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    sourceService: >-
+      SOURCE (client) service NAME — the caller (from list_services)
+    destService: >-
+      DEST (server) service NAME — the callee it calls (from list_services)
+    title: >-
+      optional heading for the block
+
+show_endpoint_dependency:
+  description: >-
+    Mount the per-endpoint API-DEPENDENCY view inline (read-only): the focused endpoint's upstream callers and downstream callees as a dependency chain (the same view as the layer API-dependency tab). It draws the service's PRIMARY endpoint (its most-recently-active one) and pins that chain; the operator can expand any node. This is API-DEPENDENCY detection (endpoint→endpoint). It reads EndpointRelation, which is SERVER-SIDE ONLY (no client-side edge metric) and is produced by NATIVE SkyWalking tracing — so it only has data on native-trace layers; a Zipkin / mesh layer (check the trace source via kb_layer_capabilities) yields no endpoint relations and an empty chain, so don't use it there. Provide the layer and service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+show_traces:
+  description: >-
+    Mount the native distributed-tracing view inline for a service — the real trace LIST plus the span WATERFALL, which the operator browses (click a trace to open its spans). Use it to surface slow / erroring traces for a service so a human can inspect them; there is no tool to read individual span data yourself. The captured list is frozen over the current chat time range. Provide the layer and service name. ONLY for a layer whose traces run NATIVE (SkyWalking segments) — for a Zipkin-tracing layer use list_zipkin_services + show_zipkin_traces instead.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+list_zipkin_services:
+  description: >-
+    List the ZIPKIN service names (the span localEndpoint.serviceName universe — GLOBAL, not per-layer, and DIFFERENT from the SkyWalking service names). Use this for a Zipkin-tracing layer to find the Zipkin-side service name that matches the SkyWalking service (or the user's phrasing), THEN pass the matched name to show_zipkin_traces. Optionally pass a keyword to narrow the list.
+  params:
+    keyword: >-
+      case-insensitive substring to narrow the Zipkin service list
+
+show_zipkin_traces:
+  description: >-
+    Mount the Zipkin distributed-tracing view inline — the real trace LIST + span WATERFALL for a ZIPKIN service, which the operator browses. `service` MUST be a Zipkin service name from list_zipkin_services (NOT the SkyWalking name — they differ). Use this for a layer whose traces run on Zipkin (Envoy ALS / rover) after matching the service. The captured list is frozen over the current chat time range. Provide the layer (for context) and the matched Zipkin service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. MESH
+    service: >-
+      ZIPKIN service name (from list_zipkin_services)
+    title: >-
+      optional heading for the block
+
+show_logs:
+  description: >-
+    Mount the layer LOGS view inline for a service — the real log stream the operator browses (click a row for its detail). Use it to surface a service's logs for a human to read. This is the layer Logs tab (stored logs); it is NOT fetch_pod_logs (that is the Kubernetes on-demand live tail). The captured stream (up to 100 rows) is frozen over the current chat time range. Provide the layer and service name.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME (from list_services)
+    title: >-
+      optional heading for the block
+
+show_browser_logs:
+  description: >-
+    Mount the browser-monitoring ERROR list inline for a browser app — the client-side JS error stream the operator browses (click a row for its stack trace). Use it for a BROWSER-family layer's app to surface front-end errors for a human. The captured list (up to 100 rows) is frozen over the current chat time range. Provide the layer and service (browser-app) name.
+  params:
+    layer: >-
+      OAP browser-layer key
+    service: >-
+      browser-app service NAME (from list_services)
+    title: >-
+      optional heading for the block

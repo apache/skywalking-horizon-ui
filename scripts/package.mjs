@@ -77,6 +77,13 @@ run('pnpm --filter @skywalking-horizon-ui/bff build');
 step('Building UI (vite production build)');
 run('pnpm --filter @skywalking-horizon-ui/ui build');
 
+// The ui:// card bundle — a SECOND vite build with a different output shape
+// (one self-contained HTML file an MCP host mounts in a sandbox). Part of
+// packaging rather than a separate step an image build has to remember.
+step('Building the ui:// MCP card bundle');
+run('pnpm --filter @skywalking-horizon-ui/ui run build:mcp-app');
+run('node scripts/build-mcp-app.mjs');
+
 step('Materializing production install tree (pnpm deploy)');
 // `--legacy` is required under pnpm 10+ for non-injected workspaces.
 // We deploy directly into ./dist
@@ -102,12 +109,13 @@ cpSync(
   { recursive: true },
 );
 // AI prose resources (system prompt, RCA playbooks) — the bundled server reads
-// them from <dist>/resources at runtime (see ai/resources/loader.ts).
+// them from <dist>/skills at runtime (see ai/lib/skills/loader.ts).
 cpSync(
-  resolve(root, 'apps/bff/src/ai/resources'),
-  resolve(dist, 'resources'),
+  resolve(root, 'apps/bff/src/ai/lib/skills'),
+  resolve(dist, 'skills'),
   { recursive: true },
 );
+cpSync(resolve(root, 'apps/bff/src/ai/mcp/app'), resolve(dist, 'mcp-app'), { recursive: true });
 cpSync(resolve(root, 'apps/ui/dist'), resolve(dist, 'static'), { recursive: true });
 cpSync(resolve(root, 'horizon.yaml'), resolve(dist, 'horizon.yaml'));
 

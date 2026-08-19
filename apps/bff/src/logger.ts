@@ -47,8 +47,9 @@ export const loggerOptions: LoggerOptions = {
   // Backstop redaction for every credential horizon.yaml can carry. None is
   // intentionally logged, but a stray `logger.info({ config })` — or an error
   // object that happens to embed connection options — must not leak one. Covers
-  // the LLM key, the OAP basic-auth password, and the LDAP service-account bind
-  // password, each at its config path and under a `config.` wrapper.
+  // the LLM key, the OAP basic-auth password, the LDAP service-account bind
+  // password, each SSO provider's client secret and the OAuth signing key —
+  // each at its config path and under a `config.` wrapper.
   redact: {
     paths: [
       'ai.apiKey',
@@ -61,6 +62,13 @@ export const loggerOptions: LoggerOptions = {
       'auth.ldap.bindPassword',
       'config.auth.ldap.bindPassword',
       '*.bindPassword',
+      // SSO: the per-provider client secret, and the OAuth signing key that
+      // every issued token is only as private as.
+      '*.clientSecret',
+      '*.client_secret',
+      'oauth.signingKey',
+      'config.oauth.signingKey',
+      '*.signingKey',
     ],
     censor: '[redacted]',
   },

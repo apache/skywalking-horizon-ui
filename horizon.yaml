@@ -37,6 +37,14 @@ server:
   # would bind container-loopback only).
   host: "${HORIZON_SERVER_HOST:127.0.0.1}"
   port: ${HORIZON_SERVER_PORT:8081}
+  # The PUBLIC base URL operators reach this Horizon at, e.g.
+  # https://horizon.example.com. Used by single sign-on to build its callback
+  # and by the OAuth authorization server as its issuer. Blank derives it from
+  # each request, which is right for a plain deployment and wrong behind a
+  # proxy that rewrites Host — and in dev, where Vite proxies /api so the BFF
+  # sees :8081 while you are browsing :9091.
+  publicUrl: "${HORIZON_PUBLIC_URL:}"
+
 
 templates:
   # `live` (default): seed/read/write templates through OAP 11's
@@ -106,8 +114,72 @@ auth:
   # HORIZON_AUTH_LDAP='{"url":"ldaps://ldap.corp:636","userBaseDn":"ou=people,dc=corp","groupMappings":[{"group":"*","role":"viewer"}]}'
   ldap: ${HORIZON_AUTH_LDAP:null}
   # Break-glass admin, honored ONLY when backend=ldap AND the LDAP probe is
-  # failing; every use is audited at WARN. JSON object or null.
+  # failing; every use is logged at WARN. JSON object or null.
   breakGlass: ${HORIZON_AUTH_BREAK_GLASS:null}
+  # Single sign-on. Horizon acts as a CLIENT here — it sends the operator out to
+  # an identity provider. The `oauth:` block further down points the other way:
+  # Horizon as the SERVER, issuing tokens to MCP clients.
+  #
+  # Named `sso` for the capability, not for a protocol, because it carries both:
+  # `kind: oidc` verifies a signed ID token, `kind: oauth2` reads an address
+  # from a userinfo call for the providers that never adopted OIDC. Calling the
+  # block `oidc` while it held oauth2 providers was a contradiction on its face.
+  #
+  # ADDITIVE to `backend` above — password login keeps working, so a broken
+  # provider never locks you out of your own observability.
+  #
+  # Every provider is the same three fields, because everything vendor-specific
+  # is read from `<issuer>/.well-known/openid-configuration` at runtime. There
+  # is ONE callback for all of them — register
+  # `<your-horizon>/api/auth/oidc/callback` with each provider.
+  #
+  # The block has TWO parts, and the split is load-bearing:
+  #   providers — HOW someone proves who they are (endpoints, client id/secret,
+  #               and `allowedDomains`: who may sign in through this one).
+  #   roles     — WHAT they may then do. ONE table for every provider.
+  #
+  # Roles are not per-provider, and that is a correctness constraint. They are
+  # re-resolved on every request from a username and nothing else — which is
+  # what stops a token outliving its owner's access — and at that moment there
+  # is no record of which provider authenticated it. A per-provider table could
+  # therefore never be honoured for a token.
+  #
+  # HORIZON_AUTH_SSO='{
+  #   "providers":[{"id":"google","displayName":"Google",
+  #     "issuer":"https://accounts.google.com","clientId":"...","clientSecret":"...",
+  #     "allowedDomains":["example.com"]}],
+  #   "roles":{"defaultRoles":["viewer"],"roleByEmail":{"boss@example.com":["admin"]}}}'
+  #
+  # Buttons show the provider's displayName as TEXT. Horizon ships no vendor
+  # logos — Google, GitLab and Okta each require prior written permission, and
+  # no provider's terms says whether the asset may be redistributed in a
+  # release at all. Supply your own with `"icon":"data:image/svg+xml;base64,…"`.
+  #
+  # A provider that never adopted OIDC (GitHub, Gitee) takes `"kind":"oauth2"`
+  # plus authorizationEndpoint / tokenEndpoint / userinfoEndpoint and an
+  # `emailPath` saying where the address sits in ITS response. Weaker: identity
+  # is a userinfo call, not a verified signature — and it needs the provider to
+  # return an EMAIL. WeChat returns only openid/unionid and a profile, so no
+  # configuration fits it; front it with Authing or Casdoor instead. See
+  # docs/setup/auth.md for the per-provider table.
+  #
+  # An external provider says WHO you are, never what you may do here: roles
+  # default to `viewer` and are mapped from the email address in `roles`, which
+  # every provider shares. Most specific wins — an exact address beats its
+  # domain, which beats the default.
+  #
+  # `allowedDomains` matches the address the PROVIDER reports — for Google that
+  # is the Google account's own address, not a domain that merely forwards mail
+  # to it. Empty admits anyone with an account there: wrong for an internal
+  # deployment, right for a public demo where every visitor is a viewer anyway
+  # and a real identity in the server log beats a shared login.
+  sso: ${HORIZON_AUTH_SSO:null}
+  # API tokens for callers with no browser — scripts, CI, MCP clients. A PATH,
+  # because this file is committed and holds no secrets: point it at a mounted
+  # Secret. Mint entries with `pnpm --filter bff cli:token <username>`. A token
+  # names a user and roles resolve from that user per request, so it can never
+  # exceed their access. Empty disables token auth.
+  tokensFile: "${HORIZON_AUTH_TOKENS_FILE:}"
 
 # RBAC. `roles` maps a role → its verb grants; `landingByRole` is the
 # post-login landing route per role. `:null` keeps the built-in defaults
@@ -127,12 +199,6 @@ debugLog:
   file: "${HORIZON_WIRE_LOG_FILE:./horizon-wire.jsonl}"
   maxBodyChars: ${HORIZON_DEBUG_LOG_MAX_BODY_CHARS:8192}
   redactAuthHeaders: ${HORIZON_DEBUG_LOG_REDACT_AUTH:true}
-audit:
-  # On by default (the audit trail is a security record). Set false to disable
-  # audit logging entirely — no file is written.
-  enabled: ${HORIZON_AUDIT_ENABLED:true}
-  file: "${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}"
-
 query:
   # Max services a layer landing runs metric MQE for, per request.
   landingServiceCap: ${HORIZON_QUERY_LANDING_SERVICE_CAP:100}
@@ -174,6 +240,59 @@ ai:
   # Client-side chat-history cap (MB); browser IndexedDB, per user.
   history:
     maxMb: ${HORIZON_AI_HISTORY_MAX_MB:500}
+
+# MCP — let external agents (Claude Code, Codex, Claude Desktop, …) read this
+# Horizon over the Model Context Protocol, at POST /api/mcp. Independent of the
+# `ai:` block above: that one configures the model Horizon talks to for its own
+# assistant, this one leaves the model on the caller's side.
+#
+# ON by default. The endpoint needs the same login as every other route (an API
+# token from `auth.tokensFile`, or a browser session), is gated by the
+# `mcp:read` verb, and each tool re-checks its own read verb — an agent sees
+# exactly what the operator it authenticated as sees.
+mcp:
+  enabled: ${HORIZON_MCP_ENABLED:true}
+  # What this deployment calls itself to an agent. An operator watching
+  # production and staging connects BOTH, and without a name every Horizon
+  # introduces itself identically — so an answer does not say which system it
+  # came from. Blank uses the host of `server.publicUrl`.
+  name: "${HORIZON_MCP_NAME:}"
+
+# OAuth — Horizon ISSUING tokens. The OPPOSITE DIRECTION from `auth.sso`
+# above, and the two are easy to confuse because both speak OAuth:
+#
+#   auth.sso   Horizon is the CLIENT — it sends YOU to Google to log in.
+#   oauth      Horizon is an OAuth SERVER — it issues tokens to CLAUDE CODE.
+#
+# Independent switches; either works without the other. Turning this on lets an
+# MCP client send its operator through a browser login instead of being handed a
+# token out of band. The login page it renders is Horizon's own — so if
+# `auth.sso` is also configured, that page offers Google, and the MCP client
+# never learns Google was involved.
+#
+# OFF by default, and the only part of MCP that is: dynamic client registration
+# is unauthenticated by spec, and issued tokens outlive browser sessions. On an
+# internal deployment reached only from Claude Code or Codex, an API token in
+# `auth.tokensFile` may be all anyone needs.
+#
+#   issuer     the PUBLIC base URL clients reach Horizon at. Defaults to
+#              `server.publicUrl`; set it here only to advertise an issuer that
+#              differs from it. Never derived from the Host header, because
+#              discovery tells a client where to send its user to log in.
+#   signingKey SECRET, env-only. Rotating it invalidates every outstanding
+#              token and client registration at once.
+oauth:
+  enabled: ${HORIZON_OAUTH_ENABLED:false}
+  issuer: "${HORIZON_OAUTH_ISSUER:}"
+  signingKey: "${HORIZON_OAUTH_SIGNING_KEY:}"
+  accessTokenMinutes: ${HORIZON_OAUTH_ACCESS_TOKEN_MINUTES:60}
+  refreshTokenDays: ${HORIZON_OAUTH_REFRESH_TOKEN_DAYS:30}
+  # A client may identify by URL instead of registering — Claude Code does —
+  # which means this server fetches a URL an unauthenticated caller chose.
+  # Every such fetch is https-only, refused for any non-public resolved address,
+  # un-redirected, bounded and timed out. Empty means any public host; a list
+  # confines it further, e.g. ["claude.ai"].
+  clientMetadataHosts: ${HORIZON_OAUTH_CLIENT_METADATA_HOSTS:[]}
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in

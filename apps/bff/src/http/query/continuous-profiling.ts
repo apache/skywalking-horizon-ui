@@ -36,17 +36,14 @@ import type {
   ContinuousProfilingTargetType,
   FetchLike,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { policySummaryForServices } from '../../logic/oap/continuous-profiling.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
-export interface ContinuousProfilingRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ContinuousProfilingRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

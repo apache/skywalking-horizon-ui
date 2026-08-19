@@ -16,7 +16,7 @@
  */
 
 /**
- * OAL read-only browse (SWIP-13 §4.1). All gated on `rule:read`, no audit.
+ * OAL read-only browse (SWIP-13 §4.1). All gated on `rule:read`.
  *   GET /api/oal/files          — { files: string[], count }
  *   GET /api/oal/files/:name    — text/plain raw .oal content
  *   GET /api/oal/rules          — per-dispatcher source listing

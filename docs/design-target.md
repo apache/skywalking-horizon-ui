@@ -94,4 +94,4 @@ LDAP / RBAC / setup pages are dark, dense, design-token-driven — not a separat
 
 Horizon is a **greenfield rewrite**, not a fork. Backend contracts do not change: the same GraphQL query protocol, the same admin REST surface, the same MQE language, the same layer concept. A site running booster-ui can swap to Horizon against the same OAP without backend changes — provided the OAP version meets the [minimum requirement](compatibility/oap-version.md).
 
-What changes is the UI side: tighter visual vocabulary, template-driven render, an integrated admin surface that owns auth/RBAC/audit (booster-ui defers these to deployment-level controls).
+What changes is the UI side: tighter visual vocabulary, template-driven render, an integrated admin surface that owns auth and RBAC (booster-ui defers these to deployment-level controls).

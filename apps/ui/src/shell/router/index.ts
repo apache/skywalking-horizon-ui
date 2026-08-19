@@ -168,6 +168,12 @@ const shellRoutes: RouteRecordRaw[] = [
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
+  // The signed-in operator's own account. No `meta.verb`: reading your own
+  // identity is not a privilege, so the guard's auth check is the only gate.
+  // Named `account`, not `profile` — `profile` is SkyWalking's profiling
+  // vocabulary here (profile:read, /api/profile/*), and one word must not
+  // name two concepts.
+  { path: 'account', name: 'account', component: () => import('@/features/account/AccountView.vue') },
   // 3D Infra Map lives as a TOP-LEVEL standalone route OUTSIDE
   {
     path: 'operate/cluster',
@@ -336,6 +342,17 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/features/auth/LoginView.vue'),
       meta: { public: true },
+    },
+    // OAuth consent — where an operator lends an external agent part of their
+    // own access. Outside the AppShell deliberately: this is a decision with
+    // two exits, and a sidebar offering a third would let someone wander off
+    // mid-grant, leaving the client waiting on a callback that never arrives.
+    // NOT public — being signed in is what the screen is attesting to, and the
+    // guard's login round-trip is why the agent never sees a password.
+    {
+      path: '/oauth/consent',
+      name: 'oauth-consent',
+      component: () => import('@/features/auth/OAuthConsentView.vue'),
     },
     // 3D Infra Map — standalone fullscreen route OUTSIDE the AppShell.
     // No sidebar, no topbar, no time-range ticker, no global refresh —

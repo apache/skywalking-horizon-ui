@@ -19,7 +19,7 @@
  * The board reads "what each role can do", so a row that does nothing has to
  * say so on screen. Reserved-ness is served by the BFF (which owns the list);
  * these drive the rendering of it — including that a granted reserved verb
- * still shows its check mark, so an admin auditing a config sees the grant
+ * still shows its check mark, so an admin reviewing a config sees the grant
  * they wrote AND that it buys nothing.
  *
  * Which verbs are reserved is asserted against the policy sources in the
@@ -31,7 +31,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { i18n } from '@/i18n';
 import RolesView from './RolesView.vue';
 
-const RESERVED = 'audit:read';
+const RESERVED = 'user:write';
 const ENFORCED = 'alarms:read';
 
 function fakeAuthStatus(): typeof fetch {
@@ -81,7 +81,7 @@ describe('Roles board — reserved capabilities', () => {
     vi.stubGlobal('fetch', fakeAuthStatus());
     const w = await mountRoles();
 
-    const row = rowFor(w, 'Read the audit log');
+    const row = rowFor(w, 'Add / remove local users');
     expect(row.marked).toBe(true);
     expect(row.text).toContain('Reserved');
     expect(row.text).toContain('granting it has no effect');
@@ -102,7 +102,7 @@ describe('Roles board — reserved capabilities', () => {
 
     const row = w
       .findAll('.perm tbody tr')
-      .find((tr) => tr.text().includes('Read the audit log'))!;
+      .find((tr) => tr.text().includes('Add / remove local users'))!;
     // viewer · operator, in that column order — only operator was granted it.
     const cells = row.findAll('.td-cell .check');
     expect(cells.map((c) => c.classes().includes('check-on'))).toEqual([false, true]);

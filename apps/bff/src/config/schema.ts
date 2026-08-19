@@ -34,6 +34,20 @@ const serverSchema = z
     host: z.string().default(serverHostDefault),
     port: z.number().int().positive().default(serverPortDefault),
     staticDir: z.string().optional(),
+    /**
+     * The PUBLIC base URL operators reach this Horizon at, e.g.
+     * `https://horizon.example.com`. One concept, two users: the OAuth
+     * authorization server advertises it as its issuer, and single sign-on
+     * builds its callback from it.
+     *
+     * Blank derives it from each request, which is right for a plain
+     * deployment and wrong for two common ones: behind a proxy that rewrites
+     * Host, and in dev, where Vite proxies `/api` with `changeOrigin` so the
+     * BFF sees its own `127.0.0.1:8081` rather than the `:9091` the operator
+     * is actually browsing — and the login then lands on a port that serves no
+     * UI. Set it and both stop guessing.
+     */
+    publicUrl: z.string().default(process.env.HORIZON_PUBLIC_URL ?? ''),
   })
   .strict();
 
@@ -138,6 +152,232 @@ const breakGlassSchema = z
   })
   .strict();
 
+/** https, or http to a loopback host — the only place there is no network to
+ *  read a secret off. An unparseable value is not secure. */
+function isSecureUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol === 'https:') return true;
+  return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]' || u.hostname === '::1');
+}
+
+/**
+ * A single-sign-on provider. Everything vendor-specific is discovered from
+ * `issuer` at runtime, so Google, Okta, Entra, Keycloak and Auth0 are the same
+ * three fields — there is no per-provider code anywhere in Horizon.
+ */
+const ssoProviderSchema = z
+  .object({
+    /** Stable id. Appears in `state`, never in a URL —
+     *  there is ONE callback for every provider. */
+    id: z.string().min(1),
+    /** Button label on the login page. Defaults to `id`. */
+    displayName: z.string().default(''),
+    /**
+     * OPTIONAL icon for the button, as a `data:image/...` URI.
+     *
+     * Horizon ships NO vendor marks, and that is a licensing decision rather
+     * than an omission: Google, GitLab and Okta each require prior written
+     * permission for their logo, none of the six major providers' brand terms
+     * addresses whether the asset may be redistributed in a release tarball at
+     * all, and a recoloured or monochrome substitute breaks the same terms a
+     * different way. The ASF projects that solve this well — DolphinScheduler,
+     * and Superset/Airflow through Flask-AppBuilder — let the operator supply
+     * it, so a deployment that has the vendor's permission (or is using its own
+     * internal IdP) can look right without the project redistributing anything.
+     *
+     * A `data:` URI ONLY, never raw SVG markup and never a remote URL: it
+     * renders through `<img src>`, which cannot execute script the way inlined
+     * SVG can, and the content-security-policy already permits `data:` images
+     * while forbidding every remote origin.
+     */
+    icon: z
+      .string()
+      .default('')
+      .refine((v) => v === '' || /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(v), {
+        message: 'icon must be a base64 data: URI, e.g. "data:image/svg+xml;base64,PHN2Zy4uLg=="',
+      }),
+    /**
+     * How this provider is spoken to.
+     *
+     * `oidc` (default) discovers everything from `issuer` and verifies a signed
+     * ID token — the safer path, and what Google, Okta, Entra, Keycloak,
+     * Auth0, GitLab, Authing and Casdoor all support.
+     *
+     * `oauth2` is for providers that never adopted OIDC: GitHub, Gitee, and
+     * the Chinese consumer platforms. There is no discovery document and no ID
+     * token, so the endpoints are configured by hand and identity comes from
+     * calling a userinfo endpoint with the access token. That is a weaker
+     * proof — a bearer token read from a userinfo URL, not a signature over
+     * claims — so it is opt-in per provider rather than a silent fallback.
+     */
+    kind: z.enum(['oidc', 'oauth2']).default('oidc'),
+    /** The provider's issuer URL. Horizon reads
+     *  `<issuer>/.well-known/openid-configuration` for its endpoints and keys,
+     *  which is why adding an OIDC provider needs no code. Required for
+     *  `kind: oidc`, unused for `oauth2`. */
+    issuer: z.string().default(''),
+    /** `oauth2` only — the three endpoints discovery would otherwise supply. */
+    authorizationEndpoint: z.string().default(''),
+    tokenEndpoint: z.string().default(''),
+    userinfoEndpoint: z.string().default(''),
+    /**
+     * `oauth2` only — a second endpoint whose body is a LIST of addresses,
+     * consulted when the profile carries none. GitHub's `/user` reports
+     * `email: null` unless the operator publishes one on their public profile,
+     * so for most accounts `/user/emails` is the only place the address exists.
+     * Entries marked `verified: false` are skipped, and a `primary` entry wins.
+     */
+    emailsEndpoint: z.string().default(''),
+    /**
+     * `oauth2` only — where the email lives in the userinfo response, as a dot
+     * path (`email`, `data.email`, `user.primary_email`). Providers disagree
+     * wildly and none of them is wrong; this is the one field that makes the
+     * adapter generic rather than a pile of per-vendor branches.
+     */
+    emailPath: z.string().default('email'),
+    /**
+     * `oauth2` only — a dot path to a BOOLEAN in the userinfo response saying
+     * the address at `emailPath` is verified. The value must be `true` (or the
+     * string `"true"`); anything else, including a missing key, refuses the
+     * sign-in.
+     *
+     * This exists because `kind: oauth2` has no ID token to carry
+     * `email_verified`, and an unverified address cannot be an identity here:
+     * roles resolve from the address, so accepting a self-asserted one lets a
+     * stranger claim a colleague's address and inherit their roles. Set this,
+     * or `emailsEndpoint` — a provider that states verification NEITHER way
+     * cannot prove who its users are, and Horizon refuses to start rather than
+     * treat an unproven claim as an identity.
+     */
+    emailVerifiedPath: z.string().default(''),
+    /**
+     * `oauth2` only — the value at `emailVerifiedPath` that AFFIRMS
+     * verification, for a provider that does not use a boolean. Gitee spells it
+     * `state: "confirmed"`, so `emailVerifiedPath: state` with
+     * `emailVerifiedValue: confirmed`. Blank means the boolean `true` (or the
+     * string `"true"`), which is what GitHub and most others send.
+     *
+     * This also applies to the entries of `emailsEndpoint`, so which field
+     * proves an address is configuration rather than a branch per vendor.
+     */
+    emailVerifiedValue: z.string().default(''),
+    /** `oauth2` only — where a display name lives, if anywhere. */
+    namePath: z.string().default('name'),
+    clientId: z.string().min(1),
+    /** SECRET — env-only. The code exchange is server-to-server. */
+    clientSecret: z.string().default(''),
+    /** Extra scopes beyond the defaults (`openid email profile` for oidc; none
+     *  for oauth2, where the provider decides what an email needs — GitHub
+     *  wants `user:email`, Gitee wants `emails`). */
+    scopes: z.array(z.string().min(1)).default([]),
+    /** Email domains allowed to sign in AT ALL. Empty means any verified email
+     *  the provider will authenticate — which for a public provider like
+     *  Google is the entire internet, so it is rarely what you want. */
+    allowedDomains: z.array(z.string().min(1)).default([]),
+  })
+  .strict()
+  .superRefine((p, ctx) => {
+    // Fail at config-parse time rather than at the first login attempt: a
+    // provider missing the fields its own kind needs can never work, and
+    // finding that out from a browser redirect is a poor way to learn it.
+    if (p.kind === 'oidc' && !p.issuer) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['issuer'], message: `provider "${p.id}": issuer is required for kind: oidc` });
+    }
+    if (p.kind === 'oauth2') {
+      for (const f of ['authorizationEndpoint', 'tokenEndpoint', 'userinfoEndpoint'] as const) {
+        if (!p[f]) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [f], message: `provider "${p.id}": ${f} is required for kind: oauth2 (there is no discovery document to read it from)` });
+        }
+      }
+      // The client SECRET is posted to `tokenEndpoint` and the access token is
+      // sent to the other two, so plain HTTP puts both on the wire in clear.
+      // `oidc` gets this free: its endpoints come from a discovery document
+      // fetched over https, and `issuer` is checked the same way below.
+      // Loopback is exempted for development against a provider on the same
+      // machine, which is the one case where there is no network to read.
+      for (const f of ['authorizationEndpoint', 'tokenEndpoint', 'userinfoEndpoint', 'emailsEndpoint'] as const) {
+        if (p[f] && !isSecureUrl(p[f])) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [f],
+            message:
+              `provider "${p.id}": ${f} must be https — the client secret and the access token are sent to ` +
+              `these endpoints, and plain HTTP puts them on the wire in clear. http:// is accepted only for ` +
+              `localhost or 127.0.0.1.`,
+          });
+        }
+      }
+      // The `kind: oidc` branch gets this free — a signed ID token carries
+      // `email_verified`, and route.ts refuses anything but an affirmative one.
+      // `oauth2` has no ID token, so verification has to be configured, and it
+      // has to be REQUIRED: silently trusting a profile field is how a provider
+      // that lets anyone type any address into their profile becomes a way to
+      // sign in as somebody else.
+      if (!p.emailsEndpoint && !p.emailVerifiedPath) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['emailVerifiedPath'],
+          message:
+            `provider "${p.id}": kind: oauth2 needs proof that the address it reports is verified — set ` +
+            `emailsEndpoint (a list whose entries carry \`verified: true\`) or emailVerifiedPath (a boolean ` +
+            `in the userinfo response). A provider that states verification neither way cannot prove its ` +
+            `users' addresses, and roles here resolve from the address.`,
+        });
+      }
+    }
+  });
+
+/**
+ * What an SSO identity may do — ONE table for every provider.
+ *
+ * Not per-provider, and that is a correctness constraint rather than a
+ * simplification. Roles are re-resolved on EVERY request from a username and
+ * nothing else — that is what stops a token outliving its owner's access — and
+ * at that moment there is no record of which provider authenticated it. A
+ * per-provider table therefore cannot be honoured for tokens at all; keeping
+ * one made the config promise something the architecture could not keep, and
+ * produced a failure nobody could read: two providers whose tables disagreed
+ * about an address resolved it to NO roles, and a credential with no roles is
+ * refused, so adding a second provider logged every agent out with a 401.
+ *
+ * Deliberately NOT group- or claim-based, for the same reason: Horizon holds a
+ * username at re-resolution time, no ID token and no claims, and nowhere to
+ * have stored them. Group mapping needs a persistent store this server does
+ * without. The mapping has to be a pure function of the address.
+ *
+ * Who may sign in AT ALL is still per-provider — see `allowedDomains`. That is
+ * authentication; this is authorization.
+ */
+const ssoRolesSchema = z
+  .object({
+    /** Roles for anyone an SSO provider authenticates, before the overrides.
+     *  `viewer` deliberately: an external identity provider says who someone
+     *  is, never what they may do here. */
+    defaultRoles: z.array(z.string().min(1)).default(['viewer']),
+    /** Exact address wins over its domain, which wins over `defaultRoles`. */
+    roleByEmail: z.record(z.string(), z.array(z.string().min(1))).default({}),
+    roleByDomain: z.record(z.string(), z.array(z.string().min(1))).default({}),
+  })
+  .strict()
+  .default({ defaultRoles: ['viewer'], roleByEmail: {}, roleByDomain: {} });
+
+const ssoSchema = z
+  .object({
+    /** Sign-in providers. Empty (the default) means no buttons and no OIDC
+     *  routes doing anything — password login is unaffected either way.
+     *  A provider says HOW someone proves who they are; what they may then do
+     *  is `roles` below, which is deliberately not per-provider. */
+    providers: z.array(ssoProviderSchema).default([]),
+    roles: ssoRolesSchema,
+  })
+  .strict()
+  .default({});
+
 const authSchema = z
   .object({
     /** Active auth backend. Switching to `ldap` causes `auth.local` to be
@@ -152,8 +392,24 @@ const authSchema = z
     ldap: ldapSchema.optional(),
     /** Optional break-glass account, only honored when `backend: 'ldap'`
      *  AND the LDAP probe is currently failing. Logged loudly in the
-     *  audit file on every use. */
+     *  server log on every use. */
     breakGlass: breakGlassSchema.optional(),
+    /**
+     * Single sign-on, ADDITIVE to `backend` rather than replacing it.
+     *
+     * Deliberately not a third `backend` value: an operator who adds Google
+     * still wants the local break-glass account to work, and making SSO
+     * exclusive is how a misconfigured provider locks everyone out of their
+     * own observability during an incident.
+     */
+    sso: ssoSchema,
+    /** Path to a JSON file of API tokens — the non-browser credential, for
+     *  scripts, CI and MCP clients. A path rather than inline values because
+     *  `horizon.yaml` is committed and holds no secrets, and because a token
+     *  list grows per operator, which suits a mounted Secret. Empty disables
+     *  token auth entirely; a token names a USER, and roles resolve from that
+     *  user per request, so a token can never outlive their access. */
+    tokensFile: z.string().default(''),
   })
   .strict()
   .default({ backend: 'local', local: { users: [] } });
@@ -182,6 +438,7 @@ const rbacSchema = z
           'overview:read',
           'infra-3d:read',
           'ai:read',
+          'mcp:read',
         ],
         // Viewer baseline plus the platform-monitoring reads (cluster
         // health + OAP internals). Maintainer's whole job is watching
@@ -202,6 +459,7 @@ const rbacSchema = z
           'config:read',
           'infra-3d:read',
           'ai:read',
+          'mcp:read',
         ],
         // Configures observability: dashboards, alarm rules, DSL/OAL,
         // diagnostics. Inherits viewer + platform reads so operators
@@ -238,6 +496,7 @@ const rbacSchema = z
           'live-debug:write',
           'profile:enable',
           'ai:read',
+          'mcp:read',
         ],
         admin: ['*'],
       }),
@@ -270,18 +529,7 @@ const sessionSchema = z
 // the published image without a custom `horizon.yaml` (or with one
 // that omits these blocks) gets writes routed to the writable `/data`
 // volume instead of `/app` (which is root-owned and EACCESes).
-const auditDefault = process.env.HORIZON_AUDIT_FILE ?? './horizon-audit.jsonl';
 const wireLogDefault = process.env.HORIZON_WIRE_LOG_FILE ?? './horizon-wire.jsonl';
-
-const auditSchema = z
-  .object({
-    // On by default — the audit trail is a security record; disabling it is an
-    // explicit opt-out. Mirrors `debugLog.enabled` (which is opt-IN instead).
-    enabled: z.boolean().default(true),
-    file: z.string().default(auditDefault),
-  })
-  .strict()
-  .default({ enabled: true, file: auditDefault });
 
 
 const debugLogSchema = z
@@ -365,8 +613,8 @@ const sourceMapsSchema = z
 // gateway), configured with just model + baseUrl + apiKey. `provider` is only
 // set for a non-OpenAI-shaped SERVICE — today `bedrock` (AWS Converse + bearer).
 // The API key is a SECRET: set it via `${HORIZON_AI_API_KEY:}` env interpolation
-// only — never inline in the YAML — and it is redacted from logs + excluded from
-// the audit trail. Env-overridable defaults let a file-less container enable the
+// only — never inline in the YAML — and it is redacted from logs.
+// Env-overridable defaults let a file-less container enable the
 // feature with `HORIZON_AI_*` alone (mirrors sourceMaps / templates.mode).
 const aiEnabledDefault = process.env.HORIZON_AI_ENABLED === 'true';
 const aiProviderDefault: 'openai-compatible' | 'bedrock' =
@@ -402,7 +650,7 @@ const aiSchema = z
      *  pin a region in Horizon config. */
     region: z.string().default(aiRegionDefault),
     /** SECRET — env-only (`${HORIZON_AI_API_KEY:}`). For `bedrock` this is the
-     *  Bedrock bearer API key (ABSK…). Redacted from logs, never audited. */
+     *  Bedrock bearer API key (ABSK…). Redacted from logs. */
     apiKey: z.string().default(aiApiKeyDefault),
     // Inference params (temperature, output-token caps) are deliberately NOT
     // config knobs — the gateway / provider / model owns them. The agent fixes
@@ -419,6 +667,82 @@ const aiSchema = z
       .object({ maxMb: z.number().int().positive().default(aiHistoryMaxMbDefault) })
       .strict()
       .default({}),
+  })
+  .strict()
+  .default({});
+
+// MCP — external agents (Claude Code, Codex, Claude Desktop, …) reading
+// Horizon through the Model Context Protocol. Deliberately NOT nested under
+// `ai`: that block configures the model Horizon TALKS TO for its own assistant,
+// while MCP leaves the model on the caller's side entirely. Enabling one has
+// nothing to do with the other, and a deployment with no provider configured at
+// all can still serve MCP.
+//
+// ON by default, because it is not a new exposure: `/api/mcp` requires the same
+// login as every other route, is gated by `mcp:read`, and each tool re-checks
+// its own read verb. An agent sees exactly what the operator it authenticated
+// as can already see in a browser.
+const mcpSchema = z
+  .object({
+    enabled: z.boolean().default(process.env.HORIZON_MCP_ENABLED !== 'false'),
+    /**
+     * What this deployment calls itself to an agent.
+     *
+     * An operator watching production and staging connects BOTH, and every
+     * Horizon otherwise introduces itself with the same name and the same
+     * instructions — so an answer does not say which system it came from, and
+     * a model holding two can attribute one's data to the other. Naming the
+     * deployment server-side fixes that for the agent, independently of
+     * whatever the operator happened to call the connection on their end.
+     *
+     * Defaults to the host of `server.publicUrl`, which is already the one
+     * value that distinguishes deployments, so most get this for free.
+     */
+    name: z.string().default(process.env.HORIZON_MCP_NAME ?? ''),
+  })
+  .strict()
+  .default({});
+
+// OAuth — Horizon issuing tokens, which is a different thing from Horizon
+// verifying who you are (`auth.*`). This block makes Horizon an OAuth 2.1
+// authorization server so an MCP client can send its user through a browser
+// login instead of being handed a secret out of band.
+//
+// OFF by default, and the only piece of this feature that is. Everything else
+// MCP added is another client of routes that already existed; an authorization
+// server is genuinely new surface — dynamic client registration is an
+// unauthenticated endpoint by spec, and issued tokens outlive browser sessions.
+// On an internal deployment reached only from Claude Code or Codex, the API
+// token in `auth.tokensFile` may be all anyone needs.
+const oauthSchema = z
+  .object({
+    enabled: z.boolean().default(process.env.HORIZON_OAUTH_ENABLED === 'true'),
+    /** SECRET — env-only. HMAC key over every issued value. Rotating it
+     *  invalidates every outstanding token and client registration at once,
+     *  which is the only bulk revocation a store-less server can offer. */
+    signingKey: z.string().default(process.env.HORIZON_OAUTH_SIGNING_KEY ?? ''),
+    /** The PUBLIC base URL clients reach Horizon at. Defaults to
+     *  `server.publicUrl`; set here only to advertise an issuer that differs
+     *  from it. Required (via one or the other) when enabled, and deliberately
+     *  never derived from the Host header: discovery metadata tells a client
+     *  where to send its user to log in, so letting a request header decide
+     *  that would let anyone who can set Host point the login elsewhere. */
+    issuer: z.string().default(process.env.HORIZON_OAUTH_ISSUER ?? ''),
+    accessTokenMinutes: z.number().int().positive().default(60),
+    /** 0 disables refresh tokens — every expiry then sends the user back
+     *  through the browser. */
+    refreshTokenDays: z.number().int().nonnegative().default(30),
+    /**
+     * Hosts whose Client ID Metadata Documents this server will fetch.
+     *
+     * A client may identify by URL instead of registering (Claude Code does),
+     * which means this server fetches a URL an unauthenticated caller chose.
+     * Every such fetch is https-only, refused for any non-public resolved
+     * address, un-redirected, bounded and timed out — but on a locked-down
+     * deployment you may want it narrower still. Empty means "any public
+     * host"; a list confines it, e.g. ["claude.ai", "anthropic.com"].
+     */
+    clientMetadataHosts: z.array(z.string().min(1)).default([]),
   })
   .strict()
   .default({});
@@ -596,11 +920,12 @@ export const configSchema = z
     auth: authSchema,
     rbac: rbacSchema,
     session: sessionSchema,
-    audit: auditSchema,
     debugLog: debugLogSchema,
     query: querySchema,
     sourceMaps: sourceMapsSchema,
     ai: aiSchema,
+    mcp: mcpSchema,
+    oauth: oauthSchema,
     performance: performanceSchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
@@ -612,6 +937,8 @@ export const configSchema = z
 
 export type HorizonConfig = z.infer<typeof configSchema>;
 export type AiConfig = z.infer<typeof aiSchema>;
+export type McpConfig = z.infer<typeof mcpSchema>;
+export type OAuthConfig = z.infer<typeof oauthSchema>;
 export type TemplatesConfig = z.infer<typeof templatesSchema>;
 export type SourceMapsConfig = z.infer<typeof sourceMapsSchema>;
 export type LdapConfig = z.infer<typeof ldapSchema>;

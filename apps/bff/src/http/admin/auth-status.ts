@@ -30,19 +30,16 @@
  * without the user being present.
  */
 
+import type { AuthDeps } from '../../user/middleware.js';
 import { statSync } from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { ConfigSource } from '../../config/loader.js';
 import { probeLdap, resolveLdapUser } from '../../user/ldap.js';
 import type { LdapHealth } from '../../user/ldap-health.js';
-import type { SessionStore } from '../../user/sessions.js';
 import { RESERVED_VERBS, VERBS } from '../../rbac/verbs.js';
 
-export interface AuthStatusRouteDeps {
-  config: ConfigSource;
+export interface AuthStatusRouteDeps extends AuthDeps {
   ldapHealth: LdapHealth;
-  sessions: SessionStore;
 }
 
 export interface AuthStatusBody {

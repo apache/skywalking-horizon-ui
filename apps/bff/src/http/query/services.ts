@@ -34,14 +34,11 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
-export interface LayerServicesRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface LayerServicesRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

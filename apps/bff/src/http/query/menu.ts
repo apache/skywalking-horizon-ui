@@ -26,8 +26,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
 import type { LayerDefaultFilters, LayerExtPages } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import type { LayerTemplate } from '../../logic/layers/loader.js';
@@ -45,9 +44,7 @@ import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 import { linkSchemeIssue, linkDomainIssue } from '../../util/link-policy.js';
 import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
-export interface MenuRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface MenuRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — lets the menu honor disabled layer templates
    *  (a layer disabled in the admin disappears from the sidebar). Optional

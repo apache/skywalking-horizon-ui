@@ -37,7 +37,7 @@ function noNodePos(): null {
 <template>
   <div class="chb">
     <div class="chb__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="chb__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="chb__view">
       <ServiceHierarchyOverlay
@@ -64,11 +64,17 @@ function noNodePos(): null {
   gap: 10px;
 }
 .chb__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.chb__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* Stage for the standalone Smartscape fan (position:relative so the overlay's
    absolute fill anchors here; the fan's viewBox scales to this box). */

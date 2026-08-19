@@ -26,7 +26,7 @@
  * the next login refreshes each user's row. No file persistence.
  */
 
-export type SeenSource = 'local' | 'ldap' | 'break-glass';
+export type SeenSource = 'local' | 'ldap' | 'break-glass' | 'sso';
 
 export interface SeenUser {
   username: string;

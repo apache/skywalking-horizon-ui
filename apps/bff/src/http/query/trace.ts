@@ -49,8 +49,7 @@ import type {
   ZipkinTraceDetailResponse,
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import {
@@ -75,9 +74,7 @@ import {
   type ZipkinClientOpts,
 } from '../../client/zipkin.js';
 
-export interface TraceRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface TraceRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serve the in-use REMOTE config (blocked /
    *  in-code defaults when there is none; see `resolveEffectiveLayer`). */

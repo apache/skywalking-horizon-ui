@@ -23,14 +23,15 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import fastifyMultipart from '@fastify/multipart';
-import { AuditLogger } from './audit/logger.js';
 import { SessionStore } from './user/sessions.js';
+import { TokenStore } from './user/tokens.js';
 import { LdapHealth } from './user/ldap-health.js';
 import { UserSeenCache } from './user/seen-cache.js';
 import { loadConfig, type ConfigSource, BootstrapError } from './config/loader.js';
 import { makeRouteAuthHook } from './rbac/route-policy.js';
 // User
 import { registerAuthRoutes } from './http/user.js';
+import { registerOidcRoutes } from './user/oidc/route.js';
 // Query (read-only data from OAP)
 import { registerOapInfoRoute } from './http/query/info.js';
 import { registerMenuRoute } from './http/query/menu.js';
@@ -52,7 +53,11 @@ import { registerExploreRoutes } from './http/query/explore.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
 import { registerAlarmsQueryRoutes } from './http/query/alarms.js';
-import { registerAiRoutes } from './ai/http/chat.js';
+import { registerAiRoutes } from './ai/chat-assistant/route.js';
+import { registerMcpRoutes } from './ai/mcp/route.js';
+import { registerOAuthRoutes } from './oauth/route.js';
+import { RoleResolver } from './user/roles.js';
+import { OAuthTokenResolver } from './oauth/tokens.js';
 import { registerPreflightRoutes } from './http/query/preflight.js';
 import { registerTtlRoute } from './http/query/ttl.js';
 import { registerProfileRoutes } from './http/query/profile.js';
@@ -182,9 +187,25 @@ app.addHook('onSend', (req, reply, payload, done) => {
   done(null, payload);
 });
 
+/** Reported on /api/health and as the MCP server version an agent sees. */
+const HORIZON_VERSION = process.env.HORIZON_VERSION ?? '1.0.0-dev';
+
 const sessions = new SessionStore({ ttlMinutes: () => source.current.session.ttlMinutes });
-const audit = new AuditLogger(source.current.audit.file, source.current.audit.enabled);
-await audit.open();
+// API tokens ride the same pre-handler as the session cookie, so every route
+// accepts one under the verb policy it already declares (user/tokens.ts).
+const tokens = new TokenStore(source);
+// OAuth access tokens Horizon issued itself. Both non-cookie credentials
+// resolve roles through the same resolver, so they cannot disagree about what
+// a user currently holds.
+const roleResolver = new RoleResolver(source);
+const oauthTokens = new OAuthTokenResolver(source, roleResolver);
+/**
+ * The credential set EVERY route authenticates against, spread into each
+ * registration rather than restated. Listing them per call site is how one call
+ * site ends up missing one, and a route that quietly rejects a valid token is
+ * not a failure anyone notices until a user reports it.
+ */
+const authDeps = { config: source, sessions, tokens, oauthTokens };
 // Wire-level OAP debug log (`debugLog` in horizon.yaml) — reads the live
 // config per call, so `enabled` / `file` / redaction all hot-reload.
 wireLog.init(() => source.current.debugLog);
@@ -216,6 +237,32 @@ await app.register(fastifyMultipart, {
 // Text/plain body parser — the rule editor sends raw YAML to /api/rule.
 app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_req, body, done) => done(null, body));
 
+/**
+ * Form-encoded bodies, for the OAuth token endpoint.
+ *
+ * RFC 6749 §4.1.3 REQUIRES the token endpoint to accept
+ * `application/x-www-form-urlencoded`, and every conformant client sends it —
+ * Fastify parses only JSON out of the box, so without this the endpoint threw
+ * on the one content type it is obliged to read, and the caller got a 500
+ * error envelope where it expected `access_token`. That failure looked like a
+ * client bug from both ends, which is how it survived: exchanges tested with a
+ * JSON body worked perfectly.
+ *
+ * Hand-rolled rather than @fastify/formbody: it is one call to URLSearchParams,
+ * and Fastify's bodyLimit already bounds what reaches it.
+ */
+app.addContentTypeParser(
+  'application/x-www-form-urlencoded',
+  { parseAs: 'string' },
+  (_req, body, done) => {
+    try {
+      done(null, Object.fromEntries(new URLSearchParams(body as string)));
+    } catch (err) {
+      done(err instanceof Error ? err : new Error('malformed form body'), undefined);
+    }
+  },
+);
+
 // Map the UI's cold-stage header (X-Horizon-Cold-Stage) onto
 // `req.coldStage` so every downstream Duration helper sees one boolean
 // instead of re-parsing the header. BanyanDB-only at the OAP layer;
@@ -225,85 +272,85 @@ registerColdStageHook(app);
 // Auto-apply RBAC pre-handlers to every route as it's registered. Must
 // be added BEFORE the route registrations below — onRoute fires for
 // each subsequent app.get/post/...
-app.addHook('onRoute', makeRouteAuthHook({ config: source, sessions }));
+app.addHook('onRoute', makeRouteAuthHook({ ...authDeps }));
 
 // ── User ───────────────────────────────────────────────────────────
-registerAuthRoutes(app, { config: source, sessions, audit, ldapHealth, seenCache });
+registerAuthRoutes(app, { ...authDeps, ldapHealth, seenCache });
 registerAuthHealthRoute(app, { config: source, ldapHealth });
+registerOidcRoutes(app, { ...authDeps, seenCache });
 
 // ── Query ──────────────────────────────────────────────────────────
-registerOapInfoRoute(app, { config: source, sessions });
+registerOapInfoRoute(app, { ...authDeps });
 registerMenuRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
   serviceCatalog: serviceLayer,
 });
-registerLandingRoute(app, { config: source, sessions });
-registerInstanceRoute(app, { config: source, sessions });
-registerEndpointRoute(app, { config: source, sessions });
+registerLandingRoute(app, { ...authDeps });
+registerInstanceRoute(app, { ...authDeps });
+registerEndpointRoute(app, { ...authDeps });
 registerTopologyRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerInstanceTopologyRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerDeploymentRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerLayerServicesRoute(app, { config: source, sessions });
+registerLayerServicesRoute(app, { ...authDeps });
 registerEndpointDependencyRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerTraceRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerTraceTagRoutes(app, { config: source, sessions });
-registerZipkinRoutes(app, { config: source, sessions });
-registerLogRoute(app, { config: source, sessions });
-registerBrowserErrorsRoute(app, { config: source, sessions });
-registerEventsRoute(app, { config: source, sessions });
-registerExploreRoutes(app, { config: source, sessions });
-registerPodLogRoutes(app, { config: source, sessions });
+registerTraceTagRoutes(app, { ...authDeps });
+registerZipkinRoutes(app, { ...authDeps });
+registerLogRoute(app, { ...authDeps });
+registerBrowserErrorsRoute(app, { ...authDeps });
+registerEventsRoute(app, { ...authDeps });
+registerExploreRoutes(app, { ...authDeps });
+registerPodLogRoutes(app, { ...authDeps });
 registerDashboardQueryRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerAlarmsQueryRoutes(app, { config: source, sessions, serviceLayer });
+registerAlarmsQueryRoutes(app, { ...authDeps, serviceLayer });
 registerAiRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerPreflightRoutes(app, { config: source, sessions });
-registerTtlRoute(app, { config: source, sessions });
-registerProfileRoutes(app, { config: source, sessions });
+registerOAuthRoutes(app, {
+  ...authDeps,
+  roles: roleResolver,
+});
+registerMcpRoutes(app, {
+  ...authDeps,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+  version: HORIZON_VERSION,
+});
+registerPreflightRoutes(app, { ...authDeps });
+registerTtlRoute(app, { ...authDeps });
+registerProfileRoutes(app, { ...authDeps });
 registerEBPFRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerAsyncProfileRoutes(app, { config: source, sessions });
-registerContinuousProfilingRoutes(app, { config: source, sessions });
+registerAsyncProfileRoutes(app, { ...authDeps });
+registerContinuousProfilingRoutes(app, { ...authDeps });
 
 // ── Config ─────────────────────────────────────────────────────────
 registerDashboardConfigRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerLayerTemplateRoutes(app, { config: source, sessions });
+registerLayerTemplateRoutes(app, { ...authDeps });
 // Spawn the bundled-template fs.watch ONLY in development. Bundled
 // templates ship inside the BFF image — they're immutable in prod
 // (rebuild + redeploy is how you'd change them), so an fs.watch on
@@ -315,44 +362,39 @@ registerLayerTemplateRoutes(app, { config: source, sessions });
 // would exhaust the fd ceiling on low-ulimit CI).
 if (process.env.NODE_ENV === 'development') startLayerTemplateWatcher();
 registerInfra3dConfigRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
-registerInfra3dMetricsRoute(app, { config: source, sessions });
+registerInfra3dMetricsRoute(app, { ...authDeps });
 registerOverviewRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerConfigBundleRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerSettingsRoute(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 
 // ── Admin ──────────────────────────────────────────────────────────
-registerDslCatalogRoutes(app, { config: source, sessions, audit });
-registerDslRuleRoutes(app, { config: source, sessions, audit });
-registerDslDumpRoutes(app, { config: source, sessions, audit });
-registerDslOalRoutes(app, { config: source, sessions, audit });
-registerClusterRoutes(app, { config: source, sessions, audit });
-registerDebugRoutes(app, { config: source, sessions, audit });
-registerInspectRoutes(app, { config: source, sessions, audit });
-registerOapConfigRoute(app, { config: source, sessions });
-registerAlarmRulesRoutes(app, { config: source, sessions });
-registerOverviewTemplatesAdminRoutes(app, { config: source, sessions });
-registerAuthStatusRoutes(app, { config: source, ldapHealth, sessions });
+registerDslCatalogRoutes(app, { ...authDeps });
+registerDslRuleRoutes(app, { ...authDeps });
+registerDslDumpRoutes(app, { ...authDeps });
+registerDslOalRoutes(app, { ...authDeps });
+registerClusterRoutes(app, { ...authDeps });
+registerDebugRoutes(app, { ...authDeps });
+registerInspectRoutes(app, { ...authDeps });
+registerOapConfigRoute(app, { ...authDeps });
+registerAlarmRulesRoutes(app, { ...authDeps });
+registerOverviewTemplatesAdminRoutes(app, { ...authDeps });
+registerAuthStatusRoutes(app, { ...authDeps, ldapHealth });
 registerAdminUsersRoute(app, { config: source, seenCache });
-registerSourceMapRoutes(app, { config: source, sessions, store: sourceMapStore });
+registerSourceMapRoutes(app, { ...authDeps, store: sourceMapStore });
 registerTemplateSyncAdminRoutes(app, {
-  config: source,
-  sessions,
+  ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 
@@ -399,7 +441,7 @@ if (staticDir && existsSync(staticDir)) {
 // admin status pages.
 app.get('/api/health', async () => ({
   status: 'ok',
-  version: process.env.HORIZON_VERSION ?? '1.0.0-dev',
+  version: HORIZON_VERSION,
 }));
 
 const { host, port } = source.current.server;
@@ -474,7 +516,6 @@ async function shutdown(signal: string) {
   bootSeedAbort.abort();
   await app.close();
   await sessions.close();
-  await audit.close();
   await wireLog.close();
   await source.close();
   process.exit(0);

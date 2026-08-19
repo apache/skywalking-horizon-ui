@@ -37,8 +37,7 @@ import type {
   BrowserErrorsResponse,
   FetchLike,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -49,9 +48,7 @@ import {
 } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
-export interface BrowserErrorsRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface BrowserErrorsRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

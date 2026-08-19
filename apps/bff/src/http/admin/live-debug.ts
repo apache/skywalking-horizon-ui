@@ -20,9 +20,9 @@
  * `/dsl-debugging/*` wire surface (see
  * `reference_swip13_actual_wire.md`).
  *
- *   POST /api/debug/session              — start (audited)
+ *   POST /api/debug/session — start
  *   GET  /api/debug/session/:id          — poll
- *   POST /api/debug/session/:id/stop     — stop  (audited)
+ *   POST /api/debug/session/:id/stop — stop
  *   GET  /api/debug/sessions             — active list (JSON object)
  *   GET  /api/debug/status               — per-cluster fan-out
  *
@@ -31,8 +31,7 @@
  * upstream's query-param shape on the wire.
  *
  * RBAC lives entirely in `ROUTE_POLICY`: the reads take `live-debug:read`,
- * start / stop take `live-debug:write`. The `verb` field in the audit records
- * below names the capability being exercised — it is a log field, not a check.
+ * start / stop take `live-debug:write`.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -46,18 +45,13 @@ import {
   type Granularity,
   type StartSessionArgs,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { AuditLogger } from '../../audit/logger.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
-import type { SessionStore } from '../../user/sessions.js';
 import { resolveTargets } from '../../util/dns-fanout.js';
 import { buildOapClients, type OapClients } from '../../client/index.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 
-export interface DebugRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
-  audit: AuditLogger;
+export interface DebugRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 
@@ -82,49 +76,8 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       if (!parsed) return;
       try {
         const result = await clients().debug().startSession(parsed);
-        const local = result.priorCleanup?.local;
-        const peers = result.priorCleanup?.peers ?? [];
-        const totalPriorCleanup =
-          (local?.stoppedCount ?? 0) +
-          peers.reduce((n, p) => n + (p.stoppedCount ?? p.stoppedSessionIds?.length ?? 0), 0);
-        deps.audit.record({
-          action: 'debug.start',
-          verb: 'live-debug:write',
-          actor: req.session?.username ?? null,
-          outcome: 'ok',
-          details: {
-            sessionId: result.sessionId,
-            clientId: parsed.clientId,
-            catalog: parsed.catalog,
-            name: parsed.name,
-            ruleName: parsed.ruleName,
-            granularity: result.granularity,
-            localInstalled: result.localInstalled,
-            installedCreated: result.installed?.created,
-            installedTotal: result.installed?.total,
-            recordCap: parsed.recordCap,
-            retentionMillis: parsed.retentionMillis,
-            priorCleanupCount: totalPriorCleanup,
-          },
-          fromIp: req.ip,
-          sessionId: req.session?.sid,
-        });
         return reply.send(result);
       } catch (err) {
-        deps.audit.record({
-          action: 'debug.start',
-          verb: 'live-debug:write',
-          actor: req.session?.username ?? null,
-          outcome: outcomeOf(err),
-          details: {
-            clientId: parsed.clientId,
-            catalog: parsed.catalog,
-            name: parsed.name,
-            ruleName: parsed.ruleName,
-          },
-          fromIp: req.ip,
-          sessionId: req.session?.sid,
-        });
         return passOapError(err, reply);
       }
     },
@@ -154,26 +107,8 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       if (!params.id) return reply.code(400).send({ error: 'missing_id' });
       try {
         const result = await clients().debug().stopSession(params.id);
-        deps.audit.record({
-          action: 'debug.stop',
-          verb: 'live-debug:write',
-          actor: req.session?.username ?? null,
-          outcome: 'ok',
-          details: { sessionId: params.id, localStopped: result.localStopped },
-          fromIp: req.ip,
-          sessionId: req.session?.sid,
-        });
         return reply.send(result);
       } catch (err) {
-        deps.audit.record({
-          action: 'debug.stop',
-          verb: 'live-debug:write',
-          actor: req.session?.username ?? null,
-          outcome: outcomeOf(err),
-          details: { sessionId: params.id },
-          fromIp: req.ip,
-          sessionId: req.session?.sid,
-        });
         return passOapError(err, reply);
       }
     },
@@ -290,18 +225,6 @@ function parseStartArgs(raw: unknown, reply: FastifyReply): StartSessionArgs | n
   return out;
 }
 
-function outcomeOf(err: unknown): string {
-  if (err instanceof RuntimeRuleApiError) {
-    const body: unknown = err.body;
-    if (typeof body === 'object' && body !== null) {
-      const o = body as Record<string, unknown>;
-      if (typeof o.code === 'string') return o.code;
-      if (typeof o.applyStatus === 'string') return o.applyStatus;
-    }
-    return `http_${err.status}`;
-  }
-  return 'oap_unreachable';
-}
 
 function passOapError(err: unknown, reply: FastifyReply): FastifyReply {
   if (err instanceof RuntimeRuleApiError) {

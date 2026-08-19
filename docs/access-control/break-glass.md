@@ -36,7 +36,6 @@ When activated:
 
 - The login form accepts `breakGlass.username` + the password matching `breakGlass.passwordHash`.
 - The created session carries `breakGlass.roles`.
-- An audit event with `outcome: break-glass` is written.
 - A WARN log line is emitted: `auth: break-glass login granted (LDAP unhealthy)`.
 
 When LDAP is healthy again, the break-glass username is rejected at login — even if you type the right password. The session that was already opened during the outage **remains valid** until TTL or explicit logout.
@@ -46,27 +45,15 @@ When LDAP is healthy again, the break-glass username is rejected at login — ev
 - The password is checked with the same Argon2id verification as the local backend.
 - **Timing-safe** — a wrong username still incurs the full argon2 cost, so an attacker cannot learn the configured break-glass username from response timing.
 
-## Audit
+## Noticing it
 
-Every successful break-glass login is recorded twice:
+Every successful break-glass login writes a WARN line to the application log:
 
-1. **Audit log** (`horizon-audit.jsonl`):
+```
+auth: break-glass login granted (LDAP unhealthy)
+```
 
-   ```json
-   {
-     "ts": "2026-05-18T14:29:33.456Z",
-     "actor": "emergency-admin",
-     "action": "auth.login.break-glass",
-     "outcome": "break-glass",
-     "fromIp": "192.0.2.10",
-     "sessionId": "...",   // opaque session reference, not a usable session id
-     "details": { "backend": "ldap" }
-   }
-   ```
-
-2. **Application log** at WARN level.
-
-This double-logging is deliberate: the audit log is for compliance / forensics; the WARN log is for noticing in real time. Wire your log alerting to surface `auth.login.break-glass` events.
+That is the only record, so it is the one to alert on. Wire your log pipeline to surface it — a break-glass login is by definition something that happened because the normal path was broken, and nobody should learn about it by reading logs later.
 
 ## Operational guidance
 
@@ -86,5 +73,5 @@ This double-logging is deliberate: the audit log is for compliance / forensics; 
 ## Common mistakes
 
 - **`breakGlass` block configured but `backend: local`.** Block is ignored; warning at startup. Either switch to LDAP backend or remove the block.
-- **Same `username` as an LDAP user.** Works but is confusing for audit-log reading. Choose a name not in the directory (e.g., `emergency-admin`, `glass-break`).
+- **Same `username` as an LDAP user.** Works but is confusing when reading logs. Choose a name not in the directory (e.g., `emergency-admin`, `glass-break`).
 - **Hash stored in version-controlled file.** Use `${ENV_VAR}` interpolation instead.

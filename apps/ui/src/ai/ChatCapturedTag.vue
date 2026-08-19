@@ -45,6 +45,11 @@ const when = computed<string>(() =>
   align-items: center;
   gap: 3px;
   color: var(--sw-fg-3, #6b6f7a);
+  /* In a narrow host panel the caption is one ellipsised line, and whatever
+     sits last is what gets eaten. That must never be this tag: it is the only
+     signal that the card is a frozen snapshot rather than live data. The title
+     truncates instead. */
+  flex: none;
 }
 .cct__sep {
   margin-right: 1px;

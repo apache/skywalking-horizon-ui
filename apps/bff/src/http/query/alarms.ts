@@ -58,9 +58,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { z } from 'zod';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
 import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
@@ -73,9 +72,7 @@ import type {
   ServiceLayerCatalog,
 } from '../../logic/services/service-layer-catalog.js';
 
-export interface AlarmsQueryRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface AlarmsQueryRouteDeps extends AuthDeps {
   /** Server-global service-by-layer index (shared with config/alarms.ts +
    *  the sidebar menu). A config save invalidates it so the next list call
    *  picks up newly-pinned layers. */

@@ -50,8 +50,7 @@ import type {
   TopologyMetricDef,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
@@ -62,9 +61,7 @@ import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logi
 import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 
-export interface EBPFRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface EBPFRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serve the in-use REMOTE config (blocked /
    *  in-code defaults when there is none; see `resolveEffectiveLayer`). */

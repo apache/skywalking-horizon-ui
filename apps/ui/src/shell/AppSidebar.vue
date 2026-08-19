@@ -108,6 +108,11 @@ const sidebarEntries = computed<SidebarEntry[]>(() => bucket(publicLayers.value)
 
 const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMenu();
 
+/** A directory or identity provider names people better than an address does:
+ *  LDAP has `cn`, GitHub has the handle. The address stays in the tooltip, and
+ *  stays the identity everywhere that matters. */
+const signedInAs = computed(() => auth.user?.displayName || auth.user?.username);
+
 // True when this layer's template has local edits not yet published to OAP
 // (diverged) — drives the yellow warning on its grouped sidebar row.
 function isLayerDiverged(key: string): boolean {
@@ -337,9 +342,14 @@ function isLayerDiverged(key: string): boolean {
 
     <div v-show="!sidebarCollapsed" class="sw-side-foot">
       <div class="sw-avatar">
-        {{ auth.user?.username ? auth.user.username.slice(0, 2).toUpperCase() : '?' }}
+        {{ signedInAs ? signedInAs.slice(0, 2).toUpperCase() : '?' }}
       </div>
-      <div style="line-height: 1.2; flex: 1; min-width: 0; overflow: hidden">
+      <router-link
+        to="/account"
+        class="sw-side-me"
+        :title="auth.user?.username"
+        style="line-height: 1.2; flex: 1; min-width: 0; overflow: hidden"
+      >
         <div
           style="
             color: var(--sw-fg-0);
@@ -349,10 +359,10 @@ function isLayerDiverged(key: string): boolean {
             white-space: nowrap;
           "
         >
-          {{ auth.user?.username ?? t('guest') }}
+          {{ signedInAs ?? t('guest') }}
         </div>
         <div>{{ auth.user?.roles?.join(' · ') ?? t('not signed in') }}</div>
-      </div>
+      </router-link>
       <button v-if="auth.isAuthenticated" class="sw-btn is-icon" :title="t('Sign out')" @click="signOut">
         <Icon name="share" :size="12" />
       </button>
@@ -361,6 +371,25 @@ function isLayerDiverged(key: string): boolean {
 </template>
 
 <style scoped>
+/* The signed-in identity is a link to /account. Without these it renders as
+ * a bare anchor - the roles line turned blue and underlined, because only the
+ * name carries an explicit colour. `inherit` restores exactly what the plain
+ * <div> looked like, and the hover is the only sign it is now clickable. */
+.sw-side-me {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+.sw-side-me:hover {
+  background: var(--sw-bg-2);
+}
+.sw-side-me:focus-visible {
+  outline: 2px solid var(--sw-accent);
+  outline-offset: 1px;
+}
+
 /* Brand + collapse toggle share the 44px top row (aligns with the
  * topbar). Shown only while expanded; when folded the row is replaced by
  * the expand chevron and the wordmark moves to the topbar. */

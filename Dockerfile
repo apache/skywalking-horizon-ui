@@ -65,7 +65,10 @@ COPY --from=build /src/dist/static                 ./static
 COPY --from=build /src/dist/horizon.yaml           ./horizon.yaml
 
 COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled_templates
-COPY --from=build --chown=horizon:horizon /src/dist/resources           ./resources
+COPY --from=build --chown=horizon:horizon /src/dist/skills              ./skills
+# The ui:// card bundle. Present because the image build runs build:mcp-app;
+# without it MCP still works, text-only.
+COPY --from=build --chown=horizon:horizon /src/dist/mcp-app             ./mcp-app
 
 RUN mkdir -p /data && chown horizon:horizon /data
 VOLUME ["/data"]
@@ -80,7 +83,6 @@ ENV NODE_ENV=production \
     HORIZON_SERVER_PORT=8081 \
     HORIZON_STATIC_DIR=/app/static \
     HORIZON_CONFIG=/app/horizon.yaml \
-    HORIZON_AUDIT_FILE=/data/horizon-audit.jsonl \
     HORIZON_WIRE_LOG_FILE=/data/horizon-wire.jsonl \
     HORIZON_SOURCEMAPS_DIR=/app/sourcemaps \
     # Match this to the container memory limit and your sourceMaps budget — the in-heap map cache lives inside it.

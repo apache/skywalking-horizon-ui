@@ -64,8 +64,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodError, ZodType } from 'zod';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { sessionHasVerb } from '../../rbac/policy.js';
 import {
@@ -101,9 +100,7 @@ import {
 import { templateIdentityIssue } from '../../logic/templates/identity.js';
 import { logger } from '../../logger.js';
 
-export interface TemplateSyncAdminDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface TemplateSyncAdminDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
 }
 
@@ -484,7 +481,7 @@ export function registerTemplateSyncAdminRoutes(
     if (!session) {
       return reply.code(401).send({ error: 'unauthenticated' });
     }
-    if (!sessionHasVerb(deps.config.current, session.roles, saveVerb)) {
+    if (!sessionHasVerb(deps.config.current, session, saveVerb)) {
       return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
     }
     // Identity + per-kind content validation. The envelope machinery is

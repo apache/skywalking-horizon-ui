@@ -175,6 +175,7 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'browser-errors:read':    { label: t('See browser error logs') },
   'source-map:write':       { label: t('Upload and remove source maps') },
   'ai:read':                { label: t('Use the AI assistant') },
+  'mcp:read':               { label: t('Connect an external agent over MCP') },
   'alarm-rule:read':        { label: t('See alarm rules') },
   'alarm-rule:write':       { label: t('Edit alarm rules') },
   'alarm-setup:read':       { label: t('See Alert page setup') },
@@ -190,7 +191,6 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'role:read':              { label: t('See this page') },
   'role:write':             { label: t('Change role grants') },
   'auth:read':              { label: t('See the auth-status page') },
-  'audit:read':             { label: t('Read the audit log') },
   'admin':                  { label: t('Everything (escape hatch)') },
 }));
 function labelFor(verb: string): { label: string; hint?: string } {
@@ -311,12 +311,13 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
     verbs: ['profile:enable'],
   },
   {
-    title: t('AI Assistant'),
-    blurb: t('Sending a message to the assistant. Each of its data tools re-checks the read permission the matching screen needs, so the assistant never reads more than the signed-in user can.'),
+    title: t('AI Assistant & MCP'),
+    blurb: t('Sending a message to the assistant, and connecting an external agent over MCP. Each of their data tools re-checks the read permission the matching screen needs, so neither reads more than the signed-in user can. They are separate permissions because the assistant sends the conversation to the model this Horizon is configured with, while MCP leaves the model on the caller\'s side.'),
     scope: [
       { label: t('AI Assistant'), icon: '✧' },
+      { label: t('MCP'), icon: '⌘' },
     ],
-    verbs: ['ai:read'],
+    verbs: ['ai:read', 'mcp:read'],
   },
   {
     title: t('Users & access admin'),
@@ -327,14 +328,6 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('Auth status'), icon: '⌬' },
     ],
     verbs: ['user:read', 'user:write', 'role:read', 'role:write', 'auth:read'],
-  },
-  {
-    title: t('Audit'),
-    blurb: t('The auditable record of every sign-in, rule change, and configuration edit. Written to a file the operator can ship to an SIEM; no in-app viewer yet.'),
-    scope: [
-      { label: t('Audit log (file)'), icon: '≡' },
-    ],
-    verbs: ['audit:read'],
   },
   {
     title: t('Everything (escape hatch)'),

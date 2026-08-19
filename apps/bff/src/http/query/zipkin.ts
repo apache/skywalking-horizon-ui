@@ -47,16 +47,13 @@ import type {
   ZipkinTraceDetailResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { FastifyInstance } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader } from '../../client/graphql.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { wireFetch } from '../../client/wire-log.js';
 
-export interface ZipkinRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ZipkinRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

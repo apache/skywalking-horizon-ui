@@ -26,6 +26,10 @@ const DUMMY_HASH =
 export interface VerifiedUser {
   username: string;
   roles: string[];
+  /** What to SHOW instead of `username`. Never an identity: roles and every
+   *  permission check use `username` alone, because a display name is supplied
+   *  by a directory or a provider and is not unique. */
+  displayName?: string;
 }
 
 export async function verifyLocalCredentials(

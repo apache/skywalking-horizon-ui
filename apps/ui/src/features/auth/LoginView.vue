@@ -26,9 +26,10 @@ import { useI18n } from 'vue-i18n';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import loginBgUrl from '@/assets/login-bg.jpg?url';
 import { useAuthStore } from '@/state/auth';
-import { bff } from '@/api/client';
+import { bff, API_BASE, type SsoProvider } from '@/api/client';
 import type { AuthHealth } from '@/api/scopes/admin-auth';
 import LocaleChip from '@/shell/LocaleChip.vue';
+import Icon from '@/components/icons/Icon.vue';
 
 // `useScope: 'global'` binds `t` to the global i18n instance so a
 // `locale` change in the top-bar / login locale chip reactively
@@ -45,6 +46,101 @@ const username = ref('');
 const password = ref('');
 const submitting = ref(false);
 
+/** Sign-in providers this deployment configures. Empty is the common case and
+ *  renders nothing — password login is unaffected either way. */
+const ssoProviders = ref<SsoProvider[]>([]);
+/** Which provider the picker has selected. Seeded from the first one the
+ *  server lists, so the button is never wired to nothing. */
+const ssoChoice = ref('');
+const chosenIcon = computed(() => ssoProviders.value.find((p) => p.id === ssoChoice.value)?.icon ?? '');
+const chosenName = computed(
+  () => ssoProviders.value.find((p) => p.id === ssoChoice.value)?.displayName ?? '',
+);
+
+/** Provider picker. Open state lives here rather than in a shared primitive:
+ *  the typeahead one carries a search box, which is noise for the two or three
+ *  providers a deployment actually configures. */
+const pickRoot = ref<HTMLElement | null>(null);
+const pickOpen = ref(false);
+const pickActive = ref(0);
+
+function openPick(): void {
+  pickOpen.value = true;
+  pickActive.value = Math.max(0, ssoProviders.value.findIndex((p) => p.id === ssoChoice.value));
+}
+function choose(id: string): void {
+  ssoChoice.value = id;
+  pickOpen.value = false;
+}
+/**
+ * Every key for this control, in one handler on the trigger itself.
+ *
+ * It must preventDefault on the keys it uses: the trigger is a <button>, so
+ * Enter and Space natively fire a click, which would toggle the menu shut in
+ * the same keystroke that was meant to choose from it.
+ */
+function onTriggerKey(e: KeyboardEvent): void {
+  const n = ssoProviders.value.length;
+  if (!n) return;
+  if (e.key === 'Escape') { pickOpen.value = false; return; }
+  if (!pickOpen.value) {
+    if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { openPick(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === 'ArrowDown') { pickActive.value = (pickActive.value + 1) % n; e.preventDefault(); return; }
+  if (e.key === 'ArrowUp') { pickActive.value = (pickActive.value - 1 + n) % n; e.preventDefault(); return; }
+  if (e.key === 'Enter' || e.key === ' ') {
+    const p = ssoProviders.value[pickActive.value];
+    if (p) choose(p.id);
+    e.preventDefault();
+  }
+}
+/** A click anywhere else closes it — the trigger is not a modal. */
+function onDocClick(e: MouseEvent): void {
+  if (pickOpen.value && pickRoot.value && !pickRoot.value.contains(e.target as Node)) pickOpen.value = false;
+}
+/** A full-page navigation, so it cannot go through the API client — but it
+ *  must carry the same base, or a Horizon served under a gateway prefix sends
+ *  the operator to the gateway's root instead of to Horizon. */
+const ssoHref = (id: string): string =>
+  `${API_BASE}/api/auth/oidc/start?provider=${encodeURIComponent(id)}&next=${encodeURIComponent(ssoNext.value)}`;
+/** Where to land after the round trip. Same as the password path's redirect,
+ *  so a deep link survives an SSO login too. */
+const ssoNext = computed(() => {
+  const raw = typeof route.query.redirect === 'string' ? route.query.redirect : '';
+  return raw && raw !== '/login' ? raw : '/';
+});
+/**
+ * The provider round trip cannot report through the SPA's fetch layer — it
+ * ends in a browser redirect — so the callback puts a reason in the URL and
+ * this turns it into a sentence WE wrote — never the raw parameter.
+ */
+const SSO_ERRORS: Record<string, () => string> = {
+  sso_not_configured: () => t('Single sign-on is not configured on this server.'),
+  unknown_provider: () => t('That sign-in provider is not configured.'),
+  provider_unreachable: () => t('The sign-in provider could not be reached. Try again, or use a password.'),
+  login_expired: () => t('That sign-in took too long. Please try again.'),
+  state_mismatch: () => t('The sign-in could not be verified. Please try again.'),
+  no_code: () => t('The sign-in provider returned no authorization code.'),
+  no_email: () => t('The sign-in provider did not supply an email address.'),
+  email_not_verified: () => t('That account has no verified email address.'),
+  domain_not_allowed: () => t('That email domain is not allowed to sign in here.'),
+  no_roles: () => t('Your account has no role in Horizon. Ask an administrator to grant one.'),
+  access_denied: () => t('You cancelled the sign-in.'),
+  sso_failed: () => t('Single sign-on failed. The server log has the reason the provider gave.'),
+};
+const ssoError = computed(() => {
+  const raw = typeof route.query.sso_error === 'string' ? route.query.sso_error : '';
+  if (!raw) return '';
+  // Only ever a sentence WE wrote. `?sso_error=` is a query parameter, so
+  // anyone can put a link in front of an operator that renders whatever text
+  // they like on Horizon's own login page — "Your session expired, call
+  // +1-555…" is a convincing lure on a URL that really is ours. An
+  // unrecognised code becomes the generic sentence, with the code as data so
+  // it stays diagnosable.
+  return SSO_ERRORS[raw]?.() ?? t('Single sign-on failed ({code}).', { code: raw.slice(0, 40) });
+});
+
 const health = ref<AuthHealth | null>(null);
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -56,11 +152,19 @@ async function refreshHealth(): Promise<void> {
   }
 }
 onMounted(() => {
+  void bff.oidc.providers().then((r) => {
+    ssoProviders.value = r.providers;
+    ssoChoice.value = r.providers[0]?.id ?? '';
+  }).catch(() => {
+    /* swallow — password login stays usable if the probe fails */
+  });
   void refreshHealth();
   pingTimer = setInterval(() => void refreshHealth(), 5000);
+  document.addEventListener('click', onDocClick);
 });
 onUnmounted(() => {
   if (pingTimer) clearInterval(pingTimer);
+  document.removeEventListener('click', onDocClick);
 });
 
 const statusKind = computed<'ok' | 'err' | 'info' | 'warn' | null>(() => {
@@ -190,10 +294,76 @@ async function submit(): Promise<void> {
         </label>
 
         <div v-if="auth.loginError" class="error">{{ auth.loginError }}</div>
+        <div v-if="ssoError" class="error">{{ ssoError }}</div>
 
         <button class="sign-in" type="submit" :disabled="submitting || unconfigured">
           {{ unconfigured ? t('Sign in disabled') : (submitting ? t('Signing in…') : t('Sign in')) }}
         </button>
+
+        <!-- Single sign-on. Rendered only when the deployment configures a
+             provider, and each button is one config entry — nothing here knows
+             which vendor it is. A full-page navigation, not a fetch: the
+             provider answers with a redirect the browser must follow. -->
+        <template v-if="ssoProviders.length">
+          <div class="sso-sep"><span>{{ t('or') }}</span></div>
+          <!-- One provider is a button; several are a picker. A column of
+               buttons stops reading as a choice once it is more than two or
+               three, and a deployment fronting several directories can easily
+               have more. -->
+          <a
+            v-if="ssoProviders.length === 1"
+            class="sso"
+            :href="ssoHref(ssoProviders[0].id)"
+          >
+            <!-- Operator-supplied `data:` URI, or nothing. Horizon ships no
+                 vendor marks — see auth.sso.providers[].icon. Rendered as an
+                 image, never inlined as markup. -->
+            <img v-if="ssoProviders[0].icon" class="sso-icon" :src="ssoProviders[0].icon" alt="" />
+            {{ t('Continue with {provider}', { provider: ssoProviders[0].displayName }) }}
+          </a>
+          <!-- A native <select> renders its list through the OS, which ignores
+               this page's palette entirely — on macOS it drops a light-grey
+               popup onto a dark card. This is the same control drawn in our
+               own vocabulary: a listbox we style, plus an arrow to go. -->
+          <div v-else ref="pickRoot" class="sso-pick">
+            <button
+              type="button"
+              class="sso-trigger"
+              role="combobox"
+              aria-haspopup="listbox"
+              :aria-expanded="pickOpen"
+              aria-controls="sso-listbox"
+              :aria-activedescendant="pickOpen ? `sso-opt-${pickActive}` : undefined"
+              :aria-label="t('Sign-in provider')"
+              @click="pickOpen ? (pickOpen = false) : openPick()"
+              @keydown="onTriggerKey"
+            >
+              <img v-if="chosenIcon" class="sso-icon" :src="chosenIcon" alt="" />
+              <span class="sso-trigger-label">{{ chosenName }}</span>
+              <Icon name="caret" :size="14" class="sso-caret" :class="{ up: pickOpen }" />
+            </button>
+            <ul v-if="pickOpen" id="sso-listbox" class="sso-menu" role="listbox">
+              <li
+                v-for="(p, i) in ssoProviders"
+                :id="`sso-opt-${i}`"
+                :key="p.id"
+                role="option"
+                :aria-selected="p.id === ssoChoice"
+                :class="{ on: p.id === ssoChoice, active: i === pickActive }"
+                @click="choose(p.id)"
+                @mouseenter="pickActive = i"
+              >
+                <img v-if="p.icon" class="sso-icon" :src="p.icon" alt="" />
+                <span>{{ p.displayName }}</span>
+                <Icon v-if="p.id === ssoChoice" name="chev" :size="13" class="sso-tick" />
+              </li>
+            </ul>
+            <!-- The arrow IS the action: the dropdown picks, this goes. -->
+            <a class="sso-go" :href="ssoHref(ssoChoice)" :aria-label="t('Continue')" :title="t('Continue')">
+              <Icon name="chev" :size="18" />
+            </a>
+          </div>
+        </template>
       </form>
     </main>
 
@@ -591,5 +761,119 @@ async function submit(): Promise<void> {
   .center { padding: 16px; }
   .card { padding: 18px; }
   .brand-tag { display: none; }
+}
+
+/* Single sign-on buttons, quieter than the primary Sign in. */
+.sso-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 12px;
+  color: var(--text-3, #7b879b);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sso-sep::before,
+.sso-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgb(255 255 255 / 14%);
+}
+.sso {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 6%);
+  color: var(--text-1, #e8edf5);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.sso:hover {
+  background: rgb(255 255 255 / 12%);
+}
+.sso-pick {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sso-trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 6%);
+  color: var(--text-1, #e8edf5);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sso-trigger:hover { background: rgb(255 255 255 / 12%); }
+.sso-trigger-label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sso-caret { flex: none; opacity: 0.7; transition: transform 0.15s ease; }
+.sso-caret.up { transform: rotate(180deg); }
+
+/* Anchored to the picker, drawn in this page's palette rather than the OS's. */
+.sso-menu {
+  position: absolute;
+  left: 0;
+  right: 52px;
+  top: calc(100% + 6px);
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: #161b24;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+  /* A deployment fronting several directories can list more than fits the
+     card, and the stage clips — without these the lower rows are unreachable. */
+  max-height: 232px;
+  overflow-y: auto;
+}
+.sso-menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  color: var(--text-1, #e8edf5);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sso-menu li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sso-menu li.active { background: rgb(255 255 255 / 10%); }
+.sso-menu li.on { color: #fff; font-weight: 600; }
+.sso-tick { margin-left: auto; opacity: 0.75; }
+
+/* The arrow is the commit step: pick on the left, go here. */
+.sso-go {
+  flex: none;
+  width: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 6%);
+  color: var(--text-1, #e8edf5);
+  text-decoration: none;
+}
+.sso-go:hover { background: rgb(255 255 255 / 14%); }
+.sso-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  margin-right: 8px;
 }
 </style>

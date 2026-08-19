@@ -168,9 +168,16 @@ export function useLayerServiceName(
  * the roster row is where its name comes from, read from the same cached
  * `listServices` snapshot the layer shell already validates that id against.
  */
-export function useSelectedServiceRef(layerKey: Ref<string>): ComputedRef<ServiceRef | null> {
+export function useSelectedServiceRef(
+  layerKey: Ref<string>,
+  /** REPLAY mode gate, same contract as `useLayerServiceName`. A replayed block
+   *  takes its service from the captured spec, so the roster must fire ZERO
+   *  queries — and the global `enabled: false` default does NOT cover this,
+   *  because `useLayerServices` passes an `enabled` of its own, which wins. */
+  replay?: Ref<boolean>,
+): ComputedRef<ServiceRef | null> {
   const { selectedId } = useSelectedService();
-  const { services: roster } = useLayerServices(layerKey);
+  const { services: roster } = useLayerServices(layerKey, { replay });
   return computed(() => {
     const row = roster.value.find((s) => s.id === selectedId.value);
     if (!row) return null;

@@ -360,7 +360,7 @@ const {
   closeExpanded,
   toggleRow,
   resolveRow,
-} = useSourceMapResolution(t);
+} = useSourceMapResolution(t, replay);
 watch(serviceKey, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
