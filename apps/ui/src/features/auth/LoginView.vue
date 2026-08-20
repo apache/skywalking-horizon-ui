@@ -29,6 +29,7 @@ import { useAuthStore } from '@/state/auth';
 import { bff, API_BASE, type SsoProvider } from '@/api/client';
 import type { AuthHealth } from '@/api/scopes/admin-auth';
 import LocaleChip from '@/shell/LocaleChip.vue';
+import { splitProviders } from './providerLayout';
 import Icon from '@/components/icons/Icon.vue';
 
 // `useScope: 'global'` binds `t` to the global i18n instance so a
@@ -49,12 +50,33 @@ const submitting = ref(false);
 /** Sign-in providers this deployment configures. Empty is the common case and
  *  renders nothing — password login is unaffected either way. */
 const ssoProviders = ref<SsoProvider[]>([]);
-/** Which provider the picker has selected. Seeded from the first one the
- *  server lists, so the button is never wired to nothing. */
+/**
+ * Whether this deployment has a password backend at all.
+ *
+ * Starts TRUE and only ever narrows. The probe below is allowed to fail, and a
+ * login page that hid its password box because a request did not come back
+ * would lock out the one person who most needs in.
+ */
+const passwordLogin = ref(true);
+/**
+ * SSO-only: no local users, no directory, and at least one provider to send
+ * people to. The box is hidden rather than disabled — a form that cannot
+ * succeed invites the attempt, and on a shared page it reads as "your account
+ * should work here" to people whose accounts never will.
+ */
+const ssoOnly = computed(() => !passwordLogin.value && ssoProviders.value.length > 0);
+const listedProviders = computed(() => splitProviders(ssoProviders.value, passwordLogin.value).listed);
+/** Everything the buttons did not take — which is ALL of them whenever there is
+ *  a password form to sit beside. */
+const overflowProviders = computed(() => splitProviders(ssoProviders.value, passwordLogin.value).overflow);
+
+/** Which OVERFLOW provider the picker has selected. Starts empty on purpose:
+ *  the trigger reads "More" until someone picks, so it describes what it opens
+ *  rather than naming the fifth provider as though it were the default. */
 const ssoChoice = ref('');
-const chosenIcon = computed(() => ssoProviders.value.find((p) => p.id === ssoChoice.value)?.icon ?? '');
+const chosenIcon = computed(() => overflowProviders.value.find((p) => p.id === ssoChoice.value)?.icon ?? '');
 const chosenName = computed(
-  () => ssoProviders.value.find((p) => p.id === ssoChoice.value)?.displayName ?? '',
+  () => overflowProviders.value.find((p) => p.id === ssoChoice.value)?.displayName ?? '',
 );
 
 /** Provider picker. Open state lives here rather than in a shared primitive:
@@ -66,7 +88,7 @@ const pickActive = ref(0);
 
 function openPick(): void {
   pickOpen.value = true;
-  pickActive.value = Math.max(0, ssoProviders.value.findIndex((p) => p.id === ssoChoice.value));
+  pickActive.value = Math.max(0, overflowProviders.value.findIndex((p) => p.id === ssoChoice.value));
 }
 function choose(id: string): void {
   ssoChoice.value = id;
@@ -80,7 +102,7 @@ function choose(id: string): void {
  * the same keystroke that was meant to choose from it.
  */
 function onTriggerKey(e: KeyboardEvent): void {
-  const n = ssoProviders.value.length;
+  const n = overflowProviders.value.length;
   if (!n) return;
   if (e.key === 'Escape') { pickOpen.value = false; return; }
   if (!pickOpen.value) {
@@ -90,7 +112,7 @@ function onTriggerKey(e: KeyboardEvent): void {
   if (e.key === 'ArrowDown') { pickActive.value = (pickActive.value + 1) % n; e.preventDefault(); return; }
   if (e.key === 'ArrowUp') { pickActive.value = (pickActive.value - 1 + n) % n; e.preventDefault(); return; }
   if (e.key === 'Enter' || e.key === ' ') {
-    const p = ssoProviders.value[pickActive.value];
+    const p = overflowProviders.value[pickActive.value];
     if (p) choose(p.id);
     e.preventDefault();
   }
@@ -154,7 +176,15 @@ async function refreshHealth(): Promise<void> {
 onMounted(() => {
   void bff.oidc.providers().then((r) => {
     ssoProviders.value = r.providers;
-    ssoChoice.value = r.providers[0]?.id ?? '';
+    // Only ever narrows, and only on an answer: an absent field from an older
+    // BFF leaves the box in place.
+    if (r.passwordLogin === false) passwordLogin.value = false;
+    // Pre-select ONLY when the picker stands alone. With no buttons beside it
+    // the picker IS the way in, so it names a provider and the arrow works on
+    // the first click. Beside a list of buttons it stays empty and reads
+    // "More", because nothing there should look like a default.
+    const split = splitProviders(r.providers, passwordLogin.value);
+    ssoChoice.value = split.listed.length ? '' : (split.overflow[0]?.id ?? '');
   }).catch(() => {
     /* swallow — password login stays usable if the probe fails */
   });
@@ -244,7 +274,7 @@ async function submit(): Promise<void> {
     <!-- Centered glass card. -->
     <main class="center">
       <form class="card" @submit.prevent="submit">
-        <div class="card-head">
+        <div class="card-head" :class="{ ruled: ssoOnly }">
           <h1>{{ t('Welcome to SkyWalking') }}</h1>
         </div>
 
@@ -268,6 +298,11 @@ async function submit(): Promise<void> {
           </p>
         </div>
 
+        <!-- The password half. Hidden entirely on an SSO-only deployment: it
+             has no local users and no directory, so every username this could
+             take is rejected, and a form that cannot succeed invites the
+             attempt. -->
+        <template v-if="!ssoOnly">
         <label class="field">
           <span>{{ t('Username') }}</span>
           <input
@@ -299,33 +334,40 @@ async function submit(): Promise<void> {
         <button class="sign-in" type="submit" :disabled="submitting || unconfigured">
           {{ unconfigured ? t('Sign in disabled') : (submitting ? t('Signing in…') : t('Sign in')) }}
         </button>
+        </template>
+
+        <!-- An SSO error still has to reach the reader when the password half
+             is gone, since a failed round trip lands back here. -->
+        <div v-if="ssoOnly && ssoError" class="error">{{ ssoError }}</div>
 
         <!-- Single sign-on. Rendered only when the deployment configures a
              provider, and each button is one config entry — nothing here knows
              which vendor it is. A full-page navigation, not a fetch: the
              provider answers with a redirect the browser must follow. -->
         <template v-if="ssoProviders.length">
-          <div class="sso-sep"><span>{{ t('or') }}</span></div>
-          <!-- One provider is a button; several are a picker. A column of
-               buttons stops reading as a choice once it is more than two or
-               three, and a deployment fronting several directories can easily
-               have more. -->
+          <!-- "or" separates two ways in. On an SSO-only page there is one. -->
+          <div v-if="!ssoOnly" class="sso-sep"><span>{{ t('or') }}</span></div>
+          <!-- Up to four providers each get their own button, in CONFIG ORDER —
+               the server sends them in the order `auth.sso.providers` lists them
+               and nothing re-sorts them, so an operator can put the one their
+               people use first. -->
           <a
-            v-if="ssoProviders.length === 1"
+            v-for="p in listedProviders"
+            :key="p.id"
             class="sso"
-            :href="ssoHref(ssoProviders[0].id)"
+            :href="ssoHref(p.id)"
           >
             <!-- Operator-supplied `data:` URI, or nothing. Horizon ships no
                  vendor marks — see auth.sso.providers[].icon. Rendered as an
                  image, never inlined as markup. -->
-            <img v-if="ssoProviders[0].icon" class="sso-icon" :src="ssoProviders[0].icon" alt="" />
-            {{ t('Continue with {provider}', { provider: ssoProviders[0].displayName }) }}
+            <img v-if="p.icon" class="sso-icon" :src="p.icon" alt="" />
+            {{ t('Continue with {provider}', { provider: p.displayName }) }}
           </a>
           <!-- A native <select> renders its list through the OS, which ignores
                this page's palette entirely — on macOS it drops a light-grey
                popup onto a dark card. This is the same control drawn in our
                own vocabulary: a listbox we style, plus an arrow to go. -->
-          <div v-else ref="pickRoot" class="sso-pick">
+          <div v-if="overflowProviders.length" ref="pickRoot" class="sso-pick">
             <button
               type="button"
               class="sso-trigger"
@@ -339,12 +381,14 @@ async function submit(): Promise<void> {
               @keydown="onTriggerKey"
             >
               <img v-if="chosenIcon" class="sso-icon" :src="chosenIcon" alt="" />
-              <span class="sso-trigger-label">{{ chosenName }}</span>
+              <span class="sso-trigger-label" :class="{ placeholder: !chosenName }">
+                {{ chosenName || t('More') }}
+              </span>
               <Icon name="caret" :size="14" class="sso-caret" :class="{ up: pickOpen }" />
             </button>
             <ul v-if="pickOpen" id="sso-listbox" class="sso-menu" role="listbox">
               <li
-                v-for="(p, i) in ssoProviders"
+                v-for="(p, i) in overflowProviders"
                 :id="`sso-opt-${i}`"
                 :key="p.id"
                 role="option"
@@ -358,10 +402,21 @@ async function submit(): Promise<void> {
                 <Icon v-if="p.id === ssoChoice" name="chev" :size="13" class="sso-tick" />
               </li>
             </ul>
-            <!-- The arrow IS the action: the dropdown picks, this goes. -->
-            <a class="sso-go" :href="ssoHref(ssoChoice)" :aria-label="t('Continue')" :title="t('Continue')">
+            <!-- The arrow IS the action: the dropdown picks, this goes. Inert
+                 until something is picked — nothing is pre-selected, so until
+                 then there is no provider for it to go to. -->
+            <a
+              v-if="ssoChoice"
+              class="sso-go"
+              :href="ssoHref(ssoChoice)"
+              :aria-label="t('Continue')"
+              :title="t('Continue')"
+            >
               <Icon name="chev" :size="18" />
             </a>
+            <span v-else class="sso-go off" aria-hidden="true">
+              <Icon name="chev" :size="18" />
+            </span>
           </div>
         </template>
       </form>
@@ -635,6 +690,14 @@ async function submit(): Promise<void> {
 .card-head {
   margin-bottom: 20px;
 }
+/* Only the SSO-only card draws the title's boundary. A password form supplies
+   that boundary itself — the USERNAME label starts a new block right under the
+   title — so a rule there is a second edge saying what the layout already
+   said. With no fields, the title otherwise sits straight on a lone button. */
+.card-head.ruled {
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--sw-accent-line, rgb(249 115 22 / 40%));
+}
 .card-head h1 {
   margin: 0;
   font-family: var(--sw-sans);
@@ -820,6 +883,9 @@ async function submit(): Promise<void> {
 }
 .sso-trigger:hover { background: rgb(255 255 255 / 12%); }
 .sso-trigger-label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "More" names what the control opens; a chosen provider names itself. Dimming
+   the placeholder keeps the two apart at a glance. */
+.sso-trigger-label.placeholder { color: var(--text-2, #9fb0c6); }
 .sso-caret { flex: none; opacity: 0.7; transition: transform 0.15s ease; }
 .sso-caret.up { transform: rotate(180deg); }
 
@@ -870,6 +936,14 @@ async function submit(): Promise<void> {
   text-decoration: none;
 }
 .sso-go:hover { background: rgb(255 255 255 / 14%); }
+/* Nothing picked yet, so there is nowhere to go. Drawn in place rather than
+   removed: the trigger's width is the row minus this button, and dropping it
+   would make the control jump sideways the moment someone chose. */
+.sso-go.off {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: rgb(255 255 255 / 3%);
+}
 .sso-icon {
   width: 16px;
   height: 16px;

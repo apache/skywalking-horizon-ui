@@ -286,20 +286,16 @@ const URL_BINDINGS = new Map([
   ["apps/ui/src/layer/traces/TracePopout.vue:componentIconOrNull(row.span.component) ?? ''", 'bundled icon registry'],
   ["apps/ui/src/layer/traces/NativeTraceWaterfall.vue:componentIconOrNull(row.span.component ?? '') ?? ''", 'bundled icon registry'],
   [
-    'apps/ui/src/features/auth/LoginView.vue:ssoProviders[0].icon',
-    'operator-configured `data:` URI for a sign-in button; the schema refuses anything that is not `data:image/<type>;base64,<b64>` (apps/bff/src/config/schema.ts), and it renders through <img src> rather than v-html, so an SVG cannot execute — the CSP permits data: images and no remote origin at all. Horizon ships no vendor marks; see that field\'s comment for why',
-  ],
-  [
     'apps/ui/src/features/auth/LoginView.vue:chosenIcon',
     'the same operator-configured data: URI, selected by the provider picker',
   ],
   [
     'apps/ui/src/features/auth/LoginView.vue:p.icon',
-    'the same operator-configured data: URI, drawn once per row in the provider list',
+    'operator-configured `data:` URI for a provider — drawn on each sign-in button and on each row of the picker. The schema refuses anything that is not `data:image/<type>;base64,<b64>` (apps/bff/src/config/schema.ts), and it renders through <img src> rather than v-html, so an SVG cannot execute — the CSP permits data: images and no remote origin at all. Horizon ships no vendor marks; see that field\'s comment for why',
   ],
   [
-    'apps/ui/src/features/auth/LoginView.vue:ssoHref(ssoProviders[0].id)',
-    'ssoHref builds a same-origin PATH literal, so the origin and scheme are fixed by the code and no argument can move the navigation off this site; the provider id comes from this deployment\'s own config and both interpolations are encodeURIComponent-ed',
+    'apps/ui/src/features/auth/LoginView.vue:ssoHref(p.id)',
+    'ssoHref builds a same-origin PATH literal, so the origin and scheme are fixed by the code and no argument can move the navigation off this site; `p` is one of the providers the server listed, so its id comes from this deployment\'s own config, and both interpolations are encodeURIComponent-ed',
   ],
   [
     'apps/ui/src/features/auth/LoginView.vue:ssoHref(ssoChoice)',

@@ -134,15 +134,42 @@ export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): v
   const fail = (reply: FastifyReply, reason: string): FastifyReply =>
     reply.redirect(`${uiBasePath(cfg())}/login?sso_error=${encodeURIComponent(reason)}`, 302);
 
-  app.get('/api/auth/oidc/providers', async (_req, reply) =>
-    reply.send({
-      providers: cfg().auth.sso.providers.map((p) => ({
+  /**
+   * What the login page can offer: the SSO buttons, and whether a password box
+   * is worth drawing at all.
+   *
+   * An SSO-only deployment has no local users and no directory, so every
+   * username it could be given is rejected — a form that cannot succeed is an
+   * invitation to fail, and on a shared login page it reads as "your account
+   * should work here" to people whose accounts never will.
+   *
+   * `passwordLogin` is deliberately about CONFIGURATION, not about whether a
+   * particular person could sign in: an LDAP directory is a password backend
+   * even when it is unreachable, and the box stays so the failure is reported
+   * where the operator can act on it.
+   */
+  app.get('/api/auth/oidc/providers', async (_req, reply) => {
+    const c = cfg();
+    // A directory counts only when one is CONFIGURED. `backend: ldap` with no
+    // `auth.ldap` block is refused at the login route itself — the same test
+    // this makes (`backend === 'ldap' && auth.ldap`) — so advertising the box
+    // on the backend name alone put up a form that rejects every credential it
+    // is given, which is the thing hiding it exists to prevent.
+    //
+    // A configured directory that is merely UNREACHABLE still counts: the
+    // break-glass account is the way back in while it is down, and that is
+    // exactly when the box must stay.
+    const ldapConfigured = c.auth.backend === 'ldap' && !!c.auth.ldap;
+    const passwordLogin = ldapConfigured || c.auth.local.users.length > 0;
+    return reply.send({
+      passwordLogin,
+      providers: c.auth.sso.providers.map((p) => ({
         id: p.id,
         displayName: p.displayName || p.id,
         icon: p.icon,
       })),
-    }),
-  );
+    });
+  });
 
   app.get('/api/auth/oidc/start', async (req, reply) => {
     const config = cfg();

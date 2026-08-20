@@ -27,7 +27,7 @@ import { configSchema } from '../../config/schema.js';
 import type { ConfigSource } from '../../config/loader.js';
 import { buildTools } from '../lib/registry.js';
 import { createCaptureContext } from './capture.js';
-import { listToolDefs, callTool, CARDS_META_KEY, slimForTransport, clampWindow } from './tools.js';
+import { listToolDefs, callTool, PAYLOAD_KEY, clampWindow, cardEnvelope } from './tools.js';
 import { surfaceFor } from './server.js';
 
 const config = { current: configSchema.parse({}) } as ConfigSource;
@@ -37,6 +37,12 @@ const byName = (n: string): (typeof defs)[number] | undefined => defs.find((d) =
 const props = (n: string): string[] => Object.keys((byName(n)?.inputSchema.properties ?? {}) as object);
 
 describe('the MCP tool surface is the shared registry, plus a time window', () => {
+  /**
+   * The registry is the single tool list, so CAPABILITY cannot diverge between
+   * the chat panel and MCP. Nothing MCP-only belongs here — not even a
+   * presentation helper, since Horizon draws for no client that cannot draw for
+   * itself.
+   */
   it('exposes every registry tool and nothing else', () => {
     const { ctx } = createCaptureContext({ ...deps, windowMinutes: 60, step: 'MINUTE' });
     expect(defs.map((d) => d.name).sort()).toEqual(buildTools(ctx).map((t) => t.name).sort());
@@ -124,75 +130,102 @@ describe('a tool call that cannot run answers, rather than failing the transport
   });
 });
 
-describe('cards travel on the host channel, and a slimmed copy on the model one', () => {
+describe('the capture travels once, on the channel every client forwards', () => {
   /**
-   * The previous version of this asserted `structuredContent` was never set,
-   * and proved it with `get_playbook` — a tool that emits no cards, so it held
-   * whatever the code did. It now states the real contract: `_meta` carries the
-   * full card for the renderer, `structuredContent` a slimmed copy for hosts
-   * that strip `_meta`, and spans (98.5% of a trace card) are what gets cut.
+   * It used to ride twice — full in `_meta`, span-stripped in
+   * `structuredContent`. That put the GOOD copy on the LESS reliable channel:
+   * `_meta` is implementation metadata and a client need not pass it on, so a
+   * host that dropped it lost every span waterfall while the trace list still
+   * rendered — which looks like working software.
    */
-  it('carries a tool with no cards on neither channel', async () => {
+  /**
+   * Every tool declares an output schema, and MCP requires a tool that declares
+   * one to RETURN structured content — the reference client throws
+   * `InvalidRequest` otherwise. So there is no such thing here as a reply with
+   * no envelope; a prose answer carries its sentence as a string `data`.
+   */
+  it('carries an envelope even for a tool that emits no cards', async () => {
     const r = await callTool(deps, 'get_playbook', { id: 'latency' });
-    expect(r.structuredContent).toBeUndefined();
+    const envelope = (r.structuredContent as Record<string, { tool: string; data: unknown }>)[PAYLOAD_KEY];
+    expect(envelope.tool).toBe('get_playbook');
+    expect(typeof envelope.data).toBe('string');
     expect(r._meta).toBeUndefined();
   });
 
-  it('strips spans from the model-facing copy and leaves the host copy whole', () => {
-    const span = { spanId: 1, tags: Array.from({ length: 40 }, (_, i) => `t${i}`) };
-    const card = { type: 'traces', spec: { replayData: { traces: [{ traceId: 'a', spans: [span, span] }] } } };
-    const slim = slimForTransport([card as never])[0] as unknown as typeof card;
-    expect(slim.spec.replayData.traces[0].spans).toBeUndefined();
-    // The source card is untouched — the host still gets every span.
-    expect(card.spec.replayData.traces[0].spans).toHaveLength(2);
-    expect(JSON.stringify(slim).length).toBeLessThan(JSON.stringify(card).length);
-  });
-
-  // Only trace-shaped cards carry spans; slimming anything else would lose data
-  // the widget needs and save nothing.
-  it('passes every other card kind through untouched', () => {
-    const card = { type: 'topology', spec: { replayData: { nodes: [1, 2, 3] } } };
-    expect(slimForTransport([card as never])[0]).toBe(card);
-  });
-
-  it('namespaces the _meta key it does use', () => {
-    expect(CARDS_META_KEY).toBe('org.apache.skywalking.horizon/cards');
+  it('namespaces the key it does use', () => {
+    expect(PAYLOAD_KEY).toBe('org.apache.skywalking.horizon/payload');
   });
 
   /**
    * A tool that returns structured output has to SAY what shape it is — a host
-   * that validates against the declaration rejects an undeclared payload, and
-   * this test previously enforced the omission, so the whole GUI integration
-   * could have been turned away by a conforming host.
+   * that validates against the declaration rejects an undeclared payload.
    *
-   * The pairing is what matters, in both directions: every card tool declares
-   * one, and no other tool does, because a schema a tool never satisfies is the
-   * same defect the other way round.
+   * EVERY tool declares one now. Half of them answer with rows rather than a
+   * card, and those used to stringify the rows into `content` and stop, which
+   * left the model parsing JSON out of prose and the renderer unable to find
+   * them at all.
    */
-  it('declares an outputSchema for exactly the tools that return one', () => {
-    const declared = defs.filter((d) => d.outputSchema).map((d) => d.name).sort();
-    const emitting = defs.filter((d) => d.emitsCard).map((d) => d.name).sort();
-    expect(declared).toEqual(emitting);
-    expect(declared.length).toBeGreaterThan(0);
+  it('declares an outputSchema for every tool', () => {
+    const undeclared = defs.filter((d) => !d.outputSchema).map((d) => d.name);
+    expect(undeclared).toEqual([]);
+    expect(defs.length).toBeGreaterThan(20);
   });
 
-  it('describes the channel the cards actually arrive on', async () => {
-    const card = defs.find((d) => d.emitsCard)!;
-    const props = (card.outputSchema as { properties: Record<string, unknown> }).properties;
-    expect(Object.keys(props)).toEqual([CARDS_META_KEY]);
+  /**
+   * ONE key and ONE shape for both kinds. There were two, and the shapes
+   * differed — an array under one, a labelled object under the other — which is
+   * two structures for one idea, learnt twice and misread once.
+   */
+  it('declares one envelope, the same for every tool', () => {
+    const keyOf = (d: (typeof defs)[number]): string[] =>
+      Object.keys((d.outputSchema as { properties: Record<string, unknown> }).properties);
+    expect(keyOf(defs.find((d) => d.emitsCard)!)).toEqual([PAYLOAD_KEY]);
+    expect(keyOf(defs.find((d) => !d.emitsCard)!)).toEqual([PAYLOAD_KEY]);
+  });
+
+
+  /**
+   * A tool answering with rows now puts them where the model and the renderer
+   * both look, instead of stringifying them into prose.
+   */
+  it('carries a data tool’s rows in the same envelope a card tool uses', async () => {
+    const r = await callTool(deps, 'list_playbooks', {});
+    const envelope = (r.structuredContent as Record<string, { tool: string; data: unknown; kind?: string }>)?.[
+      PAYLOAD_KEY
+    ];
+    expect(envelope?.tool).toBe('list_playbooks');
+    expect(Array.isArray(envelope?.data)).toBe(true);
+    // No `kind`: a tool answering with plain rows has no block to name, and the
+    // tool name is what says how to read them.
+    expect(envelope?.kind).toBeUndefined();
+  });
+
+  /**
+   * Prose stays PROSE — unchanged, not tabulated. It rides in `data` as the
+   * string it is, so a client that validates the declared schema accepts the
+   * reply and a renderer prints the sentence verbatim.
+   */
+  it('keeps a prose answer intact in both channels', async () => {
+    const r = await callTool(deps, 'get_playbook', { id: 'latency' });
+    const envelope = (r.structuredContent as Record<string, { data: unknown }>)[PAYLOAD_KEY];
+    expect(envelope.data).toBe(r.content[0].text);
+    expect(r.content[0].text.length).toBeGreaterThan(20);
   });
 
   // A schema is a contract, so the payload has to satisfy it. Checked against a
   // real call rather than a hand-written fixture.
+  /**
+   * The earlier version of this called `show_hierarchy`, returned early when
+   * there was no OAP, and then asserted the PRE-SPLIT shape — so it could not
+   * fail on any machine, and would not have caught the split if it had run.
+   * A tool that needs no backend proves the same contract.
+   */
   it('returns structuredContent matching the shape it declared', async () => {
-    const r = await callTool(deps, 'show_hierarchy', { layer: 'GENERAL' });
-    if (!r.structuredContent) return; // no OAP in a unit run; the shape below is what matters when there is
-    const cards = (r.structuredContent as Record<string, unknown>)[CARDS_META_KEY];
-    expect(Array.isArray(cards)).toBe(true);
-    for (const c of cards as Array<Record<string, unknown>>) {
-      expect(typeof c.type).toBe('string');
-      expect(typeof c.n).toBe('number');
-    }
+    const r = await callTool(deps, 'list_playbooks', {});
+    const envelope = (r.structuredContent as Record<string, Record<string, unknown>>)[PAYLOAD_KEY];
+    expect(envelope).toBeDefined();
+    expect(envelope.tool).toBe('list_playbooks');
+    expect(Array.isArray(envelope.data)).toBe(true);
   });
 });
 
@@ -322,5 +355,130 @@ describe('a tool that emits a card must declare it', () => {
       }
     }
     expect(undeclared, 'these call ctx.emit… but do not declare EMITS_CARD').toEqual([]);
+  });
+});
+
+describe('every reply satisfies the schema its own tool declares', () => {
+  /**
+   * The check that was missing, and the reason two protocol breaks got past a
+   * live smoke test: raw curl accepts anything, while an SDK-built client
+   * validates `structuredContent` against the declared `outputSchema` and
+   * REFUSES the reply on a mismatch. A prose answer with no envelope, and a
+   * proposal with no `data`, were each rejected outright — turning the
+   * sentences that matter most, and one whole tool, into transport errors.
+   *
+   * The two rules the SDK enforces and that both breaks violated: a declared
+   * schema means structured content MUST be returned, and the payload must
+   * satisfy `required` without adding a property `additionalProperties: false`
+   * forbids. Checked directly rather than through a JSON-schema library, which
+   * is a transitive dependency here and not one this package declares.
+   */
+  const envelopeSchema = (name: string): { required: string[]; properties: Record<string, unknown> } => {
+    const schema = listToolDefs(deps).find((d) => d.name === name)?.outputSchema as {
+      properties: Record<string, { required: string[]; properties: Record<string, unknown> }>;
+    };
+    return schema.properties[PAYLOAD_KEY];
+  };
+
+  const breaks = (payload: Record<string, unknown>, name: string): string[] => {
+    const { required, properties } = envelopeSchema(name);
+    return [
+      ...required.filter((k) => payload[k] === undefined).map((k) => `missing required "${k}"`),
+      ...Object.keys(payload).filter((k) => !(k in properties)).map((k) => `undeclared "${k}"`),
+    ];
+  };
+
+  it.each([
+    ['get_playbook', { id: 'latency' }],
+    ['list_playbooks', {}],
+    ['list_alarms', {}],
+  ])('%s returns structured content matching its declaration', async (name, args) => {
+    expect(listToolDefs(deps).find((d) => d.name === name)?.outputSchema).toBeDefined();
+    const r = await callTool(deps, name, args as Record<string, unknown>);
+    expect(r.structuredContent, `${name} declared a schema and returned nothing`).toBeDefined();
+    const payload = (r.structuredContent as Record<string, Record<string, unknown>>)[PAYLOAD_KEY];
+    expect(payload, `${name} used a key its schema does not declare`).toBeDefined();
+    expect(breaks(payload, name)).toEqual([]);
+  });
+
+  /**
+   * A proposal carries no readings — nothing has run — so `data` is genuinely
+   * absent. The schema marked it required, which made the whole tool unusable
+   * on a validating client.
+   */
+  it('accepts a payload with no readings at all', () => {
+    const proposal = { tool: 'propose_profiling', kind: 'proposal', capturedAt: 1, spec: { cause: 'c' } };
+    expect(breaks(proposal, 'propose_profiling')).toEqual([]);
+  });
+});
+
+describe('the wire contract, which 1.0.0 freezes', () => {
+  /**
+   * Horizon has not released, so this branch could reshape the envelope freely
+   * — and did, several times. From 1.0.0 it is a published API: agents are
+   * configured against it, saved renderers are addressed by content hash, and a
+   * field that quietly changes meaning breaks a client nobody here can see.
+   *
+   * This is not a schema test — `outputSchema` is checked above. It is a
+   * TRIPWIRE. Changing the envelope means editing this list, which turns a
+   * rename or a dropped field into a deliberate act with a reviewer attached,
+   * rather than a diff that happens to still compile.
+   */
+  const ENVELOPE = ['tool', 'kind', 'capturedAt', 'offsetMinutes', 'layer', 'spec', 'data'] as const;
+
+  it('names exactly the keys 1.0.0 publishes', () => {
+    const schema = listToolDefs(deps).find((d) => d.emitsCard)?.outputSchema as {
+      properties: Record<string, { properties: Record<string, unknown>; required: string[] }>;
+    };
+    const envelope = schema.properties[PAYLOAD_KEY];
+    expect(Object.keys(envelope.properties).sort()).toEqual([...ENVELOPE].sort());
+    // `tool` alone is mandatory: a proposal carries no readings, and every
+    // other field is absent in some legitimate reply.
+    expect(envelope.required).toEqual(['tool']);
+  });
+
+  /**
+   * Without it the renderer drew UTC while six mappers labelled the output
+   * "OAP-server local" — a wrong time, stated confidently, on a server in any
+   * zone but UTC. Nothing wrote the field; nothing noticed.
+   */
+  it('carries the OAP offset, which every instant in the payload is in', () => {
+    const card = { type: 'hierarchy', n: 1, capturedAt: 7, spec: { layer: 'GENERAL' } } as never;
+    expect(cardEnvelope('show_hierarchy', card, 480, 'GENERAL')).toMatchObject({ offsetMinutes: 480 });
+  });
+
+  /**
+   * The envelope names the NORMALISED layer. Echoing the caller's spelling made
+   * it say "general" while `spec.layer` in the same object said "GENERAL", so
+   * two captures of one layer did not compare equal.
+   */
+  it('normalises the layer, and prefers what the card itself says', () => {
+    const card = { type: 'hierarchy', n: 1, spec: { layer: 'GENERAL' } } as never;
+    expect(cardEnvelope('show_hierarchy', card, 0, 'general')).toMatchObject({ layer: 'GENERAL' });
+    const noLayer = { type: 'figure', n: 1, figures: [] } as never;
+    expect(cardEnvelope('show_figure', noLayer, 0, 'mesh')).toMatchObject({ layer: 'MESH' });
+  });
+
+  it('publishes one key, under the project’s own namespace', () => {
+    expect(PAYLOAD_KEY).toBe('org.apache.skywalking.horizon/payload');
+    const keys = new Set(
+      listToolDefs(deps)
+        // The presentation tool returns text and declares no schema; every tool
+        // that DOES declare one must publish this key and no other.
+        .filter((d) => d.outputSchema)
+        .flatMap((d) => Object.keys((d.outputSchema as { properties: Record<string, unknown> }).properties)),
+    );
+    expect([...keys]).toEqual([PAYLOAD_KEY]);
+  });
+
+  /**
+   * The card address is part of the contract: a host saves it against its hash
+   * and reuses it for a conversation, so the SCHEME may not drift even if the
+   * hash does.
+   */
+  it('keeps the card address scheme', async () => {
+    const { mcpAppBundle } = await import('./resource.js');
+    const uri = mcpAppBundle()?.uri;
+    if (uri) expect(uri).toMatch(/^ui:\/\/horizon\/app\/[0-9a-f]{12}$/);
   });
 });

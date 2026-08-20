@@ -26,13 +26,8 @@
 
 import type { AiConfig } from '../../config/schema.js';
 import { readResource } from '../lib/skills/loader.js';
-import { bundledSystemPrompt, systemPromptWithOverride } from '../lib/skills/prompt.js';
+import { systemPromptWithOverride } from '../lib/skills/prompt.js';
 
-/** The panel's bundled prompt: the shared core plus the PANEL presentation
- *  section. Assembly and the cache invariant live in `lib/skills/prompt.ts`,
- *  since MCP needs the same core with a different presentation. Situational
- *  guidance (the RCA playbooks) is NOT here; it is retrieved on demand. */
-export const BUNDLED_SYSTEM_PROMPT: string = bundledSystemPrompt('panel');
 
 /** The bundled starter chips — `ai/lib/skills/starters.json`. */
 export const BUNDLED_STARTERS: string[] = JSON.parse(readResource('starters.json')) as string[];

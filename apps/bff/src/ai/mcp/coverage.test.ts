@@ -16,99 +16,159 @@
  */
 
 /**
- * Every card kind is accounted for over MCP — either it renders itself into the
- * text the model reads, or it is deliberately silent because its tool already
- * returned the same information as prose.
+ * Every card kind tells the model how to read it.
  *
- * The point is that a NEW card kind cannot be added without deciding which it
- * is. Without this, a kind added later inherits `null` from the default branch
- * and an agent silently receives a tool reply with the data missing.
+ * The model now analyses the RAW payload rather than a summary written for it,
+ * which is the right trade — a summary only answers the questions whoever wrote
+ * it thought of — but it moves a burden: the rows have to be self-describing,
+ * and some of them are not guessable. A metric map keyed by ids defined
+ * elsewhere in the same payload, a self-time field beside a total-time one, a
+ * Zipkin timestamp in microseconds where the native one is in milliseconds —
+ * each is a wrong reading waiting to happen.
+ *
+ * So a kind added to the union without a note here fails this, rather than
+ * reaching a model as undocumented JSON it will interpret confidently.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { describeCard } from './content.js';
-import type { GraphicCard } from '../lib/graphic-card.js';
+import { cardPrompt } from '../lib/skills/loader.js';
+import { buildTools } from '../lib/registry.js';
+import { createCaptureContext } from './capture.js';
+import { configSchema } from '../../config/schema.js';
 
-/**
- * `renders` — describeCard adds what the tool reply does not carry.
- * `tool-text` — the tool already returns the metrics as prose (all five map
- * cards do), so adding a weaker restatement costs tokens to say less.
- */
-const KINDS: Record<string, 'renders' | 'tool-text'> = {
-  figure: 'renders',
-  traces: 'renders',
-  'zipkin-traces': 'renders',
-  logs: 'renders',
-  'browser-errors': 'renders',
-  hierarchy: 'renders',
-  podlogs: 'renders',
-  proposal: 'renders',
-  topology: 'tool-text',
-  deployment: 'tool-text',
-  'instance-topology': 'tool-text',
-  'endpoint-dependency': 'tool-text',
-  'process-topology': 'tool-text',
-  profiling: 'tool-text',
-};
+const CARD_SRC = new URL('../lib/graphic-card.ts', import.meta.url);
 
-/** A card of `kind` carrying the least its renderer needs. */
-function sample(kind: string): GraphicCard {
-  const base = { type: kind, n: 1, capturedAt: Date.UTC(2026, 7, 18) };
-  switch (kind) {
-    case 'figure':
-      return { ...base, figures: [{ spec: { title: 'rt', type: 'card', expressions: ['x'] }, result: { value: 5 } }] } as unknown as GraphicCard;
-    case 'traces':
-      return { ...base, spec: { title: 't', layer: 'L', service: 's', replayData: { native: { traces: [
-        { key: 'a', segmentId: 's1', endpointNames: ['/e'], duration: 9, start: '1787000000000', isError: true, traceIds: ['t1'] }] } } } } as unknown as GraphicCard;
-    case 'zipkin-traces':
-      return { ...base, spec: { title: 't', layer: 'L', service: 's', replayData: { traces: [
-        { traceId: 'z1', rootName: 'GET /x', rootService: 'svc', timestamp: 1787000000000000, duration: 9000, spanCount: 3, errorCount: 1 }] } } } as unknown as GraphicCard;
-    case 'logs':
-      return { ...base, spec: { title: 'l', layer: 'L', service: 's', replayData: { logs: [
-        { serviceName: 's', serviceInstanceName: 'i', endpointName: null, traceId: null, timestamp: 1787000000000, contentType: 'text/plain', content: 'boom', tags: [] }] } } } as unknown as GraphicCard;
-    case 'browser-errors':
-      return { ...base, spec: { title: 'b', layer: 'L', service: 's', replayData: { logs: [
-        { service: 's', serviceVersion: '1', time: 1787000000000, pagePath: '/p', category: 'JS', grade: null, message: 'x is not a function', line: 4, col: 2, stack: null, errorUrl: null, firstReportedError: true }] } } } as unknown as GraphicCard;
-    case 'hierarchy':
-      return { ...base, spec: { title: 'h', service: 's', groups: [{ layer: 'MESH', peers: [{ name: 'p' }] }] } } as unknown as GraphicCard;
-    case 'podlogs':
-      return { ...base, spec: { title: 'p', container: 'c', pod: 'pod-1', initialLines: [{ content: 'line' }] } } as unknown as GraphicCard;
-    case 'proposal':
-      return { ...base, spec: { kind: 'profiling', profilingType: 'trace', layer: 'L', service: 's', durationMinutes: 10,
-        cause: 'c', rationale: 'r', expectation: 'e' } } as unknown as GraphicCard;
-    default:
-      return { ...base, spec: { title: kind, service: 's', layer: 'L' } } as unknown as GraphicCard;
-  }
+/** The kinds the BFF can emit, read from the union rather than restated. */
+function emittedKinds(): string[] {
+  const src = readFileSync(CARD_SRC, 'utf8');
+  // Only the GraphicCard union — `StreamEvent` below it adds the control events
+  // (token / thinking / …), which are not cards and carry no payload.
+  const union = /export type GraphicCard =([\s\S]*?);\n/.exec(src)?.[1] ?? '';
+  return [...new Set([...union.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]))].sort();
 }
 
-describe('every card kind is accounted for in what the model reads', () => {
-  it.each(Object.entries(KINDS))('%s → %s', (kind, expected) => {
-    const out = describeCard(sample(kind));
-    if (expected === 'renders') {
-      expect(out, `${kind} must render something the tool reply does not carry`).toBeTruthy();
-      expect(out!.length).toBeGreaterThan(10);
-    } else {
-      expect(out, `${kind}'s tool already returns its metrics as prose`).toBeNull();
-    }
+describe('every card kind the BFF can emit is documented for the model', () => {
+  const kinds = emittedKinds();
+
+  it('finds the union, so a rename cannot make this vacuous', () => {
+    expect(kinds.length).toBeGreaterThan(10);
   });
 
-  // The list that has to be maintained. A kind added to the union without a
-  // decision here fails this, rather than silently reaching the model empty.
-  it('covers every kind the BFF can emit', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.readFileSync(new URL('../lib/graphic-card.ts', import.meta.url), 'utf8'));
-    // Only the GraphicCard union — `StreamEvent` below it adds the control
-    // events (token / thinking / …), which are not cards and render nothing.
-    const union = /export type GraphicCard =([\s\S]*?);\n/.exec(src)?.[1] ?? '';
-    const emitted = [...union.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]);
-    expect(emitted.length).toBeGreaterThan(10);
-    expect([...new Set(emitted)].sort()).toEqual(Object.keys(KINDS).sort());
+  it.each(emittedKinds())('%s has a structure note', (kind) => {
+    const note = cardPrompt(kind);
+    expect(note.length, `${kind}'s note is too short to say anything`).toBeGreaterThan(80);
   });
 
-  // The card kinds a public demo cannot produce still have to render honestly.
-  it('renders a no-data capture as a no-data statement, never as zero', () => {
-    const empty = { type: 'figure', n: 1, figures: [
-      { spec: { title: 'rt', type: 'card', expressions: ['x'] }, result: { value: null } }] } as unknown as GraphicCard;
-    expect(describeCard(empty)).toContain('no value in the captured window');
+  /**
+   * Structure, never per-deployment facts. Naming a metric id here would work
+   * on the demo and mislead on any layer an operator authored — the same drift
+   * the layer-template rule exists to prevent, one level down.
+   */
+  /**
+   * An OAP metric id is lowercase words joined by underscores behind a scope
+   * prefix — `service_cpm`, `endpoint_sla`, `k8s_service_pod_status_restarts_total`.
+   * Matching the SHAPE catches any of them; the previous list of four bare
+   * words could not match one at all, because `\b` finds no boundary beside an
+   * underscore, so `\bcpm\b` never fired against `service_cpm`.
+   */
+  const METRIC_ID = /\b(?:service|endpoint|instance|process|browser_app|meter|k8s_service|kubernetes_service)_[a-z0-9]+(?:_[a-z0-9]+)*\b/;
+
+  it.each(emittedKinds())('%s describes shape rather than naming a metric', (kind) => {
+    const found = METRIC_ID.exec(cardPrompt(kind));
+    expect(found?.[0], `${kind}'s note names the metric id "${found?.[0]}" — that varies per layer`).toBeUndefined();
+  });
+
+  // The guard is only worth having if it fires, and the last one could not.
+  it('the metric-id guard actually matches a real id', () => {
+    expect(METRIC_ID.test('read the value from service_cpm')).toBe(true);
+    expect(METRIC_ID.test('k8s_service_pod_status_restarts_total')).toBe(true);
+    // Field paths and camelCase names are not metric ids.
+    expect(METRIC_ID.test('data.series[].label and config.nodeMetrics')).toBe(false);
+  });
+
+  // Whether a note names the RIGHT trap is a review judgement, and two attempts
+  // at asserting it mechanically both produced proxies a note could satisfy
+  // without improving — a word-presence check, then a field-path count that the
+  // notes started being bent to satisfy. The rule lives in the yaml's header
+  // where a reviewer reads it; what is checked here is presence and drift.
+  it('has no note for a kind that does not exist', () => {
+    expect(() => cardPrompt('not-a-card')).toThrow(/cards\.yaml/);
+  });
+});
+
+/**
+ * Every kind also has a FORM.
+ *
+ * `cards.yaml` says how to READ a payload; the terminal presentation says what
+ * to turn it into — a table, a tree, prose. Horizon draws nothing for a
+ * terminal any more, so a kind with no form leaves the agent to invent one,
+ * and the inventions are the ASCII charts this replaced.
+ */
+describe('every card kind has a presentation form for a client with no frame', () => {
+  const PRESENTATION = new URL('../lib/skills/presentation.terminal.md', import.meta.url);
+  const prose = readFileSync(PRESENTATION, 'utf8').toLowerCase();
+
+  /** What names the kind in the prose — the form is described in English, not
+   *  by the wire tag, so a plain substring of the tag would not find it. */
+  const NAMED_BY: Record<string, string> = {
+    figure: 'time series',
+    topology: 'maps are tables',
+    deployment: 'maps are tables',
+    'instance-topology': 'maps are tables',
+    'endpoint-dependency': 'maps are tables',
+    'process-topology': 'process',
+    profiling: 'profiling',
+    traces: 'traces',
+    'zipkin-traces': 'zipkin',
+    logs: 'logs are lists',
+    'browser-errors': 'browser',
+    podlogs: 'pod log',
+    hierarchy: 'hierarchy',
+    proposal: 'propose_profiling',
+  };
+
+  it.each(emittedKinds())('%s has a form', (kind) => {
+    const needle = NAMED_BY[kind];
+    expect(needle, `${kind} is not in NAMED_BY — add it and give it a form`).toBeDefined();
+    expect(prose, `${kind} has no presentation form`).toContain(needle);
+  });
+
+  // The prompt is token-costed on every request, and a per-kind list is exactly
+  // the shape that grows without anyone noticing.
+  it('stays short enough to ship on every request', () => {
+    expect(prose.split(/\s+/).length).toBeLessThan(1200);
+  });
+});
+
+/**
+ * Every tool is in the tool guide.
+ *
+ * `skills.md` is what tells the model a tool EXISTS and when to reach for it,
+ * and a tool absent from it is a capability nothing will ever use. Adding
+ * `show_layer_topology` and leaving the guide alone is exactly how that
+ * happens — the tool worked, the schema was right, and no prompt mentioned it.
+ *
+ * It checks PRESENCE, not quality: a passing cross-reference from another
+ * tool's entry satisfies it. That is the honest limit of a mechanical check
+ * here, and whether an entry actually explains the tool stays a review
+ * judgement — two attempts at asserting more precise shapes produced proxies
+ * the prose could satisfy without improving.
+ */
+describe('every tool the registry exposes is in the tool guide', () => {
+  const GUIDE = new URL('../lib/skills/skills.md', import.meta.url);
+  const guide = readFileSync(GUIDE, 'utf8');
+
+  it('names each one', () => {
+    const { ctx } = createCaptureContext({
+      config: { current: configSchema.parse({}) } as never,
+      offsetMinutes: 0,
+      windowMinutes: 60,
+      step: 'MINUTE',
+    } as never);
+    const missing = buildTools(ctx)
+      .map((t) => t.name)
+      .filter((n) => !guide.includes(n));
+    expect(missing, `not documented in skills.md: ${missing.join(', ')}`).toEqual([]);
   });
 });

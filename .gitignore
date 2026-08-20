@@ -70,3 +70,7 @@ e2e-logs/
 # The ui:// MCP card bundle — a build artifact (`pnpm build:mcp-app`), not source.
 apps/ui/dist-mcp-app/
 apps/bff/src/ai/mcp/app/
+
+# The terminal renderer a client downloads and runs — a build artifact
+# (`pnpm build:terminal-render`), not source.
+apps/bff/src/ai/terminal/bundle/

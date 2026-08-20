@@ -30,7 +30,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { GraphicCard } from './card';
-import { toBlock } from './card';
+import { rebuildCard, toBlock } from './card';
 import ChatFigureBlock from '@/ai/ChatFigureBlock.vue';
 import ChatProposalBlock from '@/ai/ChatProposalBlock.vue';
 import ChatProfilingBlock from '@/ai/ChatProfilingBlock.vue';
@@ -48,7 +48,7 @@ import ChatBrowserErrorsBlock from '@/ai/ChatBrowserErrorsBlock.vue';
 
 const cards = ref<GraphicCard[]>([]);
 const root = ref<HTMLElement | null>(null);
-const blocks = computed(() => cards.value.map(toBlock));
+const blocks = computed(() => cards.value.map((c, i) => toBlock(c, i + 1)));
 
 /**
  * A record of what this host actually did, shown in place of the empty state.
@@ -90,25 +90,39 @@ type Rpc = {
   result?: Record<string, unknown>;
 };
 
-const CARDS_KEY = 'org.apache.skywalking.horizon/cards';
+const PAYLOAD_KEY = 'org.apache.skywalking.horizon/payload';
 const PROTOCOL_VERSION = '2026-01-26';
 const INIT_ID = 1;
 
-/** Cards from a CallToolResult, wherever this host actually put them.
+/** Cards from a CallToolResult.
  *
- *  `_meta` is the spec's widget-only channel and carries the FULL payload;
- *  `structuredContent` is the portable fallback, because OpenAI hosts have a
- *  known defect stripping `_meta` and their own guidance is not to depend on
- *  it alone. Preferring `_meta` means the richer copy wins where it survives. */
+ *  ONE copy, in `structuredContent` — the channel every client forwards, rather
+ *  than `_meta`, which a client is free to drop. A host that dropped it would
+ *  lose every span waterfall while the trace LIST still rendered, which looks
+ *  like working software. */
 function readCards(res: Record<string, unknown> | undefined): GraphicCard[] | null {
-  if (!res) return null;
-  const meta = res._meta as Record<string, unknown> | undefined;
+  // ALWAYS report what arrived, never only when a guess fails. "payload
+  // channels: …=none" says a lookup missed and nothing about what was actually
+  // delivered, so the same line appeared whether the host sent a wrapper we did
+  // not know, an empty result, or nothing at all — three different faults,
+  // one indistinguishable symptom.
+  if (!res) {
+    note('tool-result had no body at all');
+    return null;
+  }
+  note(`tool-result keys: ${Object.keys(res).join(', ') || '(empty object)'}`);
   const structured = res.structuredContent as Record<string, unknown> | undefined;
-  const from: Array<[string, unknown]> = [
-    ['_meta', meta?.[CARDS_KEY]],
-    ['structuredContent', structured?.[CARDS_KEY]],
-    ['structuredContent.cards', structured?.cards],
-  ];
+  if (structured) note(`structuredContent keys: ${Object.keys(structured).join(', ') || '(empty)'}`);
+  // The flat envelope: one block, unwrapped. `n` is not on it — the position of
+  // a block within a conversation is something only THIS side knows, since it
+  // is the one accumulating them; the server's copy was always 1.
+  const envelope = structured?.[PAYLOAD_KEY] as
+    | { kind?: string; capturedAt?: number; spec?: Record<string, unknown>; data?: unknown }
+    | undefined;
+  if (structured && !envelope) note(`no "${PAYLOAD_KEY}" in structuredContent`);
+  if (envelope && !envelope.kind) note(`envelope present but carries no kind: ${Object.keys(envelope).join(', ')}`);
+  const flat = envelope?.kind ? [rebuildCard(envelope)] : undefined;
+  const from: Array<[string, unknown]> = [['structuredContent.payload', flat]];
   note(`payload channels: ${from.map(([k, v]) => `${k}=${Array.isArray(v) ? v.length : 'none'}`).join(' ')}`);
   for (const [where, raw] of from) {
     if (Array.isArray(raw) && raw.length) {
@@ -146,7 +160,19 @@ function onMessage(ev: MessageEvent): void {
   }
   if (msg.method === 'ui/notifications/tool-result') {
     note('tool-result arrived');
-    const next = readCards(msg.params);
+    // The notification WRAPS the CallToolResult, and hosts disagree on the
+    // wrapper's name. Reading `params` as though it were the result itself
+    // found nothing on Codex while the handshake succeeded — a mounted widget
+    // that stays empty, which reads as our renderer failing rather than as a
+    // payload that never arrived.
+    const p = msg.params as Record<string, unknown> | undefined;
+    const carried =
+      (p?.result as Record<string, unknown> | undefined) ??
+      (p?.toolResult as Record<string, unknown> | undefined) ??
+      (p?.output as Record<string, unknown> | undefined) ??
+      p;
+    if (p && !p.structuredContent) note(`tool-result wrapper keys: ${Object.keys(p).join(', ') || '(none)'}`);
+    const next = readCards(carried);
     if (next) cards.value = next;
     else note('tool-result carried no cards in any known channel');
     return;
@@ -296,7 +322,7 @@ onUnmounted(() => {
       <p class="waiting-title">Waiting for data from the host…</p>
       <pre class="waiting-trace">{{ trace.join('\n') }}</pre>
       <p class="waiting-foot">
-        Horizon sends cards in both <code>_meta</code> and <code>structuredContent</code>.
+        Horizon sends the capture in <code>structuredContent</code>, under one key.
         If nothing is listed above, this host has not completed the MCP Apps handshake.
       </p>
     </section>

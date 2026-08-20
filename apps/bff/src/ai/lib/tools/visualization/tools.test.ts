@@ -165,6 +165,25 @@ describe('visualization render tools', () => {
     expect(lineOut).toContain('last ≈ 3');
   });
 
+  /**
+   * A status-code widget sends five series and the first one — 1xx — is usually
+   * all nulls. Summarising series[0] alone announced "last ≈ n/a" for a widget
+   * carrying real traffic on the other four, and that sentence is what an agent
+   * reads before it opens the payload.
+   */
+  it('summarizes a multi-series line across every series, not just the first', async () => {
+    const tools = byName(mockCtx().ctx);
+    runWidgetsMock.mockResolvedValueOnce({
+      widgets: [{ id: 'ai_fig', series: [{ data: [null, null, null] }, { data: [7, 8, 9] }] }],
+    });
+    const out = String(await tools.show_figure.invoke({ ...base, type: 'line', expressions: ['a', 'b'] }));
+    expect(out).toContain('2 series');
+    expect(out).toContain('1 with values');
+    expect(out).toContain('3 points');
+    expect(out).toContain('last ≈ 9');
+    expect(out).not.toContain('n/a');
+  });
+
   it('show_hierarchy orders layers request-near first (level DESC) and keeps the focus', async () => {
     getHierarchy.mockResolvedValue({
       reachable: true,
@@ -192,7 +211,7 @@ describe('visualization render tools', () => {
     expect(spec.replayData).toBeDefined();
   });
 
-  it('show_topology runs the depth-1 builder and emits the ego graph + snapshot', async () => {
+  it('show_topology emits the ego graph + snapshot', async () => {
     buildTopo.mockResolvedValue({
       layer: 'GENERAL',
       service: 'svc-1',
@@ -216,7 +235,7 @@ describe('visualization render tools', () => {
     });
     const { ctx, emitTopology } = mockCtx();
     const out = String(await byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs' }));
-    expect(buildTopo).toHaveBeenCalledWith(expect.objectContaining({ layerKey: 'GENERAL', serviceArg: 'svc-1', depth: 1 }));
+    expect(buildTopo).toHaveBeenCalledWith(expect.objectContaining({ layerKey: 'GENERAL', serviceArg: 'svc-1' }));
     const spec = emitTopology.mock.calls[0][0] as {
       upstream: Array<{ name: string }>;
       downstream: Array<{ name: string; isReal: boolean }>;
@@ -227,6 +246,58 @@ describe('visualization render tools', () => {
     expect(spec.downstream[0].isReal).toBe(false);
     expect(spec.replayData).toBeDefined();
     expect(out).toMatch(/upstream caller/i);
+  });
+
+  /**
+   * TWO hops for a named subset, ONE for the whole layer.
+   *
+   * Naming services already tells you who they are; one hop only adds who they
+   * touch, which is the answer you started with. The second hop is where the
+   * rest of the path shows up. The layer map needs no second hop — every
+   * service is already a seed, so another hop can only pull in inferred peers.
+   */
+  it('walks two hops for a named subset, and one for the whole layer', async () => {
+    const graph = {
+      layer: 'GENERAL', service: 'svc-1', depth: 1, reachable: true, generatedAt: 0,
+      config: { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+      nodes: [], calls: [],
+    };
+    buildTopo.mockResolvedValue(graph);
+    const { ctx } = mockCtx();
+    await byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs' });
+    expect(buildTopo).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 2 }));
+
+    await byName(ctx).show_layer_topology.invoke({ layer: 'GENERAL' });
+    expect(buildTopo).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 1, serviceArg: '' }));
+  });
+
+  it('honours an explicit depth, and refuses one past the bound', async () => {
+    buildTopo.mockResolvedValue({
+      layer: 'GENERAL', service: 'svc-1', depth: 1, reachable: true, generatedAt: 0,
+      config: { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+      nodes: [], calls: [],
+    });
+    const { ctx } = mockCtx();
+    await byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs', depth: 3 });
+    expect(buildTopo).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 3 }));
+    // The schema is the guard, so a value past the bound never reaches the
+    // handler — the advertised range and the enforced one are the same range.
+    await expect(
+      byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs', depth: 99 }),
+    ).rejects.toThrow(/less than or equal to 3/);
+  });
+
+  // Several seeds go to the builder comma-joined, which is how it takes more
+  // than one — two services that call each other belong in ONE graph.
+  it('seeds several services into one graph', async () => {
+    buildTopo.mockResolvedValue({
+      layer: 'GENERAL', service: 'svc-1', depth: 1, reachable: true, generatedAt: 0,
+      config: { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+      nodes: [], calls: [],
+    });
+    const { ctx } = mockCtx();
+    await byName(ctx).show_topology.invoke({ layer: 'GENERAL', services: ['agent::songs', 'agent::gateway'] });
+    expect(buildTopo).toHaveBeenLastCalledWith(expect.objectContaining({ serviceArg: 'svc-1,svc-2' }));
   });
 
   it('show_topology still carries the snapshot on an unreachable read (frozen replay of the no-value state)', async () => {
@@ -337,5 +408,35 @@ describe('visualization render tools', () => {
     expect(out).toMatch(/no widget "nope"/i);
     expect(runWidgetsMock).not.toHaveBeenCalled();
     expect(emitFigure).not.toHaveBeenCalled();
+  });
+});
+
+describe('a tool never claims the call drew something', () => {
+  /**
+   * "Rendered X" is true in the chat panel, where calling the tool streams a
+   * block, and FALSE over MCP, where nothing is drawn until the client fetches
+   * the renderer and runs it. An agent asked for a chart read that word off the
+   * tool's own reply and told its operator "Rendered above" over a terminal
+   * that showed no chart — the one thing the presentation prompt forbids, said
+   * because the tool said it first.
+   *
+   * Tool text is shared by both surfaces, so it may only state what is true on
+   * both: what was CAPTURED.
+   */
+  it('says captured, not rendered, in every tool reply', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { readdirSync } = await import('node:fs');
+    const dir = new URL('../', import.meta.url);
+    const offenders: string[] = [];
+    for (const skill of readdirSync(dir)) {
+      let src: string;
+      try {
+        src = readFileSync(new URL(`${skill}/tools.ts`, dir), 'utf8');
+      } catch {
+        continue;
+      }
+      for (const m of src.matchAll(/`[^`]*\bRendered\b[^`]*`/g)) offenders.push(`${skill}: ${m[0].slice(0, 60)}`);
+    }
+    expect(offenders).toEqual([]);
   });
 });
