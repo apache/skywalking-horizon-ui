@@ -189,7 +189,8 @@ let lastSuccessfulSyncAt: number | null = null;
 
 /** Boot-time template mode (`config.templates.mode`). In `readonly` the
  *  orchestrator never touches the ui_template client — `runOnce` short-circuits
- *  to the disk bundle. Set once at boot (and on config reload) by the server. */
+ *  to the disk bundle. Set once at BOOT by the server. A config reload does not change it —
+ *  server.ts only warns that the edit needs a restart. */
 let readOnlyMode = false;
 export function setTemplateReadOnly(on: boolean): void {
   readOnlyMode = on;

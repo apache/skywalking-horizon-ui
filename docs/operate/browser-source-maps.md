@@ -117,7 +117,7 @@ against this budget. Size `maxTotalBytes` against the memory available to the
 server — maps with `sourcesContent` are commonly tens of MiB each. When
 `enabled` is `false`, the tab still lists errors but the map controls are hidden.
 
-> **Restart-only knobs.** `enabled`, `maxTotalBytes`, and `maxFileCount` apply
+> **Which knobs need a restart.** `enabled`, `maxTotalBytes`, and `maxFileCount` apply
 > live on a config reload — lowering a budget trims the **uploaded** set on the
 > next upload / resolve / list (least-recently-used first). Maps already loaded
 > from the mount are fixed by the boot scan: lowering `maxFileCount` afterwards

@@ -65,6 +65,16 @@ const CACHE_TTL_MS = 60_000;
 interface CacheEntry {
   target: MqeTarget;
   expiresAt: number;
+  /** The OAP settings this entry was resolved from. A config hot-reload that
+   *  repoints OAP must MISS rather than serve the old target for the rest of
+   *  the TTL — the same reason the capability and window caches key on the
+   *  config they read (see `logic/oap/capabilities.ts`). */
+  key: string;
+}
+
+function cacheKey(cfg: HorizonConfig): string {
+  const { queryUrl, adminUrl, mqe } = cfg.oap;
+  return [queryUrl, adminUrl, mqe?.host ?? '', mqe?.port ?? ''].join('|');
 }
 
 export class MqeTargetCache {
@@ -76,9 +86,10 @@ export class MqeTargetCache {
 
   async resolve(deps: ResolveDeps): Promise<MqeTarget> {
     const now = Date.now();
-    if (this.entry && this.entry.expiresAt > now) return this.entry.target;
+    const key = cacheKey(deps.config());
+    if (this.entry && this.entry.key === key && this.entry.expiresAt > now) return this.entry.target;
     const target = await resolveMqeTarget(deps);
-    this.entry = { target, expiresAt: now + CACHE_TTL_MS };
+    this.entry = { target, expiresAt: now + CACHE_TTL_MS, key };
     return target;
   }
 }

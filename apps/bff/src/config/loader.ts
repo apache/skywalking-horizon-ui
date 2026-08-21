@@ -311,14 +311,19 @@ export function validateBootstrap(cfg: HorizonConfig): HorizonConfig {
   return cfg;
 }
 
-function parseFile(absPath: string): HorizonConfig {
+/**
+ * @param allowMissing at BOOT a missing file means "run on defaults" — the
+ *   bootstrap validation that follows rejects it on first start anyway. On a
+ *   RELOAD it must NOT: defaults are a valid config, so accepting them would
+ *   silently swap every configured user, OAP URL, role and key for a default,
+ *   which is the one outcome the reload path promises never to produce.
+ */
+function parseFile(absPath: string, allowMissing: boolean): HorizonConfig {
   let raw = '';
   try {
     raw = readFileSync(absPath, 'utf8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      // No config file → use full defaults. Bootstrap validation still
-      // runs and will reject this (no users, no ldap) on first start.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT' && allowMissing) {
       return configSchema.parse({});
     }
     throw err;
@@ -328,17 +333,30 @@ function parseFile(absPath: string): HorizonConfig {
   return configSchema.parse(stripNullish(parsed));
 }
 
-export function loadConfig(configPath: string): ConfigSource {
+export interface LoadConfigOptions {
+  /** How long chokidar waits for writes to settle before emitting `change`.
+   *  Defaults to its own 2s. Tests shorten it so a reload case does not cost
+   *  two seconds of wall clock each — the same seam `SessionStore` exposes
+   *  for its reaper interval. */
+  awaitWriteFinishMs?: number;
+}
+
+export function loadConfig(configPath: string, opts: LoadConfigOptions = {}): ConfigSource {
   const absPath = resolve(configPath);
-  let current = parseFile(absPath);
+  let current = parseFile(absPath, true);
   validateBootstrap(current);
   const listeners = new Set<(cfg: HorizonConfig) => void>();
 
-  const watcher = chokidar.watch(absPath, { ignoreInitial: true, awaitWriteFinish: true });
+  const watcher = chokidar.watch(absPath, {
+    ignoreInitial: true,
+    awaitWriteFinish: opts.awaitWriteFinishMs
+      ? { stabilityThreshold: opts.awaitWriteFinishMs, pollInterval: 20 }
+      : true,
+  });
   watcher.on('change', () => {
     let next: HorizonConfig;
     try {
-      next = parseFile(absPath);
+      next = parseFile(absPath, false);
       validateBootstrap(next);
     } catch (err) {
       // A malformed reload must not kill the watcher — the previous valid
