@@ -210,6 +210,9 @@ export interface TopologySpec {
   /** The chat window (minutes) the ego graph was resolved over, so the embedded
    *  map re-queries the SAME window — not the global topbar picker. */
   windowMinutes?: number;
+  /** Hops walked out from the seeds. Carried so the embedded map states the
+   *  depth it was CAPTURED at rather than a literal that drifts from it. */
+  depth?: number;
   /** The captured, render-ready graph (nodes+edges WITH metric values + edge
    *  series). When present the embedded view SEEDS from it and never re-queries
    *  OAP — so a reloaded conversation replays the exact point-in-time map + its

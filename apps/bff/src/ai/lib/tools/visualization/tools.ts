@@ -73,11 +73,20 @@ import { getServerOffsetMinutes, fmtSecond } from '../../../../util/window.js';
 import { toolPrompt } from '../../skills/loader.js';
 
 // Capture caps for the frozen triage lists — each is further clamped by the
-// operator's `performance.limits.maxPageSize.*`. Native v2 (queryTraces) +
-// Zipkin carry spans inline so 30 replays cheaply; v1 (queryBasicTraces) needs
-// a per-trace span fetch, so cap to 10. Logs/browser freeze up to 100 rows.
-const TRACE_CAP = 30;
-const V1_TRACE_CAP = 10;
+// operator's `performance.limits.maxPageSize.*`.
+//
+// ONE trace cap, for every source. It used to be two: 30 where spans arrive
+// inline (v2, Zipkin) and 10 for v1, whose rows carry none and need a per-trace
+// fetch to hydrate. That made the number a statement about QUERY COUNT on one
+// path and about payload size on the others, and two numbers for one idea is a
+// thing a reader has to learn twice.
+//
+// Ten, because the cost is real on both axes: v1 still spends a query per trace
+// — Horizon does that nested fetch so the protocol difference stays inside and
+// a v1 deployment replays a waterfall like any other — and the whole capture now
+// travels to the model, where thirty traces of spans is a large fraction of a
+// context for evidence a reader looks at ten of.
+const TRACE_CAP = 10;
 const LIST_CAP = 100;
 // Derive the captured window (minutes) from the chat's global range — the same
 // value the map tools emit, so the frozen block's window matches what was read.
@@ -111,9 +120,16 @@ function summarize(type: DashboardWidgetType, r: DashboardWidgetResult): string 
     }
     case 'line': {
       const s = r.series ?? [];
-      const first = s[0]?.data ?? [];
-      const last = first.length ? first[first.length - 1] : null;
-      return `${s.length} series, ${first.length} points, last ≈ ${last ?? 'n/a'}`;
+      // Across ALL series, not just the first. A multi-expression widget whose
+      // first series is the empty one — status codes, where 1xx is usually
+      // silent — announced itself as "0 points, last ≈ n/a" while four other
+      // series carried traffic, and that sentence is read before the payload.
+      const points = s.reduce((m, x) => Math.max(m, (x.data ?? []).length), 0);
+      const carrying = s.filter((x) => (x.data ?? []).some((v) => v != null));
+      const values = carrying[0]?.data?.filter((v) => v != null) ?? [];
+      const last = values.length ? values[values.length - 1] : null;
+      const carried = s.length > 1 ? ` (${carrying.length} with values)` : '';
+      return `${s.length} series${carried}, ${points} points, last ≈ ${last ?? 'n/a'}`;
     }
     case 'top': {
       const items = r.topList ?? r.topGroups?.[0]?.items ?? [];
@@ -313,7 +329,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       group: input.group,
       figures: [{ spec, result, xaxis: type === 'line' ? ctx.range : undefined }],
     });
-    return `Rendered ${type} "${input.title}" (${summarize(type, result)}).`;
+    return `Captured ${type} "${input.title}" (${summarize(type, result)}).`;
   }
 
   // ONE tool with a `type` discriminator rather than five near-identical ones.
@@ -390,7 +406,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         group,
         figures: [{ spec: widget, result, xaxis: widget.type === 'line' ? ctx.range : undefined }],
       });
-      return `Rendered "${widget.title}" (${summarize(widget.type, result)})${widget.tip ? ` — ${widget.tip}` : ''}.`;
+      return `Captured "${widget.title}" (${summarize(widget.type, result)})${widget.tip ? ` — ${widget.tip}` : ''}.`;
     },
     {
       name: 'show_widget',
@@ -450,7 +466,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       });
       const peerCount = groups.reduce((n, g) => n + g.peers.filter((p) => p.role !== 'self').length, 0);
       return res.reachable
-        ? `Rendered the cross-layer hierarchy for ${service}: ${peerCount} peer(s) across ${groups.length} layer(s).`
+        ? `Captured the cross-layer hierarchy for ${service}: ${peerCount} peer(s) across ${groups.length} layer(s).`
         : `Hierarchy for ${service} is unreachable (${res.error ?? 'no data'}).`;
     },
     {
@@ -474,20 +490,40 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   // view seeds from it (static on reload) and the model reads real values.
   const topologyPrompt = toolPrompt('visualization', 'show_topology');
   const topologyTool = tool(
-    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
+    async ({ layer, service, services, depth, title }: { layer: string; service?: string; services?: string[]; depth?: number; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      // One name or several. The map seeds from a LIST of focus services at a
+      // BFS depth, so two services that call each other can be drawn in ONE
+      // graph rather than as two ego graphs repeating the edge between them.
+      const wanted = (services?.length ? services : service ? [service] : []).map((n) => n.trim()).filter(Boolean);
+      if (!wanted.length) return 'Name at least one service, or use show_layer_topology for the whole layer.';
+      const inLayer = cat.byLayer.get(layer.toUpperCase()) ?? [];
+      const rows = wanted.map((n) => inLayer.find((r) => r.name === n));
+      const missing = wanted.filter((_, i) => !rows[i]);
+      if (missing.length) {
+        return `Unknown service(s) ${missing.map((m) => `"${m}"`).join(', ')} in layer ${layer}. Use list_services first.`;
+      }
+      const row = rows[0]!;
+      // TWO hops by default, because this tool is for a SUBSET. One hop shows
+      // only who the named services touch, which is the answer you already had
+      // when you named them; the second hop is where the rest of the path
+      // appears. The whole-layer map needs one, since every service is already
+      // a seed there and a further hop can only add inferred peers.
+      const hops = Math.min(3, Math.max(1, Math.round(depth ?? 2)));
+      // The card centres on the FIRST seed; with several, the rest ride in the
+      // graph. Taken from the resolved row so it is always a real name.
+      const focus = row.name;
+      const alsoSeeded = rows.length > 1 ? ` (+${rows.length - 1} more seeded)` : '';
       // Same window we hand the embedded map, so it owns its time like the
       // traces/logs blocks rather than following the global topbar picker.
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) {
         ctx.emitTopology({
-          title: title || `Topology — ${service}`,
+          title: title || `Topology — ${focus}${alsoSeeded}`,
           layer: layer.toUpperCase(),
-          service,
+          service: focus,
           serviceId: row.id,
           upstream: [],
           downstream: [],
@@ -506,7 +542,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
             'template store unreachable',
           ),
         });
-        return `Topology for ${service} is unavailable (template store unreachable).`;
+        return `Topology for ${focus} is unavailable (template store unreachable).`;
       }
       const snapshot = await buildServiceTopology({
         opts: ctx.opts,
@@ -515,8 +551,10 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         coldStage: false,
         cfg: topologyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
-        serviceArg: row.id,
-        depth: 1,
+        // Comma-joined ids: how the builder takes several seeds, and how the
+        // layer's own map page passes a roster selection.
+        serviceArg: rows.map((r) => r!.id).join(','),
+        depth: hops,
       });
       const nodeById = new Map(snapshot.nodes.map((n) => [n.id, n]));
       const toPeer = (id: string): TopoPeer | null => {
@@ -527,12 +565,13 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       const downstream = snapshot.calls.filter((c) => c.source === row.id).map((c) => toPeer(c.target)).filter((p): p is TopoPeer => !!p);
       const tooLarge = !!snapshot.tooLarge;
       ctx.emitTopology({
-        title: title || `Topology — ${service}`,
+        title: title || `Topology — ${focus}${alsoSeeded}`,
         layer: layer.toUpperCase(),
-        service,
+        service: focus,
         serviceId: row.id,
         upstream,
         downstream,
+        depth: hops,
         reachable: snapshot.reachable,
         errorReason: snapshot.reachable ? null : (snapshot.error ?? 'topology unreachable'),
         windowMinutes,
@@ -542,9 +581,9 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         // frozen; it never re-queries on reload.
         replayData: snapshot,
       });
-      if (!snapshot.reachable) return `Topology for ${service} is unreachable (${snapshot.error ?? 'no data'}).`;
-      if (tooLarge) return `Topology for ${service} is too large to draw legibly (${snapshot.tooLarge!.nodes} nodes, ${snapshot.tooLarge!.edges} edges). Narrow the scope.`;
-      return summarizeTopology(snapshot, row.id, service);
+      if (!snapshot.reachable) return `Topology for ${focus} is unreachable (${snapshot.error ?? 'no data'}).`;
+      if (tooLarge) return `Topology for ${focus} is too large to draw legibly (${snapshot.tooLarge!.nodes} nodes, ${snapshot.tooLarge!.edges} edges). Narrow the scope.`;
+      return summarizeTopology(snapshot, row.id, focus);
     },
     {
       name: 'show_topology',
@@ -553,8 +592,86 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       description: topologyPrompt.description,
       schema: z.object({
         layer: z.string().describe(topologyPrompt.p('layer')),
-        service: z.string().describe(topologyPrompt.p('service')),
+        service: z.string().optional().describe(topologyPrompt.p('service')),
+        services: z.array(z.string()).optional().describe(topologyPrompt.p('services')),
+        depth: z.number().int().min(1).max(3).optional().describe(topologyPrompt.p('depth')),
         title: z.string().optional().describe(topologyPrompt.p('title')),
+      }),
+    },
+  );
+
+  // show_layer_topology draws the WHOLE layer, not one service's neighbourhood.
+  //
+  // A separate capability from show_topology rather than an optional argument on
+  // it: they answer different questions. "Who does this service talk to" is an
+  // ego graph and stays one hop; "what does this layer look like" is every
+  // service at once, and walking it service-by-service returns the same edges
+  // repeatedly and never says how many services there are.
+  const layerTopologyPrompt = toolPrompt('visualization', 'show_layer_topology');
+  const layerTopologyTool = tool(
+    async ({ layer, title }: { layer: string; title?: string }): Promise<string> => {
+      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked) {
+        return `The ${layer.toUpperCase()} layer map is unavailable (template store unreachable).`;
+      }
+      const snapshot = await buildServiceTopology({
+        opts: ctx.opts,
+        perf: ctx.config.current.performance,
+        window: ctx.window,
+        coldStage: false,
+        cfg: topologyConfigFor(eff.template),
+        layerKey: layer.toUpperCase(),
+        // No seed ids: an empty serviceArg is what asks OAP for the whole layer,
+        // the same call the layer's own map page makes.
+        serviceArg: '',
+        depth: 1,
+      });
+      if (!snapshot.reachable) {
+        return `The ${layer.toUpperCase()} layer map is unreachable (${snapshot.error ?? 'no data'}).`;
+      }
+      ctx.emitTopology({
+        title: title || `${layer.toUpperCase()} layer map`,
+        layer: layer.toUpperCase(),
+        // No focus: this IS the whole layer. The block reads an empty serviceId
+        // as "no ego", which is the map view's own natural state.
+        service: '',
+        serviceId: '',
+        upstream: [],
+        downstream: [],
+        depth: 1,
+        reachable: true,
+        windowMinutes,
+        replayData: snapshot,
+      });
+      // Over the limit the builder returns an EMPTY graph with the counts it
+      // would have had — it refuses rather than truncating, because a partial
+      // map reads as the whole one. Reporting it as "capped, so it is SHORT"
+      // would describe a trimmed graph that does not exist.
+      if (snapshot.tooLarge) {
+        return (
+          `The ${layer.toUpperCase()} layer map is too large to draw legibly ` +
+          `(${snapshot.tooLarge.nodes} nodes, ${snapshot.tooLarge.edges} edges) and nothing was captured. ` +
+          `Narrow it: name the services you care about with show_topology, or shorten the window.`
+        );
+      }
+      const real = snapshot.nodes.filter((n) => n.isReal !== false).length;
+      const inferred = snapshot.nodes.length - real;
+      return (
+        `Captured the whole ${layer.toUpperCase()} layer map over the last ${windowMinutes} min: ` +
+        `${snapshot.nodes.length} node(s) (${real} observed, ${inferred} inferred peers) and ${snapshot.calls.length} call(s). ` +
+        `The nodes and the calls between them are in this result — present them as two tables, not as one service at a time.`
+      );
+    },
+    {
+      name: 'show_layer_topology',
+      // Draws a card; see EMITS_CARD.
+      metadata: EMITS_CARD,
+      description: layerTopologyPrompt.description,
+      schema: z.object({
+        layer: z.string().describe(layerTopologyPrompt.p('layer')),
+        title: z.string().optional().describe(layerTopologyPrompt.p('title')),
       }),
     },
   );
@@ -685,7 +802,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   // downstream dependency chain. The UI owns the expand + node/edge detail.
   const endpointDependencyPrompt = toolPrompt('visualization', 'show_endpoint_dependency');
   const endpointDependencyTool = tool(
-    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
+    async ({ layer, service, endpoint, title }: { layer: string; service: string; endpoint?: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
@@ -693,8 +810,9 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) return `API dependency for ${service} is unavailable (template store unreachable).`;
-      // An empty endpointArg lets the builder pick the service's first endpoint;
-      // the response's endpointId PINS it so a reload replays the SAME chain.
+      // Naming the endpoint pins the chain to THAT one; leaving it out lets the
+      // builder pick the service's busiest, and either way the response's
+      // endpointId records which was drawn so a reload replays the same chain.
       const snapshot = await buildEndpointDependency({
         opts: ctx.opts,
         perf: ctx.config.current.performance,
@@ -703,7 +821,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         cfg: endpointDependencyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
         service: { id: row.id, name: row.name, normal: row.normal !== false },
-        endpointArg: '',
+        endpointArg: endpoint ?? '',
       });
       ctx.emitEndpointDependency({
         title: title || `API dependency — ${service}`,
@@ -715,9 +833,19 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         replayData: snapshot,
       });
       if (!snapshot.reachable) return `API dependency for ${service} is unreachable (${snapshot.error ?? 'no data'}).`;
-      if (!snapshot.endpointId) return `${service} exposes no endpoints in this window (no dependency chain to draw).`;
+      if (!snapshot.endpointId) {
+        // Two different failures wore one sentence: a service with no endpoints
+        // at all, and a NAMED endpoint that did not match one. The second told
+        // the reader the service was silent when it was not.
+        return endpoint
+          ? `No endpoint matching "${endpoint}" on ${service} in this window. Use kb_resolve_scope_drill(serviceId, "endpoint") to list the real names, or omit it to take the busiest.`
+          : `${service} exposes no endpoints in this window (no dependency chain to draw).`;
+      }
       const nodes = summarizeMapNodes(snapshot.nodes, snapshot.config.nodeMetrics ?? [], 8);
-      return `API dependency for ${service} (its primary endpoint): ${snapshot.nodes.length} node(s), ${snapshot.calls.length} dependency edge(s).${nodes ? ` ${nodes}.` : ''}`;
+      // Name WHICH endpoint the chain hangs off. Saying "its primary endpoint"
+      // when the caller named one is a claim about the wrong endpoint.
+      const which = snapshot.endpoint ? `endpoint ${snapshot.endpoint}` : 'its busiest endpoint';
+      return `API dependency for ${service} (${which}): ${snapshot.nodes.length} node(s), ${snapshot.calls.length} dependency edge(s).${nodes ? ` ${nodes}.` : ''}`;
     },
     {
       name: 'show_endpoint_dependency',
@@ -727,6 +855,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       schema: z.object({
         layer: z.string().describe(endpointDependencyPrompt.p('layer')),
         service: z.string().describe(endpointDependencyPrompt.p('service')),
+        endpoint: z.string().optional().describe(endpointDependencyPrompt.p('endpoint')),
         title: z.string().optional().describe(endpointDependencyPrompt.p('title')),
       }),
     },
@@ -755,10 +884,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         offsetMinutes,
         cfgTraceCap,
       );
-      // v2 rows carry inline spans (keep the capture cap); v1 rows have none, so
-      // cap tighter and hydrate with spans so the waterfall replays offline.
+      // v2 rows carry inline spans; v1 rows have none, so each is hydrated with
+      // a per-trace fetch — the compatibility lives HERE, inside Horizon, so a
+      // v1 deployment's waterfall replays offline exactly like a v2 one and
+      // nothing downstream has to know which protocol answered.
       if (native.api === 'queryBasicTraces') {
-        native.traces = native.traces.slice(0, Math.min(V1_TRACE_CAP, maxTraces));
         // v1 rows are SEGMENT-shaped: several rows can share one traceId, so
         // fetch each distinct trace once and share its spans across its rows.
         const spansByTrace = new Map<string, NativeSpan[]>();
@@ -980,6 +1110,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     widgetTool,
     hierarchyTool,
     topologyTool,
+    layerTopologyTool,
     deploymentTool,
     instanceTopologyTool,
     endpointDependencyTool,

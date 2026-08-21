@@ -20,13 +20,24 @@
      one-hop map. No bespoke graph: one renderer across the product, so the hex
      nodes, edges, health colours and metrics are identical to the page. -->
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { TopologySpec } from './types';
 
-defineProps<{ n: number; spec: TopologySpec; capturedAt?: number }>();
+const props = defineProps<{ n: number; spec: TopologySpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
+
+/**
+ * No focus means the WHOLE layer, which is the map view's own natural state —
+ * `show_layer_topology` captures every service at once and has no ego to centre
+ * on. Passing `[{ id: '', name: '' }]` instead would ask the view to focus a
+ * service that does not exist and draw nothing.
+ */
+const focusServices = computed(() =>
+  props.spec.serviceId ? [{ id: props.spec.serviceId, name: props.spec.service }] : [],
+);
 </script>
 
 <template>
@@ -38,8 +49,8 @@ const { t } = useI18n({ useScope: 'global' });
       <LayerServiceMapView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
-        :focus-services="[{ id: spec.serviceId, name: spec.service }]"
-        :focus-depth="1"
+        :focus-services="focusServices"
+        :focus-depth="spec.depth ?? 1"
         :fit-scale="1.2"
         :zoom-controls="true"
         :focus-window-minutes="spec.windowMinutes"

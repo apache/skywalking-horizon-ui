@@ -1,0 +1,157 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# How to READ each block's payload, for the model that analyses it.
+#
+# The model reads the raw rows in `structuredContent`; these say what the fields
+# mean so it does not have to guess. Only the kind in a reply is sent, so a
+# figure answer never pays for the trace note.
+#
+# The envelope is `{ tool, kind, capturedAt, layer, spec, data }`: `spec`
+# describes the readings — title, scope, unit, the MQE, the tip — and `data` IS
+# them. Paths below are written from that envelope, so `data.x` means exactly
+# that.
+#
+# Two rules for editing these:
+#
+#  - STRUCTURE ONLY, never per-deployment facts. "read the metric ids from
+#    config.nodeMetrics" is right; naming a metric is wrong — that varies per
+#    layer and would drift the moment someone authors one.
+#  - Say what a reader would otherwise get WRONG, not what the field names
+#    already say. `nodes[].name` needs no gloss; `metrics` being keyed by an id
+#    defined elsewhere in the same payload does.
+#
+# These strings are part of the provider prompt-cache prefix — keep them
+# byte-stable.
+
+figure:
+  description: >-
+    spec is the widget — title, type, unit, expressions (the MQE), tip (what it
+    measures), and xaxis. Read title + tip + unit FIRST: they are the layer author's
+    own words for a metric whose id you may never have seen, and they are what makes
+    the numbers mean something. data is the reading, and how to read it follows
+    spec.type:
+    `card` → data.value, a single number for the whole window; `line` →
+    data.series[].data, bucket values with NO timestamps — derive them from
+    spec.xaxis {startMs, endMs, step}, evenly spaced. Each series NAMES ITSELF in
+    series[].label — a percentile band, a status class, a relabelled dimension —
+    and one expression often yields many series, so never map a series onto an
+    expression by position; `top` → data.topList[]; `table` → data.table[], one row per label
+    combination carrying labels[] {key,value} and a value, with spec.tableHeaders
+    naming the columns — the row's identity is in its labels, not its position;
+    `record` → data.records[]. A null bucket means OAP reported
+    nothing for it, which is not zero — exclude nulls from any average you compute.
+    data.error is a failed read; data.hidden means a visibility rule dropped the
+    widget, so nothing was measured.
+    WHICH DIRECTION IS BAD is not yours to guess: spec.unit and spec.tip say what
+    the metric measures, and spec.thresholds, when the layer defines it, carries the
+    operator's own bands — ok/warn/danger — with invertHealth true meaning HIGHER is
+    better for that metric. Judge against those bands where they exist
+    rather than against a general sense of large or small.
+
+topology: &graph
+  description: >-
+    data holds the graph: nodes[] and calls[]. Metric VALUES are keyed maps —
+    node.metrics, and on an edge either call.serverMetrics + call.clientMetrics
+    (a service-to-service call, measured from both ends) or call.metrics alone
+    (an ENDPOINT relation, which OAP records server-side only, so there is no
+    client half and looking for one finds an edge that reports nothing) — and
+    the keys are ids
+    DEFINED IN THE SAME PAYLOAD under data.config (nodeMetrics[], and
+    linkServerMetrics[]/linkClientMetrics[], or linkMetrics[] for endpoint relations,
+    or roles[].nodeMetrics for a role-clustered deployment). Read config first: it
+    carries each id's label, unit and threshold bands, so never assume a metric id.
+    A def's thresholds are the operator's own ok/warn/danger, and invertHealth true
+    means HIGHER is better for that metric — judge a value against its own bands
+    rather than a general sense of large or small.
+    A null value means OAP had no reading. calls[].source/target are node ids.
+    node.isReal false is a peer OAP inferred rather than observed. reachable false, or
+    tooLarge, or metricsPartial mean the graph is short for a reason — say which.
+
+deployment: *graph
+instance-topology: *graph
+endpoint-dependency: *graph
+
+process-topology:
+  description: >-
+    data holds a process-to-process conversation graph from network profiling:
+    nodes[] (processes on one service instance) and calls[]. Unlike the service maps
+    it carries NO config metric definitions. No processes usually means no Rover/eBPF
+    agent is reporting, which is an absence of instrumentation rather than a failure.
+
+profiling:
+  description: >-
+    data is trees[], the flame: each element has id, parentId ('0' at the root),
+    codeSignature, and both duration and durationChildExcluded — the second is SELF
+    time and is what identifies the frame actually holding the time. metricKey says
+    whether the weight is 'count' or 'duration'. Empty trees means the task collected
+    nothing yet, not that it failed. tip is OAP's own partial-analysis notice.
+    traceContext, when present, is the profiled segment's trace.
+
+traces:
+  description: >-
+    data.native.traces[] are the rows: duration in ms, start as epoch-ms IN A
+    STRING, isError, endpointNames[], traceIds[]. A row's spans[] carry the waterfall —
+    each span has startTime/endTime, parentSpanId (-1 at the root), type, component and
+    peer. A span's position in TIME is what separates a slow callee from a slow caller:
+    compare a child's startTime against its parent's, not just durations.
+
+zipkin-traces:
+  description: >-
+    data.traces[] are Zipkin rows: timestamp is epoch MICROseconds and duration is
+    MICROseconds, unlike the native ones. spanCount and errorCount summarise each trace;
+    spans[], when present, carry the waterfall.
+
+logs:
+  description: >-
+    data.logs[] are the rows: timestamp epoch-ms, content is the message, and
+    contentType says whether it is TEXT, JSON or YAML. tags[] is a key/value list —
+    the level is a TAG, not a column. serviceInstanceName and endpointName say where
+    the line came from; traceId links it to a trace.
+
+browser-errors:
+  description: >-
+    data.logs[] are JS errors from the browser agent: message, category, grade
+    (the client SDK's severity, not an OAP alarm level), pagePath, and stack when the
+    agent captured one. line and col are 0 for a non-JS category rather than absent, so
+    do not read 0:0 as a real position. firstReportedError marks the first occurrence,
+    which means the list is occurrences and not distinct errors — do not count rows as
+    a count of problems.
+
+podlogs:
+  description: >-
+    data is the container's lines, each with content and an epoch-ms timestamp that
+    may be null. This is a one-shot read, never a tail, so it is exactly the window
+    returned at capture time. spec.keywordsOfContent /
+    spec.excludingKeywordsOfContent record the filter that was applied — a filtered
+    view is not the whole log — and spec.errorReason carries OAP's reason when the
+    container could not be read.
+
+hierarchy:
+  description: >-
+    data is the captured hierarchy; spec.groups is the same fan already grouped by
+    layer, with peers[] in each. role 'self' is the focused service, 'upper'/'lower'
+    the direction, and normal false a VIRTUAL peer OAP inferred rather than observed.
+    Structure only — there are no metrics here, so do not infer health from it.
+
+proposal:
+  description: >-
+    All of it is spec: there is no reading, because nothing has run. A PROPOSED
+    profiling task that has NOT started and that no tool can start. cause,
+    rationale and expectation are the case for it; profilingType with its own
+    parameters (endpoint, instanceIds, events, targetType, processLabels) is what would
+    run. Present it as a decision for the operator, never as work in progress.

@@ -41,7 +41,7 @@ import { bundledSystemPrompt, type Surface } from '../lib/skills/prompt.js';
 import type { HorizonConfig } from '../../config/schema.js';
 import type { CaptureDeps } from './capture.js';
 import { callTool, listToolDefs } from './tools.js';
-import { mcpAppBundle, MCP_APP_MIME } from './resource.js';
+import { mcpAppBundle, MCP_APP_MIME, withRenderers } from './resource.js';
 
 export type McpDeps = Omit<CaptureDeps, 'windowMinutes' | 'step'>;
 
@@ -142,34 +142,30 @@ export function createMcpServer(deps: McpDeps, surface: Surface, version: string
   if (bundle) {
     server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [
-        {
-          uri: bundle.uri,
-          name: 'Horizon cards',
-          description: 'Renders Horizon figures, dependency maps and triage lists inline.',
-          mimeType: MCP_APP_MIME,
-        },
+        ...(bundle
+          ? [
+              {
+                uri: bundle.uri,
+                name: 'Horizon cards',
+                description: 'Renders Horizon figures, dependency maps and triage lists inline.',
+                mimeType: MCP_APP_MIME,
+              },
+            ]
+          : []),
       ],
     }));
     server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
-      if (req.params.uri !== bundle.uri) throw new Error(`No resource ${req.params.uri}.`);
-      return { contents: [{ uri: bundle.uri, mimeType: MCP_APP_MIME, text: bundle.html }] };
+      if (bundle && req.params.uri === bundle.uri) {
+        return { contents: [{ uri: bundle.uri, mimeType: MCP_APP_MIME, text: bundle.html }] };
+      }
+      throw new Error(`No resource ${req.params.uri}.`);
     });
   }
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const result = await callTool(deps, req.params.name, (req.params.arguments ?? {}) as Record<string, unknown>);
-    // Point a rendering host at the bundle whenever this result produced a
-    // card. Deliberately NOT gated on `surface`: the transport is stateless, so
-    // only the `initialize` exchange carries the client's capabilities and
-    // every other request would compute `terminal` regardless of who is asking.
-    // Unconditional is also the right shape — the pointer is advisory, a host
-    // with no renderer ignores an unknown `_meta` key, and the guard that
-    // matters is the one below: no card, no pointer, so nothing is ever asked
-    // to mount a frame with nothing to draw.
-    if (bundle && result._meta) {
-      result._meta = { ...result._meta, ui: { resourceUri: bundle.uri } };
-    }
-    return result;
+
+    return withRenderers(result, bundle?.uri);
   });
 
   // The playbooks are exposed BOTH as prompts and as the `get_playbook` tool.

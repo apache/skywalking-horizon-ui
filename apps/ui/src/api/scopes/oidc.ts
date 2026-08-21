@@ -35,7 +35,17 @@ export interface SsoProvider {
 export class OidcApi {
   constructor(private readonly bff: BffClient) {}
 
-  providers(): Promise<{ providers: SsoProvider[] }> {
-    return this.bff.request<{ providers: SsoProvider[] }>('GET', '/api/auth/oidc/providers');
+  /**
+   * The providers, and whether a password box is worth drawing.
+   *
+   * `passwordLogin` is false only when the deployment configures no local users
+   * and no directory — an SSO-only estate, where every username the box could
+   * take is rejected.
+   */
+  providers(): Promise<{ providers: SsoProvider[]; passwordLogin: boolean }> {
+    return this.bff.request<{ providers: SsoProvider[]; passwordLogin: boolean }>(
+      'GET',
+      '/api/auth/oidc/providers',
+    );
   }
 }

@@ -26,7 +26,7 @@ list_layers:
 
 list_services:
   description: >-
-    List services with their id, name AND layer. Pass a layer to list that layer only, OR OMIT the layer to search ACROSS ALL layers by name — do that (with a keyword) to find a service when you do not know its layer, instead of guessing. Use the returned id as serviceId for drilling and the layer for kb_browse_catalog / rendering. A service that lives in several layers appears once per layer. Capped at 100 rows (truncated:true when more) — narrow with keyword.
+    List services with their id, name AND layer. Pass a layer to list that layer only, OR OMIT the layer to search ACROSS ALL layers by name — do that (with a keyword) to find a service when you do not know its layer, instead of guessing. Use the returned id as serviceId for drilling and the layer for kb_browse_catalog / capture. A service that lives in several layers appears once per layer. Capped at 100 rows (truncated:true when more) — narrow with keyword.
   params:
     layer: >-
       OAP layer key (e.g. GENERAL); OMIT to search every layer by name

@@ -124,13 +124,39 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRouteDeps): voi
       );
     }
 
-    const body = req.body as { method?: string; params?: { capabilities?: unknown } } | undefined;
+    const body = req.body as {
+      method?: string;
+      params?: {
+        capabilities?: unknown;
+        clientInfo?: { name?: string; version?: string };
+        name?: string;
+      };
+    } | undefined;
     // Stateless means every request builds its own server, so the presentation
     // section has to be chosen from THIS request. Only `initialize` carries the
     // client's capabilities and only its response carries `instructions`, so
     // that is the one exchange where the choice can be made — and the only one
     // where it matters.
     const surface = surfaceFor(body?.method === 'initialize' ? body.params?.capabilities : undefined);
+    if (body?.method === 'initialize') {
+      // WHICH client, and what it said it can draw. Without this there is no way
+      // to tell a host that mounts cards from one that cannot — the choice is
+      // made from capabilities seen on this one exchange and then forgotten, so
+      // a client getting the wrong presentation leaves no trace to debug from.
+      req.log.info(
+        {
+          client: body.params?.clientInfo?.name ?? 'unknown',
+          clientVersion: body.params?.clientInfo?.version ?? '',
+          surface,
+          capabilities: body.params?.capabilities ?? {},
+        },
+        'MCP initialize',
+      );
+    }
+    // WHICH tool, so a client that draws its own ASCII instead of calling the
+    // renderer is distinguishable from one that called it and dropped the
+    // result. Without this the only evidence was the operator's screenshot.
+    if (body?.method === 'tools/call') req.log.info({ tool: body.params?.name ?? 'unknown' }, 'MCP tools/call');
 
     // DISCOVERY MUST NOT WAIT ON OAP. The server's UTC offset is read from OAP,
     // and only a tool that stamps a time ever uses it — but awaiting it here

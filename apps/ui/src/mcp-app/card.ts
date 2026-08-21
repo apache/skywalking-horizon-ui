@@ -40,11 +40,19 @@ export interface GraphicCard {
   status?: string;
 }
 
-export function toBlock(card: GraphicCard): Block {
+/**
+ * A card as the block its component expects.
+ *
+ * `n` is supplied by the CALLER, from its own ordering. The server used to send
+ * one, but its counter restarts per tool call, so over MCP every block arrived
+ * as 1 and a conversation showing several labelled them all the same. The side
+ * accumulating them is the only one that knows their order.
+ */
+export function toBlock(card: GraphicCard, n: number): Block {
   if (card.type === 'figure') {
     return {
       kind: 'figure',
-      n: card.n,
+      n,
       title: card.title,
       layout: (card.layout ?? 'single') as never,
       figures: (card.figures ?? []) as never,
@@ -55,12 +63,63 @@ export function toBlock(card: GraphicCard): Block {
     // A proposal in a host has no approve path — nothing here can call the
     // verb-gated create route — so it mounts in its terminal state and reads
     // as the decision card it is. The operator acts in Horizon.
-    return { kind: 'proposal', n: card.n, spec: card.spec, status: 'proposed' } as Block;
+    return { kind: 'proposal', n, spec: card.spec, status: 'proposed' } as Block;
   }
   return {
     kind: card.type,
-    n: card.n,
+    n,
     spec: card.spec,
     capturedAt: card.capturedAt,
   } as unknown as Block;
+}
+
+/**
+ * Which field of a kind's content holds the readings.
+ *
+ * The wire splits a block into `spec` — what was asked for, in what unit, by
+ * which expression — and `data`, what came back. The block components take the
+ * shape the rest of Horizon uses, where the two are one object, so they are put
+ * back together here.
+ */
+const READINGS_FIELD: Record<string, string> = {
+  figure: 'result',
+  profiling: 'trees',
+  podlogs: 'initialLines',
+  topology: 'replayData',
+  deployment: 'replayData',
+  'instance-topology': 'replayData',
+  'endpoint-dependency': 'replayData',
+  'process-topology': 'replayData',
+  hierarchy: 'replayData',
+  traces: 'replayData',
+  'zipkin-traces': 'replayData',
+  logs: 'replayData',
+  'browser-errors': 'replayData',
+};
+
+/** Put a flat envelope back into the card shape the blocks read. */
+export function rebuildCard(envelope: {
+  kind?: string;
+  capturedAt?: number;
+  spec?: Record<string, unknown>;
+  data?: unknown;
+}): GraphicCard {
+  const kind = envelope.kind ?? '';
+  const spec = envelope.spec ?? {};
+  if (kind === 'figure') {
+    const { layout, groupTitle, xaxis, ...widget } = spec;
+    return {
+      type: 'figure',
+      capturedAt: envelope.capturedAt,
+      title: groupTitle,
+      layout: layout ?? 'single',
+      figures: [{ spec: widget, result: envelope.data ?? {}, xaxis }],
+    } as unknown as GraphicCard;
+  }
+  const field = READINGS_FIELD[kind];
+  return {
+    type: kind,
+    capturedAt: envelope.capturedAt,
+    spec: field && envelope.data !== undefined ? { ...spec, [field]: envelope.data } : spec,
+  } as unknown as GraphicCard;
 }

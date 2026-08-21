@@ -30,12 +30,12 @@
  */
 
 import { toJsonSchema } from '@langchain/core/utils/json_schema';
+import { cardPrompt } from '../lib/skills/loader.js';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import type { GraphicCard } from '../lib/graphic-card.js';
 import { buildTools } from '../lib/registry.js';
 import { rcaTools } from '../lib/tools/rca/tools.js';
-import type { GraphicCard } from '../lib/graphic-card.js';
 import { createCaptureContext, type CaptureDeps, type CaptureStep } from './capture.js';
-import { describeCard } from './content.js';
 import { emitsCard } from '../lib/graphic-card.js';
 
 export interface McpToolDef {
@@ -103,13 +103,14 @@ const TOOL_TITLES: Record<string, string> = {
   kb_resolve_hierarchy: 'Resolve a layer hierarchy',
   list_pod_containers: 'List pod containers',
   fetch_pod_logs: 'Read pod logs',
-  show_figure: 'Draw a metric figure',
-  show_widget: 'Draw a dashboard widget',
-  show_hierarchy: 'Draw the layer hierarchy',
-  show_topology: 'Draw the service topology',
-  show_deployment: 'Draw the deployment view',
-  show_instance_topology: 'Draw the instance topology',
-  show_endpoint_dependency: 'Draw endpoint dependencies',
+  show_figure: 'Capture a metric figure',
+  show_widget: 'Capture a dashboard widget',
+  show_hierarchy: 'Capture the layer hierarchy',
+  show_topology: 'Capture one service’s neighbours',
+  show_layer_topology: 'Capture the whole layer map',
+  show_deployment: 'Capture the deployment view',
+  show_instance_topology: 'Capture the instance topology',
+  show_endpoint_dependency: 'Capture endpoint dependencies',
   show_traces: 'Read traces',
   list_zipkin_services: 'List Zipkin services',
   show_zipkin_traces: 'Read Zipkin traces',
@@ -201,100 +202,286 @@ export function listToolDefs(deps: Omit<CaptureDeps, 'windowMinutes' | 'step'>):
     inputSchema: toolSchema(t),
     title: TOOL_TITLES[t.name] ?? t.name,
     emitsCard: emitsCard(t),
-    // Declared where, and only where, structured output is actually returned.
+    // Declared on every tool, because every tool returns structured output.
     // A tool that emits no card returns none, and declaring a schema it never
     // satisfies is the same defect in the other direction.
-    ...(emitsCard(t) ? { outputSchema: CARD_OUTPUT_SCHEMA } : {}),
+    // A tool declaring an output schema MUST return structured content matching
+    // it, so the two go on together or not at all.
+    outputSchema: PAYLOAD_OUTPUT_SCHEMA,
     annotations: { ...READ_ONLY_ANNOTATIONS, title: TOOL_TITLES[t.name] ?? t.name },
   }));
   return defsCache;
 }
 
 /**
- * Where the cards ride, and why it is `_meta` rather than `structuredContent`.
+ * Where the cards ride: ONE copy, in `structuredContent`.
  *
- * `structuredContent` is MODEL-facing — a host is expected to put it in the
- * model's context, which is the whole point of having it. A captured trace list
- * is around 550 KB (30 traces, spans inline, because that is what makes the
- * waterfall replay offline); handing that to a model costs six figures of
- * tokens to say what `content` already says in three. `_meta` is the channel
- * defined for data the HOST consumes and the model does not, which is exactly
- * what a card is: a payload for a renderer.
+ * They used to ride twice — the full payload in `_meta`, a span-stripped copy
+ * in `structuredContent` — on the reasoning that `_meta` is the channel for
+ * data a HOST consumes and a model does not, so the model should not pay for a
+ * captured trace list.
  *
- * A card-producing tool therefore DOES return structured output, and declares
- * an `outputSchema` for it — a host that validates against the declaration
- * rejects an undeclared payload. The schema stops at the card envelope rather
- * than enumerating all fourteen `spec` variants: that would add tens of
- * kilobytes to every tools/list, paid by every client including the many that
- * will never draw one, to describe a payload the renderer already understands.
+ * Two things are wrong with it. `_meta` is the LESS reliable channel, not the
+ * more: it is defined as implementation metadata, and whether a client passes
+ * it to an agent is up to the client — so the good copy was the one most likely
+ * to be dropped, and a host that dropped it silently lost every span waterfall
+ * while the trace LIST still rendered, which looks like working software. And
+ * two fidelities of one payload means the answer to "what did we capture"
+ * depends on which field you read.
+ *
+ * So: one copy, in the field every client forwards, read by the model AND by
+ * whichever renderer the client has. The model analyses the raw payload — that
+ * is what it is for — and the size control is the CAPTURE CAP, which is the
+ * honest place for it. A payload too large for a context is a cap to lower, not
+ * a second fidelity to invent.
+ *
+ * The `outputSchema` declares the envelope so a validating host accepts it, and
+ * stops there rather than enumerating all fourteen `spec` variants: that would
+ * add tens of kilobytes to every tools/list, paid by every client including the
+ * many that will never draw one, to describe a payload the renderer already
+ * understands.
  */
-export const CARDS_META_KEY = 'org.apache.skywalking.horizon/cards';
+/**
+ * The ONE key a reply's payload rides under, whatever kind it is.
+ *
+ * FLAT: `{ tool, kind?, capturedAt?, data }`. There is no array and no card
+ * envelope — a tool call captures exactly one thing, and the wrapper it used to
+ * arrive in is the chat panel's, where several blocks stream into one turn and
+ * each needs a position. Over MCP that position was always 1, so it was both
+ * unused by the terminal and WRONG for a host drawing several: every block came
+ * out labelled the same. A client that shows more than one knows their order —
+ * it is the only thing that does — so it numbers them itself.
+ *
+ * `kind` says which block the data is, for the one tool whose shape varies with
+ * its arguments. Absent means plain rows, in the shape that tool's description
+ * gives.
+ *
+ * `{ tool, kind?, capturedAt?, spec?, data }` — one key, one shape, whatever the
+ * tool answered with. `spec` describes the readings and `data` is them; `kind`
+ * names the block, and is absent when the tool answered with plain rows.
+ */
+export const PAYLOAD_KEY = 'org.apache.skywalking.horizon/payload';
 
-/** The shape of `structuredContent` for a card-producing tool. */
-const CARD_OUTPUT_SCHEMA: Record<string, unknown> = {
+
+/**
+ * Where a tool that answers with DATA rather than a card puts its rows.
+ *
+ * Half the surface does. Those tools used to `JSON.stringify` their payload into
+ * `content` and stop there, which left the model parsing JSON out of prose and
+ * the renderer unable to find the rows at all — an agent had to hand-wrap them
+ * before anything could draw them. Same envelope as a card reply, different key,
+ * so one place is read for both.
+ */
+
+/**
+ * The envelope a data tool's rows travel in.
+ *
+ * Deliberately not a schema PER TOOL: fourteen of them would add tens of
+ * kilobytes to every tools/list, paid by every client, to describe payloads the
+ * tool's own description already names. `rows` is left open — it is whatever
+ * that tool answers with.
+ */
+/**
+ * The one envelope every card reply publishes.
+ *
+ * Pure, and exported, so the contract can be checked without an OAP behind it:
+ * built inline it could only be asserted against its own schema, and a test
+ * that reads the schema passes just as happily when the field stops being
+ * written.
+ */
+export function cardEnvelope(
+  tool: string,
+  card: GraphicCard & { capturedAt?: number },
+  offsetMinutes: number | undefined,
+  layerArg: unknown,
+): Record<string, unknown> {
+  return {
+    tool,
+    kind: card.type,
+    capturedAt: card.capturedAt,
+    // Every instant in the payload is the OAP SERVER's, and a reader is
+    // routinely in another zone. Without this an agent reads UTC while the
+    // notes say "OAP-server local" — a wrong time, stated confidently.
+    offsetMinutes,
+    // Which layer was read. A model that made the call knows it from its own
+    // arguments, but a payload read back cold — replayed, or handed on — does
+    // not, and the same metric id means different things under a different
+    // layer.
+    //
+    // The CARD's layer wins over the argument. Tools uppercase before they
+    // query, so echoing the argument verbatim made the envelope say "general"
+    // while `spec.layer` in the same object said "GENERAL" — two captures of
+    // one layer that do not compare equal.
+    layer: cardLayer(card) ?? (typeof layerArg === 'string' ? layerArg.toUpperCase() : undefined),
+    ...splitCard(card),
+  };
+}
+
+/** The layer a card says it was read from — the normalised key, not the caller's spelling. */
+function cardLayer(card: GraphicCard): string | undefined {
+  const layer = (card as { spec?: { layer?: unknown } }).spec?.layer;
+  return typeof layer === 'string' && layer ? layer : undefined;
+}
+
+const PAYLOAD_OUTPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
-    [CARDS_META_KEY]: {
-      type: 'array',
-      description:
-        'Rendered cards for this answer. Each is a self-contained snapshot — a host can draw it ' +
-        'with no further calls. The ui:// resource renders them; the text content says the same ' +
-        'thing in prose for a host that cannot.',
-      items: {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            description: 'Which widget draws this card.',
-          },
-          n: { type: 'integer', description: 'Position of the card within this answer, from 1.' },
-          capturedAt: { type: 'integer', description: 'Epoch milliseconds the data was read at.' },
+    [PAYLOAD_KEY]: {
+      type: 'object',
+      description: 'What this call produced: the data it read, and what that data is.',
+      properties: {
+        tool: { type: 'string', description: 'The tool that produced this payload.' },
+        kind: {
+          type: 'string',
+          description:
+            'Which block this is — `content` explains how to read that kind. Absent when the tool answered with plain rows.',
         },
-        required: ['type', 'n'],
-        additionalProperties: true,
+        capturedAt: { type: 'integer', description: 'Epoch milliseconds the readings were taken.' },
+        layer: { type: 'string', description: 'The layer the readings were taken from.' },
+        offsetMinutes: {
+          type: 'integer',
+          description:
+            "The OAP server's UTC offset in minutes. Every instant in this payload is in it — render times against this, not against the reader's clock.",
+        },
+        spec: {
+          description:
+            'What was asked for and what it means: title, scope, unit, the MQE expression, the tip explaining the metric. Describes the readings; is not itself a reading.',
+        },
+        data: { description: 'The readings. A self-contained snapshot, drawn with no further calls.' },
       },
+      // `data` is NOT required: a proposal is entirely a description of an
+      // action nobody has taken, so it carries no readings. Fabricating an
+      // empty one to satisfy the declaration would invent a measurement.
+      required: ['tool'],
+      additionalProperties: false,
     },
   },
-  required: [CARDS_META_KEY],
+  required: [PAYLOAD_KEY],
   additionalProperties: false,
 };
 
+
+
 /**
- * The same cards, minus the one field that dominates their weight.
+ * A tool that answered with data rather than a card.
  *
- * `_meta` is where the spec puts widget-only data, and it carries the full
- * payload. But OpenAI hosts have a known defect stripping `_meta`, and their
- * own guidance is not to depend on it alone — so a portable copy also rides in
- * `structuredContent`, which every host forwards.
- *
- * `structuredContent` is model-facing though, and a captured trace list is
- * 582 KB. Measured, the spans are 98.5% of that: dropping them leaves 8.4 KB,
- * and the trace LIST renders identically without them — only the span
- * waterfall needs them, and a host that strips `_meta` was never going to
- * offer that anyway. So the portable copy is a real card with one capability
- * removed, not a stub, and the widget prefers the `_meta` original wherever it
- * survives.
+ * Its reply is one of two things, and the fork is the parse: rows, or a
+ * deliberate sentence. Several of those sentences are the most important thing
+ * their tool can say — "Permission denied…", "No alarms in the recent window —
+ * nothing is firing." — so prose stays prose, in `content`, and gets no
+ * structured envelope it would only distort.
  */
-export function slimForTransport(cards: GraphicCard[]): GraphicCard[] {
-  return cards.map((card) => {
-    if (card.type !== 'traces' && card.type !== 'zipkin-traces') return card;
-    const spec = card.spec as { replayData?: Record<string, unknown> };
-    if (!spec?.replayData) return card;
-    const strip = (rows: unknown): unknown =>
-      Array.isArray(rows) ? rows.map((r) => ({ ...(r as object), spans: undefined })) : rows;
-    const rd = spec.replayData as { traces?: unknown; native?: { traces?: unknown } };
-    return {
-      ...card,
-      spec: {
-        ...spec,
-        replayData: {
-          ...rd,
-          ...(rd.traces ? { traces: strip(rd.traces) } : {}),
-          ...(rd.native ? { native: { ...rd.native, traces: strip(rd.native.traces) } } : {}),
-        },
-      },
-    } as GraphicCard;
+function dataResult(tool: string, text: string): McpToolResult {
+  /**
+   * Prose rides in the envelope too, as a string `data`.
+   *
+   * Every tool declares an output schema, and MCP requires a tool that declares
+   * one to RETURN structured content — the reference client throws
+   * `InvalidRequest` otherwise. Returning a bare sentence therefore turned the
+   * answers that matter most ("Permission denied…", "No alarms in the recent
+   * window — nothing is firing.") into transport errors on any SDK-built
+   * client. The sentence is unchanged in `content`; the envelope simply carries
+   * it as well, and both renderers already print a string `data` verbatim.
+   */
+  const prose = (): McpToolResult => ({
+    content: [{ type: 'text', text }],
+    structuredContent: { [PAYLOAD_KEY]: { tool, data: text } },
   });
+  let rows: unknown;
+  try {
+    rows = JSON.parse(text);
+  } catch {
+    return prose();
+  }
+  // A bare string or number that happens to be valid JSON is still prose.
+  if (rows === null || typeof rows !== 'object') return prose();
+  return {
+    content: [
+      {
+        type: 'text',
+        text: `${tool} returned rows — they are in this result's structuredContent under "${PAYLOAD_KEY}" as \`data\`. Read them for the analysis, and render them for the operator.`,
+      },
+    ],
+    structuredContent: { [PAYLOAD_KEY]: { tool, data: rows } },
+  };
+}
+
+/**
+ * Which field of a kind's content holds the READINGS.
+ *
+ * The rest of that content describes them — what was asked for, in what unit,
+ * measured by which expression — and the two are worth telling apart, because
+ * only one of them changes when you run the same query again.
+ *
+ * The field NAME differs per kind because the payloads genuinely do; the split
+ * does not. A kind absent from here carries no readings at all: a proposal is
+ * entirely a description of an action nobody has taken.
+ */
+const READINGS_FIELD: Record<string, string> = {
+  figure: 'result',
+  profiling: 'trees',
+  podlogs: 'initialLines',
+  topology: 'replayData',
+  deployment: 'replayData',
+  'instance-topology': 'replayData',
+  'endpoint-dependency': 'replayData',
+  'process-topology': 'replayData',
+  hierarchy: 'replayData',
+  traces: 'replayData',
+  'zipkin-traces': 'replayData',
+  logs: 'replayData',
+  'browser-errors': 'replayData',
+};
+
+/**
+ * A card split into what it IS and what was READ.
+ *
+ * `spec` describes — title, scope, unit, the MQE, the tip explaining what the
+ * metric means. `data` is the readings. A figure already came this way (`spec`
+ * beside `result`); the other thirteen had both in one bag, so a reader could
+ * not tell the query from its answer without knowing which field was which.
+ */
+function splitCard(card: GraphicCard & { capturedAt?: number }): { spec: unknown; data: unknown } {
+  if (card.type === 'figure') {
+    // A figure's description is the widget itself, and it is one level down.
+    const figure = card.figures[0];
+    return {
+      // The widget's own title wins over the card's: the card's is a group
+      // label, the widget's names the metric.
+      spec: { layout: card.layout, ...(card.title ? { groupTitle: card.title } : {}), ...figure?.spec, xaxis: figure?.xaxis },
+      data: figure?.result,
+    };
+  }
+  const field = READINGS_FIELD[card.type];
+  const content = (card as unknown as { spec: Record<string, unknown> }).spec ?? {};
+  if (!field) return { spec: content, data: undefined };
+  const { [field]: data, ...spec } = content;
+  return { spec, data };
+}
+
+/**
+ * The one line that tells a reader the payload is there and what to do with it.
+ *
+ * Named counts rather than a total, because "3 blocks" does not say whether the
+ * trace list arrived. Kept to one line: this is orientation, not a summary.
+ */
+function whereTheDataIs(tool: string, cards: GraphicCard[]): string {
+  const byKind = new Map<string, number>();
+  for (const c of cards) byKind.set(c.type, (byKind.get(c.type) ?? 0) + 1);
+  const listed = [...byKind].map(([kind, n]) => (n > 1 ? `${n}× ${kind}` : kind)).join(', ');
+  const lines = [
+    // What is here and where. WHICH renderer to use is appended by the server,
+    // which is the layer that knows their addresses.
+    `${tool} captured ${listed}. The payload is in this result's structuredContent under ` +
+      `"${PAYLOAD_KEY}" as \`data\` — read it for the analysis, and present it to the operator yourself.`,
+    '',
+    // How to read each kind, for the kinds actually present. The model gets the
+    // raw rows, so it needs to know what they MEAN — a keyed metric map whose
+    // keys are defined elsewhere in the same payload is not guessable, and a
+    // guess about which field is self time is a wrong diagnosis.
+    ...[...byKind.keys()].map((kind) => `${kind}: ${cardPrompt(kind)}`),
+  ];
+  return lines.join('\n');
 }
 
 /** Shaped to the SDK's `CallToolResult`; the index signature is what makes it
@@ -351,17 +538,22 @@ export async function callTool(
   // "captured" with no time, on the one badge whose whole job is saying that
   // this is a snapshot rather than live data.
   const capturedAt = Date.now();
-  const cards = run.finish().map((c) => ('capturedAt' in c && c.capturedAt ? c : { ...c, capturedAt }));
-  if (cards.length === 0) return { content: [{ type: 'text', text }] };
+  // The `in` narrowing types an existing `capturedAt` as `unknown`, so it is
+  // read explicitly rather than relied on to survive the spread.
+  const cards: Array<GraphicCard & { capturedAt?: number }> = run.finish().map((c) => {
+    const already = (c as { capturedAt?: number }).capturedAt;
+    return { ...c, capturedAt: already ?? capturedAt };
+  });
+  if (cards.length === 0) return dataResult(name, text);
 
-  // A card describes itself only when it holds something the tool's own reply
-  // does not already carry — see `describeCard`.
-  const rendered = cards.map((c) => describeCard(c, deps.offsetMinutes)).filter((s): s is string => s !== null);
+  // `content` says what was captured and where it is; the DATA is next door.
+  // It deliberately does not summarise the payload — a digest is a third
+  // representation of one capture, and it answers only the questions whoever
+  // wrote it thought of. The model reads the rows.
   return {
-    content: [{ type: 'text', text: rendered.length ? `${text}\n\n${rendered.join('\n\n')}` : text }],
-    // Both channels: the full payload where the spec says widget-only data
-    // belongs, and a slimmed portable copy for hosts that drop it.
-    _meta: { [CARDS_META_KEY]: cards },
-    structuredContent: { [CARDS_META_KEY]: slimForTransport(cards) },
+    content: [{ type: 'text', text: `${text}\n\n${whereTheDataIs(name, cards)}` }],
+    // Flat: the block's own payload, its kind, and when it was read. The card
+    // envelope around it is the chat panel's, and its `n` was always 1 here.
+    structuredContent: { [PAYLOAD_KEY]: cardEnvelope(name, cards[0], deps.offsetMinutes, args.layer) },
   };
 }

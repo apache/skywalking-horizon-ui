@@ -605,3 +605,37 @@ describe('a provider response cannot exhaust this process', () => {
     expect(await readBounded(res, 'userinfo')).toEqual({ email: 'a@b.c' });
   });
 });
+
+describe('the login page offers a password box only when one can succeed', () => {
+  /**
+   * `passwordLogin` is about CONFIGURATION, not about whether a particular
+   * person could sign in — an unreachable directory keeps its box, because the
+   * break-glass account is the way back in while it is down. But a backend NAME
+   * with no directory behind it is not a configuration: the login route refuses
+   * every credential with "backend is ldap but auth.ldap is missing", so the box
+   * was a form that could not succeed.
+   */
+  const offers = (over: Record<string, unknown>): boolean => {
+    const c = configSchema.parse({ auth: over });
+    return (c.auth.backend === 'ldap' && !!c.auth.ldap) || c.auth.local.users.length > 0;
+  };
+
+  const LDAP = { url: 'ldap://dir.example:389', userBaseDn: 'dc=example,dc=com' };
+
+  it('offers it for a configured directory', () => {
+    expect(offers({ backend: 'ldap', ldap: LDAP })).toBe(true);
+  });
+
+  it('does NOT offer it for backend: ldap with no directory configured', () => {
+    expect(offers({ backend: 'ldap' })).toBe(false);
+  });
+
+  it('offers it whenever local users exist, whatever the backend', () => {
+    expect(offers({ backend: 'ldap', local: { users: [{ username: 'a', passwordHash: 'x', roles: ['viewer'] }] } })).toBe(true);
+  });
+
+  it('does not offer it when nothing can take a password', () => {
+    expect(offers({})).toBe(false);
+  });
+});
+

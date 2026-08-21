@@ -16,42 +16,41 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { mcpAppBundle, MCP_APP_MIME } from './resource.js';
+import { withRenderers } from './resource.js';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const built = existsSync(join(HERE, 'app', 'app.html'));
+const CARD = 'ui://horizon/app/abc123def456';
+const KEY = 'org.apache.skywalking.horizon/payload';
+const reply = (payload: Record<string, unknown>) => ({
+  content: [{ type: 'text' as const, text: 'captured' }],
+  structuredContent: { [KEY]: payload },
+});
 
-describe('the ui:// resource', () => {
-  it('is optional — a checkout that has not built it serves text only', () => {
-    // Both outcomes are correct; what must never happen is a throw at import,
-    // which would take the whole MCP endpoint down over a missing build.
-    expect(() => mcpAppBundle()).not.toThrow();
-  });
-
-  it('marks itself as an MCP app, not a document to show as text', () => {
-    expect(MCP_APP_MIME).toBe('text/html;profile=mcp-app');
-  });
-
-  it.runIf(built)('versions its URI by content hash', () => {
-    expect(mcpAppBundle()?.uri).toMatch(/^ui:\/\/horizon\/app\/[0-9a-f]{12}$/);
-  });
-
+describe('only a reply that carries a CARD points at the card renderer', () => {
   /**
-   * The property the whole design rests on: a host mounts this in a sandbox
-   * with an opaque origin and a deny-all CSP, so a single external reference
-   * means a card that renders blank with nothing in any log to explain it.
+   * Every tool returns structured content, so "has structuredContent" is true
+   * for a plain list too. Pointing those at the bundle made a host mount a
+   * frame for `list_services`, which then reported it had been handed nothing
+   * to draw — an empty widget on every rows reply, once per tool call.
    */
-  it.runIf(built)('references no external file', () => {
-    const html = readFileSync(join(HERE, 'app', 'app.html'), 'utf8');
-    const skeleton = html
-      .replace(/<script[\s\S]*?<\/script>/gi, '<script/>')
-      .replace(/<style[\s\S]*?<\/style>/gi, '<style/>');
-    expect([...skeleton.matchAll(/(?:src|href)="(?!data:)([^"]+)"/gi)].map((m) => m[1])).toEqual([]);
-    // Belt and braces — a tag re-inserted INSIDE a script body is invisible to
-    // the skeleton scan, which is exactly what a `$&` substitution once did.
-    expect(html).not.toMatch(/(?:src|href)="\.?\/assets\//);
+  it('says nothing for a rows reply, which has no kind', () => {
+    const rows = reply({ tool: 'list_services', data: { services: [] } });
+    expect(withRenderers(rows, CARD)).toBe(rows);
+  });
+
+  it('points a card reply at the bundle', () => {
+    const card = reply({ tool: 'show_traces', kind: 'traces', spec: {} });
+    const out = withRenderers(card, CARD);
+    expect(out._meta?.ui).toEqual({ resourceUri: CARD });
+    expect(out.content.map((c) => c.text).join('\n')).toContain(CARD);
+  });
+
+  it('says nothing when there is no bundle to mount', () => {
+    const card = reply({ tool: 'show_traces', kind: 'traces', spec: {} });
+    expect(withRenderers(card, undefined)).toBe(card);
+  });
+
+  it('says nothing on a reply with no structured content at all', () => {
+    const prose = { content: [{ type: 'text' as const, text: 'Permission denied.' }] };
+    expect(withRenderers(prose, CARD)).toBe(prose);
   });
 });

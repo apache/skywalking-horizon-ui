@@ -1,6 +1,6 @@
 # MCP — connect your own agent
 
-Horizon speaks the **Model Context Protocol**, so an agent you already run — Claude Code, Codex, Claude Desktop, or anything else that speaks MCP — can read your observability data directly. Point it at `POST /api/mcp` and it gets the same investigation tools the [AI Assistant](ai-assistant.md) uses: the metric catalog, figures, the five dependency maps, traces, logs, browser errors, Kubernetes pod logs, profiling results, and the seven root-cause playbooks.
+Horizon speaks the **Model Context Protocol**, so an agent you already run — Claude Code, Codex, Claude Desktop, or anything else that speaks MCP — can read your observability data directly. Point it at `POST /api/mcp` and it gets the same investigation tools the [AI Assistant](ai-assistant.md) uses: the metric catalog, figures, the dependency maps — a service's neighbours, a whole layer at once, the cross-layer hierarchy, one service's own instances, an instance pair, an endpoint's API chain — traces, logs, browser errors, Kubernetes pod logs, profiling results, and the seven root-cause playbooks.
 
 It is **on by default**, and it is **read-only** in the same sense the assistant is: every tool re-checks the permission its matching screen needs, so an agent sees exactly what the operator it authenticated as sees, and nothing more.
 
@@ -63,7 +63,7 @@ This is the question that decides everything else, and it is not about MCP suppo
 
 **Clients where the connection is made for you** — the web app, the mobile apps, a Desktop *connector* — are fetched from the vendor's cloud, which cannot see your internal network. Those need Horizon reachable from the public internet, which is a decision about your deployment rather than a setting here.
 
-Most Horizon deployments are internal, so the on-device clients are the ones that matter, and they are also the two that render inline cards.
+Most Horizon deployments are internal, so the on-device clients are the ones that matter.
 
 | Client | Reaches an internal Horizon | How to add it |
 |---|---|---|
@@ -96,11 +96,15 @@ Two things work differently because the agent is somewhere else:
 
 **The time window is an argument, not a picker.** There is no toolbar on the other end, so every data tool takes `windowMinutes` (default 60) and `step` (`MINUTE`, `HOUR`, `DAY`). Ask for a wider window and the agent widens the parameter. Reading a week at minute precision is refused by OAP, so widen the step along with the window.
 
-**A client that can draw gets the real widgets.** Horizon ships its card renderer as an MCP app resource, so a host that supports inline rendering (MCP Apps) mounts the same charts, dependency maps and trace lists the Horizon UI draws — not a picture of them, the components themselves. The bundle is fetched once and reused; its address carries a content hash, so a new Horizon build is a new address and there is nothing to cache-bust, while a conversation reopened later renders with the renderer it was captured against.
+**A host that can draw gets the components; everyone else gets the data.** A host that supports inline rendering (MCP Apps) mounts the same charts, dependency maps and trace lists the Horizon UI draws — not a picture of them, the components themselves. Its address carries a content hash, so a new Horizon build is a new address and there is nothing to cache-bust, and it declares no network exception: it runs under the host's deny-all policy and draws the capture and only the capture.
 
-It makes **no network requests at all** — every card already carries the data it was captured with — so it runs under a host's default deny-all policy with no exception granted for it. A client that cannot render inline is unaffected and reads the text below.
+A **terminal** agent (Claude Code, Codex) has no frame to mount one in, and Horizon does not try to draw for it. It gets the reading and presents it in the form that suits the terminal: a time series described in words — the baseline, what moved, when, by how much — top-N and labelled metrics as tables, every dependency map as a table of nodes and a table of the calls between them, a profile as a ranked list of the frames actually holding the time. It is deliberately not a chart redrawn in text: that is a poor chart, it costs tokens on every answer, and it varies between runs.
 
-**The data comes back as numbers the agent can reason over.** A tool that draws a chart in the assistant panel returns, over MCP, a log-scaled sparkline, twelve buckets of min / average / maximum, and the extremes with their timestamps — enough to diagnose from, and enough for a capable client to plot for you itself. Trace, log and browser-error lists come back as rows. Where a list is longer than what fits, the reply says so and says which rows it kept.
+**Traces are summarised, then offered.** A trace capture holds up to ten traces with their spans, and printing ten trees helps nobody. The agent gives you the list — the slow ones, the failing ones, whether one endpoint owns the tail — and asks which is worth opening. Ask for one and it prints that tree, each span carrying its start offset as well as its duration, because two spans of equal length, one blocking the other, read identically without it.
+
+**The agent analyses the data itself; the presentation is for you.** A reply carries the capture once, in full, and a short note per block explaining how to read it — what a metric map is keyed by, which field is self time, which timestamp is in microseconds. The agent works from those rows rather than from a summary Horizon computed for it, because a summary only answers the questions whoever wrote it thought of. Where a list is longer than what fits, the reply says so and says which rows it kept.
+
+Horizon's own assistant panel is a normal web page, with the live views the rest of the UI has. That is the browser UI, not the MCP surface — an MCP reply is a capture, and everything in it, spans included, is read before the reply is sent.
 
 ## Profiling still needs a person
 

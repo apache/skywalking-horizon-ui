@@ -92,6 +92,20 @@ function loadSkillPrompts(skill: string): Record<string, ToolPromptEntry> {
  * Usage in a skill factory: `const t = toolPrompt('context', 'list_services')`
  * → `description: t.description`, `z.string().describe(t.p('layer'))`.
  */
+/**
+ * How to READ one card kind's payload, for the model that analyses it.
+ *
+ * Sent only for the kinds a reply actually contains, so a figure answer never
+ * pays for the trace note. Missing is a hard error for the same reason a missing
+ * tool description is: the model would be handed rows with no way to know what
+ * they mean, and would guess.
+ */
+export function cardPrompt(kind: string): string {
+  const entry = loadSkillPrompts('cards')[kind];
+  if (!entry?.description) throw new Error(`AI card prompt missing: tools/cards.yaml → ${kind}.description`);
+  return entry.description;
+}
+
 export function toolPrompt(skill: string, name: string): { description: string; p(param: string): string } {
   const entry = loadSkillPrompts(skill)[name];
   if (!entry?.description) throw new Error(`AI tool prompt missing: tools/${skill}.yaml → ${name}.description`);

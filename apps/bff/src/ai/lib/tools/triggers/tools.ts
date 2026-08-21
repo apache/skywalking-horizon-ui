@@ -395,7 +395,7 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
           instanceName: r.instanceName,
           replayData: topo,
         });
-        return `Rendered the network process-conversation graph for ${service} (instance ${r.instanceName ?? 'unknown'}; ${scope}; times are OAP-server local): ${topo.nodes.length} process(es), ${topo.calls.length} conversation(s).`;
+        return `Captured the network process-conversation graph for ${service} (instance ${r.instanceName ?? 'unknown'}; ${scope}; times are OAP-server local): ${topo.nodes.length} process(es), ${topo.calls.length} conversation(s).`;
       }
       const a = await analyzeProfiling({ opts: ctx.opts, profilingType, layerKey: layer, service, taskId, event });
       ctx.emitProfiling({
@@ -479,7 +479,7 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
         }
         return `No ${profilingType} profiling task was found for ${service}${why} — nothing has been analyzed. Either none has been created yet (propose one with propose_profiling and tell the user to approve it), or ${profilingType} profiling is unavailable at this deployment. Do not retry blindly.`;
       }
-      return `Rendered the ${profilingType} profile for ${service}: ${a.summary.frameCount} stack frames${a.tip ? ` (partial — ${a.tip})` : ''}.${summarizeProfile(a)}`;
+      return `Captured the ${profilingType} profile for ${service}: ${a.summary.frameCount} stack frames${a.tip ? ` (partial — ${a.tip})` : ''}.${summarizeProfile(a)}`;
     },
     {
       name: 'analyze_profiling',

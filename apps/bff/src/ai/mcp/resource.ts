@@ -85,3 +85,65 @@ export function mcpAppBundle(): Bundle | null {
   );
   return cached;
 }
+
+/**
+ * Whether a reply actually contains a CARD, rather than merely structured rows.
+ *
+ * Every tool returns structured content, so "has structuredContent" is true for
+ * a plain list too — and pointing those at the card bundle made a host mount a
+ * frame for `list_services`, which then reported it had been handed nothing to
+ * draw. `tools/list` has always gated this on `emitsCard`; the result side
+ * disagreed with it. The tell is `kind`: a card envelope names its block, and a
+ * rows envelope is `{ tool, data }` with no kind at all.
+ */
+function carriesCard(structured: unknown): boolean {
+  if (!structured || typeof structured !== 'object') return false;
+  return Object.values(structured as Record<string, unknown>).some(
+    (v) => !!v && typeof v === 'object' && typeof (v as { kind?: unknown }).kind === 'string',
+  );
+}
+
+interface Renderable {
+  content: Array<{ type: 'text'; text: string }>;
+  structuredContent?: unknown;
+  _meta?: Record<string, unknown>;
+}
+
+/**
+ * Point a drawable result at the card bundle, for a host that can mount it.
+ *
+ * Said TWICE, because two kinds of client read differently: a host that mounts
+ * frames reads `_meta` programmatically, while an agent reads `content` and
+ * would never see `_meta` even if its host preserved it. Both carry the
+ * CONCRETE hashed address, so a host can fetch without a `resources/list`
+ * round-trip first.
+ *
+ * There is no terminal renderer to offer any more. Horizon used to publish its
+ * drawing code and, later, a tool that ran it — and neither reached an
+ * operator: no client fetches an MCP resource on the model's own initiative,
+ * and an agent handed a finished figure summarised it in prose instead of
+ * printing it. A terminal agent is now asked to FORMAT the rows itself, which
+ * is what `presentation.terminal.md` teaches; nothing here draws for it.
+ *
+ * No payload, no pointer: nothing is ever asked to draw an empty result.
+ */
+export function withRenderers<T extends Renderable>(
+  result: T,
+  cardBundleUri: string | undefined,
+  // The return type ADDS `_meta`, because this is the function that sets it —
+  // returning plain `T` typed the pointer as absent on the very result carrying
+  // it, and a caller reading it back was a compile error.
+): T & { _meta?: Record<string, unknown> } {
+  if (!cardBundleUri || !carriesCard(result.structuredContent)) return result;
+  return {
+    ...result,
+    _meta: { ...result._meta, ui: { resourceUri: cardBundleUri } },
+    content: [
+      ...result.content,
+      {
+        type: 'text' as const,
+        text: `A host that draws cards can mount ${cardBundleUri}. Otherwise the payload above is the answer — read it and present it yourself.`,
+      },
+    ],
+  };
+}
