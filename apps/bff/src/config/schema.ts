@@ -776,8 +776,11 @@ const layersSchema = z
 // OAP, plus the render / fetch caps that protect storage. OPERATIONAL,
 // per-deployment, hot-reloaded — NOT dashboard content (those live in
 // templates published to OAP). Defaults equal the built-in values, so
-// omitting this block changes nothing. Every value is clamped to a hard
-// ceiling (the `.max()` below) — config can lower, never exceed it.
+// omitting this block changes nothing. Most values carry a `.max()`, and it
+// REJECTS rather than clamps: a number above the ceiling fails validation, so
+// it exits at boot or bounces the whole reload — it is not pulled down to the
+// limit. `topologyMaxNodes` / `topologyMaxEdges` have no ceiling on purpose,
+// because a genuinely large graph is a reason to raise them.
 const performanceSchema = z
   .object({
     bulk: z

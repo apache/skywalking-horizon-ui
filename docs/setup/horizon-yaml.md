@@ -8,6 +8,7 @@ This page is the top-level map. Each subsection has its own detail page:
 |---|---|---|
 | `server` | HTTP listener and static asset path. | [server](server.md) |
 | `templates` | Template source mode: OAP-backed (`live`) or local read-only bundle (`readonly`). | [below](#template-source-mode) |
+| `security` | Which outbound link domains a dashboard template may point at. | [security](security.md) |
 | `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth, MQE override. | [oap](oap.md) |
 | `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass, single sign-on, API tokens. | [auth](auth.md) |
 | `rbac` | Role definitions, permission grants, landing route per role. | [rbac](rbac.md) |
@@ -27,6 +28,9 @@ This page is the top-level map. Each subsection has its own detail page:
 server: { host, port, staticDir?, publicUrl? }   # publicUrl = the PUBLIC base URL
 
 templates: { mode? }          # live (default) | readonly
+
+security:
+  trustedLinkDomains?: string[]   # outbound link allow-list for templates
 
 oap:
   queryUrl: string
@@ -70,6 +74,7 @@ ai:
 
 mcp:
   enabled?: boolean            # ON by default
+  name?: string                # what this deployment calls itself to an agent
 
 oauth:                         # authorization server — OFF by default
   enabled?: boolean
@@ -77,6 +82,7 @@ oauth:                         # authorization server — OFF by default
   signingKey?: string          # secret — env only, 32+ chars (openssl rand -base64 32)
   accessTokenMinutes?: number
   refreshTokenDays?: number    # 0 disables refresh tokens
+  clientMetadataHosts?: [string, ...]   # hosts whose client-metadata URLs are accepted
 
 performance:
   bulk:
@@ -145,13 +151,16 @@ Applied live:
 - RBAC roles and policy (re-evaluated on next route call).
 - OAP URLs and credentials (used on next outbound call).
 - Session TTL (applies to every session immediately, already-signed-in ones included — see [Sessions](session.md#hot-reload)).
-- `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below.
+- `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below. One caveat on `enabled`: turning it on in a live file enables uploads and resolves, but the static mount is scanned only at startup, so a BFF that booted with `sourceMaps.enabled: false` has an empty mounted set until it restarts.
+- `debugLog` in full — `enabled`, `file` and the redaction flags. Changing `file` rotates the wire log to the new path, finishing the write in flight on the old one.
+- `security.trustedLinkDomains` — applied the next time a template's outbound link is published or read back.
 
 These changes require a process restart:
 
 - `server.host`, `server.port` — the listener already bound.
+- `server.staticDir` — the static root is registered with the HTTP server at startup.
 - `templates.mode` — the template source is chosen at boot (the OAP seed either ran or was skipped). Editing it in a live file logs a warning and keeps the boot-time mode until restart.
-- Capability probes — the OAP schema introspection cache is per-process.
+- Nothing about OAP capability detection. The schema-introspection and trace-API probes are cached for five minutes and keyed by `oap.queryUrl`, so an OAP upgrade is picked up within that window and repointing OAP re-probes at once — neither needs a restart.
 - `sourceMaps.bootMountDir` — the static source-map directory is scanned once at startup, so a new directory (and newly-dropped `.map` files) needs a restart. The count of maps loaded from that mount is fixed by the startup scan as well: lowering `sourceMaps.maxFileCount` afterwards trims only the in-memory uploaded set, never the already-mounted maps — restart to re-scan a mount against a lower count.
 - **Raising** `sourceMaps.maxFileBytes` — the multipart upload size limit is fixed at startup; lowering it applies live.
 
