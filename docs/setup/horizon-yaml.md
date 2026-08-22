@@ -9,6 +9,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `server` | HTTP listener and static asset path. | [server](server.md) |
 | `templates` | Template source mode: OAP-backed (`live`) or local read-only bundle (`readonly`). | [below](#template-source-mode) |
 | `security` | Which outbound link domains a dashboard template may point at. | [security](security.md) |
+| `audit` | Optional durable record of who signed in, when and from where. Off by default; Postgres-backed. | [login-audit](login-audit.md) |
 | `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth, MQE override. | [oap](oap.md) |
 | `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass, single sign-on, API tokens. | [auth](auth.md) |
 | `rbac` | Role definitions, permission grants, landing route per role. | [rbac](rbac.md) |
@@ -25,7 +26,7 @@ This page is the top-level map. Each subsection has its own detail page:
 ## Top-level shape
 
 ```yaml
-server: { host, port, staticDir?, publicUrl? }   # publicUrl = the PUBLIC base URL
+server: { host, port, staticDir?, publicUrl?, trustProxy? }   # publicUrl = the PUBLIC base URL
 
 templates: { mode? }          # live (default) | readonly
 
@@ -159,6 +160,8 @@ These changes require a process restart:
 
 - `server.host`, `server.port` — the listener already bound.
 - `server.staticDir` — the static root is registered with the HTTP server at startup.
+- `server.trustProxy` — the HTTP server is constructed once with this value, so a live edit is ignored until restart.
+- The whole `audit` block — the store is opened and the writer started at boot, so turning the login audit on, off, or repointing it takes effect on the next restart.
 - `templates.mode` — the template source is chosen at boot (the OAP seed either ran or was skipped). Editing it in a live file logs a warning and keeps the boot-time mode until restart.
 - Nothing about OAP capability detection. The schema-introspection and trace-API probes are cached for five minutes and keyed by `oap.queryUrl`, so an OAP upgrade is picked up within that window and repointing OAP re-probes at once — neither needs a restart.
 - `sourceMaps.bootMountDir` — the static source-map directory is scanned once at startup, so a new directory (and newly-dropped `.map` files) needs a restart. The count of maps loaded from that mount is fixed by the startup scan as well: lowering `sourceMaps.maxFileCount` afterwards trims only the in-memory uploaded set, never the already-mounted maps — restart to re-scan a mount against a lower count.

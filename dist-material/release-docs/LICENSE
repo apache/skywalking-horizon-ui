@@ -328,6 +328,7 @@
   * internmap@2.0.3 (licenses/internmap-2.0.3/LICENSE)
   * isexe@2.0.0 (licenses/isexe-2.0.0/LICENSE)
   * once@1.4.0 (licenses/once-1.4.0/LICENSE)
+  * pg-int8@1.0.1 (licenses/pg-int8-1.0.1/LICENSE)
   * picocolors@1.1.1 (licenses/picocolors-1.1.1/LICENSE)
   * potpack@1.0.2 (licenses/potpack-1.0.2/LICENSE)
   * semver@7.8.5 (licenses/semver-7.8.5/LICENSE)
@@ -528,6 +529,13 @@
   * path-key@3.1.1 (licenses/path-key-3.1.1/license)
   * path-to-regexp@8.4.2 (licenses/path-to-regexp-8.4.2/LICENSE)
   * perfect-debounce@2.1.0 (licenses/perfect-debounce-2.1.0/LICENSE)
+  * pg@8.23.0 (licenses/pg-8.23.0/LICENSE)
+  * pg-cloudflare@1.4.0 (licenses/pg-cloudflare-1.4.0/LICENSE)
+  * pg-connection-string@2.14.0 (licenses/pg-connection-string-2.14.0/LICENSE)
+  * pg-pool@3.14.0 (licenses/pg-pool-3.14.0/LICENSE)
+  * pg-protocol@1.16.0 (licenses/pg-protocol-1.16.0/LICENSE)
+  * pg-types@2.2.0
+  * pgpass@1.0.5
   * pinia@2.3.1 (licenses/pinia-2.3.1/LICENSE)
   * pino@9.14.0 (licenses/pino-9.14.0/LICENSE)
   * pino-abstract-transport@2.0.0 (licenses/pino-abstract-transport-2.0.0/LICENSE)
@@ -535,6 +543,10 @@
   * pino-std-serializers@7.1.0 (licenses/pino-std-serializers-7.1.0/LICENSE)
   * pkce-challenge@5.0.1 (licenses/pkce-challenge-5.0.1/LICENSE)
   * postcss@8.5.25 (licenses/postcss-8.5.25/LICENSE)
+  * postgres-array@2.0.0 (licenses/postgres-array-2.0.0/license)
+  * postgres-bytea@1.0.1 (licenses/postgres-bytea-1.0.1/license)
+  * postgres-date@1.0.7 (licenses/postgres-date-1.0.7/license)
+  * postgres-interval@1.2.0 (licenses/postgres-interval-1.2.0/license)
   * process@0.11.10 (licenses/process-0.11.10/LICENSE)
   * process-warning@4.0.1 (licenses/process-warning-4.0.1/LICENSE)
   * process-warning@5.1.0 (licenses/process-warning-5.1.0/LICENSE)
@@ -588,6 +600,7 @@
   * vue-i18n@10.0.8 (licenses/vue-i18n-10.0.8/LICENSE)
   * vue-router@4.6.4 (licenses/vue-router-4.6.4/LICENSE)
   * ws@8.21.1 (licenses/ws-8.21.1/LICENSE)
+  * xtend@4.0.2 (licenses/xtend-4.0.2/LICENSE)
   * zod@3.25.76 (licenses/zod-3.25.76/LICENSE)
 
 --- OFL-1.1 ---

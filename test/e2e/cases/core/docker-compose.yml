@@ -62,14 +62,55 @@ services:
       provider:
         condition: service_healthy
 
+  # The audit log's backing store. Only this case runs it: sign-in recording
+  # is off by default everywhere else, and this is the case that performs a
+  # real sign-in through the real form.
+  audit-db:
+    image: "postgres:16-alpine"
+    networks: [e2e]
+    expose: ["5432"]
+    environment:
+      POSTGRES_USER: horizon
+      POSTGRES_DB: horizon
+      # Container-internal, on an isolated compose network, holding only what
+      # this run writes. `trust` keeps a throwaway password out of the file.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U horizon -d horizon"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
   horizon:
     extends:
       file: ../../script/docker-compose/base-compose.yml
       service: horizon
     ports:
       - 8081
+    environment:
+      # Recording is off by default, so the case that exercises a sign-in
+      # turns it on explicitly.
+      HORIZON_AUDIT_ENABLED: "true"
+      HORIZON_AUDIT_PROVIDER: postgres
+      # `allowCleartext` because this database is a container on an isolated
+      # compose network that exists for the length of one run. A non-loopback
+      # host is otherwise refused at boot, which is the correct default and is
+      # what this fixture would trip over first.
+      HORIZON_AUDIT_POSTGRES: '{"url":"postgres://horizon@audit-db:5432/horizon","allowCleartext":true}'
+      # Compressed from the shipped 50 rows / 15s / 60s. The defaults are what
+      # the unit tests cover; here the point is that a sign-in REACHES the
+      # table, and a suite that waited a minute per assertion to prove it
+      # would be paying for the timer rather than the behaviour.
+      HORIZON_AUDIT_EVENT_BATCH_SECONDS: "2"
+      HORIZON_AUDIT_FLUSH_INTERVAL_SECONDS: "4"
+      # API-token credential, so the same case covers the aggregated path.
+      HORIZON_AUTH_TOKENS_FILE: /horizon/tokens.json
+    volumes:
+      - ../../script/docker-compose/e2e-tokens.json:/horizon/tokens.json:ro
     depends_on:
       oap:
+        condition: service_healthy
+      audit-db:
         condition: service_healthy
 
 networks:

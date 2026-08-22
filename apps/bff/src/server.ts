@@ -100,6 +100,8 @@ import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
 import { SECURITY_HEADERS, API_CACHE_CONTROL, isApiPath } from './util/security-headers.js';
+import { createAuditService } from './store/audit/index.js';
+import { registerAuditRoutes } from './http/admin/audit.js';
 
 const configPath = process.env.HORIZON_CONFIG ?? './horizon.yaml';
 
@@ -157,7 +159,14 @@ source.onChange((cfg) => {
   }
 });
 
-const app = Fastify({ logger: loggerOptions });
+// `trustProxy` decides whether X-Forwarded-For is believed for `req.ip`,
+// which is what the audit log records as the client address. Read once:
+// Fastify is constructed once, so this cannot hot-reload — it is on the
+// documented restart-required list beside the listener.
+const app = Fastify({
+  logger: loggerOptions,
+  trustProxy: source.current.server.trustProxy,
+});
 
 app.setErrorHandler((err, req, reply) => {
   if (err instanceof HttpError) {
@@ -205,12 +214,18 @@ const oauthTokens = new OAuthTokenResolver(source, roleResolver);
  * site ends up missing one, and a route that quietly rejects a valid token is
  * not a failure anyone notices until a user reports it.
  */
-const authDeps = { config: source, sessions, tokens, oauthTokens };
+// The audit log. Always constructed: a deployment with the feature off gets a
+// no-op service, so no emit site needs a null check. It records SIGN-INS only,
+// and only ones a valid credential produced.
+const audit = createAuditService({ audit: source.current.audit });
+
+const authDeps = { config: source, sessions, tokens, oauthTokens, audit };
 // Wire-level OAP debug log (`debugLog` in horizon.yaml) — reads the live
 // config per call, so `enabled` / `file` / redaction all hot-reload.
 wireLog.init(() => source.current.debugLog);
 const ldapHealth = new LdapHealth();
 const seenCache = new UserSeenCache();
+
 // In-memory source-map cache for the Browser Errors tab (#6784). Process-
 // global (NOT per-session); statically-mounted maps are indexed once here.
 // The store reads config through a live getter so `enabled` + the budgets
@@ -275,9 +290,10 @@ registerColdStageHook(app);
 app.addHook('onRoute', makeRouteAuthHook({ ...authDeps }));
 
 // ── User ───────────────────────────────────────────────────────────
-registerAuthRoutes(app, { ...authDeps, ldapHealth, seenCache });
+registerAuthRoutes(app, { ...authDeps, ldapHealth, seenCache, audit });
 registerAuthHealthRoute(app, { config: source, ldapHealth });
-registerOidcRoutes(app, { ...authDeps, seenCache });
+registerAuditRoutes(app, { ...authDeps, audit });
+registerOidcRoutes(app, { ...authDeps, seenCache, audit });
 
 // ── Query ──────────────────────────────────────────────────────────
 registerOapInfoRoute(app, { ...authDeps });
@@ -452,6 +468,10 @@ const bootSeedAbort = new AbortController();
 app.listen({ host, port }).then(
   () => {
     logger.info(`BFF listening on http://${host}:${port}`);
+    // Opens the store and starts the one timer the feature has. Never
+    // rejects: a store that cannot be reached logs and is retried on the
+    // tick, because an optional feature must not hold up the console.
+    void audit.start();
     // Wait for OAP admin readiness, then run the boot-time template
     // seed ONCE. Two-phase so we don't lose the seed when OAP is still
     // starting up alongside the BFF (compose / k8s rollout, slow OAP
@@ -515,6 +535,9 @@ async function shutdown(signal: string) {
   // promise resolves quickly instead of blocking shutdown.
   bootSeedAbort.abort();
   await app.close();
+  // AFTER the HTTP server stops accepting, so the final flush is not racing
+  // new sign-ins.
+  await audit.stop();
   await sessions.close();
   await wireLog.close();
   await source.close();

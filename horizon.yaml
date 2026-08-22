@@ -44,6 +44,13 @@ server:
   # proxy that rewrites Host — and in dev, where Vite proxies /api so the BFF
   # sees :8081 while you are browsing :9091.
   publicUrl: "${HORIZON_PUBLIC_URL:}"
+  # Believe X-Forwarded-For for the client address? `false` records the direct
+  # peer, which behind a proxy is the proxy — every audit row would name the
+  # ingress. `true` is REFUSED at boot: it trusts the whole header, so any
+  # caller could choose the address recorded. Use a hop count (1 = one proxy in
+  # front) or the ingress address/CIDR, which cannot be over-counted.
+  # Restart-only.
+  trustProxy: ${HORIZON_TRUST_PROXY:false}
 
 
 templates:
@@ -293,6 +300,39 @@ oauth:
   # un-redirected, bounded and timed out. Empty means any public host; a list
   # confines it further, e.g. ["claude.ai"].
   clientMetadataHosts: ${HORIZON_OAUTH_CLIENT_METADATA_HOSTS:[]}
+
+# Login audit — an optional, durable record of who signed in. OFF by default.
+#
+# Postgres or nothing: there is deliberately no file backend, because a file
+# per pod is a partial history per replica with nothing to merge them.
+#
+# Only what a VALID credential produced is recorded — successes, plus the two
+# refusals that happen AFTER authentication succeeds (no roles, no group
+# mappings). Everything an anonymous caller can trigger stays in the
+# application log, which is what keeps this table unreachable by someone with
+# no credential.
+audit:
+  enabled: ${HORIZON_AUDIT_ENABLED:false}
+  # Per Horizon node, per UTC hour. A safety valve, not a throttle: a
+  # fifty-person team produces on the order of a hundred rows a DAY.
+  maxRowsPerHour: ${HORIZON_AUDIT_MAX_ROWS_PER_HOUR:1000}
+  # How often accumulated token-use counts and statistics are written. The
+  # service runs ONE timer, at eventBatchSeconds below; this cadence is a
+  # multiple of it rather than a second timer.
+  flushIntervalSeconds: ${HORIZON_AUDIT_FLUSH_INTERVAL_SECONDS:60}
+  # Sign-in rows are buffered and written in batches, never on the request
+  # path — so a database cannot delay a login at all, and a crash loses at
+  # most this window. Whichever trigger fires first flushes what is pending.
+  eventBatchRows: ${HORIZON_AUDIT_EVENT_BATCH_ROWS:50}
+  eventBatchSeconds: ${HORIZON_AUDIT_EVENT_BATCH_SECONDS:15}
+  provider: "${HORIZON_AUDIT_PROVIDER:none}"   # none | postgres
+  # SECRET — supply as JSON via the env var, never commit a connection string.
+  # A non-loopback url must ask for sslmode=verify-full (or verify-ca): the
+  # records carry usernames, email addresses and source addresses. Set
+  # "allowCleartext": true to accept an unencrypted connection to a database
+  # on a network you control (an in-cluster Postgres) — it is refused
+  # otherwise, and turning it on warns at every boot.
+  postgres: ${HORIZON_AUDIT_POSTGRES:null}
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in
