@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { WILDCARD_EXEMPT_VERBS } from '@/state/wildcardExempt';
 import { bff } from '@/api/client';
 import type { AuthStatus } from '@/api/scopes/admin-auth';
 
@@ -50,6 +51,10 @@ function hasVerb(grants: readonly string[], required: string): boolean {
   for (const g of grants) {
     if (g === '*' || g === 'admin') return true;
     if (g === required) return true;
+    // Before the wildcard branches, exactly as the BFF places it — otherwise
+    // this board draws a check mark for a grant the server denies, on the row
+    // whose own hint says a wildcard does not include it.
+    if (WILDCARD_EXEMPT_VERBS.has(required)) continue;
     const gp = g.split(':', 3);
     const rp = required.split(':', 3);
     if (gp[0] === rp[0] && gp[1] === '*') return true;
@@ -121,6 +126,7 @@ const MENU_GATES = computed<readonly MenuGate[]>(() => [
   { label: t('Global defaults'), verb: 'setup:read', covers: ['/admin/global-defaults'] },
   { label: t('Users'), verb: 'user:read', covers: ['/admin/users'] },
   { label: t('Auth status'), verb: 'auth:read', covers: ['/admin/auth-status'] },
+  { label: t('Login audit'), verb: 'audit:read', covers: ['/admin/audit'] },
   { label: t('Roles & permissions'), verb: 'role:read', covers: ['/admin/roles'] },
 ]);
 /** Is the menu row visible to the role? `null` verb ⇒ any signed-in user. */
@@ -191,6 +197,10 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'role:read':              { label: t('See this page') },
   'role:write':             { label: t('Change role grants') },
   'auth:read':              { label: t('See the auth-status page') },
+  'audit:read':             {
+    label: t('See the login audit log'),
+    hint: t('Who signed in, when, and from where — including verified email addresses. A wildcard grant does NOT include this one; it must be granted by name or by the administrator role.'),
+  },
   'admin':                  { label: t('Everything (escape hatch)') },
 }));
 function labelFor(verb: string): { label: string; hint?: string } {
@@ -326,8 +336,9 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('Users'), icon: '◉' },
       { label: t('Roles & permissions'), icon: '⚙' },
       { label: t('Auth status'), icon: '⌬' },
+      { label: t('Login audit'), icon: '⎙' },
     ],
-    verbs: ['user:read', 'user:write', 'role:read', 'role:write', 'auth:read'],
+    verbs: ['user:read', 'user:write', 'role:read', 'role:write', 'auth:read', 'audit:read'],
   },
   {
     title: t('Everything (escape hatch)'),

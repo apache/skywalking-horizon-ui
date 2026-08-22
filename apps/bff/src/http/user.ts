@@ -36,6 +36,7 @@ import { z } from 'zod';
 import { badRequest, unauthorized } from '../errors.js';
 import { resolveVerbsForRoles } from '../rbac/verbs.js';
 import { verifyLocalCredentials, type VerifiedUser } from '../user/local.js';
+import { auditReasonOf, granted, refused, type Verified } from '../user/outcome.js';
 import { verifyLdapCredentials } from '../user/ldap.js';
 import { verifyBreakGlass } from '../user/break-glass.js';
 import type { LdapHealth } from '../user/ldap-health.js';
@@ -43,6 +44,18 @@ import type { UserSeenCache, SeenSource } from '../user/seen-cache.js';
 import type { Session } from '../user/sessions.js';
 import type { HorizonConfig } from '../config/schema.js';
 import { logger } from '../logger.js';
+import type { AuditService } from '../store/audit/types.js';
+
+/**
+ * The stable identity to meter a principal by.
+ *
+ * A directory DN names one account whatever spelling was typed at the login
+ * form; a local account is already its config key. Only the audit budget uses
+ * this — it is never recorded.
+ */
+function canonicalKey(identity: VerifiedUser & { dn?: string }): string {
+  return identity.dn ?? identity.username;
+}
 
 const loginBodySchema = z.object({
   username: z.string().min(1),
@@ -52,10 +65,13 @@ const loginBodySchema = z.object({
 export interface AuthRouteDeps extends AuthDeps {
   ldapHealth: LdapHealth;
   seenCache: UserSeenCache;
+  /** Always present — a deployment with the feature off gets a no-op service,
+   *  so no emit site needs to know whether auditing is configured. */
+  audit: AuditService;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): void {
-  const { config: source, sessions, ldapHealth, seenCache } = deps;
+  const { config: source, sessions, ldapHealth, seenCache, audit } = deps;
   const cookieName = () => source.current.session.cookieName;
   const cookieSecure = () => source.current.session.cookieSecure;
   const ttlMs = () => source.current.session.ttlMinutes * 60_000;
@@ -67,22 +83,22 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     const cfg = source.current;
     const fromIp = req.ip;
 
-    let verified: VerifiedUser | null = null;
+    let outcome: Verified<VerifiedUser> = refused('backend_unreachable');
     let source_: SeenSource = cfg.auth.backend === 'ldap' ? 'ldap' : 'local';
 
     if (cfg.auth.backend === 'local') {
-      verified = await verifyLocalCredentials(cfg, username, password);
+      outcome = await verifyLocalCredentials(cfg, username, password);
       source_ = 'local';
     } else if (cfg.auth.backend === 'ldap' && cfg.auth.ldap) {
-      verified = await verifyLdapCredentials(cfg.auth.ldap, username, password);
+      outcome = await verifyLdapCredentials(cfg.auth.ldap, username, password);
       // If LDAP rejected (or threw) and break-glass is armed, refresh
       // health and consider the fallback.
-      if (!verified && cfg.auth.breakGlass) {
+      if (!outcome.ok && cfg.auth.breakGlass) {
         await ldapHealth.probe(cfg.auth.ldap).catch(() => undefined);
         if (ldapHealth.isUnhealthy()) {
           const bg = await verifyBreakGlass(cfg.auth.breakGlass, username, password);
           if (bg) {
-            verified = bg;
+            outcome = granted(bg);
             source_ = 'break-glass';
             logger.warn({ username, fromIp }, 'auth: break-glass login granted (LDAP unhealthy)');
           }
@@ -95,6 +111,28 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
       );
     }
 
+    if (!outcome.ok) {
+      // Only a refusal reached AFTER authentication succeeded is recordable —
+      // it carries a verified principal and is bounded by the real user count.
+      // Everything else an anonymous caller can trigger stays log-only, which
+      // is what keeps this table unreachable without a credential.
+      const auditReason = auditReasonOf(outcome.reason);
+      if (auditReason && outcome.identity) {
+        audit.recordEvent({
+          at: Date.now(),
+          kind: source_ === 'break-glass' ? 'break-glass' : source_,
+          outcome: 0,
+          reason: auditReason,
+          username: outcome.identity.username,
+          // Empty on a policy refusal — that IS the finding.
+          roles: outcome.identity.roles.join(','),
+          principalKey: canonicalKey(outcome.identity),
+          clientIp: fromIp,
+        });
+      }
+    }
+
+    const verified = outcome.ok ? outcome.identity : null;
     if (!verified) {
       // The only record a rejected sign-in leaves, and it is `warn` rather than
       // `info` so that a production default of `warn` still shows a brute-force
@@ -102,7 +140,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
       // included, and the reason stays coarse on purpose — "no such user" and
       // "wrong password" must not be distinguishable here.
       logger.warn(
-        { username, fromIp, backend: cfg.auth.backend },
+        { username, fromIp, backend: cfg.auth.backend, reason: outcome.ok ? undefined : outcome.reason },
         'auth: login rejected',
       );
       throw unauthorized('invalid credentials');
@@ -124,6 +162,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
       source: source_,
       roles: verified.roles,
       ip: fromIp,
+    });
+    audit.recordEvent({
+      at: Date.now(),
+      kind: source_ === 'break-glass' ? 'break-glass' : source_,
+      outcome: 1,
+      username: verified.username,
+      // What this sign-in GRANTED. A browser session carries it until the
+      // person signs in again, and a role table read later has since changed.
+      roles: verified.roles.join(','),
+      principalKey: canonicalKey(verified),
+      clientIp: fromIp,
     });
     reply.setCookie(cookieName(), session.sid, {
       httpOnly: true,

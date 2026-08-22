@@ -327,6 +327,12 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'auth:read' },
   },
   {
+    path: 'admin/audit',
+    name: 'admin-audit',
+    component: () => import('@/features/admin/audit/AuditView.vue'),
+    meta: { verb: 'audit:read' },
+  },
+  {
     path: 'admin/roles',
     name: 'admin-roles',
     component: () => import('@/features/admin/roles/RolesView.vue'),

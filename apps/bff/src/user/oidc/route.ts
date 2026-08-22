@@ -42,13 +42,15 @@ import type { HorizonConfig } from '../../config/schema.js';
 import type { AuthDeps } from '../middleware.js';
 import type { UserSeenCache } from '../seen-cache.js';
 import { logger } from '../../logger.js';
+import type { AuditService } from '../../store/audit/types.js';
 import { discover, DiscoveryError } from './discovery.js';
 import { domainAllowed, findProvider, oidcEnabled, rolesForEmail } from './identity.js';
-import { fetchOauth2Identity, UserinfoError } from './userinfo.js';
+import { fetchOauth2Identity, ProviderUnreachableError, readBounded, UserinfoError } from './userinfo.js';
 import { FlowStore, type Flow } from './flows.js';
 
 export interface OidcRouteDeps extends AuthDeps {
   seenCache: UserSeenCache;
+  audit: AuditService;
   fetch?: typeof fetch;
 }
 
@@ -120,6 +122,21 @@ interface IdClaims {
  */
 function flowCookiePath(config: HorizonConfig): string {
   return `${uiBasePath(config)}/api/auth/oidc`;
+}
+
+/** Keeps only the claims we use, and only where they are the right shape. */
+function readIdClaims(payload: Record<string, unknown>): IdClaims {
+  const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+  return {
+    ...payload,
+    nonce: str(payload.nonce),
+    email: str(payload.email),
+    // Left as-is: the caller already compares it as a string against 'true',
+    // which is exactly how providers disagree about this one.
+    email_verified: payload.email_verified,
+    name: str(payload.name),
+    preferred_username: str(payload.preferred_username),
+  } as IdClaims;
 }
 
 export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): void {
@@ -290,7 +307,14 @@ export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): v
         // otherwise hold this request until the socket died.
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
-      const json = (await res.json()) as { id_token?: string; access_token?: string; error?: string; error_description?: string };
+      // Bounded like every other provider response: `res.json()` will read
+      // whatever arrives, and the body here is chosen by the provider.
+      const json = (await readBounded(res, 'token')) as {
+        id_token?: string;
+        access_token?: string;
+        error?: string;
+        error_description?: string;
+      };
       if (!res.ok || (provider.kind === 'oidc' ? !json.id_token : !json.access_token)) {
         // The provider's own words, logged server-side only: they routinely
         // name the misconfiguration (redirect_uri_mismatch, invalid_client).
@@ -321,7 +345,11 @@ export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): v
           issuer,
           audience: provider.clientId,
         });
-        claims = payload as IdClaims;
+        // A verified signature proves who issued the token, not that its
+        // claims have the shapes we are about to treat them as. A numeric
+        // `nonce` reached `constantTimeEqual` as a non-string and threw out of
+        // the handler as a 500; the provider is not trusted for types.
+        claims = readIdClaims(payload);
       } catch (err) {
         logger.error({ provider: provider.id, err: String(err) }, 'oidc: ID token verification failed');
         return fail(reply, 'sso_failed');
@@ -354,7 +382,16 @@ export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): v
         displayName = id.name;
       } catch (err) {
         logger.error({ provider: provider.id, err: String(err) }, 'oauth2: userinfo failed');
-        return fail(reply, err instanceof UserinfoError ? 'no_email' : 'provider_unreachable');
+        // `no_email` only when the provider answered and had no usable
+        // address for us; anything else is the provider, not the account.
+        return fail(
+          reply,
+          err instanceof ProviderUnreachableError
+            ? 'provider_unreachable'
+            : err instanceof UserinfoError
+              ? 'no_email'
+              : 'provider_unreachable',
+        );
       }
     }
 
@@ -363,13 +400,48 @@ export function registerOidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): v
       return fail(reply, 'domain_not_allowed');
     }
 
-    const roles = rolesForEmail(cfg().auth.sso.roles, email);
+    // The SAME snapshot the rest of this callback used. Re-reading here mixed
+    // a captured provider and RBAC setting with a live role table, so a config
+    // reload landing during the provider round trip could admit someone under
+    // one half of the old configuration and one half of the new — or refuse
+    // them with `no_roles` for a table that no longer applied.
+    const roles = rolesForEmail(config.auth.sso.roles, email);
     if (roles.length === 0 && config.rbac.enabled) {
+      // Authenticated by the provider, then refused on OUR policy — one of the
+      // only two refusals the audit table records, because reaching it needs a
+      // credential the provider already verified.
+      deps.audit.recordEvent({
+        at: Date.now(),
+        kind: 'sso',
+        outcome: 0,
+        reason: 'no_roles',
+        username: email,
+        // Empty, which is exactly why this row exists.
+        roles: '',
+        mail: email,
+        provider: provider.id,
+        protocol: provider.kind === 'oauth2' ? 'oauth2' : 'oidc',
+        clientIp: req.ip,
+      });
       return fail(reply, 'no_roles');
     }
 
     const session = deps.sessions.create(email, roles, displayName, 'sso', provider.id);
     deps.seenCache.record({ username: email, source: 'sso', roles, ip: req.ip });
+    deps.audit.recordEvent({
+      at: Date.now(),
+      kind: 'sso',
+      outcome: 1,
+      username: email,
+      roles: roles.join(','),
+      // On the SSO path the verified address IS the principal, so `mail` and
+      // `username` are the same value — the only kind where mail is populated
+      // as the code stands.
+      mail: email,
+      provider: provider.id,
+      protocol: provider.kind === 'oauth2' ? 'oauth2' : 'oidc',
+      clientIp: req.ip,
+    });
     reply.setCookie(config.session.cookieName, session.sid, {
       httpOnly: true,
       sameSite: 'strict',

@@ -48,8 +48,9 @@ export const loggerOptions: LoggerOptions = {
   // intentionally logged, but a stray `logger.info({ config })` — or an error
   // object that happens to embed connection options — must not leak one. Covers
   // the LLM key, the OAP basic-auth password, the LDAP service-account bind
-  // password, each SSO provider's client secret and the OAuth signing key —
-  // each at its config path and under a `config.` wrapper.
+  // password, each SSO provider's client secret, the OAuth signing key and the
+  // audit store's connection string — each at its config path and under a
+  // `config.` wrapper.
   redact: {
     paths: [
       'ai.apiKey',
@@ -69,6 +70,12 @@ export const loggerOptions: LoggerOptions = {
       'oauth.signingKey',
       'config.oauth.signingKey',
       '*.signingKey',
+      // The audit store's connection string. Not covered by any wildcard
+      // above, and it carries host, database, user and password in one value.
+      'audit.postgres.url',
+      'config.audit.postgres.url',
+      '*.postgres.url',
+      '*.connectionString',
     ],
     censor: '[redacted]',
   },

@@ -27,6 +27,16 @@
 export const E2E_USER = process.env.HORIZON_E2E_USER ?? 'e2e';
 export const E2E_PASSWORD = process.env.HORIZON_E2E_PASSWORD ?? 'e2e-passw0rd';
 
+/**
+ * The API token the core case mounts (`script/docker-compose/e2e-tokens.json`).
+ *
+ * A throwaway secret in a throwaway stack, committed on purpose so the spec
+ * and the fixture cannot drift — the audit log records a token by its ID, and
+ * the aggregate assertion needs to know which id to look for.
+ */
+export const E2E_TOKEN_ID = 'e2etok';
+export const E2E_TOKEN = `hzn_${E2E_TOKEN_ID}_e2e-token-secret-do-not-reuse`;
+
 /** Service names the instrumented demo app reports to OAP. */
 export const PROVIDER_SERVICE = 'e2e-service-provider';
 export const CONSUMER_SERVICE = 'e2e-service-consumer';

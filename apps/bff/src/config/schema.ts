@@ -16,6 +16,9 @@
  */
 
 import { z } from 'zod';
+import { auditSchema } from './audit.js';
+export { isHttpsOrLoopback, isLoopbackHostname } from '../util/loopback.js';
+import { isHttpsOrLoopback } from '../util/loopback.js';
 
 // Env-var-overridable bind defaults. The Docker image sets
 // `HORIZON_SERVER_HOST=0.0.0.0` so a zero-config `docker run -p 8081:8081
@@ -48,6 +51,39 @@ const serverSchema = z
      * UI. Set it and both stop guessing.
      */
     publicUrl: z.string().default(process.env.HORIZON_PUBLIC_URL ?? ''),
+    /**
+     * Whether to believe `X-Forwarded-For` for the client address.
+     *
+     * `false` records the direct peer, which behind a proxy is the proxy. That
+     * matters wherever Horizon records or acts on a client address — the login
+     * audit log most of all, where every row would otherwise name the ingress.
+     *
+     * `true` is REFUSED. It means "trust the whole header", so any caller can
+     * choose the address Horizon records by sending one; the refinement below
+     * rejects it rather than accepting a setting that quietly makes the column
+     * meaningless. Use a hop count or the ingress addresses instead:
+     *
+     *   number       the client is the Nth entry from the RIGHT of the header.
+     *                `@fastify/forwarded` builds the list as
+     *                `[socket peer, …X-Forwarded-For reversed]`, so the peer
+     *                counts as one of the N — with one proxy in front, `1`.
+     *                Too high is dangerous: once there is nothing left to
+     *                skip it falls back to the LEFTMOST entry, whatever the
+     *                caller sent.
+     *   addr/CIDR    trust these addresses and take the first entry that is
+     *                not one of them. A comma-separated list is accepted.
+     *                Cannot make the too-high mistake, so prefer it.
+     *
+     * Restart-only: Fastify is constructed once with this value.
+     */
+    trustProxy: z
+      .union([z.boolean(), z.number().int().positive(), z.string()])
+      .default(false)
+      .refine((v) => v !== true, {
+        message:
+          'server.trustProxy: true trusts the whole X-Forwarded-For header, so any caller can choose ' +
+          'the address Horizon records. Use a hop count (e.g. 1) or the ingress address/CIDR instead.',
+      }),
   })
   .strict();
 
@@ -285,6 +321,23 @@ const ssoProviderSchema = z
     // Fail at config-parse time rather than at the first login attempt: a
     // provider missing the fields its own kind needs can never work, and
     // finding that out from a browser redirect is a poor way to learn it.
+    // The client secret goes to the token endpoint, so a plaintext provider
+    // URL puts it on the wire. Loopback stays allowed for a local mock.
+    for (const [field, value] of [
+      ['issuer', p.issuer],
+      ['authorizationEndpoint', p.authorizationEndpoint],
+      ['tokenEndpoint', p.tokenEndpoint],
+      ['userinfoEndpoint', p.userinfoEndpoint],
+      ['emailsEndpoint', p.emailsEndpoint],
+    ] as const) {
+      if (value && !isHttpsOrLoopback(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `provider "${p.id}": ${field} must be https (or a loopback address) — the client secret is sent to this provider`,
+        });
+      }
+    }
     if (p.kind === 'oidc' && !p.issuer) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['issuer'], message: `provider "${p.id}": issuer is required for kind: oidc` });
     }
@@ -747,11 +800,11 @@ const oauthSchema = z
   .strict()
   .default({});
 
+// in the UI (an excluded layer simply doesn't appear).
 // Layers hidden from the sidebar / menu even when OAP reports them in
 // `listLayers`. An operator can clear `excluded` to surface every reported
 // layer, or add keys for internal-only layers they don't want on the menu.
 // The `reason` is documentation for whoever reads this file — it isn't shown
-// in the UI (an excluded layer simply doesn't appear).
 const excludedLayerSchema = z
   .object({
     /** OAP layer key (UPPER_SNAKE), matched case-insensitively. */
@@ -929,6 +982,7 @@ export const configSchema = z
     ai: aiSchema,
     mcp: mcpSchema,
     oauth: oauthSchema,
+    audit: auditSchema,
     performance: performanceSchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
@@ -947,3 +1001,7 @@ export type SourceMapsConfig = z.infer<typeof sourceMapsSchema>;
 export type LdapConfig = z.infer<typeof ldapSchema>;
 export type LocalUser = z.infer<typeof localUserSchema>;
 export type BreakGlassConfig = z.infer<typeof breakGlassSchema>;
+
+// Re-exported so every existing importer keeps one place to reach for.
+export { auditConfigProblem } from './audit.js';
+export type { AuditConfig, AuditPostgresConfig } from './audit.js';
