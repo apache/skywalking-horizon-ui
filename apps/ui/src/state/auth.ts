@@ -21,6 +21,7 @@ import { BffApiError, bffClient, type MeResponse } from '@/api/client';
 import { useTemplatePreference } from '@/controls/templatePreference';
 import { resetSessionState } from '@/state/sessionReset';
 import { i18n } from '@/i18n';
+import { WILDCARD_EXEMPT_VERBS } from './wildcardExempt';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<MeResponse | null>(null);
@@ -103,6 +104,10 @@ export const useAuthStore = defineStore('auth', () => {
     const grants = user.value?.verbs ?? [];
     for (const g of grants) {
       if (g === '*' || g === 'admin' || g === verb) return true;
+      // Same placement as the BFF: after the exact/`*`/`admin` grants and
+      // BEFORE both wildcard branches, so `*:read` and `audit:*` are equally
+      // denied.
+      if (WILDCARD_EXEMPT_VERBS.has(verb)) continue;
       const [ga, gact, gsub] = g.split(':', 3);
       const [ra, ract, rsub] = verb.split(':', 3);
       if (ga === ra && gact === '*') return true;

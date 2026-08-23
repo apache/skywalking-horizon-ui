@@ -32,6 +32,7 @@
 import { createRemoteJWKSet } from 'jose';
 import { logger } from '../../logger.js';
 import { readBounded } from './userinfo.js';
+import { isHttpsOrLoopback } from '../../util/loopback.js';
 
 export interface ProviderMetadata {
   issuer: string;
@@ -49,6 +50,9 @@ interface RawMetadata {
   authorization_endpoint?: string;
   token_endpoint?: string;
   jwks_uri?: string;
+  /** Read only to check its scheme — the OIDC path takes the address from a
+   *  verified ID token, not from userinfo. */
+  userinfo_endpoint?: string;
   code_challenge_methods_supported?: string[];
 }
 
@@ -82,6 +86,20 @@ export async function discover(issuer: string, fetchImpl: typeof fetch = fetch):
 
   if (!raw.authorization_endpoint || !raw.token_endpoint || !raw.jwks_uri) {
     throw new DiscoveryError(`${url} is missing authorization_endpoint, token_endpoint or jwks_uri`);
+  }
+  // The document is fetched from the provider, so its contents are the
+  // provider's choice rather than the operator's. A plaintext token endpoint
+  // here would put the client secret on the wire, so the same rule the config
+  // applies to a configured endpoint applies to a discovered one.
+  for (const [name, value] of [
+    ['authorization_endpoint', raw.authorization_endpoint],
+    ['token_endpoint', raw.token_endpoint],
+    ['jwks_uri', raw.jwks_uri],
+    ['userinfo_endpoint', raw.userinfo_endpoint],
+  ] as const) {
+    if (value && !isHttpsOrLoopback(value)) {
+      throw new DiscoveryError(`${url} advertises a non-https ${name}: ${value}`);
+    }
   }
   // The issuer in the document is what an ID token's `iss` must equal. A
   // provider whose document disagrees with the URL it was fetched from is

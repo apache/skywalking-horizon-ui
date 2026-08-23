@@ -68,6 +68,7 @@ Known verbs are grouped into areas:
 | `role:read` | Shows the Roles & Permissions entry and page (`/admin/roles`). The board is drawn from the same status read as the Auth Status page, so grant `auth:read` alongside it or the page opens and reports a load failure. |
 | `role:write` | **Reserved** — role definitions are edited in `horizon.yaml`, not from the UI. |
 | `auth:read` | Auth Status admin page (`/admin/auth-status`) + LDAP probe. Also the data behind the Roles & Permissions board. |
+| `audit:read` | Login audit page (`/admin/audit`) — who signed in, when and from where. **Not granted by any wildcard**: only a bare `*`, the administrator role, or this verb by name. |
 
 ### Special
 
@@ -91,7 +92,7 @@ A user's grant string is matched against a required verb using these rules:
 | `*` or `admin` | Any verb. |
 | `area:verb` (exact) | The exact required verb (case-sensitive). |
 | `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. |
-| `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`). |
+| `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`), and does **not** match `audit:read` — see below. |
 
 Effective verbs for a session are the **union** of all grants from all roles.
 
@@ -204,13 +205,24 @@ landingByRole:
 
 ```yaml
 roles:
-  auditor:
+  reviewer:
     - "*:read"           # all reads only
 landingByRole:
-  auditor: /operate/cluster
+  reviewer: /operate/cluster
 ```
 
-`*:read` grants every read — useful for review access without write capability.
+`*:read` grants every read except one — useful for review access without write capability.
+
+**One read is not included: `audit:read`.** The login audit log holds who signed in, when, from where, and their verified email addresses, so a wildcard does not reach it. Only a bare `*`, the built-in **administrator** role, or the verb named explicitly grants it:
+
+```yaml
+roles:
+  reviewer:
+    - "*:read"
+    - "audit:read"       # named explicitly — a wildcard does not include it
+```
+
+The role above is called `reviewer` rather than `auditor` for that reason: a role named "auditor" that cannot read the audit log is a trap. Name it for what it grants.
 
 ### Separate alarm-triage role
 

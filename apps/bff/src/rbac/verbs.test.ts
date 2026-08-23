@@ -16,7 +16,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { hasVerb, resolveVerbsForRoles } from './verbs.js';
+import { SCOPE_VERBS } from '../oauth/scopes.js';
+import { WILDCARD_EXEMPT_VERBS, hasVerb, resolveVerbsForRoles } from './verbs.js';
 
 describe('hasVerb', () => {
   it('grants everything for "*"', () => {
@@ -83,5 +84,45 @@ describe('resolveVerbsForRoles', () => {
     expect(resolveVerbsForRoles(policy, ['operator', 'unknown-role'], true)).toEqual(
       expect.arrayContaining(['*:read', 'rule:write', 'profile:enable']),
     );
+  });
+});
+
+describe('wildcard-exempt verbs', () => {
+  /**
+   * The containment `audit:read` cannot get from the ordinary grammar.
+   *
+   * `*:read` is a documented role recipe AND the expansion of the default
+   * OAuth scope, so without the exemption, enabling an optional audit log
+   * would silently hand the full login history — usernames, verified email
+   * addresses, source addresses, internal cluster addressing — to every
+   * read-only MCP client and every reviewer role. The consent screen shows
+   * that scope as the single line `*:read` and names none of it.
+   */
+  it('is not granted by *:read', () => {
+    expect(hasVerb(['*:read'], 'audit:read')).toBe(false);
+    // The neighbouring read verb is unaffected — this is one exemption, not a
+    // change to how the grammar works.
+    expect(hasVerb(['*:read'], 'auth:read')).toBe(true);
+  });
+
+  it('is not granted by an area wildcard either', () => {
+    expect(hasVerb(['audit:*'], 'audit:read')).toBe(false);
+  });
+
+  it('is granted by the exact verb, by `*`, and by `admin`', () => {
+    expect(hasVerb(['audit:read'], 'audit:read')).toBe(true);
+    expect(hasVerb(['*'], 'audit:read')).toBe(true);
+    expect(hasVerb(['admin'], 'audit:read')).toBe(true);
+  });
+
+  it('is not reachable through the default OAuth scope', () => {
+    // `SCOPE_VERBS['horizon:read']` is exactly `['*:read']`, so this is the
+    // same assertion the consent screen depends on.
+    expect(hasVerb(SCOPE_VERBS['horizon:read'], 'audit:read')).toBe(false);
+    expect(hasVerb(SCOPE_VERBS['horizon:full'], 'audit:read')).toBe(true);
+  });
+
+  it('keeps the exempt set small — every entry is a place the grammar stops being uniform', () => {
+    expect([...WILDCARD_EXEMPT_VERBS]).toEqual(['audit:read']);
   });
 });

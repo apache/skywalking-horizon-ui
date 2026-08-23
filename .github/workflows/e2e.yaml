@@ -57,7 +57,11 @@
 #             catalog's green ▶ on the `service_cpm` statement — through to
 #             a captured Service source row carrying a fixture service name,
 #             and MAL live debug over the agent's own self-observability
-#             meters, through to the metric its output step materialised
+#             meters, through to the metric its output step materialised.
+#             Also the LOGIN AUDIT, which is why this case runs a Postgres:
+#             the sign-in the suite performs to reach anything is recorded
+#             and read back on the audit page, API-token use collapses into
+#             one aggregated row, and a refused bearer leaves none
 #             components: LayerWidgetTile, TimeChart, TopList, RecordList,
 #             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
 #             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
@@ -69,7 +73,8 @@
 #             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
 #             AlarmsWidget, SectionBreak, AppShell, DebugView,
 #             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
-#             live debug), DebugMal (MAL live debug)
+#             live debug), DebugMal (MAL live debug), AuditView,
+#             AuditStatBlock, AuditList
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE
 #             tests: the trace page on a non-BanyanDB backend — query-API
