@@ -205,13 +205,18 @@ export interface AuditFilter {
   from?: number;
   to?: number;
   kind?: AuditKind[];
-  /** PREFIX match. Not a substring: a leading wildcard is an unindexed scan
-   *  and a fishing tool, while a prefix is index-served and is what makes the
-   *  token kinds reachable — nobody types an opaque token id from memory.
+  /**
+   * EXACT match on the verified principal.
    *
-   *  Who a credential belongs to is NOT recorded here: that is a fact about
-   *  configuration, which the tokens file already holds, not a fact about a
-   *  sign-in. */
+   * Not a prefix and not a substring. A prefix made the result depend on how
+   * much of a name was typed, and it could not be reproduced on a store whose
+   * operator set has none — which would have left one control meaning two
+   * different things depending on the backend behind it.
+   *
+   * Who a credential belongs to is NOT recorded here: that is a fact about
+   * configuration, which the tokens file already holds, not a fact about a
+   * sign-in.
+   */
   username?: string;
   /**
    * Where the previous page stopped: `(at, id)` of its last row.

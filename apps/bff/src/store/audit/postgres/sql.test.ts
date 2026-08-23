@@ -33,7 +33,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { SCHEMA_STATEMENTS } from './schema.js';
-import { likePrefix, toNumber, valuesClause } from './rows.js';
+import { toNumber, valuesClause } from './rows.js';
 import { EVENT_COLUMNS as EVENT_COLS, AGGREGATE_COLUMNS as AGG_COLS } from './store.js';
 
 let db: PGlite;
@@ -68,12 +68,11 @@ describe('the schema', () => {
     for (const s of SCHEMA_STATEMENTS) await expect(db.query(s)).resolves.toBeDefined();
   });
 
-  it('creates the prefix indexes that make a LIKE filter index-served', async () => {
+  it('creates the indexes the list and the aggregate upsert depend on', async () => {
     const r = await db.query<{ indexname: string }>(
       `SELECT indexname FROM pg_indexes WHERE tablename = 'horizon_audit'`,
     );
     const names = r.rows.map((x) => x.indexname);
-    expect(names).toContain('horizon_audit_username_prefix_idx');
     expect(names).toContain('horizon_audit_bucket_idx');
   });
 });
@@ -154,29 +153,27 @@ describe('reading', () => {
       `SELECT id, at, kind, provider, outcome, reason, username, mail, roles, host(client_ip) AS client_ip, host(horizon_ip) AS horizon_ip,
               horizon_node, hour_bucket, count
          FROM horizon_audit
-        WHERE at >= $1 AND at < $2 AND kind = ANY($3) AND username LIKE $4
-        ORDER BY at DESC, id DESC LIMIT $5 OFFSET $6`;
+        WHERE at >= $1 AND at < $2 AND kind = ANY($3) AND username = $4
+        ORDER BY at DESC, id DESC LIMIT $5`;
     const r = await db.query(sql, [
       new Date('2026-01-01T00:00:00Z'), new Date('2027-01-01T00:00:00Z'),
-      ['local', 'sso'], likePrefix('al'), 51, 0,
+      ['local', 'sso'], 'alice', 51,
     ]);
     expect(Array.isArray(r.rows)).toBe(true);
   });
 
-  /** An unescaped `_` would match any character, and a lone `%` would turn a
-   *  filter into a full table read. */
-  it('treats an underscore in a prefix as a literal', async () => {
-    await db.query(
-      `INSERT INTO horizon_audit (at,kind,outcome,username,horizon_node) VALUES ($1,$2,$3,$4,$5)`,
-      [new Date('2026-08-22T15:00:00Z'), 'api-token', 1, 'alice_ci', 'pod-1:aaa'],
-    );
-    await db.query(
-      `INSERT INTO horizon_audit (at,kind,outcome,username,horizon_node) VALUES ($1,$2,$3,$4,$5)`,
-      [new Date('2026-08-22T15:00:00Z'), 'api-token', 1, 'aliceXci', 'pod-1:aaa'],
-    );
+  /** The filter names ONE principal. `alice_ci` must not also return
+   *  `aliceXci`, which is what a LIKE prefix did with an unescaped `_`. */
+  it('matches one principal exactly, never a lookalike', async () => {
+    for (const u of ['alice_ci', 'aliceXci', 'alice_ci_2']) {
+      await db.query(
+        `INSERT INTO horizon_audit (at,kind,outcome,username,horizon_node) VALUES ($1,$2,$3,$4,$5)`,
+        [new Date('2026-08-22T15:00:00Z'), 'api-token', 1, u, 'pod-1:aaa'],
+      );
+    }
     const r = await db.query<{ username: string }>(
-      `SELECT username FROM horizon_audit WHERE username LIKE $1`,
-      [likePrefix('alice_ci')],
+      `SELECT username FROM horizon_audit WHERE username = $1`,
+      ['alice_ci'],
     );
     expect(r.rows.map((x) => x.username)).toEqual(['alice_ci']);
   });

@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { likePrefix, toEntry, toId, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
+import { toEntry, toId, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
 import { CHUNK_ROWS, EVENT_COLUMNS, AGGREGATE_COLUMNS } from './store.js';
 
 describe('bigint handling', () => {
@@ -42,24 +42,6 @@ describe('bigint handling', () => {
   /** Narrowing an id to a JS number for a tidier type is a precision bug. */
   it('keeps id a string', () => {
     expect(toId('9007199254740993')).toBe('9007199254740993');
-  });
-});
-
-describe('prefix filters', () => {
-  it('escapes LIKE metacharacters so a prefix means what it says', () => {
-    // Unescaped, `alice_ci` would also match `aliceXci`.
-    expect(likePrefix('alice_ci')).toBe('alice\\_ci%');
-    expect(likePrefix('50%')).toBe('50\\%%');
-    // A lone `%` would otherwise turn the filter into a full table read.
-    expect(likePrefix('%')).toBe('\\%%');
-  });
-
-  it('escapes the escape character first, so it cannot double-escape', () => {
-    expect(likePrefix('a\\b')).toBe('a\\\\b%');
-  });
-
-  it('leaves an ordinary prefix alone', () => {
-    expect(likePrefix('alice')).toBe('alice%');
   });
 });
 

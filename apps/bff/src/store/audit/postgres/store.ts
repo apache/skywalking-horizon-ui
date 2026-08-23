@@ -35,6 +35,7 @@ import {
   type AuditAggregate,
   type AuditPageResult,
   type AuditEvent,
+  AUDIT_STAT_WINDOWS,
   type AuditFilter,
   type AuditStat,
   type AuditStatColumn,
@@ -45,7 +46,7 @@ import {
   type StoreStamp,
 } from '../types.js';
 import { SCHEMA_LOCK_ID, SCHEMA_STATEMENTS } from './schema.js';
-import { likePrefix, toEntry, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
+import { toEntry, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
 
 /** Rows per statement. The protocol caps a statement at 65535 bind
  *  parameters; at the widest insert here that is a few thousand rows, and 500
@@ -55,6 +56,10 @@ import { likePrefix, toEntry, toInet, toNumber, valuesClause, type RawAuditRow }
 export const CHUNK_ROWS = 500;
 /** Rows per sweep pass. A 90-day purge as one statement holds locks and
  *  bloats WAL, so it goes in bounded passes. */
+/** The widest statistics window, so the grouped result has a bound that does
+ *  not depend on the stat table containing only the hours it should. */
+const MAX_STAT_HOURS = Math.max(...AUDIT_STAT_WINDOWS);
+
 const SWEEP_BATCH = 5_000;
 const SWEEP_MAX_PASSES = 200;
 /** How long to wait behind another replica's schema lock before giving up and
@@ -425,10 +430,12 @@ export class PostgresAuditStore implements AuditStore {
     if (filter.from !== undefined) where.push(`at >= ${bind(new Date(filter.from))}`);
     if (filter.to !== undefined) where.push(`at < ${bind(new Date(filter.to))}`);
     if (filter.kind?.length) where.push(`kind = ANY(${bind(filter.kind)})`);
-    // No explicit ESCAPE clause: backslash is already the LIKE default, and
-    // spelling it in a literal breaks under `standard_conforming_strings=off`,
-    // where the literal itself would need doubling.
-    if (filter.username) where.push(`username LIKE ${bind(likePrefix(filter.username))}`);
+    // EXACT, not a prefix. A prefix was a LIKE-shaped answer to a question
+    // nobody asked: the filter names one principal, and matching a fragment
+    // makes the result depend on how much of a name was typed. It also could
+    // not be reproduced on a backend whose operator set has no prefix, which
+    // would have made the same control mean two different things.
+    if (filter.username) where.push(`username = ${bind(filter.username)}`);
 
     // Keyset: resume strictly AFTER the previous page's last row in the
     // `(at DESC, id DESC)` ordering. A row-value comparison is what makes the
@@ -468,6 +475,12 @@ export class PostgresAuditStore implements AuditStore {
 
   async queryStat(window: AuditStatWindow): Promise<AuditStatResult> {
     const from = hourBucketOf(Date.now() - (window - 1) * 3_600_000);
+    // Every statement this store sends carries its own bound. The grouping
+    // already caps this one at the window's hours, but a query whose size
+    // depends on the data being well-formed is a query that gets surprising
+    // when it is not.
+    const params: unknown[] = [from];
+    const bindStat = (v: unknown): string => `$${params.push(v)}`;
     try {
       const res = await this.db.query<Record<string, unknown>>(
         `SELECT hour_bucket,
@@ -489,8 +502,9 @@ export class PostgresAuditStore implements AuditStore {
            FROM horizon_audit_stat
           WHERE hour_bucket >= $1
           GROUP BY hour_bucket
-          ORDER BY hour_bucket`,
-        [from],
+          ORDER BY hour_bucket
+          LIMIT ${bindStat(MAX_STAT_HOURS)}`,
+        params,
       );
 
       const byHour = new Map<number, AuditStatColumn>();
