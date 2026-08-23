@@ -73,8 +73,6 @@ export interface RawAuditRow {
   client_ip: string | null;
   horizon_ip: string | null;
   horizon_node: string;
-  hour_bucket: unknown;
-  count: unknown;
 }
 
 export function toEntry(row: RawAuditRow): AuditEntry {
@@ -84,7 +82,6 @@ export function toEntry(row: RawAuditRow): AuditEntry {
     kind: row.kind as AuditKind,
     outcome: (row.outcome === 1 ? 1 : 0) as 0 | 1,
     username: row.username,
-    count: toNumber(row.count, 'count'),
     horizonNode: row.horizon_node,
     ...(row.reason ? { reason: row.reason as AuditReason } : {}),
     ...(row.mail ? { mail: row.mail } : {}),
@@ -93,9 +90,6 @@ export function toEntry(row: RawAuditRow): AuditEntry {
     ...(row.roles ? { roles: row.roles } : {}),
     ...(row.client_ip ? { clientIp: row.client_ip } : {}),
     ...(row.horizon_ip ? { horizonIp: row.horizon_ip } : {}),
-    ...(row.hour_bucket === null || row.hour_bucket === undefined
-      ? {}
-      : { hourBucket: toNumber(row.hour_bucket, 'hour_bucket') }),
   };
 }
 

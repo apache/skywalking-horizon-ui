@@ -27,12 +27,15 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import type { AuditPostgresConfig } from '../../../config/schema.js';
 import { parsePostgresUrl, type PostgresTarget } from '../../../config/audit.js';
+import { PostgresTokenUsageStore } from './token-store.js';
+import type { TokenUsageStore } from '../token-usage.js';
 import { logger } from '../../../logger.js';
+import { classify, fail } from './errors.js';
+import { timed, withClient, type TimedDb } from './deadline.js';
 import { overFetchSize, takeOverFetched } from '../../../logic/paging/read-page.js';
 import { hourBucketOf } from '../counters.js';
 import {
   AuditStoreError,
-  type AuditAggregate,
   type AuditPageResult,
   type AuditEvent,
   AUDIT_STAT_WINDOWS,
@@ -45,7 +48,7 @@ import {
   type StoreError,
   type StoreStamp,
 } from '../types.js';
-import { SCHEMA_LOCK_ID, SCHEMA_STATEMENTS } from './schema.js';
+import { SCHEMA_LOCK_ID, SCHEMA_STATEMENTS, USAGE_COLUMNS } from './schema.js';
 import { toEntry, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
 
 /** Rows per statement. The protocol caps a statement at 65535 bind
@@ -67,46 +70,18 @@ const SWEEP_MAX_PASSES = 200;
  *  that a stuck one is not permanent. */
 const MIGRATION_LOCK_TIMEOUT_MS = 30_000;
 
+/** Node's timer ceiling. Past it `setTimeout` warns and fires after 1ms. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 export const EVENT_COLUMNS = [
   'at', 'kind', 'provider', 'protocol', 'outcome', 'reason', 'username', 'mail', 'roles',
   'client_ip', 'horizon_ip', 'horizon_node',
 ] as const;
 
-export const AGGREGATE_COLUMNS = [
-  'at', 'kind', 'username', 'horizon_ip', 'horizon_node', 'hour_bucket', 'count', 'outcome',
-] as const;
-
-const SELECT_COLUMNS =
+export const SELECT_COLUMNS =
   'id, at, kind, provider, protocol, outcome, reason, username, mail, roles, ' +
   'host(client_ip) AS client_ip, host(horizon_ip) AS horizon_ip, ' +
-  'horizon_node, hour_bucket, count';
-
-/**
- * Map a driver failure to the fixed vocabulary.
- *
- * Nothing from `pg` crosses this boundary. A connection error can carry the
- * DSN — host, database, and depending on the failure the user — and the code
- * travels into logs, replies and the admin page. The raw error is logged at
- * debug here, where it cannot escape.
- */
-function classify(err: unknown): StoreError {
-  const code = (err as { code?: string } | null)?.code;
-  const message = err instanceof Error ? err.message : String(err);
-  logger.debug({ err: message, code }, 'audit: postgres error');
-  if (code === '28P01' || code === '28000') return 'auth_failed';
-  if (code === '57014' || code === 'ETIMEDOUT' || /timeout/i.test(message)) return 'timeout';
-  // ANY server-side error class is a fault in the statement or the schema, not
-  // a dead database. Reporting one as `unreachable` sends the operator to look
-  // at the network while the real cause sits in a query — and because the next
-  // probe succeeds, health flaps red-green on every tick forever instead of
-  // holding one honest state. SQLSTATE classes 08 (connection) and 53
-  // (insufficient resources) are the genuinely connection-shaped ones.
-  if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) {
-    if (code.startsWith('08') || code.startsWith('53')) return 'unreachable';
-    return 'schema_error';
-  }
-  return 'unreachable';
-}
+  'horizon_node';
 
 /**
  * The TLS settings for a target, derived from the mode the URL actually
@@ -132,9 +107,6 @@ function sslFor(target: PostgresTarget, ca: string | undefined): pg.PoolConfig['
   }
 }
 
-function fail(err: unknown): never {
-  throw err instanceof AuditStoreError ? err : new AuditStoreError(classify(err));
-}
 
 export class PostgresAuditStore implements AuditStore {
   private pool: pg.Pool | null = null;
@@ -256,35 +228,56 @@ export class PostgresAuditStore implements AuditStore {
    *  advisory lock makes replicas starting together queue rather than race. */
   private async migrate(pool: pg.Pool): Promise<void> {
     if (this.schemaReady) return;
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      // The pool's `statement_timeout` is a session default and applies to
-      // every statement on this connection — including the advisory-lock WAIT.
-      // A second replica queueing behind the first would be cancelled after a
-      // second and report a schema error, so the migration is exempt from it.
-      await client.query('SET LOCAL statement_timeout = 0');
-      // But NOT unbounded. `open()` is awaited before the service timer is
-      // created, so a migration that blocks forever behind another replica's
-      // lock leaves the writer permanently unstarted — no retry, no failure
-      // transition, and nothing in the log. A lock timeout turns that into an
-      // ordinary error the retry can handle.
-      await client.query(`SET LOCAL lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`);
-      await client.query('SELECT pg_advisory_xact_lock($1)', [SCHEMA_LOCK_ID]);
-      for (const statement of SCHEMA_STATEMENTS) await client.query(statement);
-      await client.query('COMMIT');
-      this.schemaReady = true;
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw err;
-    } finally {
-      client.release();
-    }
+    // Bounded as a whole. `lock_timeout` below covers a lock held by another
+    // replica, but it is enforced by the SERVER — it does nothing for a socket
+    // whose peer has stopped answering, and `open()` is awaited before the
+    // retry timer exists, so a hang here strands startup with no recovery.
+    // Longer than the lock timeout, so it never preempts the ordinary wait.
+    const migrationDeadline = Math.min(MIGRATION_LOCK_TIMEOUT_MS + this.deadlineMs, MAX_TIMER_MS);
+    await withClient(pool, migrationDeadline, async (client) => {
+      try {
+        await client.query('BEGIN');
+        // The pool's `statement_timeout` is a session default and applies to
+        // every statement on this connection — including the advisory-lock
+        // WAIT. A second replica queueing behind the first would be cancelled
+        // after a second and report a schema error, so migration is exempt.
+        await client.query('SET LOCAL statement_timeout = 0');
+        // But NOT unbounded: a lock timeout turns a queue behind another
+        // replica into an ordinary error the retry can handle.
+        await client.query(`SET LOCAL lock_timeout = ${MIGRATION_LOCK_TIMEOUT_MS}`);
+        await client.query('SELECT pg_advisory_xact_lock($1)', [SCHEMA_LOCK_ID]);
+        for (const statement of SCHEMA_STATEMENTS) await client.query(statement);
+          await client.query('COMMIT');
+        this.schemaReady = true;
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw err;
+      }
+    });
   }
 
-  private get db(): pg.Pool {
+  private get db(): TimedDb {
     if (!this.pool) throw new AuditStoreError('unreachable');
-    return this.pool;
+    return timed(this.pool, this.deadlineMs);
+  }
+
+  /**
+   * How long a single operation may take before the client gives up on it.
+   *
+   * Deliberately LONGER than the server's `statement_timeout`, so a query the
+   * server can cancel is cancelled by the server — which answers 57014 and
+   * classifies as `timeout`. This deadline is for the case the server cannot
+   * answer at all, where there is nothing to receive and no error to receive
+   * it as.
+   */
+  private get deadlineMs(): number {
+    // Clamped as well as bounded in config: the sum of two legal values can
+    // still cross Node's 32-bit timer ceiling, past which `setTimeout` fires
+    // after 1ms instead of the interval asked for.
+    return Math.min(
+      this.cfg.statementTimeoutMs + this.cfg.connectionTimeoutMs,
+      MAX_TIMER_MS,
+    );
   }
 
   /**
@@ -303,37 +296,45 @@ export class PostgresAuditStore implements AuditStore {
       await this.db.query(`SELECT ${SELECT_COLUMNS} FROM horizon_audit LIMIT 0`);
       await this.db.query(
         `SELECT hour_bucket, horizon_node, login_local, login_ldap,
-                login_oidc, login_oauth, login_token, rejected, over_budget
+                login_oidc, login_oauth, rejected, over_budget
            FROM horizon_audit_stat LIMIT 0`,
       );
-      // The aggregate upsert infers its conflict target from a PARTIAL UNIQUE
-      // index, and no amount of introspection proves inference will succeed:
-      // the name can match, the index can be unique and partial, and the KEY
-      // COLUMNS or the predicate can still differ — whereupon every flush
-      // fails with 42P10 and `CREATE INDEX IF NOT EXISTS` never repairs it,
-      // because the name is taken.
-      //
-      // So the probe runs the STATEMENT instead of describing the index. This
-      // cannot drift from what the writer sends, because it is what the writer
-      // sends; a rollback leaves nothing behind. Checking properties one by
-      // one was the previous attempt and it kept being incomplete.
-      const client = await this.db.connect();
-      try {
-        await client.query('BEGIN');
+
+      // The probe runs the STATEMENT the writer sends, rolled back, rather
+      // than describing the table. Introspection kept being incomplete: a
+      // column can be present and the wrong type, and no amount of comparing
+      // catalogue rows proves an INSERT will bind. This cannot drift, because
+      // it is what the writer sends.
+      // Bounded like the migration, and for the same reason: this runs on the
+      // retry tick, and a probe that never returns stalls every later tick
+      // behind it.
+      await withClient(this.pool!, this.deadlineMs, async (client) => {
+        try {
+          await client.query('BEGIN');
         await client.query(
-          `INSERT INTO horizon_audit (${AGGREGATE_COLUMNS.join(',')}) VALUES ` +
-            valuesClause(1, AGGREGATE_COLUMNS.length) +
-            ` ON CONFLICT (hour_bucket, kind, username, horizon_node) ` +
-            `WHERE hour_bucket IS NOT NULL ` +
-            `DO UPDATE SET count = EXCLUDED.count, at = EXCLUDED.at`,
-          [new Date(0), 'api-token', '__horizon_probe__', null, '__probe__', 0, 0, 1],
+          `INSERT INTO horizon_audit (${EVENT_COLUMNS.join(',')}) VALUES ` +
+            valuesClause(1, EVENT_COLUMNS.length),
+          [new Date(0), 'local', null, null, 1, null, '__horizon_probe__', null, null, null, null, '__probe__'],
         );
-      } finally {
-        // Always, including on the failure path — the probe must leave the
-        // table exactly as it found it.
-        await client.query('ROLLBACK').catch(() => undefined);
-        client.release();
-      }
+        // The token write is an UPSERT, and its conflict target has to match a
+        // real unique constraint or Postgres answers 42P10 — a fault a SELECT
+        // cannot see, because the columns are all present and correctly typed.
+        // Naming all three keeps the probe honest about the arrangement that
+        // makes the count cluster-safe: drop `horizon_node` from the key and
+        // one node starts overwriting another's row.
+        await client.query(
+          `INSERT INTO horizon_token_usage (${USAGE_COLUMNS.join(',')}) VALUES ` +
+            valuesClause(1, USAGE_COLUMNS.length) +
+            ` ON CONFLICT (hour_bucket, token_id, horizon_node) ` +
+            `DO UPDATE SET count = EXCLUDED.count, username = EXCLUDED.username`,
+          [1970010100, '__horizon_probe__', '__probe__', 0, '__probe__'],
+        );
+        } finally {
+          // Always, including on the failure path — the probe must leave the
+          // table exactly as it found it.
+          await client.query('ROLLBACK').catch(() => undefined);
+        }
+      });
       return { available: true };
     } catch (err) {
       return { available: false, error: err instanceof AuditStoreError ? err.code : classify(err) };
@@ -368,58 +369,35 @@ export class PostgresAuditStore implements AuditStore {
     }
   }
 
-  async writeAggregates(rows: ReadonlyArray<AuditAggregate & StoreStamp>): Promise<void> {
-    for (let i = 0; i < rows.length; i += CHUNK_ROWS) {
-      const chunk = rows.slice(i, i + CHUNK_ROWS);
-      const params = chunk.flatMap((r) => [
-        new Date(r.at), r.kind, r.username, toInet(r.horizonIp),
-        r.horizonNode, r.hourBucket, r.count, 1,
-      ]);
-      try {
-        // A plain multi-row VALUES, NOT `INSERT ... SELECT ... FROM (VALUES ...)`.
-        // The difference is load-bearing rather than stylistic: `pg` sends Parse
-        // with no declared parameter types, and inside a VALUES used as a FROM
-        // item every all-unknown column resolves to `text` — the target
-        // column's type is not visible through the sub-SELECT. Postgres then
-        // refuses the assignment (42804, "column at is of type timestamptz but
-        // expression is of type text") and the statement fails every time. In
-        // this form each sublist is coerced to the target columns first, so the
-        // parameters are inferred from the table and no casts are needed.
-        //
-        // Cumulative counts, so overwrite rather than add: a retry after a
-        // commit-then-timeout writes the same number instead of doubling it.
-        // The `WHERE` on the conflict target is required — it is what makes the
-        // partial unique index inferrable.
-        await this.db.query(
-          `INSERT INTO horizon_audit (${AGGREGATE_COLUMNS.join(',')}) VALUES ` +
-            valuesClause(chunk.length, AGGREGATE_COLUMNS.length) +
-            ` ON CONFLICT (hour_bucket, kind, username, horizon_node) ` +
-            `WHERE hour_bucket IS NOT NULL ` +
-            `DO UPDATE SET count = EXCLUDED.count, at = EXCLUDED.at`,
-          params,
-        );
-      } catch (err) {
-        fail(err);
-      }
-    }
-  }
 
   async writeStat(stat: AuditStat): Promise<void> {
     try {
       await this.db.query(
         `INSERT INTO horizon_audit_stat
            (hour_bucket, horizon_node, login_local, login_ldap,
-            login_oidc, login_oauth, login_token, rejected, over_budget)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            login_oidc, login_oauth, rejected, over_budget)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [
           stat.hourBucket, stat.horizonNode, stat.login.local, stat.login.ldap,
-          stat.login.oidc, stat.login.oauth, stat.login.token,
+          stat.login.oidc, stat.login.oauth,
           stat.rejected, stat.overBudget,
         ],
       );
     } catch (err) {
       fail(err);
     }
+  }
+
+  /**
+   * The token-usage statistic, sharing this store's pool.
+   *
+   * A separate CONTRACT, deliberately not this class: both have a `query`,
+   * and collapsing two vocabularies onto one object was what made that
+   * collide. Token use is not an audit record — see `token-usage.ts` — it
+   * simply has no reason to open a second connection pool.
+   */
+  tokenUsage(): TokenUsageStore {
+    return new PostgresTokenUsageStore(() => this.db);
   }
 
   async query(filter: AuditFilter): Promise<AuditPageResult> {
@@ -488,7 +466,6 @@ export class PostgresAuditStore implements AuditStore {
                 SUM(login_ldap)        AS login_ldap,
                 SUM(login_oidc)        AS login_oidc,
                 SUM(login_oauth)       AS login_oauth,
-                SUM(login_token)       AS login_token,
                 SUM(rejected)          AS rejected,
                 SUM(over_budget)       AS over_budget,
                 -- The distinct writers this hour, as one comma-joined value.
@@ -518,7 +495,6 @@ export class PostgresAuditStore implements AuditStore {
             ldap: toNumber(r.login_ldap, 'login_ldap'),
             oidc: toNumber(r.login_oidc, 'login_oidc'),
             oauth: toNumber(r.login_oauth, 'login_oauth'),
-            token: toNumber(r.login_token, 'login_token'),
           },
           rejected: toNumber(r.rejected, 'rejected'),
         });
@@ -536,7 +512,7 @@ export class PostgresAuditStore implements AuditStore {
         columns.push(
           byHour.get(bucket) ?? {
             hourBucket: bucket,
-            login: { local: 0, ldap: 0, oidc: 0, oauth: 0, token: 0 },
+            login: { local: 0, ldap: 0, oidc: 0, oauth: 0 },
             rejected: 0,
           },
         );
@@ -563,10 +539,11 @@ export class PostgresAuditStore implements AuditStore {
         removed += res.rowCount ?? 0;
         if ((res.rowCount ?? 0) < SWEEP_BATCH) break;
       }
-      // Statistics expire on the same retention, by their own time column.
-      await this.db.query('DELETE FROM horizon_audit_stat WHERE hour_bucket < $1', [
-        hourBucketOf(cutoff.getTime()),
-      ]);
+      // Statistics and token usage expire on the same retention, by their own
+      // time column. Both are hour-keyed and small enough for one statement.
+      const cutoffHour = hourBucketOf(cutoff.getTime());
+      await this.db.query('DELETE FROM horizon_audit_stat WHERE hour_bucket < $1', [cutoffHour]);
+      await this.db.query('DELETE FROM horizon_token_usage WHERE hour_bucket < $1', [cutoffHour]);
       return removed;
     } catch (err) {
       return fail(err);

@@ -18,11 +18,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isIP } from 'node:net';
 import type { AuditConfig } from '../../config/schema.js';
+import type { TokenUsage, TokenUsageEntry, TokenUsageStore } from './token-usage.js';
 import { BufferedAuditService } from './service.js';
 import { logger } from '../../logger.js';
 import {
   AuditStoreError,
-  type AuditAggregate,
   type AuditEvent,
   type AuditStat,
   type AuditStore,
@@ -50,7 +50,6 @@ function config(over: Partial<AuditConfig> = {}): AuditConfig {
 
 class FakeStore implements AuditStore {
   events: Array<AuditEvent & StoreStamp> = [];
-  aggregates: Array<AuditAggregate & StoreStamp> = [];
   stats: AuditStat[] = [];
   sweeps = 0;
   opens = 0;
@@ -85,10 +84,6 @@ class FakeStore implements AuditStore {
     await this.pass('writeEvents');
     this.events.push(...rows);
   }
-  async writeAggregates(rows: ReadonlyArray<AuditAggregate & StoreStamp>): Promise<void> {
-    await this.pass('writeAggregates');
-    this.aggregates.push(...rows);
-  }
   async writeStat(stat: AuditStat): Promise<void> {
     await this.pass('writeStat');
     this.stats.push(stat);
@@ -103,6 +98,36 @@ class FakeStore implements AuditStore {
   async close(): Promise<void> { this.closed = true; }
 }
 
+/** The token-usage half, which the service drives on the same tick and joins
+ *  on the same shutdown. Separate object, as in production. */
+class FakeTokenStore implements TokenUsageStore {
+  writes: TokenUsage[][] = [];
+  failWith: AuditStoreError | null = null;
+
+  async writeUsage(rows: ReadonlyArray<TokenUsage & StoreStamp>): Promise<void> {
+    if (this.failWith) throw this.failWith;
+    this.writes.push(rows.map((r) => ({ ...r })));
+  }
+  /** The rows written so far, as the real store would hand them back. */
+  async readWindow(): Promise<TokenUsageEntry[]> {
+    if (this.failWith) throw this.failWith;
+    const latest = new Map<string, TokenUsageEntry>();
+    for (const w of this.writes) {
+      for (const r of w) {
+        latest.set(r.tokenId, {
+          ...r, at: 0, horizonNode: 'node-1',
+        });
+      }
+    }
+    return [...latest.values()];
+  }
+
+  /** Every row ever written for a credential, newest write last. */
+  countsFor(tokenId: string): number[] {
+    return this.writes.flatMap((w) => w.filter((r) => r.tokenId === tokenId).map((r) => r.count));
+  }
+}
+
 /** A latch the fake store parks on, so a named phase can be held open across
  *  a concurrent `stop()`. */
 function latch(): { promise: Promise<void>; release: () => void } {
@@ -112,16 +137,21 @@ function latch(): { promise: Promise<void>; release: () => void } {
 }
 
 let store: FakeStore;
+let tokenStore: FakeTokenStore;
 function service(cfg: Partial<AuditConfig> = {}): BufferedAuditService {
   return new BufferedAuditService({
-    store, config: config(cfg), horizonNode: 'node-1',
+    store, tokenStore, config: config(cfg), horizonNode: 'node-1',
   });
+}
+/** Drive `n` ticks, which is how the slower cadences are reached. */
+async function ticksFor(svc: BufferedAuditService, n: number): Promise<void> {
+  for (let i = 0; i < n; i += 1) await svc.tick();
 }
 function signIn(svc: BufferedAuditService, at = T): void {
   svc.recordEvent({ at, kind: 'local', outcome: 1, username: 'alice' });
 }
 
-beforeEach(() => { store = new FakeStore(); });
+beforeEach(() => { store = new FakeStore(); tokenStore = new FakeTokenStore(); });
 afterEach(() => { vi.useRealTimers(); });
 
 /** Freeze the clock at `T`.
@@ -179,12 +209,11 @@ describe('batching', () => {
   it('does not let the row trigger drive the slower cadences', async () => {
     const svc = service({ eventBatchRows: 1, flushIntervalSeconds: 60, eventBatchSeconds: 15 });
     await svc.tick();
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
     for (let i = 0; i < 100; i += 1) signIn(svc);
     await vi.waitFor(() => expect(store.events.length).toBeGreaterThan(0));
     // Rows went out, but neither slower cadence fired: those hang off the tick
     // counter, which the row trigger must never advance.
-    expect(store.aggregates).toHaveLength(0);
+    expect(store.stats).toHaveLength(0);
     expect(store.sweeps).toBe(0);
   });
 
@@ -208,20 +237,21 @@ describe('cadences hang off one tick counter', () => {
   it('still runs the slower cadences while event flushes are constantly in flight', async () => {
     const svc = service({ eventBatchRows: 1, flushIntervalSeconds: 15, eventBatchSeconds: 15 });
     await svc.tick();
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
     for (let i = 0; i < 50; i += 1) signIn(svc);
     await svc.tick();
-    expect(store.aggregates).toHaveLength(1);
+    expect(store.stats).toHaveLength(1);
   });
 
-  it('flushes events every tick and aggregates every fourth', async () => {
+  it('flushes events every tick and the slower cadences every fourth', async () => {
     const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
+    // A sign-in, so the statistics accumulator has something to hand over —
+    // an empty interval is skipped rather than written.
+    signIn(svc);
     for (let i = 1; i <= 3; i += 1) await svc.tick();
-    expect(store.aggregates).toHaveLength(0);
+    expect(store.stats).toHaveLength(0);
     await svc.tick();
-    expect(store.aggregates).toHaveLength(1);
-    expect(store.aggregates[0].count).toBe(1);
+    expect(store.stats).toHaveLength(1);
+    expect(store.stats[0].login.local).toBe(1);
   });
 
   it('sweeps on its own much slower cadence', async () => {
@@ -255,20 +285,6 @@ describe('failure handling', () => {
     store.failWith = null;
     await svc.tick();
     expect(store.events).toHaveLength(1);
-  });
-
-  /** Cumulative counts are what make the aggregate retry idempotent: the
-   *  second attempt writes the same total, not an increment. */
-  it('re-sends the same cumulative total after a failed aggregate flush', async () => {
-    const svc = service({ flushIntervalSeconds: 15, eventBatchSeconds: 15 });
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    store.failWith = new AuditStoreError('timeout');
-    await svc.tick();
-    store.failWith = null;
-    await svc.tick();
-    expect(store.aggregates).toHaveLength(1);
-    expect(store.aggregates[0].count).toBe(2);
   });
 
   it('folds failed statistics back in so nothing is silently skipped', async () => {
@@ -311,10 +327,9 @@ describe('shutdown', () => {
     const svc = service();
     await svc.tick();
     signIn(svc);
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
     await svc.stop();
     expect(store.events).toHaveLength(1);
-    expect(store.aggregates).toHaveLength(1);
+    expect(store.stats).toHaveLength(1);
     expect(store.stats.length).toBeGreaterThan(0);
   });
 });
@@ -395,28 +410,6 @@ describe('regressions found by review', () => {
     expect(h.available).toBe(false);
     expect(h.error).toBe('schema_error');
   });
-
-  /** Uses landing during the aggregate round trip must stay pending, or the
-   *  stored count silently under-reports for that credential-hour. */
-  it('does not mark token uses flushed that arrived during the write', async () => {
-    let landDuringWrite: (() => void) | null = null;
-    store.writeAggregates = async (rows) => {
-      landDuringWrite?.();
-      store.aggregates.push(...rows);
-    };
-    const svc = service({ flushIntervalSeconds: 15, eventBatchSeconds: 15 });
-    await svc.tick();
-    for (let i = 0; i < 5; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    landDuringWrite = () => {
-      for (let i = 0; i < 3; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    };
-    await svc.tick();
-    expect(store.aggregates.at(-1)?.count).toBe(5);
-
-    landDuringWrite = null;
-    await svc.tick();
-    expect(store.aggregates.at(-1)?.count).toBe(8);
-  });
 });
 
 describe('shutdown regressions found by review', () => {
@@ -438,43 +431,6 @@ describe('shutdown regressions found by review', () => {
 
     await svc.stop();
     expect(store.events.length).toBe(500);
-  });
-
-  /**
-   * `stop()` waited for the event flush but not the aggregate one. An older
-   * cumulative count landing after the newer shutdown write leaves the store
-   * BEHIND what this process believes it flushed, and nothing revisits the
-   * bucket — so the loss is permanent.
-   */
-  it('joins an in-flight aggregate write instead of racing it', async () => {
-    let release = (): void => {};
-    const gate = new Promise<void>((r) => { release = r; });
-    let firstCall = true;
-    const seen: number[] = [];
-    store.writeAggregates = async (rows) => {
-      const counts = rows.map((r) => r.count);
-      if (firstCall) {
-        firstCall = false;
-        await gate; // the OLD write parks mid-flight
-      }
-      seen.push(...counts);
-      store.aggregates.push(...rows);
-    };
-
-    const svc = service({ flushIntervalSeconds: 15, eventBatchSeconds: 15 });
-    await svc.tick();
-    for (let i = 0; i < 5; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    const parked = svc.tick();            // writes 5, parks
-    for (let i = 0; i < 3; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-
-    const stopped = svc.stop();
-    release();
-    await Promise.all([parked, stopped]);
-
-    // Whatever order the writes were issued in, the LAST count the store saw
-    // must not be smaller than an earlier one.
-    expect(seen.length).toBeGreaterThan(0);
-    expect(seen[seen.length - 1]).toBeGreaterThanOrEqual(Math.max(...seen));
   });
 });
 
@@ -623,17 +579,6 @@ describe('the node stamp', () => {
       store, config: config(), horizonNode: 'node-1', horizonIp: '192.0.2.9',
     });
     expect((await stampOf(svc)).horizonIp).toBe('192.0.2.9');
-  });
-
-  it('stamps aggregate rows with the same address as sign-in rows', async () => {
-    process.env.POD_IP = '10.42.0.17';
-    const svc = service();
-    await svc.tick();
-    svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: T });
-    // Aggregates ride the every-fourth tick (flushIntervalSeconds /
-    // eventBatchSeconds), so drive the timer rather than reaching inside.
-    for (let i = 0; i < 4; i += 1) await svc.tick();
-    expect(store.aggregates[0]?.horizonIp).toBe('10.42.0.17');
   });
 });
 
@@ -804,5 +749,119 @@ describe('stop() is single-flight', () => {
     store.close = async () => { closesAfter.push(1); };
     await svc.stop();
     expect(closesAfter).toHaveLength(0);
+  });
+});
+
+
+/**
+ * The token statistic rides the service's tick and its shutdown.
+ *
+ * It has its own store, its own cadence branch and its own place in the stop
+ * sequence, and none of that was covered here: the fake had no token store, so
+ * every assertion in this file ran with the whole path switched off.
+ */
+describe('token usage on the service', () => {
+  it('writes what was counted, on the statistics cadence', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    for (let i = 0; i < 4; i += 1) svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    for (let i = 0; i < 4; i += 1) await svc.tick();
+
+    expect(tokenStore.countsFor('tok')).toEqual([4]);
+  });
+
+  it('writes a running total, not a delta, so a replay is harmless', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+    for (let i = 0; i < 4; i += 1) await svc.tick();
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+    for (let i = 0; i < 4; i += 1) await svc.tick();
+
+    expect(tokenStore.countsFor('tok')).toEqual([1, 2]);
+  });
+
+  it('flushes on shutdown, so the last uses are not lost with the process', async () => {
+    const svc = service();
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    await svc.stop();
+
+    expect(tokenStore.countsFor('tok')).toEqual([1]);
+  });
+
+  it('reports a failing token write as a store fault, like every other write', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    tokenStore.failWith = new AuditStoreError('timeout');
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    for (let i = 0; i < 4; i += 1) await svc.tick();
+
+    expect(tokenStore.writes).toEqual([]);
+    expect((await svc.health()).available).toBe(false);
+  });
+
+  /**
+   * The page's whole subject is what credentials are doing NOW, so the hour in
+   * progress must not show only what the last tick happened to flush.
+   */
+  it('shows a use that has not been written yet', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    svc.countTokenUse({ tokenId: 'just-now', username: 'ci', at: T });
+    expect(tokenStore.writes, 'nothing should have been written yet').toEqual([]);
+
+    const { hours } = await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
+
+    expect(hours[0].total).toBe(1);
+    expect(hours[0].top[0]).toMatchObject({ tokenId: 'just-now', count: 1 });
+  });
+
+  /** A read must not become a write, or a poller drives one upsert per poll
+   *  and the batching interval means nothing. */
+  it('writes nothing on the read path', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    for (let i = 0; i < 5; i += 1) await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
+
+    expect(tokenStore.writes).toEqual([]);
+  });
+
+  /**
+   * A use counted while a write was already on the wire. Flushing on read
+   * missed exactly this: the reader joined the in-flight flush, which had been
+   * assembled before the use existed, and returned without it.
+   */
+  it('shows a use counted while a write was in flight', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+    await ticksFor(svc, 4);                      // first use written
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    const { hours } = await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
+
+    expect(hours[0].total, 'the unwritten second use is missing').toBe(2);
+  });
+
+  /**
+   * A store that cannot take the write is not healthy, and a read that happens
+   * to succeed afterwards must not say otherwise — the counts are still stuck.
+   */
+  it('stays unavailable while the token write keeps failing', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    tokenStore.failWith = new AuditStoreError('timeout');
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    await ticksFor(svc, 4);
+
+    expect((await svc.health()).available).toBe(false);
+  });
+
+  it('records no audit row for a token use — it is not a sign-in', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    for (let i = 0; i < 4; i += 1) await svc.tick();
+
+    expect(store.events).toEqual([]);
   });
 });

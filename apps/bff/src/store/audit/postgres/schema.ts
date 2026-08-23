@@ -55,9 +55,7 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
      roles              text,
      client_ip          inet,
      horizon_ip         inet,
-     horizon_node       text        NOT NULL,
-     hour_bucket        bigint,
-     count              int         NOT NULL DEFAULT 1
+     horizon_node       text        NOT NULL
    )`,
 
   // `CREATE TABLE IF NOT EXISTS` is a no-op once the table exists, so it can
@@ -87,10 +85,6 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
   // and username only, and an index nothing queries is write cost for
   // nothing. Those columns are still recorded and still shown on a row.
 
-  // One row per credential-hour per writing process.
-  `CREATE UNIQUE INDEX IF NOT EXISTS horizon_audit_bucket_idx
-     ON horizon_audit (hour_bucket, kind, username, horizon_node)
-     WHERE hour_bucket IS NOT NULL`,
 
   // Statistics. A SURROGATE key, and rows that are per-interval deltas:
   // `horizon_node` is best-effort attribution, so keying on it would make two
@@ -103,11 +97,32 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
      login_ldap        int NOT NULL DEFAULT 0,
      login_oidc        int NOT NULL DEFAULT 0,
      login_oauth       int NOT NULL DEFAULT 0,
-     login_token       int NOT NULL DEFAULT 0,
      rejected          int NOT NULL DEFAULT 0,
      over_budget       int NOT NULL DEFAULT 0
+   )`,
+
+  // Token usage. A STATISTIC, not an audit record: presenting a token is not
+  // a sign-in, so it has no place in `horizon_audit` and no row per request.
+  //
+  // One row per credential per hour PER NODE, and the node is in the KEY.
+  // Each process writes only its own running total, so no node can overwrite
+  // another's share and no read is needed before a write; the deployment's
+  // count for the hour is the SUM across these rows, taken when the page asks.
+  // The node id carries a boot id, so a restart starts a fresh row rather than
+  // replacing a real total with a partial one.
+  `CREATE TABLE IF NOT EXISTS horizon_token_usage (
+     hour_bucket   bigint NOT NULL,
+     token_id      text   NOT NULL,
+     username      text   NOT NULL,
+     count         bigint NOT NULL,
+     horizon_node  text   NOT NULL,
+     PRIMARY KEY (hour_bucket, token_id, horizon_node)
    )`,
 
   `CREATE INDEX IF NOT EXISTS horizon_audit_stat_hour_idx
      ON horizon_audit_stat (hour_bucket)`,
 ];
+
+/** The token-usage write's column list, beside the DDL that creates them. An
+ *  ARRAY so the bind width is counted rather than restated. */
+export const USAGE_COLUMNS = ['hour_bucket', 'token_id', 'username', 'count', 'horizon_node'] as const;

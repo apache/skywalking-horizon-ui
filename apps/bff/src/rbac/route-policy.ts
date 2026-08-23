@@ -275,6 +275,9 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/admin/audit':                          'audit:read',
   'GET /api/admin/audit/stat':                     'audit:read',
   'GET /api/admin/audit/status':                   'audit:read',
+  // Token usage answers the same operator question from the other side, and
+  // holds credential identifiers — same verb, and the same wildcard exemption.
+  'GET /api/admin/token-usage':                    'audit:read',
 
   'POST /api/rule':                                'rule:write',
   'POST /api/rule/inactivate':                     'rule:write',

@@ -136,10 +136,10 @@ export function requireAuth(deps: AuthDeps) {
       };
       req.tokenId = oauth.tokenId;
       req.authKind = 'oauth-token';
-      // Keyed on the PRINCIPAL, not the `jti`: a fresh id is minted on every
-      // access-token call, so keying on it would make aggregate rows grow with
-      // request volume rather than with the user count.
-      deps.audit?.countTokenUse({ kind: 'oauth-token', username: oauth.username, at: now });
+      // Deliberately NOT counted as token usage. This token is minted by
+      // Horizon's own authorization server for a single sign-in, so the sign-in
+      // it came from is already an audit row; counting its requests too would
+      // report one person's session as machine traffic.
       return;
     }
     const bearer = await deps.tokens?.resolve(req.headers.authorization);
@@ -157,10 +157,12 @@ export function requireAuth(deps: AuthDeps) {
       };
       req.tokenId = bearer.tokenId;
       req.authKind = 'api-token';
-      // The token id is the principal: it names the credential that was
-      // presented. Who that credential belongs to is a fact about
-      // configuration — the tokens file holds it — not a fact about this use.
-      deps.audit?.countTokenUse({ kind: 'api-token', username: bearer.tokenId, at: now });
+      // The token id names the credential that was presented; the username is
+      // carried so a reader need not join against a tokens file that may since
+      // have changed.
+      deps.audit?.countTokenUse({
+        tokenId: bearer.tokenId, username: bearer.username, at: now,
+      });
       return;
     }
     const cookieName = deps.config.current.session.cookieName;

@@ -98,6 +98,17 @@ const serverSchema = z
             'server.trustProxy must be a hop count, or addresses/CIDRs — not a hostname. Fastify ' +
             'matches it against the peer address and refuses to start on anything it cannot parse.',
         },
+      )
+      // `0.0.0.0/0` and `::/0` match every address there is, so they are
+      // `true` written as a CIDR — the same attacker-chosen client address,
+      // arriving past the check that refuses `true` by name.
+      .refine(
+        (v) => typeof v !== 'string' || !v.split(',').some((part) => matchesEveryAddress(part.trim())),
+        {
+          message:
+            'server.trustProxy: a /0 block trusts every address, which is what `true` does. Name ' +
+            'the ingress address or its real prefix instead.',
+        },
       ),
   })
   .strict();
@@ -493,6 +504,12 @@ function isIpOrCidr(value: string): boolean {
   if (!/^\d+$/.test(bits)) return false;
   const n = Number(bits);
   return n >= 0 && n <= (version === 4 ? 32 : 128);
+}
+
+/** A CIDR whose prefix length is zero: every address matches it. */
+function matchesEveryAddress(value: string): boolean {
+  const [addr, bits] = value.split('/');
+  return bits !== undefined && Number(bits) === 0 && isIP(addr ?? '') !== 0;
 }
 
 const rbacSchema = z

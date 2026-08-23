@@ -23,15 +23,37 @@
  * happening?" and the second is "show me which" — a filter form above an
  * unread summary asks the operator to guess what to filter for.
  */
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditKind } from '@/api/scopes/admin-audit';
 import AuditList from './AuditList.vue';
 import AuditStatBlock from './AuditStatBlock.vue';
+import TokenUsageList from './TokenUsageList.vue';
+import { useTokenUsagePage } from './useTokenUsagePage';
 import { useAuditPage, ALL_TIME, CUSTOM_RANGE_SENTINEL } from './useAuditPage';
 
 const { t } = useI18n();
 const page = useAuditPage();
+const tokens = useTokenUsagePage();
+
+/**
+ * Two tabs, because the two records answer different questions at different
+ * grains. A sign-in is a person arriving; a token-usage row is an hour of
+ * traffic. Stacking them in one list made a busy script outweigh every human
+ * sign-in beside it.
+ */
+type Tab = 'logins' | 'tokens';
+const tab = ref<Tab>('logins');
+
+async function pick(next: Tab): Promise<void> {
+  if (tab.value === next) return;
+  tab.value = next;
+  // Load on first view rather than on mount — the other tab's query is not
+  // free, and most visits only ever look at one.
+  if (next === 'tokens' && tokens.hours.value.length === 0 && !tokens.loading.value) {
+    await tokens.load();
+  }
+}
 
 const TIME_RANGE_PRESETS = computed<Array<{ label: string; minutes: number }>>(() => [
   { label: t('All'), minutes: ALL_TIME },
@@ -50,8 +72,6 @@ const KINDS: { value: AuditKind; label: string }[] = [
   { value: 'ldap', label: 'LDAP' },
   { value: 'break-glass', label: 'Break-glass' },
   { value: 'sso', label: 'Single sign-on' },
-  { value: 'api-token', label: 'API token' },
-  { value: 'oauth-token', label: 'OAuth token' },
 ];
 
 onMounted(() => void page.refresh());
@@ -65,6 +85,23 @@ onMounted(() => void page.refresh());
         {{ t('Who signed in, when, and from where. Records only what a valid credential produced — everything an unauthenticated caller can trigger stays in the application log.') }}
       </p>
     </header>
+
+    <!-- A sign-in is a person arriving; a token-usage row is an hour of
+         traffic. Separate tabs so neither grain drowns the other. -->
+    <div class="audit__tabs" role="tablist">
+      <button
+        type="button" role="tab" class="audit__tab"
+        :class="{ 'audit__tab--on': tab === 'logins' }"
+        :aria-selected="tab === 'logins'"
+        @click="pick('logins')"
+      >{{ t('Login') }}</button>
+      <button
+        type="button" role="tab" class="audit__tab"
+        :class="{ 'audit__tab--on': tab === 'tokens' }"
+        :aria-selected="tab === 'tokens'"
+        @click="pick('tokens')"
+      >{{ t('Token usage') }}</button>
+    </div>
 
     <!-- Every state renders something. An empty table where rows exist but
          cannot be read would be a lie, so an unreachable store says so. -->
@@ -88,7 +125,7 @@ onMounted(() => void page.refresh());
       {{ t('The audit store cannot be reached ({cause}). Sign-ins are still being accepted, but they are not being recorded.', { cause: page.health.value?.error ?? 'unreachable' }) }}
     </p>
 
-    <template v-else>
+    <template v-else-if="tab === 'logins'">
       <AuditStatBlock
         :stat="page.stat.value"
         :window="page.statWindow.value"
@@ -127,7 +164,7 @@ onMounted(() => void page.refresh());
         </label>
         <label class="cf">
           <span>{{ t('Login ID') }}</span>
-          <input v-model="page.filters.value.username" type="text" class="cf-input" :placeholder="t('name, email or token id')" />
+          <input v-model="page.filters.value.username" type="text" class="cf-input" :placeholder="t('name or email')" />
         </label>
         <label class="cf">
           <span>{{ t('Auth Channel') }}</span>
@@ -166,12 +203,40 @@ onMounted(() => void page.refresh());
         </template>
       </p>
     </template>
+
+    <template v-else>
+      <TokenUsageList
+        :hours="tokens.hours.value"
+        :span-hours="tokens.spanHours.value"
+        :custom-start="tokens.customStart.value"
+        :custom-end="tokens.customEnd.value"
+        :range-error="tokens.rangeError.value"
+        :loading="tokens.loading.value"
+        :error="tokens.error.value"
+        @update:span="tokens.setSpan"
+        @update:custom-start="(v: string) => { tokens.customStart.value = v; }"
+        @update:custom-end="(v: string) => { tokens.customEnd.value = v; }"
+        @apply="tokens.load"
+      />
+    </template>
   </div>
 </template>
 
 <style scoped>
 .audit { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
 .audit__head { display: flex; flex-direction: column; gap: 4px; }
+.audit__tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--sw-line); }
+.audit__tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--sw-fg-3);
+  font: inherit;
+  font-size: var(--sw-fs-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.audit__tab--on { color: var(--sw-fg-0); border-bottom-color: var(--sw-accent); }
 .audit__title {
   margin: 0;
   font-size: var(--sw-fs-xl);

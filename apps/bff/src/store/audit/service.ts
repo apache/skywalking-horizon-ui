@@ -37,6 +37,9 @@ import { isIP } from 'node:net';
 import type { AuditConfig } from '../../config/schema.js';
 import { logger } from '../../logger.js';
 import { AuditCounters, hourBucketOf } from './counters.js';
+import { TokenCounters, type TokenUse } from './token-counters.js';
+import { summarizeWindow } from './token-usage.js';
+import { type TokenUsage, type TokenUsageResult, type TokenUsageStore, type TokenUsageRange } from './token-usage.js';
 import {
   AuditStoreError,
   type AuditEvent,
@@ -50,11 +53,10 @@ import {
   type AuditStore,
   type StoreError,
   type StoreStamp,
-  type TokenUse,
 } from './types.js';
 
-/** Buffered sign-in rows. Matches the token map's cap so one outage cannot
- *  grow memory through whichever path happens to be busier. */
+/** Buffered sign-in rows: what one outage may hold before the oldest are
+ *  dropped rather than grown into memory without bound. */
 const MAX_BUFFERED_EVENTS = 10_000;
 
 /** Batches written per pass. Bounds how long one tick can run while still
@@ -131,6 +133,9 @@ function horizonNodeIp(): string | undefined {
 
 export interface AuditServiceOptions {
   store: AuditStore;
+  /** The token-usage statistic. Optional so a backend that has not
+   *  implemented it yet still runs the audit. */
+  tokenStore?: TokenUsageStore;
   config: AuditConfig;
   horizonNode?: string;
   horizonIp?: string;
@@ -140,6 +145,8 @@ export class BufferedAuditService implements AuditService {
   private readonly store: AuditStore;
   private readonly cfg: AuditConfig;
   private readonly counters: AuditCounters;
+  private readonly tokens = new TokenCounters();
+  private readonly tokenStore: TokenUsageStore | undefined;
   private readonly stamp: StoreStamp;
 
   private readonly buffer: Array<AuditEvent & StoreStamp> = [];
@@ -169,14 +176,14 @@ export class BufferedAuditService implements AuditService {
    * caller waits for the real result.
    */
   private flushing: Promise<void> | null = null;
-  /** The in-flight aggregate write, for the same reason `flushing` is a
-   *  promise: shutdown has to JOIN it, not race it. */
-  private aggregating: Promise<void> | null = null;
   /** The in-flight statistics append. `takeStats` DETACHES the accumulator
    *  before the write, so a shutdown that races it finds nothing to write,
    *  exits reporting success, and drops the interval the parked write is
    *  about to hand back on failure. */
   private statting: Promise<void> | null = null;
+  /** The in-flight token-usage write. A read joins it rather than starting a
+   *  second one, and shutdown joins it like the other two. */
+  private tokenFlushing: Promise<void> | null = null;
   /** Set by `stop()`, so nothing new starts behind it. */
   private stopping = false;
   /** Rows currently detached from the buffer and on the wire. They are still
@@ -206,6 +213,7 @@ export class BufferedAuditService implements AuditService {
     this.store = opts.store;
     this.cfg = opts.config;
     this.counters = new AuditCounters({ maxRowsPerHour: this.cfg.maxRowsPerHour });
+    this.tokenStore = opts.tokenStore;
     this.stamp = {
       horizonNode: opts.horizonNode ?? horizonNodeId(),
       horizonIp: opts.horizonIp ?? horizonNodeIp(),
@@ -267,9 +275,6 @@ export class BufferedAuditService implements AuditService {
     }
   }
 
-  countTokenUse(use: TokenUse): void {
-    this.counters.countTokenUse(use);
-  }
 
   async start(): Promise<void> {
     if (this.starting) return this.starting;
@@ -317,6 +322,17 @@ export class BufferedAuditService implements AuditService {
       // on a hung socket is exactly the thing the deadline exists to escape.
       void this.store.close().catch(() => undefined);
     }
+    // Counted after the deadline branch, so it covers both ways the final
+    // flush can fail: the store refusing the write, and the deadline cutting
+    // it off. Said as a count of USES rather than of rows — a row carries a
+    // running total, so "3 rows unwritten" understates what was lost.
+    const lost = this.tokens.unwritten();
+    if (lost > 0) {
+      logger.warn(
+        { uses: lost },
+        'audit: token uses counted but not written — the final flush did not reach the store',
+      );
+    }
     this.available = false;
   }
 
@@ -334,9 +350,13 @@ export class BufferedAuditService implements AuditService {
     // The tick too, and not only the two write handles: a tick already inside
     // its statistics or sweep phase has released those, so joining them alone
     // let shutdown close the pool while the store was still being written.
-    await Promise.allSettled([this.tickInFlight, this.flushing, this.aggregating, this.statting].filter(Boolean));
+    await Promise.allSettled(
+      [this.tickInFlight, this.flushing, this.statting, this.tokenFlushing].filter(Boolean),
+    );
 
-    await Promise.allSettled([this.tickInFlight, this.flushing, this.aggregating, this.statting].filter(Boolean));
+    await Promise.allSettled(
+      [this.tickInFlight, this.flushing, this.statting, this.tokenFlushing].filter(Boolean),
+    );
 
     // A store that never opened is not a reason to discard the buffer — the
     // failure may have been transient and this is the last chance to write.
@@ -351,8 +371,8 @@ export class BufferedAuditService implements AuditService {
       await this.flushEvents();
       if (this.buffer.length >= before) break; // making no progress; stop trying
     }
-    await this.flushAggregates();
     await this.flushStats();
+    await this.flushTokenUsage();
     await this.store.close();
   }
 
@@ -424,8 +444,8 @@ export class BufferedAuditService implements AuditService {
     if (!this.available) return;
     await this.flushEvents();
     if (this.ticks % this.aggregateEvery === 0) {
-      await this.flushAggregates();
       await this.flushStats();
+      await this.flushTokenUsage();
     }
     // Re-checked rather than hoisted: the sweep is the longest store call in
     // the feature, and `stop()` may have been entered during the phases above.
@@ -499,27 +519,60 @@ export class BufferedAuditService implements AuditService {
     await this.flushEvents();
   }
 
-  private async flushAggregates(): Promise<void> {
-    if (this.aggregating) return this.aggregating;
-    this.aggregating = this.writeAggregates().finally(() => {
-      this.aggregating = null;
-    });
-    return this.aggregating;
+
+
+  /**
+   * One token use. On the request path, so it does no I/O — the same rule the
+   * sign-in path follows. A token use is NOT a login and produces no audit
+   * row; this feeds the separate statistic.
+   */
+  countTokenUse(use: TokenUse): void {
+    this.tokens.count(use);
   }
 
-  private async writeAggregates(): Promise<void> {
-    const pending = this.counters.pendingAggregates();
-    if (pending.length === 0) return;
+  /**
+   * Reads the window, and adds what this process has counted but not written.
+   *
+   * NOT by flushing first. A flush on the read path defeats the batching the
+   * whole mechanism exists for — a poller would drive one upsert per poll —
+   * and it does not even buy freshness: a reader arriving while a flush is
+   * already in flight joins THAT flush, which was assembled before its use was
+   * counted, so it returns without the very row it came for.
+   *
+   * Merging the pending delta instead is exact, because it is read from memory
+   * at the moment the reply is assembled, and it costs no write. The rows are
+   * stamped like any other, so the summary folds them in by credential exactly
+   * as it folds in a second replica's.
+   *
+   * Still this NODE's share: other replicas' unflushed counts land on their own
+   * cadence, as they must.
+   */
+  async queryTokenUsage(range: TokenUsageRange): Promise<TokenUsageResult> {
+    const store = this.tokenStore;
+    if (!store) return { hours: [], range };
+    const stored = await this.tracked(() => store.readWindow(range));
+    return summarizeWindow([...stored, ...this.tokens.pendingEntries(this.stamp)], range);
+  }
+
+  private async flushTokenUsage(): Promise<void> {
+    if (this.tokenFlushing) return this.tokenFlushing;
+    this.tokenFlushing = this.writeTokenUsage().finally(() => {
+      this.tokenFlushing = null;
+    });
+    return this.tokenFlushing;
+  }
+
+  private async writeTokenUsage(): Promise<void> {
+    const store = this.tokenStore;
+    if (!store) return;
     try {
-      await this.store.writeAggregates(
-        pending.map(({ key, ...row }) => {
-          void key;
-          return { ...row, shape: 'aggregate' as const, ...this.stamp };
-        }),
-      );
-      // Only after the write commits, and at the counts that were WRITTEN —
-      // uses that landed during the round trip must stay pending.
-      this.counters.markFlushed(pending.map((p) => ({ key: p.key, count: p.count })));
+      const pending = this.tokens.pending();
+      if (pending.length === 0) return;
+      const rows: Array<TokenUsage & StoreStamp> = pending.map((r) => ({ ...r, ...this.stamp }));
+      await store.writeUsage(rows);
+      // Only what was SUBMITTED — uses that arrived during the round trip stay
+      // pending rather than being marked stored.
+      this.tokens.markWritten(pending);
       this.markAvailable();
     } catch (err) {
       this.markUnavailable(codeOf(err));
@@ -621,8 +674,13 @@ export class DisabledAuditService implements AuditService {
     private readonly cfg: Pick<AuditConfig, 'enabled' | 'provider'>,
     private readonly problem?: string,
   ) {}
-  recordEvent(): void {}
   countTokenUse(): void {}
+
+  async queryTokenUsage(range: TokenUsageRange): Promise<TokenUsageResult> {
+    return { hours: [], range };
+  }
+
+  recordEvent(): void {}
   async query(): Promise<AuditPageResult> {
     return { rows: [], pageNum: 1, pageSize: 0, hasNext: false };
   }

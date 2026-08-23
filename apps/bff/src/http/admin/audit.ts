@@ -29,6 +29,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import {
+  DEFAULT_TOKEN_USAGE_HOURS,
+  MAX_TOKEN_USAGE_HOURS,
+} from '../../store/audit/token-usage.js';
 import { badRequest } from '../../errors.js';
 import type { AuthDeps } from '../../user/middleware.js';
 import {
@@ -47,6 +51,10 @@ export interface AuditRouteDeps extends AuthDeps {
  *  read over a 90-day table is a denial of service against your own
  *  database. */
 const MAX_PAGE_SIZE = 200;
+
+/** The largest value a signed `bigint` column can hold — what the audit's `id`
+ *  is, and therefore the ceiling a cursor may name. */
+const PG_BIGINT_MAX = 9_223_372_036_854_775_807n;
 
 /**
  * Bounds a caller's timestamps to what the COLUMN can hold, not to what a JS
@@ -86,17 +94,39 @@ const listQuerySchema = z.object({
     .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : v.split(','))),
   username: text(256),
   // Display-only: paging is keyset, so this labels the page rather than
-  // computing an offset. Depth costs nothing now — page 1 000 is one index
-  // seek like page 2 — so it needs no cap beyond staying a sane integer, and
-  // `hasNext` can no longer promise a page the route would refuse.
-  pageNum: z.coerce.number().int().positive().max(100_000).default(1),
+  // computing an offset. Depth costs nothing — page 1 000 is one index seek
+  // like page 2 — so the only requirement is that it stays a number the rest
+  // of the code can do arithmetic on. A cap here could only make `hasNext`
+  // promise a page the route would then refuse.
+  pageNum: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER).default(1),
   pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(50),
   // Where the previous page ended, as `<epochMs>:<id>`. One parameter rather
   // than two, because the halves are meaningless apart.
+  //
+  // The id half is checked against what the COLUMN can hold, not against a
+  // digit count: `horizon_audit.id` is a signed bigint, and 19 digits reaches
+  // well past its maximum. A value above it is not a row that has not been
+  // written yet — it is a value the comparison cannot bind, so Postgres
+  // answers 22003 and the read fails as a store fault instead of a bad
+  // request.
   cursor: z
     .string()
     .regex(/^\d{1,15}:\d{1,19}$/, 'cursor must be "<epochMs>:<id>"')
+    // Shape-checked again rather than trusting the regex above it: zod runs
+    // every check in the chain, so a failed `.regex()` does NOT stop this one
+    // being handed the same bad string — and `BigInt('def')` THROWS, turning a
+    // malformed query parameter into a 500 instead of the 400 it earned.
+    // Malformed input returns true here and keeps the regex's own message.
+    .refine((v) => {
+      const id = v.split(':')[1];
+      return id === undefined || !/^\d+$/.test(id) || BigInt(id) <= PG_BIGINT_MAX;
+    }, { message: 'cursor id is larger than the column can hold' })
     .optional(),
+});
+
+const tokenQuerySchema = z.object({
+  from: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
+  to: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
 });
 
 const statQuerySchema = z.object({
@@ -128,6 +158,34 @@ export function registerAuditRoutes(app: FastifyInstance, deps: AuditRouteDeps):
     // a position out of two fields it might mismatch.
     const { nextCursor, ...body } = page;
     return { ...body, ...(nextCursor ? { nextCursor: `${nextCursor.at}:${nextCursor.id}` } : {}) };
+  });
+
+  /**
+   * Token usage — a statistic, on the same permission as the audit.
+   *
+   * Same verb because it answers the same operator question from the other
+   * side: the audit says who got in, this says what the credentials that need
+   * no login have been doing. Both hold identifiers worth protecting.
+   *
+   * A RANGE, not a page: the answer is one group per hour, so a reader asks
+   * for a span. The span is capped at `MAX_TOKEN_USAGE_HOURS` rather than
+   * refused when it is too wide — a reader who asks for a week wants the most
+   * recent hours of it, not an error.
+   *
+   * Bounds are NORMALISED, not taken literally: a group is a whole hour, so
+   * 10:50–11:10 is answered as 10:00–12:00 rather than as the single bucket
+   * 11:00 happens to fall in. The reply carries the bounds it actually
+   * covered, so a caller shows those back instead of the ones it sent.
+   */
+  app.get('/api/admin/token-usage', async (req) => {
+    const parsed = tokenQuerySchema.safeParse(req.query);
+    if (!parsed.success) throw badRequest('invalid token usage query', parsed.error.flatten());
+    const q = parsed.data;
+    const to = q.to ?? Date.now();
+    const from = q.from ?? to - DEFAULT_TOKEN_USAGE_HOURS * 3_600_000;
+    if (from >= to) throw badRequest('invalid token usage query', { to: ['must be after from'] });
+    const widest = MAX_TOKEN_USAGE_HOURS * 3_600_000;
+    return deps.audit.queryTokenUsage({ from: Math.max(from, to - widest), to });
   });
 
   app.get('/api/admin/audit/stat', async (req) => {

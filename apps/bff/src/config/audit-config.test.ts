@@ -145,6 +145,21 @@ describe('server.trustProxy', () => {
   });
 
   /**
+   * A /0 block is `true` spelled as a CIDR: it matches every address there is,
+   * so the header any caller sends becomes the address Horizon writes down.
+   * Refused by the same reasoning that refuses `true` by name — otherwise the
+   * check reads as a rule about a keyword rather than about trust.
+   */
+  it.each(['0.0.0.0/0', '::/0', '10.0.0.1, 0.0.0.0/0'])('refuses %s', (value) => {
+    expect(() => server(value)).toThrow(/trusts every address/);
+  });
+
+  it('still accepts a real prefix', () => {
+    expect(server('10.0.0.0/8')).toBe('10.0.0.0/8');
+    expect(server('2001:db8::/32')).toBe('2001:db8::/32');
+  });
+
+  /**
    * `true` means "trust the whole X-Forwarded-For header", so any caller can
    * choose the address Horizon records simply by sending one — which would
    * make `client_ip` in the audit log worse than absent, because it would look
