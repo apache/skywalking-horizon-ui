@@ -31,6 +31,7 @@ import type { ConfigSource } from '../config/loader.js';
 import type { Session, SessionStore } from './sessions.js';
 import type { TokenStore } from './tokens.js';
 import type { OAuthTokenResolver } from '../oauth/tokens.js';
+import type { AuditService } from '../store/audit/types.js';
 
 /**
  * WHICH credential authenticated a request.
@@ -62,6 +63,10 @@ export interface AuthDeps {
   /** OAuth access tokens this Horizon issued. Absent unless `oauth.enabled`
    *  is wired; told apart from an API token by prefix, not by trying both. */
   oauthTokens?: OAuthTokenResolver;
+  /** Counts ACCEPTED token uses. Absent in tests; a token is presented on
+   *  every request, so uses are counted in memory and written per hour rather
+   *  than one row per request. */
+  audit?: AuditService;
 }
 
 /**
@@ -131,6 +136,10 @@ export function requireAuth(deps: AuthDeps) {
       };
       req.tokenId = oauth.tokenId;
       req.authKind = 'oauth-token';
+      // Keyed on the PRINCIPAL, not the `jti`: a fresh id is minted on every
+      // access-token call, so keying on it would make aggregate rows grow with
+      // request volume rather than with the user count.
+      deps.audit?.countTokenUse({ kind: 'oauth-token', username: oauth.username, at: now });
       return;
     }
     const bearer = await deps.tokens?.resolve(req.headers.authorization);
@@ -148,6 +157,10 @@ export function requireAuth(deps: AuthDeps) {
       };
       req.tokenId = bearer.tokenId;
       req.authKind = 'api-token';
+      // The token id is the principal: it names the credential that was
+      // presented. Who that credential belongs to is a fact about
+      // configuration — the tokens file holds it — not a fact about this use.
+      deps.audit?.countTokenUse({ kind: 'api-token', username: bearer.tokenId, at: now });
       return;
     }
     const cookieName = deps.config.current.session.cookieName;

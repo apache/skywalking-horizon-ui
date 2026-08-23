@@ -18,7 +18,7 @@ This governs HTTP caches, and nothing else. It does not erase data the page alre
 
 No session identifier, password or token is ever written, so the log cannot be used to resume anyone's session. That matters because logs are routinely shipped to a SIEM or attached to a ticket, where more people can read them than can read the session store.
 
-**It is not an audit trail, and Horizon no longer claims to keep one.** Mutations are not attributed in the log — if you need "who changed what", that needs a durable store this server deliberately does without, and OAP's own records are where template and rule changes land.
+**The application log is not an audit trail, and mutations are not attributed in it.** If you need "who changed what", OAP's own records are where template and rule changes land. Horizon does keep a **login** audit log — who signed in, when and from where — but it is an optional, off-by-default feature backed by a shared store, and it records sign-ins rather than changes. See [Login audit](login-audit.md).
 
 **Shipped assets are self-contained.** Horizon loads no fonts, scripts, styles or images from a third-party CDN — everything is packaged in the release. An air-gapped install needs no allow-listed egress for the console itself, and there is no third party who can change what your operators' browsers execute.
 

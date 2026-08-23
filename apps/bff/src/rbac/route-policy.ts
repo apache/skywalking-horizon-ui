@@ -272,6 +272,10 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/oal/rules/:source':                    'rule:read',
   'GET /api/catalog/list':                         'rule:read',
   'GET /api/catalog/bundled':                      'rule:read',
+  'GET /api/admin/audit':                          'audit:read',
+  'GET /api/admin/audit/stat':                     'audit:read',
+  'GET /api/admin/audit/status':                   'audit:read',
+
   'POST /api/rule':                                'rule:write',
   'POST /api/rule/inactivate':                     'rule:write',
   'POST /api/rule/delete':                         'rule:delete',

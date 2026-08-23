@@ -17,6 +17,13 @@
 
 /* SkyWalking NG — dark observability tokens */
 :root {
+  /* Native form controls follow this, not our tokens: date pickers, their
+     calendar popups, spinners, scrollbars and the default focus ring. Without
+     it the UA renders them light — a white calendar popup and a bright blue
+     ring on a #0a0d12 page. The palette below is dark-only, so this states
+     what is already true rather than adding a mode. */
+  color-scheme: dark;
+
   --sw-bg-0: #0a0d12;        /* page bg */
   --sw-bg-1: #0f131a;        /* surface */
   --sw-bg-2: #151a23;        /* card */

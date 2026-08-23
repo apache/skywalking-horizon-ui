@@ -34,6 +34,7 @@
 import { Client, type SearchOptions } from 'ldapts';
 import type { LdapConfig } from '../config/schema.js';
 import { logger } from '../logger.js';
+import { granted, refused, refusedOnPolicy, type Verified } from './outcome.js';
 import type { VerifiedUser } from './local.js';
 
 /** Escape a value for an LDAP filter per RFC 4515. */
@@ -148,11 +149,18 @@ export interface LdapVerified extends VerifiedUser {
  * entry, no matching role mapping). The reason is logged but never sent
  * to the client — same posture as the local verifier.
  */
+/** ldapts surfaces LDAP result 49 as `InvalidCredentialsError`, and carries
+ *  the numeric code on the error either way. */
+function isInvalidCredentials(err: unknown): boolean {
+  const e = err as { code?: number; name?: string } | null;
+  return e?.code === 49 || e?.name === 'InvalidCredentialsError';
+}
+
 export async function verifyLdapCredentials(
   cfg: LdapConfig,
   username: string,
   password: string,
-): Promise<LdapVerified | null> {
+): Promise<Verified<LdapVerified>> {
   // Service-bound client: used for the user search AND (for the `search`
   // group strategy) the group lookup. Kept open until after group
   // resolution — see the note below on why groups are NOT resolved with
@@ -167,22 +175,29 @@ export async function verifyLdapCredentials(
   } catch (err) {
     logger.warn({ err: errMsg(err), username }, 'ldap user search failed');
     await safeUnbind(searchClient);
-    return null;
+    return refused('backend_unreachable');
   }
   if (!user) {
     await safeUnbind(searchClient);
-    return null;
+    // Not-found and wrong-password collapse to one reason on purpose: telling
+    // them apart is an account-enumeration oracle.
+    return refused('invalid_credentials');
   }
 
   // The actual password check — bind as the user on a separate client.
   const userClient = clientFor(cfg);
   try {
     await userClient.bind(user.dn, password);
-  } catch {
-    // Wrong password / locked account / disabled user → bind 49.
+  } catch (err) {
     await safeUnbind(userClient);
     await safeUnbind(searchClient);
-    return null;
+    // Bind 49 is the credential being wrong. Anything else — the directory
+    // refusing the connection, TLS failing, a timeout — is the backend being
+    // unreachable, and calling that "invalid credentials" tells an operator
+    // to go and check a password while the directory is down.
+    if (isInvalidCredentials(err)) return refused('invalid_credentials');
+    logger.warn({ err: errMsg(err), username }, 'ldap user bind failed on transport');
+    return refused('backend_unreachable');
   }
   await safeUnbind(userClient);
 
@@ -200,10 +215,30 @@ export async function verifyLdapCredentials(
       groups = await searchGroupsByMember(searchClient, cfg, user.dn);
     }
   } catch (err) {
+    // A group-subtree outage is NOT the same as a user with no mappings, and
+    // collapsing them to `groups = []` made a directory failure indis-
+    // tinguishable from the user's own membership. That mattered once the
+    // audit log started recording reasons: `zero_group_mappings` is persisted
+    // and would have blamed the user for a backend being down, while
+    // `backend_unreachable` — which is deliberately never recorded — would
+    // never have appeared at all.
     logger.warn({ err: errMsg(err), dn: user.dn }, 'ldap group resolution failed');
-    groups = [];
+    await safeUnbind(searchClient);
+    return refused('backend_unreachable');
   }
   await safeUnbind(searchClient);
+
+  // The identity is the login identifier the bind just VERIFIED — not
+  // anything derived from the DN. A DN's first component is whatever the
+  // directory chose to name the entry by, and in Active Directory that is
+  // routinely `CN=Display Name`, unrelated to the `sAMAccountName` someone
+  // signs in with. Deriving the identity from it hands the session, the OAuth
+  // `sub` and every later role lookup a string that may name a different
+  // principal, or none.
+  //
+  // Folding `alice` and `Alice` into one principal is a METERING concern, and
+  // it is already solved where it belongs: the audit budget keys on the full
+  // DN (`canonicalKey`), which names one account whatever was typed.
 
   const roles = mapGroupsToRoles(cfg, groups);
   if (roles.length === 0) {
@@ -211,15 +246,23 @@ export async function verifyLdapCredentials(
       { username, groups },
       'ldap user authenticated but matched zero group mappings; rejecting login',
     );
-    return null;
+    // Authenticated, then refused on policy — so this one carries the
+    // principal, and is recordable.
+    return refusedOnPolicy('zero_group_mappings', {
+      username,
+      displayName: user.displayName,
+      dn: user.dn,
+      groups,
+      roles,
+    });
   }
-  return {
+  return granted({
     username,
     displayName: user.displayName,
     dn: user.dn,
     groups,
     roles,
-  };
+  });
 }
 
 export interface LdapProbeResult {

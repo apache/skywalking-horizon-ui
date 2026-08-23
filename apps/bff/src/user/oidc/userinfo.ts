@@ -135,6 +135,15 @@ export interface Oauth2Identity {
   name?: string;
 }
 
+/** The provider could not be reached, or answered unusably. Distinct from
+ *  `UserinfoError`, which means it answered and had no address for us. */
+export class ProviderUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProviderUnreachableError';
+  }
+}
+
 export class UserinfoError extends Error {}
 
 export async function fetchOauth2Identity(
@@ -158,7 +167,11 @@ export async function fetchOauth2Identity(
   try {
     body = await getAuthorized(opts.userinfoEndpoint, opts.accessToken, 'userinfo', doFetch, timeoutMs);
   } catch (err) {
-    throw new UserinfoError(err instanceof Error ? err.message : String(err));
+    // A provider that could not be reached is not a provider that reported no
+    // address. Collapsing both into UserinfoError made every network fault
+    // surface to the operator as `no_email`, which points at the user's
+    // account instead of at the provider being down.
+    throw new ProviderUnreachableError(err instanceof Error ? err.message : String(err));
   }
 
   // A configured list is AUTHORITATIVE rather than a fallback, and the order
@@ -277,7 +290,12 @@ async function emailFromList(
   try {
     list = await getAuthorized(opts.emailsEndpoint!, opts.accessToken, 'emails', doFetch, timeoutMs);
   } catch (err) {
-    throw new UserinfoError(`emails endpoint: ${err instanceof Error ? err.message : String(err)}`);
+    // Same distinction as the userinfo call: a provider that could not be
+    // reached is not one that reported no address, and reporting the former
+    // as `no_email` points an operator at the account instead of the outage.
+    throw new ProviderUnreachableError(
+      `emails endpoint: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
   if (!Array.isArray(list)) {
     logger.error({ provider: opts.providerId }, 'oauth2 emails endpoint did not return a list');

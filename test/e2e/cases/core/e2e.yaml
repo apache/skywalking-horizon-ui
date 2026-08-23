@@ -177,6 +177,24 @@ verify:
         bash test/e2e/script/prepare/playwright.sh bff
       expected: expected/passed.yml
 
+    # READINESS: the audit log has the sign-in in it — and it sits HERE, after
+    # the first browser project, for a reason worth stating. The sign-in it
+    # waits for is the one `auth.setup.ts` performs through the real login
+    # form, and `auth` is a dependency of the projects rather than a step of
+    # its own: before `playwright.sh bff` runs, nobody has signed in at all, so
+    # the same gate placed with the other readiness checks waits forever on an
+    # event that cannot have happened yet.
+    #
+    # It still earns its place: the row is produced by a BUFFERED writer on its
+    # own tick, a different producer from every check above, so without it that
+    # wait falls to the `ui` project, which absorbs it by re-running the whole
+    # browser suite and turns a timer into what looks like a flaky page.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/admin/audit?pageSize=50" \
+          | yq -P '{"hasSignIn": ([.rows[] | select(.outcome == 1)] | length > 0)}'
+      expected: expected/has-audit-signin.yml
+
     - query: |
         bash test/e2e/script/prepare/playwright.sh ui
       expected: expected/passed.yml

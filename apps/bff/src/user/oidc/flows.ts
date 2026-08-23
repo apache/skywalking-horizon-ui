@@ -53,14 +53,34 @@ function handle(): string {
   return randomBytes(24).toString('base64url');
 }
 
+/**
+ * In-flight sign-ins the store will hold.
+ *
+ * `/start` is reachable without credentials, so the map is sized by whoever
+ * chooses to call it. The cap makes memory a fixed cost; eviction is
+ * oldest-first, which is also the order the TTL would have taken them in.
+ */
+export const MAX_FLOWS = 10_000;
+
 export class FlowStore {
+  /** Insertion-ordered by construction, which is what makes evicting the
+   *  oldest an O(1) read of the first key rather than a scan. */
   private readonly flows = new Map<string, { flow: Flow; at: number }>();
+  private lastSweep = 0;
 
   constructor(private readonly ttlMs: number) {}
 
   /** Keep an attempt, and return the handle the browser will carry. */
   put(flow: Flow): string {
-    this.sweep();
+    this.maybeSweep();
+    // Past the cap, drop the oldest rather than refusing the newest: a real
+    // person mid-sign-in should not be turned away because someone else is
+    // hitting /start in a loop.
+    while (this.flows.size >= MAX_FLOWS) {
+      const oldest = this.flows.keys().next();
+      if (oldest.done) break;
+      this.flows.delete(oldest.value);
+    }
     const id = handle();
     this.flows.set(id, { flow, at: Date.now() });
     return id;
@@ -81,9 +101,24 @@ export class FlowStore {
   /** Swept on write rather than on a timer: an abandoned sign-in is the common
    *  case (someone closes the provider's page), and a timer to collect a
    *  handful of small entries would outweigh what it reclaims. */
+  /** Sweeping on every insert made `/start` cost O(map) per unauthenticated
+   *  request. Once per TTL is enough: the cap bounds what accumulates in
+   *  between, and an expired flow is refused on use regardless. */
+  private maybeSweep(): void {
+    const now = Date.now();
+    if (now - this.lastSweep < this.ttlMs) return;
+    this.lastSweep = now;
+    this.sweep();
+  }
+
   private sweep(): void {
     const cutoff = Date.now() - this.ttlMs;
-    for (const [id, v] of this.flows) if (v.at < cutoff) this.flows.delete(id);
+    // Insertion-ordered, so the live entries are all at the end: stop at the
+    // first one still within the window instead of walking the whole map.
+    for (const [id, v] of this.flows) {
+      if (v.at >= cutoff) break;
+      this.flows.delete(id);
+    }
   }
 
   /** Tests only. */

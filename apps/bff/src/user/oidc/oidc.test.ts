@@ -639,3 +639,47 @@ describe('the login page offers a password box only when one can succeed', () =>
   });
 });
 
+describe('provider endpoints must be https', () => {
+  const parse = (over: Record<string, unknown>) =>
+    configSchema.parse({ auth: { sso: { providers: [{ id: 'p', clientId: 'c', ...over }] } } });
+
+  /** The client secret is sent to the token endpoint, so a plaintext provider
+   *  URL puts it on the wire. Loopback is exempt because there is no network
+   *  to listen on — that is what makes a local mock usable. */
+  it('refuses a plaintext remote issuer', () => {
+    expect(() => parse({ issuer: 'http://idp.example' })).toThrow();
+    expect(() => parse({ issuer: 'https://idp.example' })).not.toThrow();
+  });
+
+  it('allows plaintext loopback, for a local mock provider', () => {
+    expect(() => parse({ issuer: 'http://127.0.0.1:9999' })).not.toThrow();
+    expect(() => parse({ issuer: 'http://localhost:9999' })).not.toThrow();
+  });
+
+  it('refuses a plaintext explicit endpoint on an oauth2 provider', () => {
+    expect(() =>
+      parse({
+        kind: 'oauth2',
+        authorizationEndpoint: 'https://idp.example/a',
+        tokenEndpoint: 'http://idp.example/t',
+        userinfoEndpoint: 'https://idp.example/u',
+        emailVerifiedPath: 'email_verified',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('the in-flight sign-in store is bounded', () => {
+  it('holds at most MAX_FLOWS and evicts the oldest, never the newest', async () => {
+    const { FlowStore, MAX_FLOWS } = await import('./flows.js');
+    const store = new FlowStore(60_000);
+    const first = store.put({ state: 's', nonce: 'n', verifier: 'v', provider: 'p', next: '/' });
+    for (let i = 0; i < MAX_FLOWS; i += 1) {
+      store.put({ state: `s${i}`, nonce: 'n', verifier: 'v', provider: 'p', next: '/' });
+    }
+    // The oldest went; the one just added is still usable.
+    expect(store.take(first)).toBeNull();
+    const latest = store.put({ state: 'latest', nonce: 'n', verifier: 'v', provider: 'p', next: '/' });
+    expect(store.take(latest)?.state).toBe('latest');
+  });
+});

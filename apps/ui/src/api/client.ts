@@ -99,6 +99,7 @@ import { AlarmsApi } from './scopes/alarms';
 import { Infra3dApi } from './scopes/infra-3d';
 import { LayerTemplatesApi } from './scopes/layer-template';
 import { ConfigsApi } from './scopes/configs';
+import { AdminAuditApi } from './scopes/admin-audit';
 import { AdminAuthApi } from './scopes/admin-auth';
 import { AdminUsersApi } from './scopes/admin-users';
 import { TemplateSyncApi } from './scopes/template-sync';
@@ -980,6 +981,7 @@ export class BffClient {
   readonly infra3d = new Infra3dApi(this);
   readonly layerTemplates = new LayerTemplatesApi(this);
   readonly configs = new ConfigsApi(this);
+  readonly adminAudit = new AdminAuditApi(this);
   readonly adminAuth = new AdminAuthApi(this);
   readonly adminUsers = new AdminUsersApi(this);
   readonly templateSync = new TemplateSyncApi(this);

@@ -30,6 +30,22 @@ export function bucketTimeLabel(step: 'MINUTE' | 'HOUR' | 'DAY', ms: number): st
 }
 
 /**
+ * A full timestamp at epoch-ms `ms`, browser-LOCAL but locale-STABLE:
+ * `YYYY-MM-DD HH:MM:SS`.
+ *
+ * Built from numeric parts on purpose, like `bucketTimeLabel` above.
+ * `toLocaleString` renders in the BROWSER's language, not the app's, so it
+ * puts `08时` on an English page whenever the two disagree — and the reader
+ * cannot change it from the locale picker. Digits read the same everywhere.
+ */
+export function timestampLabel(ms: number): string {
+  const d = new Date(ms);
+  const z = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ` +
+    `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+}
+
+/**
  * Compact-readable formatter for landing-card numeric cells.
  *
  * Rules:
