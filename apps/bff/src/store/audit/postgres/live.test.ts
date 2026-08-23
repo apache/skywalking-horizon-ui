@@ -111,9 +111,11 @@ describe.skipIf(!URL)('the audit log against a real PostgreSQL', () => {
     expect(agg[0].count).toBe(9);
   });
 
-  it('matches a prefix and escapes a bare wildcard', async () => {
-    expect((await svc.query({ pageNum: 1, pageSize: 50, username: 'ali' })).rows).toHaveLength(1);
-    // Unescaped this would match everything, turning a filter into a full read.
+  /** The filter names ONE principal: a fragment finds nothing, and a wildcard
+   *  is just a name nobody has rather than a full table read. */
+  it('matches one principal exactly', async () => {
+    expect((await svc.query({ pageNum: 1, pageSize: 50, username: 'alice' })).rows).toHaveLength(1);
+    expect((await svc.query({ pageNum: 1, pageSize: 50, username: 'ali' })).rows).toHaveLength(0);
     expect((await svc.query({ pageNum: 1, pageSize: 50, username: '%' })).rows).toHaveLength(0);
   });
 

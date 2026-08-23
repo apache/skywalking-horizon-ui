@@ -48,17 +48,6 @@ export function toId(value: unknown): string {
   return String(value);
 }
 
-/**
- * Escape `LIKE` metacharacters so a prefix filter means what it says.
- *
- * `%` and `_` are wildcards, so searching for `alice_ci` would otherwise match
- * `aliceXci`, and a lone `%` would match everything — turning a filter into a
- * full table read. The backslash is escaped first or it would double-escape
- * the escapes.
- */
-export function likePrefix(value: string): string {
-  return `${value.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
-}
 
 /**
  * A malformed address raises a Postgres type error mid-statement, which would

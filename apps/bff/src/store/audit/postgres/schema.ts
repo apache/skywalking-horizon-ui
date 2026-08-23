@@ -75,11 +75,13 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS horizon_audit_username_idx
      ON horizon_audit (username, at DESC)`,
 
-  // PREFIX search needs its own operator class: a default-collation B-tree
-  // does NOT serve `LIKE 'x%'` on any collation but C, so without this the
-  // filter silently degrades to a sequential scan of the whole table.
-  `CREATE INDEX IF NOT EXISTS horizon_audit_username_prefix_idx
-     ON horizon_audit (username text_pattern_ops)`,
+  // No `text_pattern_ops` companion: that operator class exists to serve
+  // `LIKE 'x%'`, and the filter is an exact match. The plain index above
+  // serves equality on any collation.
+  //
+  // The index is not dropped here for a database that already has it — this
+  // list only creates. It is harmless, and dropping an index an operator may
+  // have come to rely on is not something a boot path should decide.
 
   // No index on outcome, provider or roles: the page filters by time, kind
   // and username only, and an index nothing queries is write cost for
