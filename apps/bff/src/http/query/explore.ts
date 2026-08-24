@@ -71,11 +71,23 @@ function resolveNativeEntity(e: ExploreEntity): {
   return { serviceId, instanceId, endpointId };
 }
 
+const MAX_EXPLORE_WINDOW_MIN = 60 * 24 * 7; // 1 week guard, mirrors the per-layer routes
+
+/** Keeps the most recent week of an over-wide explicit range rather than
+ *  refusing it — the UI refuses before sending, so this is the guard for a
+ *  direct API caller. */
+function clampExploreStart(startMs: number, endMs: number): number {
+  return Math.max(startMs, endMs - MAX_EXPLORE_WINDOW_MIN * 60_000);
+}
+
 /** Explicit epoch-ms window overrides the rolling minutes; trace.ts reads
- *  `startMs`/`endMs` and `windowMinutes` as the fallback. */
+ *  `startMs`/`endMs` and `windowMinutes` as the fallback.
+ *
+ *  Clamped like every rolling arm here: an explicit range was the one path a
+ *  direct caller could use to ask storage for a month or a year. */
 function traceWindowFields(w: ExploreWindow): Pick<TraceListBody, 'windowMinutes' | 'startMs' | 'endMs'> {
   if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
-    return { startMs: w.startMs, endMs: w.endMs };
+    return { startMs: clampExploreStart(w.startMs, w.endMs), endMs: w.endMs };
   }
   return { windowMinutes: w.windowMinutes };
 }
@@ -85,9 +97,13 @@ function traceWindowFields(w: ExploreWindow): Pick<TraceListBody, 'windowMinutes
  *  the rolling minutes preset maps to `endTs = now`, `lookback = mins`. */
 function zipkinWindow(w: ExploreWindow): { endTs: number; lookback: number } {
   if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
-    return { endTs: w.endMs, lookback: w.endMs - w.startMs };
+    const from = clampExploreStart(w.startMs, w.endMs);
+    return { endTs: w.endMs, lookback: w.endMs - from };
   }
-  return { endTs: Date.now(), lookback: Math.max(1, w.windowMinutes ?? 30) * 60_000 };
+  // Clamped like the explicit arm above: this is the one rolling window here
+  // that a direct caller could otherwise widen past the guard.
+  const minutes = Math.max(1, Math.min(MAX_EXPLORE_WINDOW_MIN, w.windowMinutes ?? 30));
+  return { endTs: Date.now(), lookback: minutes * 60_000 };
 }
 
 const DEFAULT_LOG_WINDOW_MIN = 30;
@@ -98,7 +114,10 @@ const MAX_LOG_WINDOW_MIN = 60 * 24 * 7; // 1 week guard, mirrors the per-layer r
  *  anchors at "now". Both formatted OAP-local via the cached offset. */
 function logWindowSecond(w: ExploreWindow, offsetMinutes: number): { start: string; end: string } {
   if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
-    return { start: fmtSecond(w.startMs, offsetMinutes), end: fmtSecond(w.endMs, offsetMinutes) };
+    return {
+      start: fmtSecond(clampExploreStart(w.startMs, w.endMs), offsetMinutes),
+      end: fmtSecond(w.endMs, offsetMinutes),
+    };
   }
   const m = Math.max(1, Math.min(MAX_LOG_WINDOW_MIN, Math.round(w.windowMinutes ?? DEFAULT_LOG_WINDOW_MIN)));
   const endMs = Date.now();

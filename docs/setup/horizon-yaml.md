@@ -150,7 +150,7 @@ Applied live:
 
 - Auth backend selection (re-evaluated on next login).
 - RBAC roles and policy (re-evaluated on next route call).
-- OAP URLs and credentials (used on next outbound call).
+- OAP URLs and credentials (used on the BFF's next outbound call; a page already open can show lists cached from the previous deployment for up to a minute, so reload after repointing).
 - Session TTL (applies to every session immediately, already-signed-in ones included — see [Sessions](session.md#hot-reload)).
 - `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below. One caveat on `enabled`: turning it on in a live file enables uploads and resolves, but the static mount is scanned only at startup, so a BFF that booted with `sourceMaps.enabled: false` has an empty mounted set until it restarts.
 - `debugLog` in full — `enabled`, `file` and the redaction flags. Changing `file` rotates the wire log to the new path, finishing the write in flight on the old one.

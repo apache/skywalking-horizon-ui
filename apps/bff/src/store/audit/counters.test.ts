@@ -79,13 +79,16 @@ describe('statistics', () => {
     expect(c.takeStats('node-1')[0].login.local).toBe(1);
   });
 
-  it('folds a failed append back in, so the next one carries both intervals', () => {
+  // A taken interval is gone whether or not its write landed. Statistics are
+  // totals for a closed interval, so a failed one is dropped rather than held:
+  // an outage costs the counts for its duration and nothing more, and nothing
+  // accumulates in memory waiting for a window that has already passed.
+  it('does not carry a taken interval into the next one', () => {
     const c = counters();
     c.admitEvent('local', 1, T);
-    const failed = c.takeStats('node-1');
-    c.restoreStats(failed);
+    c.takeStats('node-1');
     c.admitEvent('local', 1, T);
-    expect(c.takeStats('node-1')[0].login.local).toBe(2);
+    expect(c.takeStats('node-1')[0].login.local).toBe(1);
   });
 
   it('keeps a bucket per hour so a rollover does not discard the previous one', () => {

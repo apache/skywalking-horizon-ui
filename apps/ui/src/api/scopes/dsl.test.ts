@@ -50,7 +50,17 @@ async function loadDslApi() {
   return bffClient.dsl;
 }
 
-describe('DSL dump download resolves against the deploy base', () => {
+/**
+ * The first test pays for compiling the client module graph.
+ *
+ * `client.ts` pulls in every API scope, so the first import in a worker
+ * transforms about a hundred TypeScript and SFC modules — measured at ~280ms
+ * idle, and past the 5s default when the three workspace suites compete for
+ * the machine. `resetModules()` itself is cheap: it clears the module registry
+ * so the bodies re-evaluate (~10ms), it does NOT re-transform. Hence the room
+ * here — what these assert is URL construction, not speed.
+ */
+describe('DSL dump download resolves against the deploy base', { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.resetModules();
   });

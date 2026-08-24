@@ -66,6 +66,15 @@ const { selectedId: serviceId } = useSelectedService();
 const service = useSelectedServiceRef(layerKey);
 const instances = useLayerInstances(layerKey, service);
 const selectedInstanceId = ref<string | null>(null);
+/** Request tickets. The clears here were already right; what was missing is
+ *  the re-check after the await, so a slower earlier reply could still land. */
+let tasksRequestGeneration = 0;
+let topologyRequestGeneration = 0;
+/** The edge-metrics read has its own ticket: clicking a second edge while the
+ *  first is loading must not fill the new edge's modal with the old one's
+ *  numbers, nor clear the spinner the new one is waiting on. */
+let relationRequestGeneration = 0;
+
 watch(
   () => instances.instances.value,
   (rows) => {
@@ -80,6 +89,11 @@ const tasks = ref<EBPFTask[]>([]);
 const tasksError = ref<string | null>(null);
 const tasksLoading = ref(false);
 const currentTask = ref<EBPFTask | null>(null);
+// Declared here, not beside the other topology state below: `refreshTasks`
+// clears it when it orphans the topology stage, and the watch under this line
+// calls that during setup — a declaration further down is still in its
+// temporal dead zone when it runs.
+const topologyLoading = ref(false);
 
 // Tasks are listed per SERVICE, not the selected instance — a task's pod
 // may have been replaced; the task carries its own serviceInstanceId.
@@ -90,13 +104,23 @@ watch(
 );
 
 async function refreshTasks(): Promise<void> {
+  const generation = (tasksRequestGeneration += 1);
+  // Orphaning the topology stage also clears its flag: the orphan's `finally`
+  // declines to, so the header would keep saying "loading topology…".
+  topologyRequestGeneration += 1;
+  topologyLoading.value = false;
   tasksError.value = null;
   tasks.value = [];
   currentTask.value = null;
-  if (!service.value) return;
+  if (!service.value) {
+    tasksLoading.value = false;
+    return;
+  }
+  const svc = service.value;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.networkProfile.tasks(layerKey.value, { service: service.value });
+    const resp = await bffClient.networkProfile.tasks(layerKey.value, { service: svc });
+    if (generation !== tasksRequestGeneration) return;
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
@@ -104,15 +128,15 @@ async function refreshTasks(): Promise<void> {
     // list it stays null, so load the live picker view here instead.
     if (!currentTask.value) await loadTopology();
   } catch (e) {
+    if (generation !== tasksRequestGeneration) return;
     tasksError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    tasksLoading.value = false;
+    if (generation === tasksRequestGeneration) tasksLoading.value = false;
   }
 }
 
 const nodes = ref<ProcessNode[]>([]);
 const calls = ref<ProcessCall[]>([]);
-const topologyLoading = ref(false);
 const topologyError = ref<string | null>(null);
 const windowMinutes = ref(30);
 
@@ -120,13 +144,29 @@ const windowMinutes = ref(30);
 // no task, the picker instance + a rolling window.
 watch([currentTask, selectedInstanceId], () => void loadTopology());
 
+// The edge modal can stay open while the ground moves under it — a service or
+// task switch, or a topology reload. The numbers in it belong to the edge of a
+// graph that no longer exists, so the in-flight read is orphaned and the panel
+// closed rather than left showing them.
+watch([currentTask, selectedInstanceId], () => {
+  relationRequestGeneration += 1;
+  relationLoading.value = false;
+  selectedCall.value = null;
+  relationMetrics.value = null;
+  relationError.value = null;
+});
+
 async function loadTopology(): Promise<void> {
+  const generation = (topologyRequestGeneration += 1);
   nodes.value = [];
   calls.value = [];
   topologyError.value = null;
   const task = currentTask.value;
   const instanceId = task?.serviceInstanceId ?? selectedInstanceId.value;
-  if (!instanceId) return;
+  if (!instanceId) {
+    topologyLoading.value = false;
+    return;
+  }
   topologyLoading.value = true;
   try {
     let topoOpts: { windowMinutes?: number; startTime?: number; endTime?: number };
@@ -140,13 +180,17 @@ async function loadTopology(): Promise<void> {
       topoOpts = { windowMinutes: windowMinutes.value };
     }
     const resp = await bffClient.networkProfile.topology(instanceId, topoOpts);
+    // Switching pod twice could otherwise leave the first pod's process graph
+    // under the second.
+    if (generation !== topologyRequestGeneration) return;
     if (!resp.reachable && resp.error) topologyError.value = resp.error;
     nodes.value = resp.nodes ?? [];
     calls.value = resp.calls ?? [];
   } catch (e) {
+    if (generation !== topologyRequestGeneration) return;
     topologyError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    topologyLoading.value = false;
+    if (generation === topologyRequestGeneration) topologyLoading.value = false;
   }
 }
 
@@ -179,13 +223,18 @@ function endpointRef(n: ProcessNode): ProcessRelationEndpointRef {
 
 // Refire on a new edge: reset first (cascade-clear), then resolve async.
 watch(selectedCall, async (call) => {
+  const generation = (relationRequestGeneration += 1);
   relationMetrics.value = null;
   relationError.value = null;
-  if (!call) return;
+  if (!call) {
+    relationLoading.value = false;
+    return;
+  }
   const src = nodeById(call.source);
   const dst = nodeById(call.target);
   if (!src || !dst) {
     relationError.value = t('Edge endpoints not in the current topology.');
+    relationLoading.value = false;
     return;
   }
   relationLoading.value = true;
@@ -201,19 +250,20 @@ watch(selectedCall, async (call) => {
             endTime: task.taskStartTime + task.fixedTriggerDuration * 1000,
           }
         : { windowMinutes: windowMinutes.value };
-    relationMetrics.value = await bffClient.networkProfile.relationMetrics(layerKey.value, {
+    const resp = await bffClient.networkProfile.relationMetrics(layerKey.value, {
       source: endpointRef(src),
       dest: endpointRef(dst),
       ...taskWindow,
       ...(previewProcessTopology.value ? { previewConfig: previewProcessTopology.value } : {}),
     });
-    if (!relationMetrics.value.reachable && relationMetrics.value.error) {
-      relationError.value = relationMetrics.value.error;
-    }
+    if (generation !== relationRequestGeneration) return;
+    relationMetrics.value = resp;
+    if (!resp.reachable && resp.error) relationError.value = resp.error;
   } catch (e) {
+    if (generation !== relationRequestGeneration) return;
     relationError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    relationLoading.value = false;
+    if (generation === relationRequestGeneration) relationLoading.value = false;
   }
 });
 
@@ -288,11 +338,20 @@ const DEFAULT_SETTINGS = (): NetworkProfilingSampling['settings'] => ({
   requireCompleteRequest: true,
   requireCompleteResponse: true,
 });
+/** What the server accepts. A form that let the operator exceed these built a
+ *  rule set the BFF silently trimmed: a ninth rule simply vanished, a long URI
+ *  regex was cut, and a large minimum duration was clamped — all without a
+ *  word, so the task that ran was not the task that was described. */
+const MAX_SAMPLINGS = 8;
+const MAX_URI_REGEX_LEN = 256;
+const MAX_MIN_DURATION_MS = 60 * 60 * 1000;
+
 const DEFAULT_SAMPLINGS = (): NetworkProfilingSampling[] => [
   { uriRegex: '', minDuration: 0, when4xx: true, when5xx: true, settings: DEFAULT_SETTINGS() },
 ];
 const samplings = ref<NetworkProfilingSampling[]>(DEFAULT_SAMPLINGS());
 function addSampling(): void {
+  if (samplings.value.length >= MAX_SAMPLINGS) return;
   samplings.value.push({ minDuration: 0, when4xx: false, when5xx: false, settings: DEFAULT_SETTINGS() });
 }
 function removeSampling(i: number): void {
@@ -514,11 +573,22 @@ function fmtTime(ms: number): string {
           <div class="field-row">
             <div class="field grow">
               <label>{{ t('URI regex (optional)') }}</label>
-              <input class="ti-input wide" v-model="s.uriRegex" :placeholder="t('e.g. ^/api/.*')" />
+              <input
+                class="ti-input wide"
+                v-model="s.uriRegex"
+                :maxlength="MAX_URI_REGEX_LEN"
+                :placeholder="t('e.g. ^/api/.*')"
+              />
             </div>
             <div class="field">
               <label>{{ t('Min duration (ms)') }}</label>
-              <input class="ti-input" type="number" min="0" v-model.number="s.minDuration" />
+              <input
+                class="ti-input"
+                type="number"
+                min="0"
+                :max="MAX_MIN_DURATION_MS"
+                v-model.number="s.minDuration"
+              />
             </div>
           </div>
           <div class="check-row">
@@ -528,7 +598,16 @@ function fmtTime(ms: number): string {
             <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> {{ t('capture response') }}</label>
           </div>
         </div>
-        <button class="btn-secondary" type="button" @click="addSampling">{{ t('+ add another sampling rule') }}</button>
+        <button
+          class="btn-secondary"
+          type="button"
+          :disabled="samplings.length >= MAX_SAMPLINGS"
+          :title="samplings.length >= MAX_SAMPLINGS ? t('At most {n} sampling rules.', { n: MAX_SAMPLINGS }) : undefined"
+          @click="addSampling"
+        >{{ t('+ add another sampling rule') }}</button>
+        <p v-if="samplings.length >= MAX_SAMPLINGS" class="nt-note">
+          {{ t('At most {n} sampling rules.', { n: MAX_SAMPLINGS }) }}
+        </p>
         <div v-if="newTaskError" class="dlg-err">{{ newTaskError }}</div>
       </div>
       <div class="dlg-foot">
@@ -998,4 +1077,10 @@ function fmtTime(ms: number): string {
 .proc-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
 .proc-list-label { font-size: 11px; color: var(--sw-fg-3); }
 .proc-chip { font-family: var(--sw-mono); font-size: 10.5px; color: var(--sw-fg-1); background: var(--sw-bg-2); border: 1px solid var(--sw-line); padding: 1px 6px; border-radius: 3px; }
+.nt-note {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--sw-fg-3);
+}
 </style>

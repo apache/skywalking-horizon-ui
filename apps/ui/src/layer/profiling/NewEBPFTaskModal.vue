@@ -148,12 +148,12 @@ function submit(): void {
             />
           </div>
           <div class="field">
-            <label>{{ t('Duration (min, 1–60)') }}</label>
+            <label>{{ t('Duration (min, 1–30)') }}</label>
             <input
               type="number"
               class="ti-input"
               min="1"
-              max="60"
+              max="30"
               v-model.number="newTask.monitorMinutes"
             />
           </div>

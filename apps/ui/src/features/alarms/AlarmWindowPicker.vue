@@ -49,7 +49,7 @@ useEscapeToClose(() => w.customOpen.value, () => w.closeCustom());
     <button
       type="button"
       class="ax__window-btn"
-      :class="{ active: w.windowMode.value === 'custom' }"
+      :class="{ active: w.windowMode.value === 'custom' || w.customOpen.value }"
       @click="w.openCustom()"
     >{{ t('custom') }}</button>
   </div>

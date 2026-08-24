@@ -39,7 +39,7 @@ The conditions bar narrows the stream. Every filter is optional; together they a
 
 - **Endpoint** — restrict to one endpoint. Type to search the endpoint list, then click a result to pin it; the **×** clears it back to **All**.
 
-- **Trace ID** — paste a trace id to show only the log lines correlated with that trace. This is also how a log lands when you arrive from a trace — the field pre-fills and the stream is already scoped.
+- **Trace ID** — paste a trace id to show only the log lines correlated with that trace. Copy the id from a trace's span detail and paste it here; there is no one-click jump from a trace to its logs.
 
 - **Content** — words the log line must contain, space-separated for AND (`timeout db` matches only lines carrying both). **This field appears only when your storage backend can search log content** — ElasticSearch can, BanyanDB and the others cannot, and Horizon asks the connected OAP which it is. On a backend that cannot, the field is absent rather than present-and-ignored, because OAP accepts the condition there and returns the unfiltered stream — which reads as "everything matched".
 
@@ -53,7 +53,7 @@ The stream queries on demand, not on every keystroke. Editing a condition stages
 
 The **Logs** tab owns its own time range — the global topbar time picker is paused while you are here, so auto-refresh won't shift the window mid-investigation. Pick a rolling preset (**Last 15 min** through **Last 24 hours**, default **Last 30 min**) or choose **Custom…** to pin an absolute start/end with two date-time inputs.
 
-Log queries use **second-precision** time windows. Logs are record-style data anchored at second granularity, so the window is not rounded to the minute — the most recent (and usually most interesting) lines are never chopped off. The window is capped at **7 days**; longer custom ranges are clamped.
+Log queries use **second-precision** time windows. Logs are record-style data anchored at second granularity, so the window is not rounded to the minute — the most recent (and usually most interesting) lines are never chopped off. The window is capped at **7 days**. A custom range longer than that is refused on the page, with the reason under the control, rather than being quietly shortened — a query made directly against the API is trimmed to the most recent week instead, so it still answers with the part that matters.
 
 ### Reading the stream
 

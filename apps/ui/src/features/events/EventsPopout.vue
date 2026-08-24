@@ -82,7 +82,7 @@ function onClose(): void {
           <button
             type="button"
             class="evtp__window-btn"
-            :class="{ active: win.windowMode.value === 'custom' }"
+            :class="{ active: win.windowMode.value === 'custom' || win.customOpen.value }"
             @click="win.openCustom()"
           >{{ t('custom') }}</button>
         </div>

@@ -15,9 +15,9 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import {
   isCatalog,
   type ApplyPhase,
@@ -290,10 +290,37 @@ async function onInactivate(): Promise<void> {
   }
 }
 
+/**
+ * Unsaved YAML survives neither a reload nor a route change without this.
+ *
+ * `beginStructural` and `stripApplyQuery` use `router.replace` on the SAME
+ * route record, which vue-router treats as an update rather than a leave, so
+ * they do not trip the guard and need no bypass. A delete or revert does
+ * navigate, and by then the buffer describes a rule that no longer exists —
+ * hence the flag.
+ */
+const leavingAfterAction = ref(false);
+
+function onBeforeUnload(e: BeforeUnloadEvent): void {
+  if (!editor.dirty.value) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+onMounted(() => window.addEventListener('beforeunload', onBeforeUnload));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload));
+
+onBeforeRouteLeave(
+  () =>
+    leavingAfterAction.value
+    || !editor.dirty.value
+    || window.confirm(t('Discard unsaved changes to this rule?')),
+);
+
 async function onDeleteDefault(): Promise<void> {
   const r = await editor.deleteRule('');
   if (r.kind === 'ok') {
     setFlash(t('deleted · {status}', { status: r.result.applyStatus }));
+    leavingAfterAction.value = true;
     await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
     return;
   }
@@ -313,6 +340,25 @@ async function onDeleteDefault(): Promise<void> {
   }
   // 'no-bundled-twin' shouldn't reach the default-delete path.
   setFlash(t('unexpected outcome: {kind}', { kind: r.kind }));
+}
+
+/** The plain delete removes the ONLY copy of an operator-authored rule: there
+ *  is no bundled twin to revert to and Horizon keeps no backup, so it goes
+ *  through the same confirm the revert does. */
+function onDeleteConfirm(): void {
+  if (!name.value) return;
+  confirm.value = {
+    title: t('Delete rule'),
+    intent: t('permanently delete'),
+    warning: [
+      t('This rule has no bundled version on disk — deleting it removes the only copy, and Horizon cannot restore it.'),
+      t('OAP stops collecting the metrics this rule defines; dashboards and alarm rules that reference them go empty.'),
+      ...(editor.original.value?.status === 'ACTIVE'
+        ? [t('An ACTIVE rule must be inactivated first.')]
+        : []),
+    ],
+    perform: onDeleteDefault,
+  };
 }
 
 function onDeleteRevertToBundled(): void {
@@ -350,6 +396,7 @@ function onDeleteRevertToBundled(): void {
       }
       if (r.kind === 'ok') {
         setFlash(t('reverted · {status}', { status: r.result.applyStatus }));
+        leavingAfterAction.value = true;
         await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
         return;
       }
@@ -549,7 +596,8 @@ const isOperatorRow = computed<boolean>(() => {
         v-if="isOperatorRow && !hasBundledTwin"
         kind="danger"
         :disabled="!canDelete || busy"
-        @click="onDeleteDefault"
+        :data-testid="'editor-delete'"
+        @click="onDeleteConfirm"
       >
         {{ t('delete') }}
       </Btn>

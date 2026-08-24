@@ -127,6 +127,24 @@ const displayMode = ref<'tree' | 'flame'>('tree');
 const dataMode = ref<'include' | 'exclude'>('include');
 const highlightTop = ref(true);
 
+/** Request tickets. A reply for the service the operator has already navigated
+ *  away from must not publish under the new one. */
+let tasksRequestGeneration = 0;
+let segmentsRequestGeneration = 0;
+/** The analysis stage has its own ticket: it is the slowest call on the page
+ *  and outlives a span or task switch far more often than the lists do. */
+let analyzeRequestGeneration = 0;
+
+// Changing the selection orphans an analysis in flight: it was launched for
+// the previous target, so its graph must not land under this one and its
+// spinner must not be the one this selection clears. A watch rather than a
+// bump at each call site — the selection is also set from the template.
+watch([currentTask, currentSegment, currentSpan], () => {
+  analyzeRequestGeneration += 1;
+  analyzeLoading.value = false;
+  analyzeMessage.value = '';
+});
+
 watch(
   () => layerKey.value + '|' + (selectedId.value ?? ''),
   () => {
@@ -136,17 +154,41 @@ watch(
 );
 
 async function refreshTasks(): Promise<void> {
+  const generation = (tasksRequestGeneration += 1);
+  // A new task list orphans the segments hanging off the old one — and the
+  // orphan's `finally` will decline to clear the flag, so clear it here.
+  // Without this, switching to a service with no tasks leaves the Sampled
+  // traces pane on "Loading…" until a reload.
+  segmentsRequestGeneration += 1;
+  segmentsLoading.value = false;
+  analyzeRequestGeneration += 1;
+  analyzeLoading.value = false;
   tasksError.value = null;
+  // Cleared for EVERY service change, not only when the service goes away:
+  // the previous service's tasks used to stay on screen for the whole round
+  // trip, under the new service's name.
+  tasks.value = [];
+  currentTask.value = null;
+  segments.value = [];
+  currentSegment.value = null;
+  // The SPAN too, and the messages that describe it. Analyze is gated on
+  // `currentSpan?.profiled`, so leaving it set kept the button live for a span
+  // belonging to the previous service — and a service whose task list is empty
+  // or fails to load never selects a new one, so the old profile rendered
+  // under the new service's name.
+  currentSpan.value = null;
+  analyzeMessage.value = '';
+  analyzeTrees.value = [];
+  segmentsError.value = null;
   if (!service.value) {
-    tasks.value = [];
-    currentTask.value = null;
-    segments.value = [];
-    currentSegment.value = null;
+    tasksLoading.value = false;
     return;
   }
+  const svc = service.value;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.profile.tasks(layerKey.value, service.value!);
+    const resp = await bffClient.profile.tasks(layerKey.value, svc);
+    if (generation !== tasksRequestGeneration) return;
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     if (tasks.value.length) {
@@ -158,13 +200,15 @@ async function refreshTasks(): Promise<void> {
       analyzeTrees.value = [];
     }
   } catch (e) {
+    if (generation !== tasksRequestGeneration) return;
     tasksError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    tasksLoading.value = false;
+    if (generation === tasksRequestGeneration) tasksLoading.value = false;
   }
 }
 
 async function pickTask(t: ProfileTask): Promise<void> {
+  const generation = (segmentsRequestGeneration += 1);
   currentTask.value = t;
   analyzeTrees.value = [];
   segments.value = [];
@@ -174,15 +218,19 @@ async function pickTask(t: ProfileTask): Promise<void> {
   segmentsError.value = null;
   try {
     const resp = await bffClient.profile.segments(t.id);
+    // Rapid task clicks race here: the slower reply must not fill the list for
+    // the task that is now selected.
+    if (generation !== segmentsRequestGeneration) return;
     if (!resp.reachable && resp.error) segmentsError.value = resp.error;
     segments.value = resp.segments ?? [];
     if (segments.value.length) {
       pickSegment(segments.value[0]);
     }
   } catch (e) {
+    if (generation !== segmentsRequestGeneration) return;
     segmentsError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    segmentsLoading.value = false;
+    if (generation === segmentsRequestGeneration) segmentsLoading.value = false;
   }
 }
 
@@ -215,6 +263,7 @@ async function runAnalyze(): Promise<void> {
     return;
   }
   analyzeMessage.value = '';
+  const generation = (analyzeRequestGeneration += 1);
   analyzeLoading.value = true;
   try {
     const queries: ProfileAnalyzeQuery[] = profileTimeRanges(span, dataMode.value).map((tr) => ({
@@ -222,6 +271,9 @@ async function runAnalyze(): Promise<void> {
       timeRange: tr,
     }));
     const resp = await bffClient.profile.analyze(queries);
+    // A span, task or service switch while this runs must not paint the old
+    // target's flame graph under the new one.
+    if (generation !== analyzeRequestGeneration) return;
     if (resp.tip) {
       analyzeMessage.value = resp.tip;
       analyzeTrees.value = [];
@@ -230,9 +282,10 @@ async function runAnalyze(): Promise<void> {
     }
     if (!resp.reachable && resp.error) analyzeMessage.value = resp.error;
   } catch (e) {
+    if (generation !== analyzeRequestGeneration) return;
     analyzeMessage.value = e instanceof Error ? e.message : String(e);
   } finally {
-    analyzeLoading.value = false;
+    if (generation === analyzeRequestGeneration) analyzeLoading.value = false;
   }
 }
 

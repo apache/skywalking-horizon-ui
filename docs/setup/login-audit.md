@@ -99,7 +99,9 @@ It is off by default and has to be named, because `pg` will connect in cleartext
 | `postgres.connectionTimeoutMs` | `5000` | Never on a sign-in — the login path performs no database work at all |
 | `postgres.statementTimeoutMs` | `1000` | Never on a sign-in, but it does bound the audit page's own queries — raise it if a wide range times out |
 
-**A database can never delay a sign-in.** Sign-ins are buffered in memory and written in the background, so the login path never waits on the database at all — an unreachable database is invisible to someone signing in. The cost is that an abrupt crash loses whatever is still buffered. While the database is reachable that is small — at most `eventBatchRows` rows or `eventBatchSeconds` seconds, whichever comes first. While it is unreachable, records accumulate in memory instead, up to a 10,000-row ceiling, and a crash then loses however much of that has built up.
+**A database can never delay a sign-in.** Sign-ins are collected in memory and written in the background in batches, so the login path never waits on the database at all — an unreachable database is invisible to someone signing in. What is held is only what has arrived since the last write: at most `eventBatchRows` rows or `eventBatchSeconds` seconds, whichever comes first, and an abrupt crash loses that much.
+
+**A write that fails is not retried.** Batching exists to write efficiently, not to survive an outage, so a batch the database refuses is dropped rather than queued for later. Nothing grows in memory while the database is down, and the sign-ins from that window are simply not recorded — counted, so you are told how many, but not reconstructed afterwards.
 
 **`maxRowsPerHour` bounds what one Horizon process can add to the table in an hour.** A fifty-person team produces on the order of a hundred rows a *day*, so the default is orders of magnitude of headroom — if it is ever reached, something is wrong and the page tells you. Past the limit, records are dropped rather than queued, and the page shows the count.
 
@@ -185,7 +187,8 @@ What happens instead:
 
 - one `error` line when the connection is first lost, naming a sanitised cause, and one `info` line when it comes back, with how long it was down and how many records could not be confirmed as written. Not one line per sign-in — a long outage would bury the cause it is trying to surface;
 - the page renders an explicit "cannot be reached" state rather than an empty table, because an empty table would claim there is nothing to show when there is;
-- records are held in memory and written when the database returns. A long enough outage exhausts that buffer; the count of what could not be confirmed is reported in the recovery log line, not on the page.
+- sign-ins during the outage are **not recorded**. Batches that cannot be written are dropped rather than held, so memory does not grow for the length of the outage and nothing is replayed when the database returns. How many went unrecorded is reported in the recovery log line, not on the page;
+- hourly statistics behave the same way: each row totals a closed interval that the next one supersedes, so a failed interval is dropped and the next is written normally. An hour of outage costs that hour's counts.
 
 ## Multiple Horizon replicas
 

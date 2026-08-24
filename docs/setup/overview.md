@@ -129,7 +129,7 @@ HORIZON_CONFIG=./horizon.yaml node dist/server.js
 
 - Auth backend switch: applies on next login.
 - RBAC role redefinition: applies on next route call.
-- OAP URL change: applies on next outbound call.
+- OAP URL change: the BFF uses the new address on its next outbound call. Lists already on screen can lag up to a minute, because the browser caches services and layers it fetched earlier — reload the page to see the new deployment immediately.
 
 Some changes still require a BFF restart:
 

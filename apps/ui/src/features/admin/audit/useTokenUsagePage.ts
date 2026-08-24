@@ -117,13 +117,19 @@ export function useTokenUsagePage() {
   }
 
   async function load(): Promise<void> {
+    // Claimed BEFORE the range is validated, so a rejected range still orphans
+    // whatever is already on the wire. Validating first let an older reply land
+    // afterwards and overwrite the inputs and results the operator was being
+    // told were invalid — the complaint stayed on screen above someone else's
+    // answer.
+    const mine = (generation += 1);
     const range = resolve();
     if (typeof range === 'string') {
       rangeError.value = range;
+      loading.value = false;
       return;
     }
     rangeError.value = null;
-    const mine = (generation += 1);
     // Cascade-clear: the previous span's hours must not sit under the spinner.
     hours.value = [];
     error.value = null;

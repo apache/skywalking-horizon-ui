@@ -91,3 +91,36 @@ describe('a seeded custom range', () => {
     expect(asked!.to - new Date(now).getTime()).toBeLessThanOrEqual(HOUR);
   });
 });
+
+describe('an outstanding request', () => {
+  /**
+   * The reply to a request the operator has already moved on from must not
+   * land. Validating the new range before claiming the generation left the old
+   * request live, so it resolved afterwards and painted its rows under a
+   * complaint about a range that never ran.
+   */
+  it('is orphaned when the next range is rejected', async () => {
+    const stale = {
+      hours: [{ hourBucket: 2026082310, at: 0, total: 999, credentials: 1, top: [] }],
+      range: { from: 1, to: 2 },
+    };
+    let settleFirst!: (v: typeof stale) => void;
+    const first = new Promise<typeof stale>((r) => { settleFirst = r; });
+    vi.spyOn(bff.adminAudit, 'tokenUsage').mockReturnValue(first as never);
+
+    const page = useTokenUsagePage();
+    const inFlight = page.load();                       // request A, still pending
+
+    page.setSpan(CUSTOM_RANGE_SENTINEL);
+    page.customStart.value = 'not-a-date';              // range B, invalid
+    await page.load();
+    expect(page.rangeError.value).toBe('Invalid date');
+
+    settleFirst(stale);                                 // A answers, far too late
+    await inFlight;
+
+    expect(page.hours.value, "a reply the operator moved on from painted its rows").toEqual([]);
+    expect(page.rangeError.value).toBe('Invalid date');
+    expect(page.loading.value, 'the orphaned request left the page spinning').toBe(false);
+  });
+});

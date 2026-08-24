@@ -23,6 +23,12 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  resolveRecordRange,
+  recordRangeWarning,
+  MAX_RECORD_RANGE_DAYS,
+  SLOW_RECORD_RANGE_HOURS,
+} from '@/utils/recordTimeRange';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type {
@@ -159,7 +165,38 @@ const failed = computed<boolean>(() => !reachable.value || error.value !== null)
 // hasQueried gate: a layer switch leaves cached `traces` stale until refetch.
 const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? traces.value : []));
 
+/** Why the last click did NOT run a query. */
+const rangeError = ref<string | null>(null);
+// A refusal describes the range that was submitted. Editing any part of the
+// range makes it stale, so it goes the moment the operator changes something —
+// otherwise the complaint outlives the mistake and masks the slow-range tip.
+watch([customStart, customEnd, lookbackMs], () => {
+  rangeError.value = null;
+});
+/** Non-blocking caution about the window's size — presets included, since cost
+ *  follows the span rather than how it was chosen. */
+const rangeWarning = computed<string | null>(() =>
+  recordRangeWarning(
+    isCustomRange.value
+      ? (() => {
+          const r = resolveRecordRange(customStart.value, customEnd.value);
+          return typeof r === 'string' ? null : r.endMs - r.startMs;
+        })()
+      : lookbackMs.value,
+  ),
+);
+
 function runQuery(): void {
+  rangeError.value = null;
+  if (isCustomRange.value) {
+    const resolved = resolveRecordRange(customStart.value, customEnd.value);
+    // Refuse rather than commit: this used to fall back to a 30-minute window,
+    // so a reversed or half-filled range answered a question nobody asked.
+    if (typeof resolved === 'string') {
+      rangeError.value = resolved;
+      return;
+    }
+  }
   // Empty service filter = "All services" in Zipkin's API: pass null and
   // OAP returns the full set.
   cService.value = zipkinServiceFilter.value.trim() || null;
@@ -168,15 +205,12 @@ function runQuery(): void {
   // Zipkin queries the window [endTs - lookback, endTs] so this is a
   // straightforward translation.
   if (isCustomRange.value) {
-    const s = parseLocalDt(customStart.value);
-    const e = parseLocalDt(customEnd.value);
-    if (s != null && e != null && e > s) {
-      cEndTs.value = e;
-      cLookback.value = e - s;
-    } else {
-      cEndTs.value = null;
-      cLookback.value = 30 * 60_000;
-    }
+    // Already validated at the top of runQuery — this cannot be reached with an
+    // unresolvable range.
+    const s = parseLocalDt(customStart.value) as number;
+    const e = parseLocalDt(customEnd.value) as number;
+    cEndTs.value = e;
+    cLookback.value = e - s;
   } else {
     cEndTs.value = null;
     cLookback.value = lookbackMs.value;
@@ -434,6 +468,14 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
           <select v-model.number="lookbackMs" class="cf-input">
             <option v-for="p in TIME_PRESETS" :key="p.ms" :value="p.ms">{{ p.label }}</option>
           </select>
+          <!-- Refusal and caution share the slot under the control they are
+               about: the error stops the query, the hint only advises. -->
+          <span v-if="rangeError" class="cf-note cf-note--err">
+            {{ t(rangeError, { d: MAX_RECORD_RANGE_DAYS }) }}
+          </span>
+          <span v-else-if="rangeWarning" class="cf-note">
+            {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+          </span>
         </label>
         <label v-if="isCustomRange" class="cf">
           <span>{{ t('From') }}</span>
@@ -743,4 +785,14 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
   font-size: 14px;
 }
 .sw-btn.small.ghost:hover { color: var(--sw-err); background: var(--sw-bg-2); }
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
+.cf-note--err {
+  color: var(--sw-err);
+}
 </style>

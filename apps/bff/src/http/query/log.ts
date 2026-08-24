@@ -57,6 +57,7 @@ export interface LogRouteDeps extends AuthDeps {
 }
 
 const DEFAULT_WINDOW_MIN = 30;
+const MAX_WINDOW_MIN = 60 * 24 * 7; // 1 week guard, mirrors trace.ts
 /** OAP feeds `paging.pageSize` straight to its storage layer as a
  *  LIMIT clause. The cap is `performance.limits.maxPageSize.logs`
  *  (default 100); mirror that server-side so the cap holds against
@@ -83,13 +84,17 @@ function defaultWindow(
     typeof explicit.endMs === 'number' &&
     explicit.startMs < explicit.endMs
   ) {
+    // Clamped to the same week the rolling arm below is: an explicit range was
+    // the one path that could ask storage for a month or a year. The most
+    // recent slice is kept rather than refusing outright.
+    const from = Math.max(explicit.startMs, explicit.endMs - MAX_WINDOW_MIN * 60_000);
     return {
-      start: fmtSecond(explicit.startMs, offsetMinutes),
+      start: fmtSecond(from, offsetMinutes),
       end: fmtSecond(explicit.endMs, offsetMinutes),
     };
   }
   const m = Number.isFinite(minutes) && (minutes as number) > 0
-    ? Math.min(60 * 24 * 7, Math.round(minutes as number))
+    ? Math.min(MAX_WINDOW_MIN, Math.round(minutes as number))
     : DEFAULT_WINDOW_MIN;
   const endMs = Date.now();
   const startMs = endMs - m * 60_000;

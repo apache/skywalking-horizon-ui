@@ -55,6 +55,12 @@ import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
 import type { ServiceRef } from '@/utils/serviceRef';
+import {
+  resolveRecordRange,
+  recordRangeWarning,
+  MAX_RECORD_RANGE_DAYS,
+  SLOW_RECORD_RANGE_HOURS,
+} from '@/utils/recordTimeRange';
 import { useSetupStore } from '@/state/setup';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -205,6 +211,27 @@ function clearCustomRange(): void {
   customEnd.value = null;
 }
 const isCustomRange = computed(() => windowMinutes.value === CUSTOM_RANGE_SENTINEL);
+/** Why the last click did NOT run a query. A custom range that cannot be
+ *  resolved refuses rather than quietly querying some other window. */
+const rangeError = ref<string | null>(null);
+// A refusal describes the range that was submitted. Editing any part of the
+// range makes it stale, so it goes the moment the operator changes something —
+// otherwise the complaint outlives the mistake and masks the slow-range tip.
+watch([customStart, customEnd, windowMinutes], () => {
+  rangeError.value = null;
+});
+/** Non-blocking caution about the window's size — presets included, since cost
+ *  follows the span rather than how it was chosen. */
+const rangeWarning = computed<string | null>(() =>
+  recordRangeWarning(
+    isCustomRange.value
+      ? (() => {
+          const r = resolveRecordRange(customStart.value, customEnd.value);
+          return typeof r === 'string' ? null : r.endMs - r.startMs;
+        })()
+      : windowMinutes.value * 60_000,
+  ),
+);
 watch(isCustomRange, (custom) => {
   if (custom) setCustomMode();
   else clearCustomRange();
@@ -311,6 +338,16 @@ function runQuery(): void {
   // a click landing inside the resolution window would otherwise fire a read
   // with no service — every service's traces under this service's title.
   if (!serviceReady.value) return;
+  rangeError.value = null;
+  if (isCustomRange.value) {
+    const resolved = resolveRecordRange(customStart.value, customEnd.value);
+    // A string is the complaint, not a range: refuse, so the operator sees why
+    // instead of results for a window they did not ask for.
+    if (typeof resolved === 'string') {
+      rangeError.value = resolved;
+      return;
+    }
+  }
   commitConditions();
   hasQueried.value = true;
   void refetch();
@@ -592,6 +629,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
               <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
             </select>
+            <!-- Refusal and caution share the slot under the control they are
+                 about: the error stops the query, the hint only advises. -->
+            <span v-if="rangeError" class="cf-note cf-note--err">
+              {{ t(rangeError, { d: MAX_RECORD_RANGE_DAYS }) }}
+            </span>
+            <span v-else-if="rangeWarning" class="cf-note">
+              {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+            </span>
           </label>
           <label class="cf cf-wide">
             <span>{{ t('Trace ID') }}</span>
@@ -962,4 +1007,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   align-items: start;
 }
 .tr-detail-split.rail-collapsed { grid-template-columns: 64px 1fr; }
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
+.cf-note--err {
+  color: var(--sw-err);
+}
 </style>

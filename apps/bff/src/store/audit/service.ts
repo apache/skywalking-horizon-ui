@@ -47,7 +47,6 @@ import {
   type AuditPageResult,
   type AuditHealth,
   type AuditService,
-  type AuditStat,
   type AuditStatResult,
   type AuditStatWindow,
   type AuditStore,
@@ -55,13 +54,19 @@ import {
   type StoreStamp,
 } from './types.js';
 
-/** Buffered sign-in rows: what one outage may hold before the oldest are
- *  dropped rather than grown into memory without bound. */
+/** Buffered sign-in rows: what one BURST between ticks may hold before the
+ *  oldest are dropped. Not an outage buffer — a batch that fails to write is
+ *  dropped rather than re-queued, so nothing accumulates while the store is
+ *  down. */
 const MAX_BUFFERED_EVENTS = 10_000;
 
 /** Batches written per pass. Bounds how long one tick can run while still
  *  letting a backlog drain far faster than it accumulated. */
 const MAX_BATCHES_PER_PASS = 20;
+
+/** The independently-failing write paths. Each writes its own table on its own
+ *  cadence, so their health is tracked separately. */
+type WriteChannel = 'events' | 'stats' | 'tokens';
 
 /** Passes shutdown will make to empty the buffer. Bounded only so a store
  *  that accepts writes without ever shrinking the buffer cannot hang the
@@ -395,7 +400,7 @@ export class BufferedAuditService implements AuditService {
   private async tracked<T>(run: () => Promise<T>): Promise<T> {
     try {
       const out = await run();
-      this.markAvailable();
+      this.markReadOk();
       return out;
     } catch (err) {
       const code = codeOf(err);
@@ -440,12 +445,23 @@ export class BufferedAuditService implements AuditService {
     // shutdown is about to close.
     if (this.stopping) return;
     this.ticks += 1;
-    if (!this.available) await this.tryOpen();
-    if (!this.available) return;
+    // Gated on REACHABILITY, not on health. A write channel can be failing
+    // while the store answers perfectly, and health stays red until that
+    // channel's own write succeeds — so gating the tick on health would stop
+    // the retry that is the only thing able to clear it, stalling every other
+    // channel behind one transient failure.
+    if (!this.reachable) await this.tryOpen();
+    if (!this.reachable) return;
     await this.flushEvents();
     if (this.ticks % this.aggregateEvery === 0) {
       await this.flushStats();
       await this.flushTokenUsage();
+      // A channel stays red until one of ITS writes succeeds, and a quiet
+      // system has nothing to write — so without this a single dropped batch
+      // reported red until the next sign-in, however healthy the store was.
+      // The probe writes a rolled-back row, so it genuinely vouches for the
+      // channels it clears.
+      if (this.writeFaults.size > 0) await this.tryOpen();
     }
     // Re-checked rather than hoisted: the sweep is the longest store call in
     // the feature, and `stop()` may have been entered during the phases above.
@@ -456,7 +472,7 @@ export class BufferedAuditService implements AuditService {
     try {
       await this.store.open();
       const probe = await this.store.probe();
-      if (probe.available) this.markAvailable();
+      if (probe.available) this.markProbeOk();
       else this.markUnavailable(probe.error ?? 'unreachable');
     } catch (err) {
       this.markUnavailable(codeOf(err));
@@ -479,10 +495,10 @@ export class BufferedAuditService implements AuditService {
   }
 
   private async writeBatches(): Promise<void> {
-    // Several batches per pass, so a backlog left by an outage drains in
-    // minutes rather than at one batch per tick — 50 rows every 15s would
-    // take half an hour to clear 5 000. Bounded so a huge backlog cannot hold
-    // the tick open indefinitely; the rest goes next pass.
+    // Several batches per pass, so a burst that arrived between ticks clears
+    // in one pass rather than at one batch per tick. Bounded so a large burst
+    // cannot hold the tick open indefinitely; the rest goes next pass. A
+    // failed batch is not re-queued, so there is no outage backlog to drain.
     for (let i = 0; i < MAX_BATCHES_PER_PASS && this.buffer.length > 0; i += 1) {
       // Detach the batch BEFORE the await. Leaving it in place and splicing by
       // length afterwards discards by position, and the overflow `shift()` can
@@ -493,21 +509,21 @@ export class BufferedAuditService implements AuditService {
       try {
         await this.store.writeEvents(batch);
         this.detached = 0;
-        this.markAvailable();
+        this.markWriteOk('events');
       } catch (err) {
         this.detached = 0;
-        // Put them back at the front so ordering survives the retry — but the
-        // buffer may have refilled while this batch was detached, and the cap
-        // is only enforced on the way IN. Returning the whole batch on top of
-        // a full buffer put it over the bound; trim from the oldest end, the
-        // same direction admission drops, so the ceiling holds.
-        this.buffer.unshift(...batch);
-        const over = this.buffer.length - MAX_BUFFERED_EVENTS;
-        if (over > 0) {
-          this.buffer.splice(0, over);
-          this.counters.countWriteUncertain(over, Date.now());
-        }
-        this.markUnavailable(codeOf(err));
+        // DROPPED, not put back. Batching exists to write efficiently, not to
+        // survive an outage: holding a failed batch means the buffer grows for
+        // as long as the store is down, and the rows that eventually land are
+        // a reconstruction of a window that has already passed. The count is
+        // recorded so the operator is told how many sign-ins went unrecorded
+        // rather than being left to infer it from a gap.
+        // Mark the fault BEFORE counting the drop: going unhealthy snapshots
+        // the unconfirmed total, and the recovery line reports the delta since
+        // then. Counting first folded these rows into the baseline, so the
+        // line always said zero.
+        this.markWriteFailed('events', codeOf(err));
+        this.counters.countWriteUncertain(batch.length, Date.now());
         return;
       }
     }
@@ -551,7 +567,18 @@ export class BufferedAuditService implements AuditService {
     const store = this.tokenStore;
     if (!store) return { hours: [], range };
     const stored = await this.tracked(() => store.readWindow(range));
-    return summarizeWindow([...stored, ...this.tokens.pendingEntries(this.stamp)], range);
+    // This node's own rows are REPLACED, not added to. The store read and the
+    // in-memory sample happen at two different instants, and a flush landing
+    // between them would otherwise count a use twice or lose it entirely —
+    // both reproduced. The node owns its rows, so its running total is the
+    // truth for them however far the flush has got; rows for hours it no
+    // longer holds stay as the store has them.
+    const mine = this.tokens.runningTotals(this.stamp);
+    const held = new Set(mine.map((r) => `${r.hourBucket}|${r.tokenId}`));
+    const theirs = stored.filter(
+      (r) => !(r.horizonNode === this.stamp.horizonNode && held.has(`${r.hourBucket}|${r.tokenId}`)),
+    );
+    return summarizeWindow([...theirs, ...mine], range);
   }
 
   private async flushTokenUsage(): Promise<void> {
@@ -573,9 +600,9 @@ export class BufferedAuditService implements AuditService {
       // Only what was SUBMITTED — uses that arrived during the round trip stay
       // pending rather than being marked stored.
       this.tokens.markWritten(pending);
-      this.markAvailable();
+      this.markWriteOk('tokens');
     } catch (err) {
-      this.markUnavailable(codeOf(err));
+      this.markWriteFailed('tokens', codeOf(err));
     }
   }
 
@@ -587,23 +614,31 @@ export class BufferedAuditService implements AuditService {
     return this.statting;
   }
 
+  /**
+   * Statistics are DROPPED on failure, never retried or held.
+   *
+   * Each row totals one closed interval, and the next interval is written on
+   * the next pass regardless. Holding a failed one would grow memory for as
+   * long as the store is down, to reconstruct a window nobody can act on by
+   * the time it lands — an hour of outage costs that hour's counts, and that
+   * is the whole loss. Sign-in records are different and ARE buffered: each
+   * one is a distinct event, not a total that the next pass supersedes.
+   */
   private async writeStats(): Promise<void> {
     const stats = this.counters.takeStats(this.stamp.horizonNode);
     if (stats.length === 0) return;
-    const failed: AuditStat[] = [];
+    let failed = 0;
     for (const stat of stats) {
       try {
         await this.store.writeStat(stat);
       } catch (err) {
-        // Every other write path reports; a bare catch here would leave health
-        // green and the log silent while statistics stopped being written.
-        this.markUnavailable(codeOf(err));
-        failed.push(stat);
+        // Reported, not swallowed: a bare catch would leave health green and
+        // the log silent while statistics stopped being written.
+        this.markWriteFailed('stats', codeOf(err));
+        failed += 1;
       }
     }
-    // Fold failures back in so the next successful append carries both
-    // intervals rather than losing the first.
-    if (failed.length > 0) this.counters.restoreStats(failed);
+    if (failed === 0) this.markWriteOk('stats');
   }
 
   private async runSweep(): Promise<void> {
@@ -619,23 +654,134 @@ export class BufferedAuditService implements AuditService {
    * otherwise emit one error per sign-in and bury the cause it is trying to
    * surface. One outage produces two lines and a number, whatever its length.
    */
+  /**
+   * The store answered its last probe.
+   *
+   * Distinct from `available`, which is the health an operator reads: that goes
+   * red for a failing write channel too, and a failing channel must keep being
+   * retried rather than stalling the tick that would retry it.
+   */
+  private reachable = false;
+
+  /** A write channel failed. The store itself is still reachable, so the tick
+   *  keeps running and this channel keeps being retried. */
+  private markWriteUnhealthy(code: StoreError): void {
+    this.lastError = code;
+    this.available = false;
+    // Same bookkeeping an unreachable store does, or recovery has no window to
+    // report: `markAvailable` only logs when `unavailableSince` is set, so a
+    // write-fault outage recovered silently and the unconfirmed count the docs
+    // promise never reached the log.
+    this.beginUnhealthyWindow();
+  }
+
+  /** Stamps the start of an unhealthy window so recovery can say how long it
+   *  lasted and how many records went unconfirmed. Idempotent: a second cause
+   *  inside the same window does not restart it. */
+  private beginUnhealthyWindow(): void {
+    if (this.unavailableSince !== 0) return;
+    this.unavailableSince = Date.now();
+    this.unconfirmedWhileDown = this.counters.unconfirmed;
+  }
+
   private markUnavailable(code: StoreError): void {
     this.lastError = code;
     this.available = false;
+    this.reachable = false;
     // `unavailableSince`, not `available`, is the "already logged" flag. The
     // service starts unavailable, so keying off `available` would swallow the
     // first failure — and a store that never opened at boot is exactly the
     // case an operator must not have to discover from an admin page.
     if (this.unavailableSince !== 0) return;
-    this.unavailableSince = Date.now();
-    this.unconfirmedWhileDown = this.counters.unconfirmed;
+    this.beginUnhealthyWindow();
     logger.error(
       { cause: code, provider: this.cfg.provider },
       'audit: store unreachable — sign-ins are not being recorded',
     );
   }
 
+  /**
+   * The WRITE channels currently failing, each cleared only by a write of ITS
+   * OWN kind succeeding.
+   *
+   * Per channel, not one flag: the channels write different tables on
+   * different cadences, so a busy one succeeding says nothing about a quiet one
+   * that is still failing. Sharing a flag let an event or token write clear a
+   * statistics fault and paint the service green while statistics were being
+   * lost — the very thing this guard exists to prevent.
+   *
+   * A read succeeding clears nothing. It says the store answers queries, not
+   * that the writes behind it are landing, and the counts are still unwritten
+   * either way.
+   */
+  private readonly writeFaults = new Map<WriteChannel, StoreError>();
+
+  private markWriteFailed(channel: WriteChannel, code: StoreError): void {
+    const first = this.writeFaults.size === 0;
+    this.writeFaults.set(channel, code);
+    // A write that failed because the store went away is caught by the next
+    // tick's probe; reporting unreachable from here would also stop the retry.
+    this.markWriteUnhealthy(code);
+    if (first) {
+      logger.error(
+        { cause: code, channel, provider: this.cfg.provider },
+        'audit: a write channel is failing — those records are not being stored',
+      );
+    }
+  }
+
+  private markWriteOk(channel: WriteChannel): void {
+    this.writeFaults.delete(channel);
+    // Another channel is still down; the service is not healthy yet, and the
+    // error it reports must stay the one that is still failing.
+    const remaining = this.writeFaults.values().next();
+    if (!remaining.done) {
+      this.lastError = remaining.value;
+      return;
+    }
+    this.markAvailable();
+  }
+
+  /**
+   * The probe succeeded. Clears only the channels it actually exercises.
+   *
+   * The probe writes a rolled-back row into the event and token tables, so it
+   * genuinely vouches for those two. It only SELECTs from the statistics table,
+   * so it says nothing about whether a statistic can be written — and clearing
+   * that fault here reported the service healthy while every statistics write
+   * was still failing.
+   */
+  private markProbeOk(): void {
+    this.reachable = true;
+    this.writeFaults.delete('events');
+    this.writeFaults.delete('tokens');
+    const remaining = this.writeFaults.values().next();
+    if (!remaining.done) {
+      this.lastError = remaining.value;
+      return;
+    }
+    this.markAvailable();
+  }
+
+  /**
+   * A READ succeeded. Recovers the service only if no write is failing.
+   *
+   * Deliberately not `markAvailable`: a read says the store answers queries,
+   * never that the writes behind it are landing, and a read is the one thing an
+   * operator can trigger at will from the page.
+   */
+  private markReadOk(): void {
+    // Nothing a read proves can clear either of these. A store whose probe
+    // failed refuses WRITES while still answering queries perfectly, so a page
+    // refresh must not paint it healthy; and a channel's fault is cleared only
+    // by a write of its own kind succeeding.
+    if (!this.reachable || this.writeFaults.size > 0) return;
+    this.markAvailable();
+  }
+
   private markAvailable(): void {
+    this.reachable = true;
+    this.writeFaults.clear();
     this.lastError = undefined;
     if (this.available) return;
     this.available = true;
