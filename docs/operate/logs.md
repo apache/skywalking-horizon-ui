@@ -39,7 +39,7 @@ The conditions bar narrows the stream. Every filter is optional; together they a
 
 - **Endpoint** — restrict to one endpoint. Type to search the endpoint list, then click a result to pin it; the **×** clears it back to **All**.
 
-- **Trace ID** — paste a trace id to show only the log lines correlated with that trace. This is also how a log lands when you arrive from a trace — the field pre-fills and the stream is already scoped.
+- **Trace ID** — paste a trace id to show only the log lines correlated with that trace. Copy the id from a trace's span detail and paste it here; there is no one-click jump from a trace to its logs.
 
 - **Content** — words the log line must contain, space-separated for AND (`timeout db` matches only lines carrying both). **This field appears only when your storage backend can search log content** — ElasticSearch can, BanyanDB and the others cannot, and Horizon asks the connected OAP which it is. On a backend that cannot, the field is absent rather than present-and-ignored, because OAP accepts the condition there and returns the unfiltered stream — which reads as "everything matched".
 
