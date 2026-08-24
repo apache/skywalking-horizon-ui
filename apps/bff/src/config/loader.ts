@@ -339,6 +339,12 @@ export interface LoadConfigOptions {
    *  two seconds of wall clock each — the same seam `SessionStore` exposes
    *  for its reaper interval. */
   awaitWriteFinishMs?: number;
+  /** How often to stat the config file. Polling is intentional: Kubernetes
+   *  projected ConfigMap volumes update a file by rotating the `..data`
+   *  symlink, which an exact-path filesystem watcher does not report as a
+   *  `change`. The production default is inexpensive for this single file;
+   *  tests shorten it alongside `awaitWriteFinishMs`. */
+  pollIntervalMs?: number;
 }
 
 export function loadConfig(configPath: string, opts: LoadConfigOptions = {}): ConfigSource {
@@ -349,6 +355,12 @@ export function loadConfig(configPath: string, opts: LoadConfigOptions = {}): Co
 
   const watcher = chokidar.watch(absPath, {
     ignoreInitial: true,
+    // `fs.watch` follows the original projected-volume symlink and misses the
+    // atomic target replacement. `fs.watchFile` (chokidar polling) stats the
+    // configured pathname repeatedly, so both ordinary writes and Kubernetes
+    // `..data` rotations arrive through the same `change` path below.
+    usePolling: true,
+    interval: opts.pollIntervalMs ?? 1000,
     awaitWriteFinish: opts.awaitWriteFinishMs
       ? { stabilityThreshold: opts.awaitWriteFinishMs, pollInterval: 20 }
       : true,

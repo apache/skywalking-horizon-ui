@@ -227,10 +227,12 @@ spec:
             - containerPort: 8081
           envFrom:
             - secretRef: { name: horizon-secrets }
+          env:
+            - name: HORIZON_CONFIG
+              value: /etc/horizon/horizon.yaml
           volumeMounts:
             - name: config
-              mountPath: /app/horizon.yaml
-              subPath: horizon.yaml
+              mountPath: /etc/horizon
               readOnly: true
             - name: state
               mountPath: /data
@@ -249,8 +251,10 @@ spec:
 
 Notes:
 
-- `subPath: horizon.yaml` mounts the single file rather than the directory, so it doesn't shadow `/app`'s other contents.
+- Mount the ConfigMap as a directory, not a `subPath`, so Kubernetes can project updates. `HORIZON_CONFIG` points the BFF at the projected file without shadowing `/app`.
 - Mount with `readOnly: true` on the config — the BFF only reads it.
+- Updates to the ConfigMap reach hot-reloadable settings after Kubernetes refreshes the projected volume. Settings documented as restart-required still need a pod restart.
+- Values supplied through `envFrom` are fixed when the container starts. After changing `horizon-secrets`, restart or roll out the pods; updating the Secret does not change an existing process's environment.
 - `/data` is the image's declared `VOLUME` for runtime state (the wire debug log). The `HORIZON_WIRE_LOG_FILE` env var baked into the image points at `/data/`, so mounting a PVC here is enough — no path override in `horizon.yaml` is required.
 - `fsGroup: 101` is the typical alpine `nobody` GID that `adduser -S -G horizon horizon` falls into. Run `docker run --rm <image> id horizon` to confirm if you've forked the image.
 - Run a single replica unless you accept that sessions are per-pod (the in-memory session store does not federate; see [session](session.md)).

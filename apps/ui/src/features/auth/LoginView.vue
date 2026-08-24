@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 // Full "SkyWalking" wordmark + moon, white-fill. The login page's
@@ -31,6 +32,11 @@ import type { AuthHealth } from '@/api/scopes/admin-auth';
 import LocaleChip from '@/shell/LocaleChip.vue';
 import { splitProviders } from './providerLayout';
 import Icon from '@/components/icons/Icon.vue';
+
+/** What the sign-in route accepts per field. Bounded here as well so the field
+ *  stops at the limit, rather than letting the operator submit into a generic
+ *  400 that does not say which field was too long. */
+const MAX_CREDENTIAL_CHARS = 64;
 
 // `useScope: 'global'` binds `t` to the global i18n instance so a
 // `locale` change in the top-bar / login locale chip reactively
@@ -312,6 +318,7 @@ async function submit(): Promise<void> {
             autocomplete="username"
             autofocus
             :disabled="unconfigured"
+            :maxlength="MAX_CREDENTIAL_CHARS"
             required
           />
         </label>
@@ -324,6 +331,7 @@ async function submit(): Promise<void> {
             name="password"
             autocomplete="current-password"
             :disabled="unconfigured"
+            :maxlength="MAX_CREDENTIAL_CHARS"
             required
           />
         </label>
@@ -675,8 +683,11 @@ async function submit(): Promise<void> {
   padding: 24px;
 }
 .card {
-  width: 380px;
-  max-width: 100%;
+  /* min(), not width + max-width: the card is a centred grid item, so a
+     percentage max-width resolves against a column sized to the card itself
+     and never clamps — which is why the card was cut off below ~410px. Same
+     idiom as the consent card. */
+  width: min(380px, 100%);
   padding: 22px;
   background: rgba(15, 19, 26, 0.55);
   backdrop-filter: blur(20px) saturate(1.2);

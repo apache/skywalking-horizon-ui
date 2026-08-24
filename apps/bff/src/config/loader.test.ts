@@ -15,7 +15,16 @@
  * limitations under the License.
  */
 
-import { readFileSync, writeFileSync, rmSync, mkdtempSync, realpathSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -438,7 +447,10 @@ describe('config reload', () => {
     `oap:\n  queryUrl: "${oapUrl}"\nauth:\n  backend: local\n  local:\n    users: []\n`;
 
   const load = (): ReturnType<typeof loadConfig> => {
-    const src = loadConfig(file, { awaitWriteFinishMs: WATCH_MS });
+    const src = loadConfig(file, {
+      awaitWriteFinishMs: WATCH_MS,
+      pollIntervalMs: 20,
+    });
     open.push(src);
     return src;
   };
@@ -499,6 +511,41 @@ describe('config reload', () => {
     // The listener sees the NEW config, and `current` is already swapped by
     // the time it runs — a subscriber may read either and get the same answer.
     expect(seen.at(-1)).toBe('http://after:12800');
+  });
+
+  it('reloads when a Kubernetes projected volume rotates its ..data symlink', async () => {
+    rmSync(file);
+    let version = 0;
+    const rotate = (oapUrl: string): void => {
+      const versionName = `..2026_01_01_00_00_00.${version++}`;
+      const versionDir = join(dir, versionName);
+      mkdirSync(versionDir);
+      writeFileSync(join(versionDir, 'horizon.yaml'), yaml(oapUrl));
+
+      // Kubernetes' AtomicWriter publishes a new payload by atomically
+      // replacing `..data`; the visible key symlink itself never changes.
+      const nextData = join(dir, '..data_tmp');
+      symlinkSync(versionName, nextData);
+      renameSync(nextData, join(dir, '..data'));
+    };
+
+    rotate('http://before:12800');
+    symlinkSync('..data/horizon.yaml', file);
+
+    const src = load();
+    const seen: string[] = [];
+    src.onChange((cfg) => seen.push(cfg.oap.queryUrl));
+
+    expect(
+      await settledAfter(
+        // Same byte length as "before": this must detect the projected-file
+        // replacement itself, not merely notice that the target size changed.
+        () => rotate('http://second:12800'),
+        () => src.current.oap.queryUrl === 'http://second:12800',
+      ),
+    ).toBe(true);
+    expect(readFileSync(file, 'utf8')).toContain('http://second:12800');
+    expect(seen.at(-1)).toBe('http://second:12800');
   });
 
   it('rejects a malformed edit and keeps serving the previous config', async () => {

@@ -64,10 +64,15 @@ class FakeStore implements AuditStore {
   park: { promise: Promise<void>; release: () => void } | null = null;
   parkAt: string | null = null;
   closedDuring: string | null = null;
+  /** Fail ONE named phase. The channels write different tables, so a fake that
+   *  can only fail all of them cannot express one channel being down while the
+   *  others keep succeeding. */
+  failAt: string | null = null;
 
   private async pass(phase: string): Promise<void> {
     if (this.closed) throw new AuditStoreError('unreachable');
     if (this.failWith) throw this.failWith;
+    if (this.failAt === phase) throw new AuditStoreError('timeout');
     if (this.park && this.parkAt === phase) {
       const g = this.park;
       this.park = null;
@@ -91,7 +96,20 @@ class FakeStore implements AuditStore {
   async query(): Promise<never> { throw new Error('unused'); }
   async queryStat(): Promise<never> { throw new Error('unused'); }
   async sweep(): Promise<number> { await this.pass('sweep'); this.sweeps += 1; return 0; }
-  async probe(): Promise<{ available: boolean }> { return { available: !this.failWith && !this.closed }; }
+  /**
+   * Models what the real probe does: a rolled-back transaction that INSERTS
+   * into the event and token-usage tables and only SELECTs from the statistics
+   * one. So a store refusing event writes fails the probe, while a store
+   * refusing only statistics writes still passes it — which is exactly why a
+   * statistics fault must not be cleared by a probe.
+   */
+  probeWriteFails: (() => boolean) | null = null;
+  async probe(): Promise<{ available: boolean }> {
+    if (this.failWith || this.closed) return { available: false };
+    if (this.failAt === 'writeEvents') return { available: false };
+    if (this.probeWriteFails?.()) return { available: false };
+    return { available: true };
+  }
   // Counted BEFORE the throw: an attempt that fails is still an attempt, and
   // the retry tests measure attempts.
   async open(): Promise<void> { this.opens += 1; await this.pass('open'); }
@@ -102,10 +120,14 @@ class FakeStore implements AuditStore {
  *  on the same shutdown. Separate object, as in production. */
 class FakeTokenStore implements TokenUsageStore {
   writes: TokenUsage[][] = [];
+  /** Fails both halves. */
   failWith: AuditStoreError | null = null;
+  /** Fails the WRITE only, so a read can still succeed — the shape that lets a
+   *  page refresh paint a service healthy while its records are being lost. */
+  failWriteWith: AuditStoreError | null = null;
 
   async writeUsage(rows: ReadonlyArray<TokenUsage & StoreStamp>): Promise<void> {
-    if (this.failWith) throw this.failWith;
+    if (this.failWith ?? this.failWriteWith) throw (this.failWith ?? this.failWriteWith);
     this.writes.push(rows.map((r) => ({ ...r })));
   }
   /** The rows written so far, as the real store would hand them back. */
@@ -151,7 +173,13 @@ function signIn(svc: BufferedAuditService, at = T): void {
   svc.recordEvent({ at, kind: 'local', outcome: 1, username: 'alice' });
 }
 
-beforeEach(() => { store = new FakeStore(); tokenStore = new FakeTokenStore(); });
+beforeEach(() => {
+  store = new FakeStore();
+  tokenStore = new FakeTokenStore();
+  // The real probe's rolled-back transaction upserts horizon_token_usage, so a
+  // token store that refuses writes fails the probe as well.
+  store.probeWriteFails = () => Boolean(tokenStore.failWith ?? tokenStore.failWriteWith);
+});
 afterEach(() => { vi.useRealTimers(); });
 
 /** Freeze the clock at `T`.
@@ -275,19 +303,40 @@ describe('cadences hang off one tick counter', () => {
 });
 
 describe('failure handling', () => {
-  it('keeps a failed batch buffered and re-sends it, rather than dropping it', async () => {
+  /**
+   * Batching writes efficiently is the point; surviving an outage is not.
+   * A failed batch is dropped rather than re-queued, so nothing accumulates
+   * while the store is down — and the rows are counted as unconfirmed so the
+   * operator is told how many sign-ins went unrecorded instead of inferring
+   * it from a gap.
+   */
+  it('drops a failed batch rather than re-sending it, and counts the loss', async () => {
     const svc = service();
+    // Open first: a store that fails `open()` too makes the tick return before
+    // it ever reaches the write, which is a different path.
+    await svc.tick();
     signIn(svc);
-    store.failWith = new AuditStoreError('timeout');
+    store.failAt = 'writeEvents';
+    await svc.tick();
+    expect(store.events).toHaveLength(0);
+    const counters = (svc as unknown as { counters: { unconfirmed: number } }).counters;
+    expect(counters.unconfirmed, 'the lost rows were not counted as unconfirmed').toBeGreaterThan(0);
+
+    // The store comes back: the dropped row does NOT reappear, and only what
+    // arrives afterwards is written.
+    store.failAt = null;
     await svc.tick();
     expect(store.events).toHaveLength(0);
 
-    store.failWith = null;
+    signIn(svc, T + 1);
     await svc.tick();
     expect(store.events).toHaveLength(1);
   });
 
-  it('folds failed statistics back in so nothing is silently skipped', async () => {
+  // An unreachable store makes the tick return before the interval is even
+  // taken, so those counts are still pending and land on the next pass. Only
+  // an interval that was taken and then failed to write is dropped.
+  it('does not lose counts for a tick that never reached the store', async () => {
     const svc = service({ flushIntervalSeconds: 15, eventBatchSeconds: 15 });
     signIn(svc);
     store.failWith = new AuditStoreError('timeout');
@@ -381,7 +430,7 @@ describe('regressions found by review', () => {
    * position — so an overflow `shift()` landing under the await moved every
    * row left, and the rows discarded were not the rows written.
    */
-  it('returns a failed batch to the front of the buffer, in order', async () => {
+  it('does not resurrect a dropped batch behind later rows', async () => {
     // Batch size above the row count, so only the tick drives the write and
     // the row trigger cannot fire before the failure is armed.
     const svc = service({ eventBatchRows: 5 });
@@ -393,8 +442,12 @@ describe('regressions found by review', () => {
     expect(store.events).toHaveLength(0);
 
     store.failWith = null;
+    svc.recordEvent({ at: T + 1, kind: 'local', outcome: 1, username: 'third' });
     await svc.tick();
-    expect(store.events.map((e) => e.username)).toEqual(['first', 'second']);
+
+    // Only what arrived after the failure — the dropped pair must not surface
+    // later and land out of order behind it.
+    expect(store.events.map((e) => e.username)).toEqual(['third']);
   });
 
   /** Every other write path reports; a bare catch here left health green and
@@ -675,36 +728,26 @@ describe('a reader must not take down the writer', () => {
   });
 });
 
-/** The cap is enforced on admission only, so a failed flush returning its
- *  detached batch on top of a buffer that refilled during the write could
- *  exceed it — the reviewer reproduced 10 500 entries against a 10 000 cap. */
-describe('the buffer ceiling survives a failed flush', () => {
-  it('never exceeds the cap when a batch is returned to a refilled buffer', async () => {
+/** Admission is the only place the ceiling is enforced, so it has to hold
+ *  while writes are failing and rows keep arriving. A failed batch is dropped
+ *  rather than returned, so occupancy can only fall across a failed flush —
+ *  the old hazard, a detached batch landing on top of a refilled buffer, no
+ *  longer exists. */
+describe('the buffer ceiling', () => {
+  it('never exceeds the cap while writes keep failing', async () => {
     const svc = service({ maxRowsPerHour: 1_000_000 });
     const buffer = (svc as unknown as { buffer: unknown[] }).buffer;
-
-    // Fill to the cap with the store DOWN, so the row trigger never drains.
-    store.failWith = new AuditStoreError('unreachable');
+    // Open first, so the tick reaches the write rather than returning at the
+    // unreachable gate.
     await svc.tick();
-    for (let i = 0; i < 10_000; i += 1) signIn(svc, T + i);
-    expect(buffer.length).toBe(10_000);
+    store.failAt = 'writeEvents';
 
-    // Now the store answers, the flush detaches a batch — and more sign-ins
-    // land while that batch is on the wire, before it fails.
-    store.failWith = null;
-    // Refill by pushing DIRECTLY onto the buffer. Calling `recordEvent` here
-    // re-entered the row trigger from inside the write it was mocking, which
-    // recursed until the stack blew — the assertion still passed, so the test
-    // was green while printing stack overflows.
-    store.writeEvents = async () => {
-      for (let i = 0; i < 500; i += 1) {
-        buffer.push({ at: T + 50_000 + i, kind: 'local', outcome: 1, username: 'late', shape: 'event', horizonNode: 'node-1' } as never);
-      }
-      throw new AuditStoreError('unreachable');
-    };
+    for (let i = 0; i < 12_000; i += 1) signIn(svc, T + i);
+    expect(buffer.length, 'admission let the buffer past its cap').toBeLessThanOrEqual(10_000);
+
+    const before = buffer.length;
     await svc.tick();
-
-    expect(buffer.length).toBeLessThanOrEqual(10_000);
+    expect(buffer.length, 'a failed flush grew the buffer').toBeLessThanOrEqual(before);
   });
 
   /** The ceiling counts rows on the wire too: excluding the detached batch let
@@ -854,6 +897,200 @@ describe('token usage on the service', () => {
     await ticksFor(svc, 4);
 
     expect((await svc.health()).available).toBe(false);
+  });
+
+  /**
+   * The read and the background flush overlap constantly — the page polls
+   * while the timer writes. Sampling the store and then sampling memory takes
+   * two snapshots at two instants: a flush landing between them either wrote
+   * the use after the store was read and cleared it before memory was sampled
+   * (counted zero), or wrote it before the read without having cleared it yet
+   * (counted twice). Node being single-threaded does not help — both are async
+   * functions interleaving at their `await`s.
+   */
+  it('counts one use exactly once however a flush interleaves', async () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i += 1) {
+      store = new FakeStore();
+      tokenStore = new FakeTokenStore();
+      store.probeWriteFails = () => Boolean(tokenStore.failWith ?? tokenStore.failWriteWith);
+      const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+      svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+      const [{ hours }] = await Promise.all([
+        svc.queryTokenUsage({ from: T - 3_600_000, to: T }),
+        (svc as unknown as { flushTokenUsage(): Promise<void> }).flushTokenUsage(),
+      ]);
+      seen.add(hours[0]?.total ?? -1);
+    }
+
+    expect([...seen], 'one real use reported as something other than 1').toEqual([1]);
+  });
+
+  /**
+   * A read proves the store answers queries. It proves nothing about whether
+   * the writes behind it are landing, and the counts are unwritten either way —
+   * so a page refresh must not be able to paint the service healthy while
+   * records are being lost.
+   */
+  it('stays unavailable when a read succeeds but the write keeps failing', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    tokenStore.failWriteWith = new AuditStoreError('timeout');
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available).toBe(false);
+
+    await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
+
+    expect((await svc.health()).available, 'a successful read cleared a live write fault').toBe(false);
+  });
+
+  /**
+   * One tick flushes statistics and then token usage. Sharing a single fault
+   * flag meant the token write that follows a FAILED statistics write cleared
+   * its fault and reported the service healthy, while statistics were still
+   * being lost — the two channels write different tables, so one succeeding
+   * vouches for nothing about the other.
+   *
+   * Health is read immediately, without another tick: the next tick probes the
+   * store, and a probe legitimately clears faults because it writes.
+   */
+  it('keeps a failed statistics write red when the token write behind it succeeds', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    // Exactly one aggregate tick: events, then the failing statistics write,
+    // then the token write that used to clear its fault.
+    await ticksFor(svc, 4);
+
+    expect(tokenStore.writes.length, 'the token write did not run after the statistics failure').toBe(1);
+    expect(
+      (await svc.health()).available,
+      'a successful token write cleared a live statistics-write fault',
+    ).toBe(false);
+  });
+
+  /**
+   * The probe writes a rolled-back row into the event and token tables, so it
+   * vouches for those. It only SELECTs from the statistics table — so it must
+   * not clear a statistics fault, which is what reported the service healthy
+   * while every statistic was still failing.
+   */
+  it('does not let the recovery probe clear a statistics-write fault', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available).toBe(false);
+
+    // Exactly three more ticks: with aggregateEvery = 4, tick 5 finds the
+    // service down and runs the probe, which succeeds, and ticks 6-7 do not
+    // retry statistics. That window is where a probe-cleared fault shows as
+    // green; running further would let the next statistics failure mask it.
+    await ticksFor(svc, 3);
+
+    expect(
+      (await svc.health()).available,
+      'a successful probe cleared a statistics-write fault it never tested',
+    ).toBe(false);
+  });
+
+  /**
+   * A failed statistics write is DROPPED, and the next interval is written
+   * normally — so health recovers on the next round without anything being
+   * retried or held in memory.
+   *
+   * Gating the tick on health rather than reachability made that impossible:
+   * no write of any kind was attempted again, so nothing could ever clear the
+   * fault and the outage became permanent.
+   */
+  it('drops a failed statistics interval and recovers on the next one', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available, 'the failing write left health green').toBe(false);
+    expect(store.stats, 'a failing write must not have stored anything').toEqual([]);
+
+    // The store comes back and a new interval accrues. Nothing replays the
+    // lost one; the counts for that window are simply gone.
+    store.failAt = null;
+    signIn(svc, T + 1);
+    await ticksFor(svc, 8);
+
+    expect(store.stats.length, 'the next interval was never written').toBeGreaterThan(0);
+    expect(
+      (await svc.health()).available,
+      'health never recovered after statistics writes resumed',
+    ).toBe(true);
+  });
+
+  it('keeps flushing events while another channel is failing', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    await ticksFor(svc, 4);
+    const eventsBefore = store.events.length;
+
+    signIn(svc, T + 1);
+    signIn(svc, T + 2);
+    await ticksFor(svc, 4);
+
+    // The event channel is healthy; one channel's fault must not stall it.
+    expect(store.events.length, 'events stopped flushing behind a statistics fault')
+      .toBeGreaterThan(eventsBefore);
+  });
+
+  /**
+   * A dropped batch leaves the channel red, and only a write of its own kind
+   * clears it — but a quiet system has nothing to write. Without a re-probe the
+   * page reported an outage until the next sign-in, however healthy the store.
+   */
+  it('recovers a dropped-batch fault without waiting for another sign-in', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    await svc.tick();
+    signIn(svc, T);
+    store.failAt = 'writeEvents';
+    await svc.tick();
+    expect((await svc.health()).available, 'the dropped batch left health green').toBe(false);
+
+    // The store is fine again, and NOBODY signs in.
+    store.failAt = null;
+    await ticksFor(svc, 8);
+
+    expect(
+      (await svc.health()).available,
+      'health stayed red with no traffic to clear it',
+    ).toBe(true);
+  });
+
+  it('reports how many records went unconfirmed when it recovers', async () => {
+    const logged: unknown[] = [];
+    const spy = vi.spyOn(logger, 'info').mockImplementation(((o: unknown) => {
+      logged.push(o);
+    }) as never);
+    try {
+      const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+      await svc.tick();
+      signIn(svc, T);
+      store.failAt = 'writeEvents';
+      await svc.tick();
+
+      store.failAt = null;
+      await ticksFor(svc, 8);
+
+      // The recovery line is the only place this count is reported; a
+      // write-fault outage used to recover without ever emitting it.
+      const recovery = logged.find(
+        (o) => typeof o === 'object' && o !== null && 'rowsUnconfirmed' in o,
+      ) as { rowsUnconfirmed: number } | undefined;
+      expect(recovery, 'no recovery line was logged').toBeDefined();
+      expect(recovery?.rowsUnconfirmed, 'the lost rows were not reported').toBeGreaterThan(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('records no audit row for a token use — it is not a sign-in', async () => {

@@ -52,6 +52,26 @@ RUN pnpm package
 FROM node:24-alpine
 WORKDIR /app
 
+# The server only needs the Node runtime. The upstream image also includes
+# npm, Corepack and Yarn; keeping those unused package managers would ship
+# their dependency trees (and any vulnerabilities in them) in production.
+# Build tooling remains available in the throwaway build stage above.
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /opt/yarn-* \
+    && rm -f \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+    && node --version \
+    && ! command -v npm \
+    && ! command -v npx \
+    && ! command -v corepack \
+    && ! command -v yarn
+
 RUN addgroup -S horizon && adduser -S -G horizon horizon
 
 COPY --from=build /src/dist/server.js              ./server.js

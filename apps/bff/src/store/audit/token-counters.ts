@@ -98,8 +98,34 @@ export class TokenCounters {
   }
 
   /**
-   * The unwritten DELTA as readable rows, for a page that must not wait for a
-   * flush to see a use.
+   * This process's RUNNING TOTAL per credential, as readable rows.
+   *
+   * A total rather than the unwritten delta, because a reader samples this at
+   * a different instant than it read the store: a flush landing between the
+   * two would otherwise have its rows counted twice (written, and still
+   * pending) or not at all (written after the read, cleared before the
+   * sample). The node owns its own row — that is what the key guarantees — so
+   * `stored + pending` is the authoritative figure for it whatever the flush
+   * is doing, and a reader REPLACES this node's stored rows with these rather
+   * than adding to them.
+   */
+  runningTotals(stamp: { horizonNode: string }): TokenUsageEntry[] {
+    const out: TokenUsageEntry[] = [];
+    for (const c of this.cells.values()) {
+      out.push({
+        hourBucket: c.hourBucket,
+        at: hourBucketStart(c.hourBucket),
+        tokenId: c.tokenId,
+        username: c.username,
+        count: c.stored + c.pending,
+        horizonNode: stamp.horizonNode,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * The unwritten DELTA as readable rows.
    *
    * `count` is `pending` alone — what the store already holds is `stored`, and
    * a reader adds these on top of what it read. Stamped like any other row, so

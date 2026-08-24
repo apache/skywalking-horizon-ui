@@ -265,19 +265,6 @@ export class AuditCounters {
     return out;
   }
 
-  /** Put deltas back after a failed append, so the next successful one carries
-   *  both intervals rather than losing the first. */
-  restoreStats(stats: readonly AuditStat[]): void {
-    for (const st of stats) {
-      const s = this.stat(st.hourBucket);
-      s.login.local += st.login.local;
-      s.login.ldap += st.login.ldap;
-      s.login.oidc += st.login.oidc;
-      s.login.oauth += st.login.oauth;
-      s.rejected += st.rejected;
-      s.overBudget += st.overBudget;
-    }
-  }
 
   /** Records that some rows were not written. Kept as a process counter
    *  rather than a stat column: the table carries the counters that were

@@ -34,13 +34,22 @@
  * service, etc.). The live-tail engine + the actual fetch stay in the view.
  */
 
-import { computed, ref, watch, type Ref } from 'vue';
+import { computed, onUnmounted, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
+import type { PodLogsRequest } from '@/api/scopes/log';
 import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import type { useLayers } from '@/shell/useLayers';
 
 type AvailableLayers = ReturnType<typeof useLayers>['availableLayers'];
+
+export interface PodLogRequestSnapshot {
+  generation: number;
+  layer: string;
+  serviceArg: string;
+  intervalSeconds: number;
+  body: PodLogsRequest;
+}
 
 export interface PodLogSourceDeps {
   /** Active log source — cascades gate on this being `pods`. */
@@ -58,6 +67,10 @@ export interface PodLogSourceDeps {
   loadServices: () => Promise<void>;
   loadInstances: () => Promise<void>;
   loadEndpoints: () => Promise<void>;
+  /** Abandons the raw cascade's in-flight requests. `instances` is shared with
+   *  the pods cascade, so a raw load still in flight when the operator switches
+   *  to pods would otherwise publish its rows into the pod dropdown. */
+  invalidateEntityRequests: () => void;
 }
 
 export function usePodLogSource(deps: PodLogSourceDeps) {
@@ -76,6 +89,39 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
   const containersError = ref<string | null>(null);
 
   const podInstancesLoading = ref(false);
+  let podInstancesRequestGeneration = 0;
+  let containersRequestGeneration = 0;
+  let podLogRequestGeneration = 0;
+  let activePodLogRequestGeneration: number | null = null;
+
+  function invalidatePodInstancesRequest(): void {
+    podInstancesRequestGeneration += 1;
+    podInstancesLoading.value = false;
+  }
+
+  function invalidateContainersRequest(): void {
+    containersRequestGeneration += 1;
+    containersLoading.value = false;
+  }
+
+  /** Orphan an outstanding log fetch. The transport may still resolve, but
+   *  its generation can no longer publish into the current pod pane. */
+  function invalidatePodLogRequest(): void {
+    podLogRequestGeneration += 1;
+    activePodLogRequestGeneration = null;
+  }
+
+  function currentPodServiceKey(): string {
+    if (podEntityMode.value === 'pick') {
+      return `pick\u0000${pickLayer.value}\u0000${pickServiceId.value}\u0000${pickServiceName.value}`;
+    }
+    return `type\u0000${podLayers.value[0]?.key ?? ''}\u0000${podTypeService.value.trim()}\u0000${podTypeReal.value ? '1' : '0'}`;
+  }
+
+  function sameOptionalList(a: string[] | undefined, b: string[]): boolean {
+    if (a === undefined) return b.length === 0;
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
   // Pods service identity for the instances route: a picked OAP service-id
   // (Pick) or the typed name (Type). Both resolve per-layer server-side.
   const podServiceArg = computed(() =>
@@ -126,6 +172,49 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     podEntityMode.value === 'pick' ? pickLayer.value : (podLayers.value[0]?.key ?? ''),
   );
 
+  /** Capture every input for one pod-log request and serialize polling for
+   *  that exact input generation. A re-target creates a new generation, so
+   *  it can run immediately while an orphaned old request winds down. */
+  function beginPodLogRequest(): PodLogRequestSnapshot | null {
+    const layer = podFetchLayer.value;
+    const serviceInstanceId = pickInstanceId.value;
+    const container = podContainer.value;
+    if (logSource.value !== 'pods' || !layer || !serviceInstanceId || !container) return null;
+    const generation = podLogRequestGeneration;
+    if (activePodLogRequestGeneration === generation) return null;
+    activePodLogRequestGeneration = generation;
+    return {
+      generation,
+      layer,
+      serviceArg: podServiceArg.value,
+      intervalSeconds: podIntervalSeconds.value,
+      body: {
+        serviceInstanceId,
+        container,
+        windowSeconds: podWindowSeconds.value,
+        ...(podIncludes.value.length > 0 ? { keywordsOfContent: [...podIncludes.value] } : {}),
+        ...(podExcludes.value.length > 0 ? { excludingKeywordsOfContent: [...podExcludes.value] } : {}),
+      },
+    };
+  }
+
+  function isPodLogRequestCurrent(request: PodLogRequestSnapshot): boolean {
+    return request.generation === podLogRequestGeneration
+      && logSource.value === 'pods'
+      && request.layer === podFetchLayer.value
+      && request.serviceArg === podServiceArg.value
+      && request.intervalSeconds === podIntervalSeconds.value
+      && request.body.serviceInstanceId === pickInstanceId.value
+      && request.body.container === podContainer.value
+      && request.body.windowSeconds === podWindowSeconds.value
+      && sameOptionalList(request.body.keywordsOfContent, podIncludes.value)
+      && sameOptionalList(request.body.excludingKeywordsOfContent, podExcludes.value);
+  }
+
+  function finishPodLogRequest(request: PodLogRequestSnapshot): void {
+    if (activePodLogRequestGeneration === request.generation) activePodLogRequestGeneration = null;
+  }
+
   /** Encode a typed service name to an OAP service id (base64 of the UTF-8
    *  name + the real flag — `IDManager.ServiceID.buildId`). Type mode sends it
    *  in the route's `serviceId` slot, which is taken as an id with no per-layer
@@ -141,6 +230,10 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
    *  source, scoped to its `caps.podLogs` layer. Cascade-clears the pod +
    *  container picks first so a stale pod never sits under the new list. */
   async function loadPodInstances(): Promise<void> {
+    const generation = ++podInstancesRequestGeneration;
+    podInstancesLoading.value = false;
+    invalidateContainersRequest();
+    invalidatePodLogRequest();
     instances.value = [];
     pickInstanceId.value = '';
     podContainer.value = '';
@@ -161,21 +254,35 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
       service = serviceRef(name ? encodePodServiceId(name, podTypeReal.value) : '', name, podTypeReal.value);
     }
     if (!layer || !service) return;
+    const serviceKey = currentPodServiceKey();
     podInstancesLoading.value = true;
     try {
       const res = await bff.layer.instances(layer, service);
+      if (
+        generation !== podInstancesRequestGeneration
+        || logSource.value !== 'pods'
+        || serviceKey !== currentPodServiceKey()
+      ) return;
       instances.value = res.reachable ? res.instances : [];
       // Single pod → auto-pin it (the common single-replica case); the
       // `pickInstanceId` watch then lists its containers.
       if (instances.value.length === 1) pickInstanceId.value = instances.value[0]!.id;
     } catch {
+      if (
+        generation !== podInstancesRequestGeneration
+        || logSource.value !== 'pods'
+        || serviceKey !== currentPodServiceKey()
+      ) return;
       instances.value = [];
     } finally {
-      podInstancesLoading.value = false;
+      if (generation === podInstancesRequestGeneration) podInstancesLoading.value = false;
     }
   }
 
   async function loadContainers(): Promise<void> {
+    const generation = ++containersRequestGeneration;
+    containersLoading.value = false;
+    invalidatePodLogRequest();
     podContainer.value = '';
     podContainers.value = [];
     containersError.value = null;
@@ -185,6 +292,12 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     containersLoading.value = true;
     try {
       const r = await bff.log.podContainers(layer, id);
+      if (
+        generation !== containersRequestGeneration
+        || logSource.value !== 'pods'
+        || layer !== podFetchLayer.value
+        || id !== pickInstanceId.value
+      ) return;
       if (r.errorReason) {
         containersError.value = r.errorReason;
       } else if (!r.reachable) {
@@ -195,9 +308,15 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
         podContainer.value = r.containers[0] ?? '';
       }
     } catch (e) {
+      if (
+        generation !== containersRequestGeneration
+        || logSource.value !== 'pods'
+        || layer !== podFetchLayer.value
+        || id !== pickInstanceId.value
+      ) return;
       containersError.value = e instanceof Error ? e.message : String(e);
     } finally {
-      containersLoading.value = false;
+      if (generation === containersRequestGeneration) containersLoading.value = false;
     }
   }
 
@@ -208,6 +327,9 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
   // Each cascade gates on the active source so the wrong downstream never
   // fires (loading pod containers for a browser service, etc.).
   watch(pickLayer, () => {
+    invalidatePodInstancesRequest();
+    invalidateContainersRequest();
+    invalidatePodLogRequest();
     // pods Pick reloads its service list here; pods Type ignores the layer
     // (it encodes the name to an id), so no pods-specific branch is needed.
     void deps.loadServices();
@@ -235,6 +357,9 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
   // both representations + the downstream pod / container so neither mode
   // inherits the other's pick. The layer stays (Type still needs one).
   watch(podEntityMode, () => {
+    invalidatePodInstancesRequest();
+    invalidateContainersRequest();
+    invalidatePodLogRequest();
     pickServiceId.value = '';
     podTypeService.value = '';
     instances.value = [];
@@ -242,6 +367,31 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     podContainer.value = '';
     podContainers.value = [];
     containersError.value = null;
+  });
+
+  // A log reply belongs to the complete target + condition, not merely the
+  // selected container. Invalidate it on every input that changes what the
+  // operator believes the result represents.
+  watch(
+    [logSource, podFetchLayer, podServiceArg, pickInstanceId, podContainer, podWindowSeconds, podIntervalSeconds],
+    invalidatePodLogRequest,
+  );
+  watch([podIncludes, podExcludes], invalidatePodLogRequest, { deep: true });
+  watch(logSource, (next, prev) => {
+    invalidatePodInstancesRequest();
+    invalidateContainersRequest();
+    // Only when the shared entity picker is actually being reset, which the
+    // view does exactly when pods is on one side of the switch. Between raw
+    // and browser the picker is deliberately preserved, so orphaning its
+    // in-flight request there would leave it empty with its "Reading…" gone
+    // and nothing to restart it.
+    if (next === 'pods' || prev === 'pods') deps.invalidateEntityRequests();
+  });
+
+  onUnmounted(() => {
+    invalidatePodInstancesRequest();
+    invalidateContainersRequest();
+    invalidatePodLogRequest();
   });
 
   const podContainerOptions = computed(() => podContainers.value.map((c) => ({ value: c, label: c })));
@@ -275,5 +425,9 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     podContainerOptions,
     podInstanceOptions,
     podInstanceSel,
+    beginPodLogRequest,
+    isPodLogRequestCurrent,
+    finishPodLogRequest,
+    invalidatePodLogRequest,
   };
 }

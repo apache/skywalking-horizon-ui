@@ -309,10 +309,10 @@ export interface AuditService {
    * That is the whole reason a database cannot delay a login — the request
    * path performs no I/O at all, rather than performing I/O under a deadline.
    * A writer flushes at `eventBatchRows` or `eventBatchSeconds`, whichever
-   * comes first, so a crash costs one batch window while the store is
-   * reachable. While it is NOT, the buffer is what grows — to its own
-   * ceiling — and that whole backlog is what a crash loses. The batch
-   * settings bound the happy path, not the outage.
+   * comes first, so a crash costs one batch window. A batch the store refuses
+   * is DROPPED rather than re-queued, so nothing accumulates while it is
+   * unreachable and there is no outage backlog to lose — those sign-ins are
+   * counted as unconfirmed instead. The batch settings bound both cases.
    */
   recordEvent(event: Omit<AuditEvent, 'shape'>): void;
 
@@ -340,12 +340,11 @@ export interface AuditService {
  * What a backend implements. Storage only — no timers, no budget, no map.
  */
 export interface AuditStore {
-  /** One batch of buffered sign-in rows, as a single multi-row statement.
+  /** One batch of collected sign-in rows, as a single multi-row statement.
    *  Nothing is waiting on it — it runs on the writer's tick, never on a
-   *  request. No upsert: event rows have no natural key, so a retry after a
-   *  commit-then-timeout may duplicate. That is the accepted direction to be
-   *  wrong for an audit record — a duplicated sign-in is visible and
-   *  harmless, a missing one is neither. */
+   *  request. A batch that throws is not re-sent, so a commit-then-timeout
+   *  leaves the rows stored and counted as unconfirmed rather than duplicated
+   *  by a retry. */
   writeEvents(rows: ReadonlyArray<AuditEvent & StoreStamp>): Promise<void>;
   /** Appends one interval's delta. */
   writeStat(stat: AuditStat): Promise<void>;

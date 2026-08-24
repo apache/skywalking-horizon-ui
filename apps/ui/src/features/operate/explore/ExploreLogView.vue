@@ -35,6 +35,13 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import {
+  resolveRecordRange,
+  recordRangeWarning,
+  MAX_RECORD_RANGE_DAYS,
+  SLOW_RECORD_RANGE_HOURS,
+} from '@/utils/recordTimeRange';
+
 import { useI18n } from 'vue-i18n';
 import { bff, bffClient, describeApiError } from '@/api/client';
 import type {
@@ -90,6 +97,9 @@ const {
   instances,
   endpoints,
   servicesLoading,
+  instancesLoading,
+  endpointsLoading,
+  invalidateEntityRequests,
   loadServices,
   loadInstances,
   loadEndpoints,
@@ -140,6 +150,10 @@ const {
   podContainerOptions,
   podInstanceOptions,
   podInstanceSel,
+  beginPodLogRequest,
+  isPodLogRequestCurrent,
+  finishPodLogRequest,
+  invalidatePodLogRequest,
 } = usePodLogSource({
   logSource,
   availableLayers,
@@ -151,6 +165,7 @@ const {
   loadServices,
   loadInstances,
   loadEndpoints,
+  invalidateEntityRequests,
 });
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
@@ -242,31 +257,44 @@ const canRun = computed(() => {
 
 /** Explicit epoch-ms bounds in Custom mode (datetime-local strings are
  *  browser-local; `Date.parse` reads them as local), else rolling. */
-function resolveWindow(): ExploreWindow {
+/** Bounds, or the i18n KEY of the complaint that stops the query.
+ *
+ *  It used to fall back to a 30-minute rolling window when the custom bounds
+ *  did not resolve, so a reversed or half-filled range answered a question
+ *  nobody asked. */
+function resolveWindow(): ExploreWindow | string {
   if (isCustomRange.value) {
-    if (customStart.value && customEnd.value) {
-      const startMs = Date.parse(customStart.value);
-      const endMs = Date.parse(customEnd.value);
-      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
-        return { startMs, endMs };
-      }
-    }
-    return { windowMinutes: 30 };
+    const r = resolveRecordRange(customStart.value, customEnd.value);
+    if (typeof r === 'string') return r;
+    return { startMs: r.startMs, endMs: r.endMs };
   }
   return { windowMinutes: cond.windowMinutes };
 }
 
-function buildRequest(): ExploreRequest {
+/** Non-blocking caution about the window's size — presets included, since cost
+ *  follows the span rather than how it was chosen. */
+const rangeWarning = computed<string | null>(() => {
+  const w = resolveWindow();
+  if (typeof w === 'string') return null;
+  return recordRangeWarning(
+    w.startMs != null && w.endMs != null ? w.endMs - w.startMs : (w.windowMinutes ?? 0) * 60_000,
+  );
+});
+
+/** The request, or the i18n KEY of the range complaint that stops it. */
+function buildRequest(): ExploreRequest | string {
   if (logSource.value === 'browser') {
     // Shared Pick/Type entity, same as raw — the BFF browser branch resolves
     // it via resolveNativeEntity and scopes by serviceId only (instance /
     // endpoint are ignored). Blank queries every service (OAP: serviceId 0).
     const entity = currentEntity();
+    const win = resolveWindow();
+    if (typeof win === 'string') return win;
     return {
       kind: 'log',
       logSource: 'browser',
       ...(entity ? { entity } : {}),
-      window: resolveWindow(),
+      window: win,
       pageSize: cond.limit,
       ...(browserCategory.value !== 'ALL' ? { category: browserCategory.value } : {}),
     };
@@ -276,11 +304,13 @@ function buildRequest(): ExploreRequest {
   // Only the pods source carries Keywords → keywordsOfContent.
   const entity = currentEntity();
   const tags = parseTags(cond.tags);
+  const win = resolveWindow();
+  if (typeof win === 'string') return win;
   return {
     kind: 'log',
     logSource: 'raw',
     ...(entity ? { entity } : {}),
-    window: resolveWindow(),
+    window: win,
     pageSize: cond.limit,
     ...(tags.length > 0 ? { tags } : {}),
     ...(cond.traceId.trim() ? { relatedTraceId: cond.traceId.trim() } : {}),
@@ -293,14 +323,11 @@ async function runPodQuery(): Promise<void> {
   // full-line regex), so they go to the route VERBATIM, no `.*…*` wrap.
   // No Resolved-query echo for pods — it's a live tail, not a stored query,
   // so the panel stays hidden (resolved is reset on source switch).
+  const request = beginPodLogRequest();
+  if (!request) return;
   try {
-    const r = await bff.log.podLogs(podFetchLayer.value, {
-      serviceInstanceId: pickInstanceId.value,
-      container: podContainer.value,
-      windowSeconds: podWindowSeconds.value,
-      ...(podIncludes.value.length > 0 ? { keywordsOfContent: [...podIncludes.value] } : {}),
-      ...(podExcludes.value.length > 0 ? { excludingKeywordsOfContent: [...podExcludes.value] } : {}),
-    });
+    const r = await bff.log.podLogs(request.layer, request.body);
+    if (!isPodLogRequestCurrent(request)) return;
     if (r.errorReason) {
       podErrorReason.value = r.errorReason;
     } else if (!r.reachable) {
@@ -309,7 +336,10 @@ async function runPodQuery(): Promise<void> {
       podLines.value = r.lines;
     }
   } catch (e) {
+    if (!isPodLogRequestCurrent(request)) return;
     errorMsg.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    finishPodLogRequest(request);
   }
 }
 
@@ -329,7 +359,19 @@ const { tailing: podTailing, stopTail: stopPodTail, toggleTail: togglePodTail } 
   errorMsg,
   podErrorReason,
   runOnce: runPodQuery,
+  invalidateRun: invalidatePodLogRequest,
 });
+
+function clearPodResult(): void {
+  if (logSource.value !== 'pods') return;
+  hasQueried.value = false;
+  podLines.value = [];
+  podErrorReason.value = null;
+  errorMsg.value = null;
+}
+
+watch([podFetchLayer, podServiceArg, pickInstanceId, podContainer, podWindowSeconds], clearPodResult);
+watch([podIncludes, podExcludes], clearPodResult, { deep: true });
 
 async function runQuery(): Promise<void> {
   if (!canRun.value) return;
@@ -355,6 +397,13 @@ async function runQuery(): Promise<void> {
     return;
   }
   const req = buildRequest();
+  // A string is the range complaint, not a request: refuse, so the operator
+  // sees why rather than results for a window they did not ask for.
+  if (typeof req === 'string') {
+    errorMsg.value = t(req, { d: MAX_RECORD_RANGE_DAYS });
+    running.value = false;
+    return;
+  }
   try {
     const res = await bffClient.explore.query(req);
     if (res.kind === 'log' && res.logSource === 'raw') {
@@ -617,11 +666,21 @@ watch(logSource, (next, prev) => {
             </label>
             <label class="cf">
               <span>{{ logSource === 'browser' ? t('Version') : t('Instance') }}</span>
-              <TypeaheadSelect v-model="instanceSel" :aria-label="logSource === 'browser' ? t('Version') : t('Instance')" :options="instanceOptions" :disabled="!pickServiceId" :placeholder="logSource === 'browser' ? t('All versions') : t('All instances')" class="cf-tas" />
+              <TypeaheadSelect
+                v-model="instanceSel" :aria-label="logSource === 'browser' ? t('Version') : t('Instance')"
+                :options="instanceOptions" :disabled="!pickServiceId || instancesLoading"
+                :placeholder="instancesLoading ? t('Reading…') : (logSource === 'browser' ? t('All versions') : t('All instances'))"
+                class="cf-tas"
+              />
             </label>
             <label class="cf">
               <span>{{ logSource === 'browser' ? t('Page') : t('Endpoint') }}</span>
-              <TypeaheadSelect v-model="endpointSel" :aria-label="logSource === 'browser' ? t('Page') : t('Endpoint')" :options="endpointOptions" :disabled="!pickServiceId" :placeholder="logSource === 'browser' ? t('All pages') : t('All endpoints')" class="cf-tas" />
+              <TypeaheadSelect
+                v-model="endpointSel" :aria-label="logSource === 'browser' ? t('Page') : t('Endpoint')"
+                :options="endpointOptions" :disabled="!pickServiceId || endpointsLoading"
+                :placeholder="endpointsLoading ? t('Reading…') : (logSource === 'browser' ? t('All pages') : t('All endpoints'))"
+                class="cf-tas"
+              />
             </label>
           </div>
 
@@ -751,6 +810,11 @@ watch(logSource, (next, prev) => {
                 <option v-for="w in WINDOWS" :key="w" :value="w">{{ w < 60 ? `${w}m` : `${w / 60}h` }}</option>
                 <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
               </select>
+              <!-- Non-blocking caution; the refusal itself surfaces in the page's
+                   error line, which is where every other query failure appears. -->
+              <span v-if="rangeWarning" class="cf-note">
+                {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+              </span>
             </label>
             <label v-if="logSource !== 'pods'" class="cf cf-lim">
               <span>{{ t('Limit') }}</span>
@@ -981,4 +1045,11 @@ watch(logSource, (next, prev) => {
   color: #f0a04b;
 }
 .iq-pod-banner .dim { color: var(--sw-fg-3); }
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
 </style>

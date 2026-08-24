@@ -74,9 +74,56 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
   const lastUpdatedAt = ref<number | null>(null);
 
   let timer: ReturnType<typeof setInterval> | null = null;
+  let containerRequestGeneration = 0;
+  let logRequestGeneration = 0;
+  const logRequestsInFlight = new Set<number>();
+
+  interface LogRequestSnapshot {
+    layer: string;
+    instanceId: string;
+    container: string;
+    windowSeconds: number;
+    keywords: string[] | undefined;
+    excludes: string[] | undefined;
+  }
+
+  function sameOptionalList(a: string[] | undefined, b: string[]): boolean {
+    if (a === undefined) return b.length === 0;
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+
+  function isCurrentLogRequest(generation: number, request: LogRequestSnapshot): boolean {
+    return generation === logRequestGeneration
+      && request.layer === layerKey.value
+      && request.instanceId === instanceId.value
+      && request.container === selectedContainer.value
+      && request.windowSeconds === windowSeconds.value
+      && sameOptionalList(request.keywords, keywords.value)
+      && sameOptionalList(request.excludes, excludes.value);
+  }
+
+  function clearLogResult(): void {
+    lines.value = [];
+    errorReason.value = null;
+    lastUpdatedAt.value = null;
+  }
+
+  function invalidateContainerRequest(): void {
+    containerRequestGeneration += 1;
+    loadingContainers.value = false;
+  }
+
+  function invalidateLogRequest(): void {
+    logRequestGeneration += 1;
+    fetching.value = false;
+  }
 
   function stopTail(): void {
     tailing.value = false;
+    // Clearing the timer is not enough: the most recent tick may still be
+    // awaiting OAP. Orphan it so Pause / re-target can never publish that
+    // reply into the current pane.
+    invalidateLogRequest();
     if (timer !== null) {
       clearInterval(timer);
       timer = null;
@@ -87,6 +134,7 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
    *  changes so a tail never bleeds across pods. */
   function resetForInstance(): void {
     stopTail();
+    invalidateContainerRequest();
     containers.value = [];
     selectedContainer.value = null;
     lines.value = [];
@@ -96,14 +144,17 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
 
   async function loadContainers(): Promise<void> {
     const id = instanceId.value;
-    if (!layerKey.value || !id) {
+    const layer = layerKey.value;
+    if (!layer || !id) {
       resetForInstance();
       return;
     }
+    const generation = ++containerRequestGeneration;
     loadingContainers.value = true;
     errorReason.value = null;
     try {
-      const r = await bff.log.podContainers(layerKey.value, id);
+      const r = await bff.log.podContainers(layer, id);
+      if (generation !== containerRequestGeneration || layer !== layerKey.value || id !== instanceId.value) return;
       if (r.errorReason) {
         containers.value = [];
         selectedContainer.value = null;
@@ -120,26 +171,43 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
       // the app container, and it's listed first by OAP. They can switch.
       selectedContainer.value = r.containers[0] ?? null;
     } catch (err) {
+      if (generation !== containerRequestGeneration || layer !== layerKey.value || id !== instanceId.value) return;
       containers.value = [];
       errorReason.value = err instanceof Error ? err.message : String(err);
     } finally {
-      loadingContainers.value = false;
+      if (generation === containerRequestGeneration) loadingContainers.value = false;
     }
   }
 
   async function fetchOnce(): Promise<void> {
     const id = instanceId.value;
     const container = selectedContainer.value;
-    if (!layerKey.value || !id || !container) return;
+    const layer = layerKey.value;
+    if (!layer || !id || !container) return;
+    const generation = logRequestGeneration;
+    // A slow poll may outlast the cadence. Skip ticks for this exact input
+    // generation; a changed target/window/filter gets a new generation and
+    // can start immediately while the now-orphaned transport winds down.
+    if (logRequestsInFlight.has(generation)) return;
+    logRequestsInFlight.add(generation);
+    const request: LogRequestSnapshot = {
+      layer,
+      instanceId: id,
+      container,
+      windowSeconds: windowSeconds.value,
+      keywords: keywords.value.length ? [...keywords.value] : undefined,
+      excludes: excludes.value.length ? [...excludes.value] : undefined,
+    };
     fetching.value = true;
     try {
-      const r = await bff.log.podLogs(layerKey.value, {
+      const r = await bff.log.podLogs(layer, {
         serviceInstanceId: id,
         container,
-        windowSeconds: windowSeconds.value,
-        keywordsOfContent: keywords.value.length ? keywords.value : undefined,
-        excludingKeywordsOfContent: excludes.value.length ? excludes.value : undefined,
+        windowSeconds: request.windowSeconds,
+        keywordsOfContent: request.keywords,
+        excludingKeywordsOfContent: request.excludes,
       });
+      if (!isCurrentLogRequest(generation, request)) return;
       if (r.errorReason) {
         // A pod that vanished mid-tail (rollout / scale-down) — stop the
         // loop and surface the reason rather than spinning on errors.
@@ -156,10 +224,12 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
       lines.value = r.lines;
       lastUpdatedAt.value = Date.now();
     } catch (err) {
+      if (!isCurrentLogRequest(generation, request)) return;
       errorReason.value = err instanceof Error ? err.message : String(err);
       stopTail();
     } finally {
-      fetching.value = false;
+      logRequestsInFlight.delete(generation);
+      if (generation === logRequestGeneration) fetching.value = false;
     }
   }
 
@@ -190,14 +260,25 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
   // Changing container / window / interval / filters while tailing
   // restarts the loop so OAP re-runs the query with the new condition;
   // while paused it just clears the now-stale buffer for the next Start.
-  watch([selectedContainer, windowSeconds, intervalSeconds], () => {
+  watch([selectedContainer, windowSeconds], () => {
+    invalidateLogRequest();
+    clearLogResult();
+    if (tailing.value) startTail();
+  });
+  watch(intervalSeconds, () => {
+    invalidateLogRequest();
     if (tailing.value) startTail();
   });
   watch([keywords, excludes], () => {
+    invalidateLogRequest();
+    clearLogResult();
     if (tailing.value) startTail();
   }, { deep: true });
 
-  onUnmounted(stopTail);
+  onUnmounted(() => {
+    stopTail();
+    invalidateContainerRequest();
+  });
 
   return {
     containers: readonly(containers),

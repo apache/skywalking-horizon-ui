@@ -97,6 +97,23 @@ const DURATION_OPTS = [
   { v: 15, label: '15 min' },
 ];
 
+/** Request ticket: a reply for the service the operator has already navigated
+ *  away from must not publish under the new one. */
+let tasksRequestGeneration = 0;
+/** The analysis stage has its own ticket: it outlives a task switch far more
+ *  often than the task list does, being the slowest call on the page. */
+let analyzeRequestGeneration = 0;
+
+// Changing the selection orphans an analysis in flight: it was launched for
+// the previous target, so its graph must not land under this one and its
+// spinner must not be the one this selection clears. A watch rather than a
+// bump at each call site — the selection is also set from the template.
+watch(currentTask, () => {
+  analyzeRequestGeneration += 1;
+  analyzeLoading.value = false;
+  analyzeError.value = null;
+});
+
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
   () => {
@@ -107,11 +124,24 @@ watch(
 );
 
 async function refreshTasks(): Promise<void> {
+  const generation = (tasksRequestGeneration += 1);
+  analyzeRequestGeneration += 1;
+  analyzeLoading.value = false;
   tasksError.value = null;
-  if (!service.value) return;
+  // Cleared before the early return, not after it: the previous service's task
+  // list used to stay on screen under the new service's name.
+  tasks.value = [];
+  currentTask.value = null;
+  tree.value = null;
+  if (!service.value) {
+    tasksLoading.value = false;
+    return;
+  }
+  const svc = service.value;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.pprof.tasks(layerKey.value, service.value!);
+    const resp = await bffClient.pprof.tasks(layerKey.value, svc);
+    if (generation !== tasksRequestGeneration) return;
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
@@ -120,27 +150,33 @@ async function refreshTasks(): Promise<void> {
     }
     tree.value = null;
   } catch (e) {
+    if (generation !== tasksRequestGeneration) return;
     tasksError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    tasksLoading.value = false;
+    if (generation === tasksRequestGeneration) tasksLoading.value = false;
   }
 }
 
 async function runAnalyze(): Promise<void> {
   if (!currentTask.value || !selectedInstances.value.length) return;
   analyzeError.value = null;
+  const generation = (analyzeRequestGeneration += 1);
   analyzeLoading.value = true;
   try {
     const resp = await bffClient.pprof.analyze({
       taskId: currentTask.value.id,
       instanceIds: selectedInstances.value,
     });
+    // The slowest call here: a task or service switch while it runs must not
+    // paint the old target's graph under the new one.
+    if (generation !== analyzeRequestGeneration) return;
     if (!resp.reachable && resp.error) analyzeError.value = resp.error;
     tree.value = resp.tree;
   } catch (e) {
+    if (generation !== analyzeRequestGeneration) return;
     analyzeError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    analyzeLoading.value = false;
+    if (generation === analyzeRequestGeneration) analyzeLoading.value = false;
   }
 }
 

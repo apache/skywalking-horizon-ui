@@ -28,7 +28,13 @@
   Source switches between SkyWalking-native and Zipkin traces.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import {
+  resolveRecordRange,
+  recordRangeWarning,
+  MAX_RECORD_RANGE_DAYS,
+  SLOW_RECORD_RANGE_HOURS,
+} from '@/utils/recordTimeRange';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
 import { serviceRef } from '@/utils/serviceRef';
@@ -80,53 +86,104 @@ const pickServiceNormal = computed<boolean | null>(
   () => services.value.find((s) => s.id === pickServiceId.value)?.normal ?? null,
 );
 
+/**
+ * Request tickets, one per cascade stage. A reply whose ticket has been
+ * superseded publishes nothing — two quick service picks used to let the first
+ * reply land under the second selection. Same shape the pod-log source uses.
+ */
+let servicesRequestGeneration = 0;
+let instancesRequestGeneration = 0;
+let endpointsRequestGeneration = 0;
+const instancesLoading = ref(false);
+const endpointsLoading = ref(false);
+
+function invalidateEntityRequests(): void {
+  servicesRequestGeneration += 1;
+  instancesRequestGeneration += 1;
+  endpointsRequestGeneration += 1;
+  servicesLoading.value = false;
+  instancesLoading.value = false;
+  endpointsLoading.value = false;
+}
+onUnmounted(invalidateEntityRequests);
+
 async function loadServices(): Promise<void> {
+  const generation = (servicesRequestGeneration += 1);
+  // A new roster orphans everything downstream of it.
+  instancesRequestGeneration += 1;
+  endpointsRequestGeneration += 1;
+  instancesLoading.value = false;
+  endpointsLoading.value = false;
   services.value = [];
   instances.value = [];
   endpoints.value = [];
   pickServiceId.value = '';
   pickInstanceId.value = '';
   pickEndpointId.value = '';
-  if (!pickLayer.value) return;
+  if (!pickLayer.value) {
+    servicesLoading.value = false;
+    return;
+  }
+  const layer = pickLayer.value;
   servicesLoading.value = true;
   try {
-    const res = await bffClient.layer.services(pickLayer.value);
+    const res = await bffClient.layer.services(layer);
+    if (generation !== servicesRequestGeneration) return;
     services.value = res.reachable ? res.services : [];
   } catch {
+    if (generation !== servicesRequestGeneration) return;
     services.value = [];
   } finally {
-    servicesLoading.value = false;
+    if (generation === servicesRequestGeneration) servicesLoading.value = false;
   }
 }
 
 async function loadInstances(): Promise<void> {
+  const generation = (instancesRequestGeneration += 1);
   instances.value = [];
   pickInstanceId.value = '';
   // The picker selected a roster row — carry it whole.
   const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
-  if (!pickLayer.value || !picked) return;
+  const layer = pickLayer.value;
+  if (!layer || !picked) {
+    instancesLoading.value = false;
+    return;
+  }
+  instancesLoading.value = true;
   try {
-    const res = await bffClient.layer.instances(pickLayer.value, picked);
+    const res = await bffClient.layer.instances(layer, picked);
+    if (generation !== instancesRequestGeneration) return;
     instances.value = res.reachable ? res.instances : [];
   } catch {
+    if (generation !== instancesRequestGeneration) return;
     instances.value = [];
+  } finally {
+    if (generation === instancesRequestGeneration) instancesLoading.value = false;
   }
 }
 
 async function loadEndpoints(): Promise<void> {
+  const generation = (endpointsRequestGeneration += 1);
+  endpoints.value = [];
   pickEndpointId.value = '';
   const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
-  if (!pickLayer.value || !picked) {
-    endpoints.value = [];
+  const layer = pickLayer.value;
+  if (!layer || !picked) {
+    endpointsLoading.value = false;
     return;
   }
+  endpointsLoading.value = true;
   try {
     // Preload the top endpoints (like the per-layer Traces picker); the
     // dropdown filters them client-side.
-    const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
+    const res = await bffClient.layer.endpoints(layer, picked, '', 50);
+    if (generation !== endpointsRequestGeneration) return;
     endpoints.value = res.reachable ? res.endpoints : [];
   } catch {
+    if (generation !== endpointsRequestGeneration) return;
     endpoints.value = [];
+  } finally {
+    if (generation === endpointsRequestGeneration) endpointsLoading.value = false;
   }
 }
 
@@ -218,20 +275,30 @@ async function loadZipkinServices(): Promise<void> {
     zipkinServiceNames.value = [];
   }
 }
+/** Ticket for the in-flight lookup: the slower of two overlapping lookups must
+ *  not fill the dropdowns for a service that is no longer typed. */
+let zipkinAutocompleteGeneration = 0;
 async function loadZipkinAutocomplete(svc: string): Promise<void> {
-  if (!svc) {
-    zipkinRemoteNames.value = [];
-    zipkinSpanNames.value = [];
-    return;
-  }
+  const generation = (zipkinAutocompleteGeneration += 1);
+  zipkinRemoteNames.value = [];
+  zipkinSpanNames.value = [];
+  if (!svc) return;
   try {
     const sp = await bffClient.zipkin.spans(svc);
+    if (generation !== zipkinAutocompleteGeneration) return;
     zipkinSpanNames.value = Array.isArray(sp) ? sp : [];
-  } catch { zipkinSpanNames.value = []; }
+  } catch {
+    if (generation !== zipkinAutocompleteGeneration) return;
+    zipkinSpanNames.value = [];
+  }
   try {
     const rs = await bffClient.zipkin.remoteServices(svc);
+    if (generation !== zipkinAutocompleteGeneration) return;
     zipkinRemoteNames.value = Array.isArray(rs) ? rs : [];
-  } catch { zipkinRemoteNames.value = []; }
+  } catch {
+    if (generation !== zipkinAutocompleteGeneration) return;
+    zipkinRemoteNames.value = [];
+  }
 }
 // Span / remote autocomplete is service-scoped in Zipkin; clearing the
 // service resets the dependent fields so a stale span/remote doesn't
@@ -329,29 +396,40 @@ const showResolved = ref(false);
 /** Build the window the request carries: explicit epoch-ms bounds in
  *  Custom mode (datetime-local strings are browser-local; `Date.parse`
  *  reads them as local), else the rolling minutes preset. */
-function resolveWindow(): ExploreWindow {
+/** Bounds, or the i18n KEY of the complaint that stops the query.
+ *
+ *  It used to fall back to a 30-minute rolling window when the custom bounds
+ *  did not resolve, so a reversed or half-filled range answered a question
+ *  nobody asked. */
+function resolveWindow(): ExploreWindow | string {
   if (isCustomRange.value) {
-    if (customStart.value && customEnd.value) {
-      const startMs = Date.parse(customStart.value);
-      const endMs = Date.parse(customEnd.value);
-      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
-        return { startMs, endMs };
-      }
-    }
-    // Custom selected but bounds not yet valid — fall back to a sane
-    // rolling window rather than forwarding the -1 sentinel.
-    return { windowMinutes: 30 };
+    const r = resolveRecordRange(customStart.value, customEnd.value);
+    if (typeof r === 'string') return r;
+    return { startMs: r.startMs, endMs: r.endMs };
   }
   return { windowMinutes: cond.windowMinutes };
 }
 
-function buildNativeRequest(): ExploreRequest {
+/** Non-blocking caution about the window's size — presets included, since cost
+ *  follows the span rather than how it was chosen. */
+const rangeWarning = computed<string | null>(() => {
+  const w = resolveWindow();
+  if (typeof w === 'string') return null;
+  return recordRangeWarning(
+    w.startMs != null && w.endMs != null ? w.endMs - w.startMs : (w.windowMinutes ?? 0) * 60_000,
+  );
+});
+
+/** The request, or the i18n KEY of the range complaint that stops it. */
+function buildNativeRequest(): ExploreRequest | string {
   const entity = currentEntity();
+  const win = resolveWindow();
+  if (typeof win === 'string') return win;
   return {
     kind: 'trace',
     traceSource: 'native',
     ...(entity ? { entity } : {}),
-    window: resolveWindow(),
+    window: win,
     pageSize: cond.limit,
     traceId: cond.traceId.trim() || undefined,
     traceState: cond.traceState,
@@ -364,13 +442,15 @@ function buildNativeRequest(): ExploreRequest {
 
 /** Zipkin entity carries the raw service name (no layer, no id); the
  *  remote-service / span / annotation conditions ride on the request. */
-function buildZipkinRequest(): ExploreRequest {
+function buildZipkinRequest(): ExploreRequest | string {
   const svc = zipkinService.value.trim();
+  const win = resolveWindow();
+  if (typeof win === 'string') return win;
   return {
     kind: 'trace',
     traceSource: 'zipkin',
     ...(svc ? { entity: { mode: 'type', serviceName: svc } } : {}),
-    window: resolveWindow(),
+    window: win,
     pageSize: cond.limit,
     remoteServiceName: zipkinRemote.value.trim() || undefined,
     spanName: zipkinSpan.value.trim() || undefined,
@@ -392,6 +472,13 @@ async function runQuery(): Promise<void> {
   resolved.value = null;
   const zipkin = traceSource.value === 'zipkin';
   const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
+  // A string is the range complaint, not a request: refuse, so the operator
+  // sees why rather than results for a window they did not ask for.
+  if (typeof req === 'string') {
+    errorMsg.value = t(req, { d: MAX_RECORD_RANGE_DAYS });
+    running.value = false;
+    return;
+  }
   try {
     const res = await bffClient.explore.query(req);
     if (res.kind === 'trace' && res.traceSource === 'native') {
@@ -574,11 +661,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               </label>
               <label class="cf">
                 <span>{{ t('Instance') }}</span>
-                <TypeaheadSelect v-model="instanceSel" :aria-label="t('Instance')" :options="instanceOptions" :disabled="!pickServiceId" :placeholder="t('All instances')" class="cf-tas" />
+                <TypeaheadSelect
+                  v-model="instanceSel" :aria-label="t('Instance')" :options="instanceOptions"
+                  :disabled="!pickServiceId || instancesLoading"
+                  :placeholder="instancesLoading ? t('Reading…') : t('All instances')" class="cf-tas"
+                />
               </label>
               <label class="cf">
                 <span>{{ t('Endpoint') }}</span>
-                <TypeaheadSelect v-model="endpointSel" :aria-label="t('Endpoint')" :options="endpointOptions" :disabled="!pickServiceId" :placeholder="t('All endpoints')" class="cf-tas" />
+                <TypeaheadSelect
+                  v-model="endpointSel" :aria-label="t('Endpoint')" :options="endpointOptions"
+                  :disabled="!pickServiceId || endpointsLoading"
+                  :placeholder="endpointsLoading ? t('Reading…') : t('All endpoints')" class="cf-tas"
+                />
               </label>
             </div>
 
@@ -669,6 +764,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   <option v-for="w in WINDOWS" :key="w" :value="w">{{ w < 60 ? `${w}m` : `${w / 60}h` }}</option>
                   <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
                 </select>
+                <!-- Non-blocking caution; the refusal itself surfaces in the page's
+                     error line, which is where every other query failure appears. -->
+                <span v-if="rangeWarning" class="cf-note">
+                  {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+                </span>
               </label>
               <label class="cf">
                 <span>{{ t('Limit') }}</span>
@@ -880,4 +980,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   color: var(--sw-fg-2); cursor: pointer; font-size: 13px; line-height: 1;
 }
 .iq-range-reset:hover { color: var(--sw-accent); border-color: var(--sw-accent); }
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
 </style>

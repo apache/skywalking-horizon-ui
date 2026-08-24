@@ -56,14 +56,21 @@ export interface PodLogTailDeps {
   podErrorReason: Ref<string | null>;
   /** The actual fetch (the view's `runPodQuery`). */
   runOnce: () => Promise<void>;
+  /** Orphan a request that may still be awaiting OAP when this polling
+   *  generation is stopped or replaced. */
+  invalidateRun?: () => void;
 }
 
 export function usePodLogTail(deps: PodLogTailDeps) {
   const tailing = ref(false);
   let timer: ReturnType<typeof setInterval> | null = null;
+  let tickGeneration = 0;
+  const ticksInFlight = new Set<number>();
 
   function stopTail(): void {
     tailing.value = false;
+    tickGeneration += 1;
+    deps.invalidateRun?.();
     if (timer !== null) {
       clearInterval(timer);
       timer = null;
@@ -85,18 +92,18 @@ export function usePodLogTail(deps: PodLogTailDeps) {
   // never stack (a slow OAP response can outlast the interval). Marks the
   // pane as queried + clears the prior soft-error before fetching, then
   // resolves; a hard error stops the loop so it doesn't spin on failures.
-  let tickInFlight = false;
   async function tick(): Promise<void> {
-    if (tickInFlight) return;
-    tickInFlight = true;
+    const generation = tickGeneration;
+    if (ticksInFlight.has(generation)) return;
+    ticksInFlight.add(generation);
     deps.hasQueried.value = true;
     deps.errorMsg.value = null;
     deps.podErrorReason.value = null;
     try {
       await deps.runOnce();
-      if (deps.errorMsg.value) stopTail();
+      if (generation === tickGeneration && deps.errorMsg.value) stopTail();
     } finally {
-      tickInFlight = false;
+      ticksInFlight.delete(generation);
     }
   }
 

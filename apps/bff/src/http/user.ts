@@ -57,9 +57,26 @@ function canonicalKey(identity: VerifiedUser & { dn?: string }): string {
   return identity.dn ?? identity.username;
 }
 
+/**
+ * Field maxima on the login body.
+ *
+ * Unbounded, a rejected sign-in carried a megabyte of "username" into the log
+ * line that reports it, so anyone who can reach the login form could write
+ * arbitrarily large records into an operator's log. Validation runs before
+ * every sink, so this one cap bounds the reject log, the break-glass log, the
+ * LDAP search filter and the argon2 verify at once — no truncation at the log
+ * site, which would blind the line whose whole job is to name the account
+ * being attacked.
+ *
+ * 64 covers any real account name or passphrase and stays well inside the
+ * audit-log username filter, which matches the recorded principal exactly.
+ */
+const MAX_USERNAME_CHARS = 64;
+const MAX_PASSWORD_CHARS = 64;
+
 const loginBodySchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
+  username: z.string().min(1).max(MAX_USERNAME_CHARS),
+  password: z.string().min(1).max(MAX_PASSWORD_CHARS),
 });
 
 export interface AuthRouteDeps extends AuthDeps {

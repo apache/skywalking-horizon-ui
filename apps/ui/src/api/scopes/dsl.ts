@@ -157,20 +157,24 @@ export class DslApi {
     return this.bff.request<OalFilesResponse>('GET', '/api/oal/files');
   }
 
-  /** Returns the raw `.oal` text or `null` on 404. */
+  /** Returns the raw `.oal` text or `null` on 404.
+   *
+   *  Goes through `request` like every other read here: a bare `fetch` skipped
+   *  the central 401 handling, so an expired session surfaced as a parse error
+   *  on the page instead of signing the operator out, and a non-JSON proxy
+   *  error was reported as though the body had been understood. */
   async oalFileContent(name: string): Promise<string | null> {
-    const res = await fetch(withBase(`/api/oal/files/${encodeURIComponent(name)}`), {
-      method: 'GET',
-      credentials: 'include',
-      headers: { Accept: 'text/plain' },
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      let parsed: unknown = null;
-      try { parsed = await res.json(); } catch { parsed = await res.text(); }
-      throw new BffApiError(res.status, `oal/files/${name} failed`, parsed);
+    try {
+      return await this.bff.request<string>(
+        'GET',
+        `/api/oal/files/${encodeURIComponent(name)}`,
+        undefined,
+        { Accept: 'text/plain' },
+      );
+    } catch (err) {
+      if (err instanceof BffApiError && err.status === 404) return null;
+      throw err;
     }
-    return res.text();
   }
 
   oalSources(): Promise<OalRulesResponse> {

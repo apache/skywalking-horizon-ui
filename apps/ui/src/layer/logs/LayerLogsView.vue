@@ -44,6 +44,7 @@ import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
 import { useLogTimeRange, TIME_RANGE_PRESETS, CUSTOM_RANGE_SENTINEL } from '@/layer/logs/useLogTimeRange';
+import { MAX_RECORD_RANGE_DAYS, SLOW_RECORD_RANGE_HOURS } from '@/utils/recordTimeRange';
 import { useLogTagConditions } from '@/layer/logs/useLogTagConditions';
 import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
@@ -256,6 +257,8 @@ const {
   isCustomRange,
   startMs: startMsRef,
   endMs: endMsRef,
+  rangeError,
+  rangeWarning,
   windowMinutesEffective,
 } = useLogTimeRange(30);
 
@@ -366,6 +369,7 @@ function runQuery(): void {
   // a click landing inside the resolution window would otherwise fire a read
   // with no service — the whole layer's log stream under this service's title.
   if (!serviceReady.value) return;
+  if (rangeError.value) return;
   page.value = 1;
   hasQueried.value = true;
   applyConditions();
@@ -553,6 +557,14 @@ watch(
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ t(p.label) }}</option>
             <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
           </select>
+          <!-- Refusal and caution share the slot under the control they are
+               about: the error stops the query, the hint only advises. -->
+          <span v-if="rangeError" class="cf-note cf-note--err">
+            {{ t(rangeError, { d: MAX_RECORD_RANGE_DAYS }) }}
+          </span>
+          <span v-else-if="rangeWarning" class="cf-note">
+            {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+          </span>
         </label>
         <label class="cf">
           <span>{{ t('Page size') }}</span>
@@ -910,4 +922,14 @@ watch(
 }
 .tag-x:hover { color: var(--sw-err); }
 
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
+.cf-note--err {
+  color: var(--sw-err);
+}
 </style>

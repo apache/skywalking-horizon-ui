@@ -66,37 +66,62 @@ export function useZipkinAutocomplete(opts: {
       serviceOptions.value = Array.from(new Set(Array.isArray(res) ? res : []));
     } catch { /* noop */ }
   }
+  /** Ticket for the in-flight lookup. Debouncing narrows the race but does not
+   *  close it: two lookups can still be in flight, and the slower one would
+   *  otherwise fill the dropdowns for a service that is no longer typed. */
+  let autocompleteGeneration = 0;
+
   watch(layerKey, () => { if (enabled) void loadServiceOptions(); }, { immediate: true });
 
   const spanNameOptions = ref<string[]>([]);
   const remoteSvcOptions = ref<string[]>([]);
   async function loadAutocomplete(svc: string): Promise<void> {
-    if (!svc) {
-      spanNameOptions.value = [];
-      remoteSvcOptions.value = [];
-      return;
-    }
+    const generation = (autocompleteGeneration += 1);
+    spanNameOptions.value = [];
+    remoteSvcOptions.value = [];
+    if (!svc) return;
     try {
       const sp = await bffClient.zipkin.spans(svc);
+      if (generation !== autocompleteGeneration) return;
       spanNameOptions.value = Array.isArray(sp) ? sp : [];
-    } catch { spanNameOptions.value = []; }
+    } catch {
+      if (generation !== autocompleteGeneration) return;
+      spanNameOptions.value = [];
+    }
     try {
       const rs = await bffClient.zipkin.remoteServices(svc);
+      if (generation !== autocompleteGeneration) return;
       remoteSvcOptions.value = Array.isArray(rs) ? rs : [];
-    } catch { remoteSvcOptions.value = []; }
+    } catch {
+      if (generation !== autocompleteGeneration) return;
+      remoteSvcOptions.value = [];
+    }
   }
   // Debounce so typing doesn't fire on every keystroke. When the
   // service is cleared we also reset the dependent fields — running a
   // query with stale span/remote values against "All services" would
   // otherwise silently filter out everything.
   let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
-  watch(serviceFilter, (v) => {
+  watch(serviceFilter, (v, prev) => {
     if (!enabled) return;
     if (autocompleteTimer) clearTimeout(autocompleteTimer);
+    // Invalidate NOW rather than when the debounce fires: for those 250ms a
+    // lookup for the previous service is still in flight, and it would publish
+    // its spans and remote services under this one.
+    autocompleteGeneration += 1;
     const trimmed = v.trim();
-    if (!trimmed) {
+    // `prev === undefined` is the immediate run at setup, where the filter may
+    // have been seeded from a shared link — clearing there would discard it.
+    const changed = prev !== undefined && trimmed !== String(prev).trim();
+    if (changed) {
+      // The span and remote-service picks belong to the service that was typed
+      // when they were chosen. Going A -> B directly makes them stale just as
+      // surely as clearing the field does, and a query carrying A's span
+      // against B silently matches nothing.
       spanName.value = '';
       remoteServiceName.value = '';
+      spanNameOptions.value = [];
+      remoteSvcOptions.value = [];
     }
     autocompleteTimer = setTimeout(() => { void loadAutocomplete(trimmed); }, 250);
   }, { immediate: true });
@@ -110,11 +135,17 @@ export function useZipkinAutocomplete(opts: {
       annotationKeyOptions.value = Array.isArray(res) ? res : [];
     } catch { /* best-effort */ }
   }
+  /** Ticket for the value lookup: typing a second key while the first is in
+   *  flight must not fill the list with the first key's values. */
+  let annotationValueGeneration = 0;
   async function loadAnnotationValues(key: string): Promise<void> {
     if (!key || key === annotationValueKey.value) return;
+    const generation = (annotationValueGeneration += 1);
     annotationValueKey.value = key;
+    annotationValueOptions.value = [];
     try {
       const res = await bffClient.zipkin.autocompleteValues(key);
+      if (generation !== annotationValueGeneration) return;
       annotationValueOptions.value = Array.isArray(res) ? res : [];
     } catch { /* noop */ }
   }

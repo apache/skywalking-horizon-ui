@@ -29,7 +29,7 @@
  * raw/browser — so the watches can't live here).
  */
 
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
 import { serviceRef } from '@/utils/serviceRef';
@@ -50,6 +50,33 @@ export function useExploreEntity() {
   const instances = ref<Array<{ id: string; name: string }>>([]);
   const endpoints = ref<Array<{ id: string; name: string }>>([]);
   const servicesLoading = ref(false);
+  const instancesLoading = ref(false);
+  const endpointsLoading = ref(false);
+
+  /**
+   * Request tickets, one per cascade stage.
+   *
+   * Plain counters, deliberately not refs: nothing renders them, and a reactive
+   * one would re-run the computeds that read the lists. Each loader claims the
+   * next value and re-checks it after every await; a reply whose ticket has
+   * been superseded publishes nothing and does not clear the current request's
+   * indicator. Same shape the pod-log source already uses.
+   */
+  let servicesRequestGeneration = 0;
+  let instancesRequestGeneration = 0;
+  let endpointsRequestGeneration = 0;
+
+  /** Abandons every in-flight cascade request. Called when the whole picker
+   *  stops being the thing on screen — a source switch, or unmount. */
+  function invalidateEntityRequests(): void {
+    servicesRequestGeneration += 1;
+    instancesRequestGeneration += 1;
+    endpointsRequestGeneration += 1;
+    servicesLoading.value = false;
+    instancesLoading.value = false;
+    endpointsLoading.value = false;
+  }
+  onUnmounted(invalidateEntityRequests);
 
   const pickServiceName = computed(
     () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
@@ -59,53 +86,91 @@ export function useExploreEntity() {
   );
 
   async function loadServices(): Promise<void> {
+    const generation = (servicesRequestGeneration += 1);
+    // A new roster orphans everything downstream of it.
+    instancesRequestGeneration += 1;
+    endpointsRequestGeneration += 1;
+    instancesLoading.value = false;
+    endpointsLoading.value = false;
     services.value = [];
     instances.value = [];
     endpoints.value = [];
     pickServiceId.value = '';
     pickInstanceId.value = '';
     pickEndpointId.value = '';
-    if (!pickLayer.value) return;
+    if (!pickLayer.value) {
+      servicesLoading.value = false;
+      return;
+    }
+    // Captured: `pickLayer` can change under the await, and the request belongs
+    // to the layer it was made for.
+    const layer = pickLayer.value;
     servicesLoading.value = true;
     try {
-      const res = await bffClient.layer.services(pickLayer.value);
+      const res = await bffClient.layer.services(layer);
+      if (generation !== servicesRequestGeneration) return;
       services.value = res.reachable ? res.services : [];
     } catch {
+      if (generation !== servicesRequestGeneration) return;
       services.value = [];
     } finally {
-      servicesLoading.value = false;
+      // Only the current request may clear the indicator; a superseded one
+      // finishing would present the new layer's load as settled.
+      if (generation === servicesRequestGeneration) servicesLoading.value = false;
     }
   }
 
   async function loadInstances(): Promise<void> {
+    const generation = (instancesRequestGeneration += 1);
     instances.value = [];
     pickInstanceId.value = '';
     const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
-    if (!pickLayer.value || !picked) return;
+    const layer = pickLayer.value;
+    if (!layer || !picked) {
+      instancesLoading.value = false;
+      return;
+    }
+    instancesLoading.value = true;
     try {
-      const res = await bffClient.layer.instances(pickLayer.value, picked);
+      const res = await bffClient.layer.instances(layer, picked);
+      if (generation !== instancesRequestGeneration) return;
       instances.value = res.reachable ? res.instances : [];
     } catch {
+      if (generation !== instancesRequestGeneration) return;
       instances.value = [];
+    } finally {
+      if (generation === instancesRequestGeneration) instancesLoading.value = false;
     }
   }
 
   async function loadEndpoints(): Promise<void> {
+    const generation = (endpointsRequestGeneration += 1);
+    // Cleared unconditionally, which this alone did not do: the previous
+    // service's endpoints stayed on screen for the whole round trip, under the
+    // new service's name.
+    endpoints.value = [];
+    pickEndpointId.value = '';
     const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
-    if (!pickLayer.value || !picked) {
-      endpoints.value = [];
+    const layer = pickLayer.value;
+    if (!layer || !picked) {
+      endpointsLoading.value = false;
       return;
     }
+    endpointsLoading.value = true;
     try {
-      const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
+      const res = await bffClient.layer.endpoints(layer, picked, '', 50);
+      if (generation !== endpointsRequestGeneration) return;
       endpoints.value = res.reachable ? res.endpoints : [];
     } catch {
+      if (generation !== endpointsRequestGeneration) return;
       endpoints.value = [];
+    } finally {
+      if (generation === endpointsRequestGeneration) endpointsLoading.value = false;
     }
   }
 
   const serviceOptions = computed(() =>
-    services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
+    services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? t('virtual') : undefined })),
   );
   const instanceOptions = computed(() => [
     { value: '', label: t('All instances') },
@@ -165,6 +230,9 @@ export function useExploreEntity() {
     instances,
     endpoints,
     servicesLoading,
+    instancesLoading,
+    endpointsLoading,
+    invalidateEntityRequests,
     pickServiceName,
     loadServices,
     loadInstances,
