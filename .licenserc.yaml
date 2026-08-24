@@ -58,10 +58,9 @@ header:
     - 'src/types/auto-imports.d.ts'
     - 'src/types/components.d.ts'
     - 'public/**'
-    # LICENSE.tpl / NOTICE.tpl in dist-material/release-docs/ render the
-    # binary tarball's LICENSE / NOTICE (scripts/collect-dist-licenses.mjs).
-    # Their contents ARE the Apache 2.0 license text and the ASF notice
-    # text — an extra license-header comment would bleed into the output.
+    # LICENSE.tpl in dist-material/release-docs/ is the template license-eye
+    # renders the binary tarball's LICENSE from. A license-header comment on it
+    # would bleed straight into that output.
     - 'dist-material/release-docs/**/*.tpl'
 
   comment: on-failure
@@ -72,15 +71,3 @@ dependency:
     - apps/bff/package.json
     - packages/api-client/package.json
     - packages/design-tokens/package.json
-  excludes:
-    - name: '@skywalking-horizon-ui/*' # Self workspace packages
-      recursive: true
-  # Human-asserted licenses for bundled deps whose package.json omits or
-  # mis-declares `license`. This is skywalking-eyes' native unknown-license
-  # mechanism; it is ALSO consumed by scripts/collect-dist-licenses.mjs when
-  # it builds the binary tarball's LICENSE. Each entry MUST be verified
-  # against the package's own LICENSE/COPYING file (reproduced under
-  # dist/licenses/) before being added.
-  licenses:
-    - name: '@pmndrs/pointer-events'
-      license: MIT # ships a verbatim MIT LICENSE file; package.json declares the non-SPDX "SEE LICENSE IN LICENSE"
