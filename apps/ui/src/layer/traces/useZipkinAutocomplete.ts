@@ -66,24 +66,36 @@ export function useZipkinAutocomplete(opts: {
       serviceOptions.value = Array.from(new Set(Array.isArray(res) ? res : []));
     } catch { /* noop */ }
   }
+  /** Ticket for the in-flight lookup. Debouncing narrows the race but does not
+   *  close it: two lookups can still be in flight, and the slower one would
+   *  otherwise fill the dropdowns for a service that is no longer typed. */
+  let autocompleteGeneration = 0;
+
   watch(layerKey, () => { if (enabled) void loadServiceOptions(); }, { immediate: true });
 
   const spanNameOptions = ref<string[]>([]);
   const remoteSvcOptions = ref<string[]>([]);
   async function loadAutocomplete(svc: string): Promise<void> {
-    if (!svc) {
-      spanNameOptions.value = [];
-      remoteSvcOptions.value = [];
-      return;
-    }
+    const generation = (autocompleteGeneration += 1);
+    spanNameOptions.value = [];
+    remoteSvcOptions.value = [];
+    if (!svc) return;
     try {
       const sp = await bffClient.zipkin.spans(svc);
+      if (generation !== autocompleteGeneration) return;
       spanNameOptions.value = Array.isArray(sp) ? sp : [];
-    } catch { spanNameOptions.value = []; }
+    } catch {
+      if (generation !== autocompleteGeneration) return;
+      spanNameOptions.value = [];
+    }
     try {
       const rs = await bffClient.zipkin.remoteServices(svc);
+      if (generation !== autocompleteGeneration) return;
       remoteSvcOptions.value = Array.isArray(rs) ? rs : [];
-    } catch { remoteSvcOptions.value = []; }
+    } catch {
+      if (generation !== autocompleteGeneration) return;
+      remoteSvcOptions.value = [];
+    }
   }
   // Debounce so typing doesn't fire on every keystroke. When the
   // service is cleared we also reset the dependent fields — running a

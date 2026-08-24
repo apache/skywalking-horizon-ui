@@ -97,11 +97,14 @@ export function useEventsWindow(): EventsWindow {
   const customStartInput = ref<string>(toLocalInput(customStart.value));
   const customEndInput = ref<string>(toLocalInput(customEnd.value));
 
+  /** Opens the editor WITHOUT switching the query — the mode moves on Apply,
+   *  so Cancel has something to restore. Same contract as the alarms picker. */
   function openCustom(): void {
-    windowMode.value = 'custom';
     customOpen.value = true;
-    customStartInput.value = toLocalInput(customStart.value);
-    customEndInput.value = toLocalInput(customEnd.value);
+    const seedStart = windowMode.value === 'custom' ? customStart.value : startTime.value;
+    const seedEnd = windowMode.value === 'custom' ? customEnd.value : endTime.value;
+    customStartInput.value = toLocalInput(seedStart);
+    customEndInput.value = toLocalInput(seedEnd);
     customError.value = null;
   }
   function applyCustom(): void {
@@ -119,6 +122,9 @@ export function useEventsWindow(): EventsWindow {
       customError.value = t('Window exceeds {d}d cap', { d: MAX_CUSTOM_MS / 60_000 / 60 / 24 });
       return;
     }
+    // After every validation return, so an invalid draft never switches the
+    // applied window.
+    windowMode.value = 'custom';
     customStart.value = s;
     customEnd.value = e;
     customError.value = null;

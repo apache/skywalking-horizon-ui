@@ -66,6 +66,11 @@ const { selectedId: serviceId } = useSelectedService();
 const service = useSelectedServiceRef(layerKey);
 const instances = useLayerInstances(layerKey, service);
 const selectedInstanceId = ref<string | null>(null);
+/** Request tickets. The clears here were already right; what was missing is
+ *  the re-check after the await, so a slower earlier reply could still land. */
+let tasksRequestGeneration = 0;
+let topologyRequestGeneration = 0;
+
 watch(
   () => instances.instances.value,
   (rows) => {
@@ -90,13 +95,23 @@ watch(
 );
 
 async function refreshTasks(): Promise<void> {
+  const generation = (tasksRequestGeneration += 1);
+  // Orphaning the topology stage also clears its flag: the orphan's `finally`
+  // declines to, so the header would keep saying "loading topology…".
+  topologyRequestGeneration += 1;
+  topologyLoading.value = false;
   tasksError.value = null;
   tasks.value = [];
   currentTask.value = null;
-  if (!service.value) return;
+  if (!service.value) {
+    tasksLoading.value = false;
+    return;
+  }
+  const svc = service.value;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.networkProfile.tasks(layerKey.value, { service: service.value });
+    const resp = await bffClient.networkProfile.tasks(layerKey.value, { service: svc });
+    if (generation !== tasksRequestGeneration) return;
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
@@ -104,9 +119,10 @@ async function refreshTasks(): Promise<void> {
     // list it stays null, so load the live picker view here instead.
     if (!currentTask.value) await loadTopology();
   } catch (e) {
+    if (generation !== tasksRequestGeneration) return;
     tasksError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    tasksLoading.value = false;
+    if (generation === tasksRequestGeneration) tasksLoading.value = false;
   }
 }
 
@@ -121,12 +137,16 @@ const windowMinutes = ref(30);
 watch([currentTask, selectedInstanceId], () => void loadTopology());
 
 async function loadTopology(): Promise<void> {
+  const generation = (topologyRequestGeneration += 1);
   nodes.value = [];
   calls.value = [];
   topologyError.value = null;
   const task = currentTask.value;
   const instanceId = task?.serviceInstanceId ?? selectedInstanceId.value;
-  if (!instanceId) return;
+  if (!instanceId) {
+    topologyLoading.value = false;
+    return;
+  }
   topologyLoading.value = true;
   try {
     let topoOpts: { windowMinutes?: number; startTime?: number; endTime?: number };
@@ -140,13 +160,17 @@ async function loadTopology(): Promise<void> {
       topoOpts = { windowMinutes: windowMinutes.value };
     }
     const resp = await bffClient.networkProfile.topology(instanceId, topoOpts);
+    // Switching pod twice could otherwise leave the first pod's process graph
+    // under the second.
+    if (generation !== topologyRequestGeneration) return;
     if (!resp.reachable && resp.error) topologyError.value = resp.error;
     nodes.value = resp.nodes ?? [];
     calls.value = resp.calls ?? [];
   } catch (e) {
+    if (generation !== topologyRequestGeneration) return;
     topologyError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    topologyLoading.value = false;
+    if (generation === topologyRequestGeneration) topologyLoading.value = false;
   }
 }
 

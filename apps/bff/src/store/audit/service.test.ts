@@ -64,10 +64,15 @@ class FakeStore implements AuditStore {
   park: { promise: Promise<void>; release: () => void } | null = null;
   parkAt: string | null = null;
   closedDuring: string | null = null;
+  /** Fail ONE named phase. The channels write different tables, so a fake that
+   *  can only fail all of them cannot express one channel being down while the
+   *  others keep succeeding. */
+  failAt: string | null = null;
 
   private async pass(phase: string): Promise<void> {
     if (this.closed) throw new AuditStoreError('unreachable');
     if (this.failWith) throw this.failWith;
+    if (this.failAt === phase) throw new AuditStoreError('timeout');
     if (this.park && this.parkAt === phase) {
       const g = this.park;
       this.park = null;
@@ -102,10 +107,14 @@ class FakeStore implements AuditStore {
  *  on the same shutdown. Separate object, as in production. */
 class FakeTokenStore implements TokenUsageStore {
   writes: TokenUsage[][] = [];
+  /** Fails both halves. */
   failWith: AuditStoreError | null = null;
+  /** Fails the WRITE only, so a read can still succeed — the shape that lets a
+   *  page refresh paint a service healthy while its records are being lost. */
+  failWriteWith: AuditStoreError | null = null;
 
   async writeUsage(rows: ReadonlyArray<TokenUsage & StoreStamp>): Promise<void> {
-    if (this.failWith) throw this.failWith;
+    if (this.failWith ?? this.failWriteWith) throw (this.failWith ?? this.failWriteWith);
     this.writes.push(rows.map((r) => ({ ...r })));
   }
   /** The rows written so far, as the real store would hand them back. */
@@ -854,6 +863,103 @@ describe('token usage on the service', () => {
     await ticksFor(svc, 4);
 
     expect((await svc.health()).available).toBe(false);
+  });
+
+  /**
+   * The read and the background flush overlap constantly — the page polls
+   * while the timer writes. Sampling the store and then sampling memory takes
+   * two snapshots at two instants: a flush landing between them either wrote
+   * the use after the store was read and cleared it before memory was sampled
+   * (counted zero), or wrote it before the read without having cleared it yet
+   * (counted twice). Node being single-threaded does not help — both are async
+   * functions interleaving at their `await`s.
+   */
+  it('counts one use exactly once however a flush interleaves', async () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i += 1) {
+      store = new FakeStore();
+      tokenStore = new FakeTokenStore();
+      const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+      svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+      const [{ hours }] = await Promise.all([
+        svc.queryTokenUsage({ from: T - 3_600_000, to: T }),
+        (svc as unknown as { flushTokenUsage(): Promise<void> }).flushTokenUsage(),
+      ]);
+      seen.add(hours[0]?.total ?? -1);
+    }
+
+    expect([...seen], 'one real use reported as something other than 1').toEqual([1]);
+  });
+
+  /**
+   * A read proves the store answers queries. It proves nothing about whether
+   * the writes behind it are landing, and the counts are unwritten either way —
+   * so a page refresh must not be able to paint the service healthy while
+   * records are being lost.
+   */
+  it('stays unavailable when a read succeeds but the write keeps failing', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    tokenStore.failWriteWith = new AuditStoreError('timeout');
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available).toBe(false);
+
+    await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
+
+    expect((await svc.health()).available, 'a successful read cleared a live write fault').toBe(false);
+  });
+
+  /**
+   * One tick flushes statistics and then token usage. Sharing a single fault
+   * flag meant the token write that follows a FAILED statistics write cleared
+   * its fault and reported the service healthy, while statistics were still
+   * being lost — the two channels write different tables, so one succeeding
+   * vouches for nothing about the other.
+   *
+   * Health is read immediately, without another tick: the next tick probes the
+   * store, and a probe legitimately clears faults because it writes.
+   */
+  it('keeps a failed statistics write red when the token write behind it succeeds', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    svc.countTokenUse({ tokenId: 'tok', username: 'ci', at: T });
+
+    // Exactly one aggregate tick: events, then the failing statistics write,
+    // then the token write that used to clear its fault.
+    await ticksFor(svc, 4);
+
+    expect(tokenStore.writes.length, 'the token write did not run after the statistics failure').toBe(1);
+    expect(
+      (await svc.health()).available,
+      'a successful token write cleared a live statistics-write fault',
+    ).toBe(false);
+  });
+
+  /**
+   * The probe writes a rolled-back row into the event and token tables, so it
+   * vouches for those. It only SELECTs from the statistics table — so it must
+   * not clear a statistics fault, which is what reported the service healthy
+   * while every statistic was still failing.
+   */
+  it('does not let the recovery probe clear a statistics-write fault', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    store.failAt = 'writeStat';
+    signIn(svc, T);
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available).toBe(false);
+
+    // Exactly three more ticks: with aggregateEvery = 4, tick 5 finds the
+    // service down and runs the probe, which succeeds, and ticks 6-7 do not
+    // retry statistics. That window is where a probe-cleared fault shows as
+    // green; running further would let the next statistics failure mask it.
+    await ticksFor(svc, 3);
+
+    expect(
+      (await svc.health()).available,
+      'a successful probe cleared a statistics-write fault it never tested',
+    ).toBe(false);
   });
 
   it('records no audit row for a token use — it is not a sign-in', async () => {

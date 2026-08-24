@@ -97,6 +97,10 @@ const DURATION_OPTS = [
   { v: 15, label: '15 min' },
 ];
 
+/** Request ticket: a reply for the service the operator has already navigated
+ *  away from must not publish under the new one. */
+let tasksRequestGeneration = 0;
+
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
   () => {
@@ -107,11 +111,22 @@ watch(
 );
 
 async function refreshTasks(): Promise<void> {
+  const generation = (tasksRequestGeneration += 1);
   tasksError.value = null;
-  if (!service.value) return;
+  // Cleared before the early return, not after it: the previous service's task
+  // list used to stay on screen under the new service's name.
+  tasks.value = [];
+  currentTask.value = null;
+  tree.value = null;
+  if (!service.value) {
+    tasksLoading.value = false;
+    return;
+  }
+  const svc = service.value;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.pprof.tasks(layerKey.value, service.value!);
+    const resp = await bffClient.pprof.tasks(layerKey.value, svc);
+    if (generation !== tasksRequestGeneration) return;
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
@@ -120,9 +135,10 @@ async function refreshTasks(): Promise<void> {
     }
     tree.value = null;
   } catch (e) {
+    if (generation !== tasksRequestGeneration) return;
     tasksError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    tasksLoading.value = false;
+    if (generation === tasksRequestGeneration) tasksLoading.value = false;
   }
 }
 

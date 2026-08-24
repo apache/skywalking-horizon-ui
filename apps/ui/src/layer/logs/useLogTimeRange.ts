@@ -20,8 +20,10 @@
  * topbar picker (see `TIME_RANGE_OPT_OUT` in AppTopbar), so this is the
  * source of truth for which rolling window the log + facet queries scan.
  * Presets cover the common ranges; the `Custom…` sentinel swaps the
- * dropdown for two `datetime-local` inputs (cap is 7 days, enforced
- * server-side too). Mirrors the trace tab's Custom… escape hatch.
+ * dropdown for two `datetime-local` inputs. A range that does not resolve —
+ * half-filled, reversed, or past the 7-day cap — REFUSES the query via
+ * `rangeError` rather than falling back to another window; the BFF clamps the
+ * same 7 days for direct callers. Mirrors the trace tab's Custom… escape hatch.
  *
  * Exposes the query refs the log/facet composables consume:
  *   - `windowMinutesEffective` — preset minutes, or 0 in custom mode.
@@ -30,6 +32,7 @@
  */
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
+import { resolveRecordRange, recordRangeWarning, type RecordRange } from '@/utils/recordTimeRange';
 
 export const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
   { label: 'Last 15 min', minutes: 15 },
@@ -52,8 +55,13 @@ export interface LogTimeRange {
   customStart: Ref<string | null>;
   customEnd: Ref<string | null>;
   isCustomRange: ComputedRef<boolean>;
+  /** Null unless the custom pair VALIDATES — never a half-resolved bound. */
   startMs: ComputedRef<number | null>;
   endMs: ComputedRef<number | null>;
+  /** i18n key of the complaint that stops the query, or null. */
+  rangeError: ComputedRef<string | null>;
+  /** i18n key of a non-blocking caution about the window's size, or null. */
+  rangeWarning: ComputedRef<string | null>;
   windowMinutesEffective: ComputedRef<number>;
 }
 
@@ -77,11 +85,30 @@ export function useLogTimeRange(initialMinutes = 30): LogTimeRange {
     }
   });
 
-  const startMs = computed<number | null>(() =>
-    isCustomRange.value && customStart.value ? new Date(customStart.value).getTime() : null,
-  );
-  const endMs = computed<number | null>(() =>
-    isCustomRange.value && customEnd.value ? new Date(customEnd.value).getTime() : null,
+  /** The complaint that stops the query, as an i18n KEY, or null when the
+   *  range resolves. Only meaningful in custom mode. */
+  const rangeError = computed<string | null>(() => {
+    if (!isCustomRange.value) return null;
+    const resolved = resolveRecordRange(customStart.value, customEnd.value);
+    return typeof resolved === 'string' ? resolved : null;
+  });
+  // Null unless the pair VALIDATES: a half-filled or reversed range used to
+  // yield a bound the caller then queried with, which is how an unusable range
+  // came back as some other window's results.
+  const resolved = computed<RecordRange | null>(() => {
+    if (!isCustomRange.value) return null;
+    const r = resolveRecordRange(customStart.value, customEnd.value);
+    return typeof r === 'string' ? null : r;
+  });
+  const startMs = computed<number | null>(() => resolved.value?.startMs ?? null);
+  const endMs = computed<number | null>(() => resolved.value?.endMs ?? null);
+  // Presets are warned about too — cost follows the span, not how it was picked.
+  const rangeWarning = computed<string | null>(() =>
+    recordRangeWarning(
+      isCustomRange.value
+        ? (resolved.value ? resolved.value.endMs - resolved.value.startMs : null)
+        : windowMinutes.value * 60_000,
+    ),
   );
   const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,
@@ -94,6 +121,8 @@ export function useLogTimeRange(initialMinutes = 30): LogTimeRange {
     isCustomRange,
     startMs,
     endMs,
+    rangeError,
+    rangeWarning,
     windowMinutesEffective,
   };
 }

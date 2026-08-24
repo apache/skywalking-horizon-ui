@@ -71,6 +71,11 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   const newTaskError = ref<string | null>(null);
   const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 
+  /** Request tickets, one per stage: a reply for the service or task the
+   *  operator has already moved off must not publish under the current one. */
+  let tasksRequestGeneration = 0;
+  let schedulesRequestGeneration = 0;
+
   watch(
     () => layerKey.value + '|' + (selectedId.value ?? ''),
     () => void refreshTasks(),
@@ -78,15 +83,24 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   );
 
   async function refreshTasks(): Promise<void> {
+    const generation = (tasksRequestGeneration += 1);
+    // A new task list orphans the schedules hanging off the old one.
+    schedulesRequestGeneration += 1;
     tasksError.value = null;
+    // Cleared for every service change, not only when the service goes away.
+    tasks.value = [];
+    currentTask.value = null;
+    schedules.value = [];
+    analyzeTrees.value = [];
     if (!service.value) {
-      tasks.value = [];
-      currentTask.value = null;
+      tasksLoading.value = false;
       return;
     }
+    const svc = service.value;
     tasksLoading.value = true;
     try {
-      const resp = await bffClient.ebpf.tasks(layerKey.value, service.value!);
+      const resp = await bffClient.ebpf.tasks(layerKey.value, svc);
+      if (generation !== tasksRequestGeneration) return;
       if (!resp.reachable && resp.error) tasksError.value = resp.error;
       tasks.value = resp.tasks ?? [];
       couldProfiling.value = resp.couldProfiling;
@@ -99,25 +113,31 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
         analyzeTrees.value = [];
       }
     } catch (e) {
+      if (generation !== tasksRequestGeneration) return;
       tasksError.value = e instanceof Error ? e.message : String(e);
     } finally {
-      tasksLoading.value = false;
+      if (generation === tasksRequestGeneration) tasksLoading.value = false;
     }
   }
 
   async function pickTask(t: EBPFTask): Promise<void> {
+    const generation = (schedulesRequestGeneration += 1);
     currentTask.value = t;
+    schedules.value = [];
     analyzeTrees.value = [];
     analyzeTip.value = '';
     schedulesError.value = null;
     try {
       const resp = await bffClient.ebpf.schedules(t.taskId);
+      // Rapid task clicks race here.
+      if (generation !== schedulesRequestGeneration) return;
       if (!resp.reachable && resp.error) schedulesError.value = resp.error;
       schedules.value = resp.schedules ?? [];
       resetFiltersForTask();
       // Auto-trigger analyze on task switch (booster-ui behaviour).
       if (schedules.value.length) await runAnalyze();
     } catch (e) {
+      if (generation !== schedulesRequestGeneration) return;
       schedulesError.value = e instanceof Error ? e.message : String(e);
     }
   }

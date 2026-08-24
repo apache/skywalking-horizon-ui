@@ -16,22 +16,46 @@
  */
 
 import { stdin } from 'node:process';
+import { createInterface } from 'node:readline';
 import argon2 from 'argon2';
 
-async function readPassword(): Promise<string> {
+/**
+ * One line from stdin, whether it was typed or piped.
+ *
+ * Reading to end-of-stream instead left the interactive form hanging on ENTER
+ * — a terminal sends no EOF — so the documented `pnpm --filter bff cli:hash`
+ * never returned. readline ends on the newline, and still flushes a partial
+ * final line, so `printf 'pw' | cli:hash` with no trailing newline works too.
+ */
+function readPassword(): Promise<string> {
+  const rl = createInterface({ input: stdin });
   return new Promise((resolve) => {
-    let buf = '';
-    stdin.setEncoding('utf8');
-    stdin.on('data', (chunk) => (buf += chunk));
-    stdin.on('end', () => resolve(buf.replace(/\r?\n$/, '')));
+    // Resolve BEFORE close(): close() emits 'close' synchronously, so the
+    // end-of-stream fallback below would otherwise settle it with '' first and
+    // every invocation would print usage.
+    rl.on('line', (line) => {
+      resolve(line);
+      rl.close();
+    });
+    rl.on('close', () => resolve(''));
   });
 }
+
+/** The login route refuses anything longer, so a hash of it could never be
+ *  signed in with. Refusing here turns a silent lockout into a message. */
+const MAX_PASSWORD_CHARS = 64;
 
 async function main(): Promise<void> {
   const arg = process.argv[2];
   const password = arg ?? (await readPassword());
   if (!password) {
     process.stderr.write('usage: hash <password> | echo <password> | hash\n');
+    process.exit(1);
+  }
+  if (password.length > MAX_PASSWORD_CHARS) {
+    process.stderr.write(
+      `password is ${password.length} characters; sign-in accepts at most ${MAX_PASSWORD_CHARS}\n`,
+    );
     process.exit(1);
   }
   const hash = await argon2.hash(password, { type: argon2.argon2id });
