@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { toEntry, toId, toInet, toNumber, valuesClause, type RawAuditRow } from './rows.js';
-import { CHUNK_ROWS, EVENT_COLUMNS, AGGREGATE_COLUMNS } from './store.js';
+import { CHUNK_ROWS, EVENT_COLUMNS } from './store.js';
 
 describe('bigint handling', () => {
   /**
@@ -28,11 +28,6 @@ describe('bigint handling', () => {
   it('converts a string bigint to a number', () => {
     expect(toNumber('2026082214', 'hour_bucket')).toBe(2026082214);
     expect(toNumber('412', 'count')).toBe(412);
-  });
-
-  it('treats a NULL aggregate as zero rather than NaN', () => {
-    expect(toNumber(null, 'sum')).toBe(0);
-    expect(toNumber(undefined, 'sum')).toBe(0);
   });
 
   it('throws rather than yielding NaN, so a bad value cannot be silently rendered', () => {
@@ -74,7 +69,7 @@ describe('multi-row VALUES', () => {
    *  cannot notice a column being added, which is the only way this budget
    *  ever moves. */
   it('stays inside the bind-parameter cap at the chunk size the store uses', () => {
-    const widest = Math.max(EVENT_COLUMNS.length, AGGREGATE_COLUMNS.length);
+    const widest = EVENT_COLUMNS.length;
     expect(CHUNK_ROWS * widest).toBeLessThan(65535);
   });
 });
@@ -85,24 +80,17 @@ describe('row mapping', () => {
     provider: null, protocol: null, roles: null,
     outcome: 1, reason: null, username: 'alice', mail: null,
     client_ip: null, horizon_ip: null, horizon_node: 'pod-1:abc',
-    hour_bucket: null, count: '1',
   };
 
   it('maps an event row without inventing optional fields', () => {
     const e = toEntry(base);
     expect(e).toEqual({
       id: '42', at: Date.UTC(2026, 7, 22, 14, 30), kind: 'local', outcome: 1,
-      username: 'alice', count: 1, horizonNode: 'pod-1:abc',
+      username: 'alice', horizonNode: 'pod-1:abc',
     });
-    expect('hourBucket' in e).toBe(false);
     expect('reason' in e).toBe(false);
   });
 
-  it('marks an aggregate row by its hour bucket and carries the count', () => {
-    const e = toEntry({ ...base, hour_bucket: '2026082214', count: '412', kind: 'api-token' });
-    expect(e.hourBucket).toBe(2026082214);
-    expect(e.count).toBe(412);
-  });
 
   it('carries a refusal with its reason', () => {
     const e = toEntry({ ...base, outcome: 0, reason: 'no_roles' });

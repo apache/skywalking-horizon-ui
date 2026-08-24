@@ -47,8 +47,6 @@ const KIND_LABELS: Record<string, string> = {
   ldap: 'LDAP',
   'break-glass': 'Break-glass',
   sso: 'Single sign-on',
-  'api-token': 'API token',
-  'oauth-token': 'OAuth token',
 };
 /** The chart draws OIDC and OAuth as separate series, so the row names them
  *  apart too. Rows written before the protocol was stored have none, and fall
@@ -63,26 +61,6 @@ const REASON_LABELS: Record<string, string> = {
   no_roles: 'No roles for this account',
   zero_group_mappings: 'No group mapped to a role',
 };
-
-/** yyyyMMddHH is a UTC label; render it in the reader's zone like every other
- *  time on the page, rather than showing the raw integer. */
-function hourLabel(bucket: number): string {
-  const hour = bucket % 100;
-  const day = Math.floor(bucket / 100) % 100;
-  const month = Math.floor(bucket / 10_000) % 100;
-  const year = Math.floor(bucket / 1_000_000);
-  const d = new Date(Date.UTC(year, month - 1, day, hour));
-  const z = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:00`;
-}
-
-/** A row that summarises a credential-hour rather than recording one sign-in.
- *  Only token use produces these: Horizon mints a token id per request, so
- *  counting them per credential-hour is what keeps the table growing with
- *  people rather than with traffic. */
-function isAggregate(row: AuditEntry): boolean {
-  return row.hourBucket !== undefined;
-}
 
 function when(ms: number): string {
   return timestampLabel(ms);
@@ -107,14 +85,12 @@ function when(ms: number): string {
             <th>{{ t('Login ID') }}</th>
             <th>{{ t('Result') }}</th>
             <th>{{ t('Client address') }}</th>
-            <th class="list__num">{{ t('Uses') }}</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="row in rows" :key="row.id">
             <tr
               class="list__row"
-              :class="{ 'list__row--agg': isAggregate(row) }"
               tabindex="0"
               role="button"
               :aria-expanded="open === row.id"
@@ -122,13 +98,7 @@ function when(ms: number): string {
               @keydown.enter.prevent="open = open === row.id ? null : row.id"
               @keydown.space.prevent="open = open === row.id ? null : row.id"
             >
-              <td class="list__when">
-                <template v-if="isAggregate(row)">
-                  {{ hourLabel(row.hourBucket as number) }}
-                  <span class="list__tag">{{ t('hourly total') }}</span>
-                </template>
-                <template v-else>{{ when(row.at) }}</template>
-              </td>
+              <td class="list__when">{{ when(row.at) }}</td>
               <td>{{ channel(row) }}</td>
               <!-- Only single sign-on has one; every other channel is Horizon
                    itself, which is not a provider worth naming. -->
@@ -142,22 +112,16 @@ function when(ms: number): string {
                   {{ t(REASON_LABELS[row.reason] ?? row.reason) }}
                 </span>
               </td>
-              <!-- Blank on an aggregate row, where it means "not applicable"
-                   rather than "unknown": a credential-hour has no one address. -->
               <td class="list__ip">{{ row.clientIp ?? '—' }}</td>
-              <td class="list__num">{{ isAggregate(row) ? row.count : '' }}</td>
             </tr>
             <tr v-if="open === row.id" class="list__detail">
-              <td colspan="7">
+              <td colspan="6">
                 <dl class="list__dl">
                   <template v-if="row.mail">
                     <dt>{{ t('Verified email') }}</dt><dd>{{ row.mail }}</dd>
                   </template>
                   <template v-if="row.roles">
                     <dt>{{ t('Roles granted') }}</dt><dd>{{ row.roles }}</dd>
-                  </template>
-                  <template v-if="row.hourBucket">
-                    <dt>{{ t('Counted for the hour') }}</dt><dd>{{ hourLabel(row.hourBucket) }}</dd>
                   </template>
                   <dt>{{ t('Recorded by') }}</dt>
                   <dd>{{ row.horizonNode }}<template v-if="row.horizonIp"> ({{ row.horizonIp }})</template></dd>
@@ -200,26 +164,11 @@ function when(ms: number): string {
 .list__row { cursor: pointer; }
 .list__row:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: -2px; }
 .list__row:hover { background: var(--sw-bg-2); }
-/* A summary of an hour, not a sign-in. Marked so the two are never read as
-   the same kind of record: its time is an hour, its Uses is a total, and it
-   deliberately has no client address. */
-.list__row--agg { background: var(--sw-bg-1); }
-.list__row--agg td:first-child { box-shadow: inset 2px 0 0 var(--sw-accent); }
-.list__tag {
-  margin-left: 6px;
-  padding: 0 5px;
-  border: 1px solid var(--sw-line-2);
-  border-radius: 3px;
-  font-size: var(--sw-fs-xs);
-  color: var(--sw-fg-3);
-  white-space: nowrap;
-}
-.list__when, .list__ip, .list__num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.list__when, .list__ip { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .list__who { font-family: var(--sw-mono); color: var(--sw-fg-0); }
 /* A provider id is a configured identifier, not prose — same monospace as the
    other verbatim values, dimmed because most rows have none. */
 .list__provider { font-family: var(--sw-mono); color: var(--sw-fg-2); }
-.list__num { text-align: right; }
 .list__pill {
   display: inline-block;
   padding: 1px 6px;

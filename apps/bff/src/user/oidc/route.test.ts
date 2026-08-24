@@ -78,7 +78,6 @@ function recorder(): { events: Array<Omit<AuditEvent, 'shape'>>; service: AuditS
   const events: Array<Omit<AuditEvent, 'shape'>> = [];
   const service = {
     recordEvent: (e: Omit<AuditEvent, 'shape'>) => void events.push(e),
-    countTokenUse: () => {},
     query: async () => ({ rows: [], pageNum: 1, pageSize: 0, hasNext: false }),
     queryStat: async () => ({ columns: [], overBudget: 0, writeUncertain: 0, tokenLost: 0, horizonNodes: 0 }),
     health: async () => ({}) as never,

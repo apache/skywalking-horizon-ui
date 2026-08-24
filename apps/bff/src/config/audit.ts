@@ -25,6 +25,17 @@
  */
 
 import { z } from 'zod';
+
+/**
+ * Half of Node's timer ceiling, so the two together still fit.
+ *
+ * `setTimeout` stores its delay in a signed 32-bit integer: anything past
+ * 2^31-1 ms overflows, and Node's response is to warn and fire after ONE
+ * millisecond. A timeout set absurdly high would therefore become the
+ * tightest possible one — the exact opposite of what was configured — so the
+ * pair is bounded here, where the value was written.
+ */
+const MAX_TIMEOUT_MS = 1_073_741_823;
 import { isLoopbackHostname } from '../util/loopback.js';
 
 // Login audit — an optional, store-backed record of who signed in. OFF by
@@ -70,8 +81,8 @@ export const auditPostgresSchema = z
      *  runs on a request path — the login path performs no I/O at all. The
      *  audit PAGE's own reads do run inside a request, so `statementTimeoutMs`
      *  is also what stops a slow query holding an operator's page open. */
-    connectionTimeoutMs: z.number().int().positive().default(5000),
-    statementTimeoutMs: z.number().int().positive().default(1000),
+    connectionTimeoutMs: z.number().int().positive().max(MAX_TIMEOUT_MS).default(5000),
+    statementTimeoutMs: z.number().int().positive().max(MAX_TIMEOUT_MS).default(1000),
   })
   .strict()
   .default({});

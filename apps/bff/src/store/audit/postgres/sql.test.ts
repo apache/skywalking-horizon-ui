@@ -34,7 +34,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { SCHEMA_STATEMENTS } from './schema.js';
 import { toNumber, valuesClause } from './rows.js';
-import { EVENT_COLUMNS as EVENT_COLS, AGGREGATE_COLUMNS as AGG_COLS } from './store.js';
+import { EVENT_COLUMNS as EVENT_COLS, SELECT_COLUMNS } from './store.js';
 
 let db: PGlite;
 
@@ -42,7 +42,6 @@ let db: PGlite;
 // is how the suite came to exercise a different statement than the store
 // sends: a column added to the store left this copy behind, silently.
 const EVENT_COLUMNS = EVENT_COLS.join(',');
-const AGGREGATE_COLUMNS = AGG_COLS.join(',');
 
 beforeAll(async () => {
   db = new PGlite();
@@ -68,12 +67,13 @@ describe('the schema', () => {
     for (const s of SCHEMA_STATEMENTS) await expect(db.query(s)).resolves.toBeDefined();
   });
 
-  it('creates the indexes the list and the aggregate upsert depend on', async () => {
+  it('creates the indexes the list depends on', async () => {
     const r = await db.query<{ indexname: string }>(
       `SELECT indexname FROM pg_indexes WHERE tablename = 'horizon_audit'`,
     );
     const names = r.rows.map((x) => x.indexname);
-    expect(names).toContain('horizon_audit_bucket_idx');
+    expect(names).toContain('horizon_audit_at_idx');
+    expect(names).toContain('horizon_audit_username_idx');
   });
 });
 
@@ -97,61 +97,13 @@ describe('writing sign-in rows', () => {
   });
 });
 
-describe('writing token aggregates', () => {
-  /**
-   * The statement this whole file exists for. Written as
-   * `INSERT ... SELECT ... FROM (VALUES ...)` it fails with 42804 on every
-   * call, because untyped parameters in a VALUES used as a FROM item resolve
-   * to `text` and the target column types are not visible through the
-   * sub-SELECT. A plain multi-row VALUES infers them from the table.
-   */
-  const upsert =
-    `INSERT INTO horizon_audit (${AGGREGATE_COLUMNS}) VALUES ${valuesClause(1, AGG_COLS.length)}` +
-    ` ON CONFLICT (hour_bucket, kind, username, horizon_node)` +
-    ` WHERE hour_bucket IS NOT NULL` +
-    ` DO UPDATE SET count = EXCLUDED.count, at = EXCLUDED.at`;
-
-  it('inserts an aggregate row', async () => {
-    await db.query(upsert, [
-      new Date('2026-08-22T14:00:00Z'), 'api-token', 'ab12cd', null, 'pod-1:aaa', 2026082214, 5, 1,
-    ]);
-    const r = await db.query<{ count: string }>(
-      `SELECT count FROM horizon_audit WHERE username = 'ab12cd'`,
-    );
-    expect(Number(r.rows[0].count)).toBe(5);
-  });
-
-  /** Cumulative counts overwrite, so a retry after a commit-then-timeout
-   *  writes the same number rather than doubling it. */
-  it('overwrites the same credential-hour rather than adding a row', async () => {
-    await db.query(upsert, [
-      new Date('2026-08-22T14:00:00Z'), 'api-token', 'ab12cd', null, 'pod-1:aaa', 2026082214, 9, 1,
-    ]);
-    const r = await db.query<{ n: number; count: string }>(
-      `SELECT count(*)::int AS n, max(count) AS count FROM horizon_audit WHERE username = 'ab12cd'`,
-    );
-    expect(r.rows[0].n).toBe(1);
-    expect(Number(r.rows[0].count)).toBe(9);
-  });
-
-  /** A different process is a different row: replicas each hold their own
-   *  cumulative count and must never collide on one. */
-  it('keeps a second node separate', async () => {
-    await db.query(upsert, [
-      new Date('2026-08-22T14:00:00Z'), 'api-token', 'ab12cd', null, 'pod-2:bbb', 2026082214, 3, 1,
-    ]);
-    const r = await db.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM horizon_audit WHERE username = 'ab12cd'`,
-    );
-    expect(r.rows[0].n).toBe(2);
-  });
-});
-
 describe('reading', () => {
   it('runs the list query with every filter at once', async () => {
+    // The SHIPPED projection, not a copy of it. Retyping it is how this suite
+    // came to assert a statement the store does not send: the hand-written
+    // list had already lost `protocol`.
     const sql =
-      `SELECT id, at, kind, provider, outcome, reason, username, mail, roles, host(client_ip) AS client_ip, host(horizon_ip) AS horizon_ip,
-              horizon_node, hour_bucket, count
+      `SELECT ${SELECT_COLUMNS}
          FROM horizon_audit
         WHERE at >= $1 AND at < $2 AND kind = ANY($3) AND username = $4
         ORDER BY at DESC, id DESC LIMIT $5`;
@@ -179,24 +131,15 @@ describe('reading', () => {
   });
 
   it('runs the statistics aggregation', async () => {
-    await db.query(
-      `INSERT INTO horizon_audit_stat
+    const insert = `INSERT INTO horizon_audit_stat
          (hour_bucket, horizon_node, login_local, login_ldap,
-          login_oidc, login_oauth, login_token, rejected, over_budget)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [2026082214, 'pod-1:aaa', 3, 0, 1, 0, 12, 1, 0],
-    );
-    await db.query(
-      `INSERT INTO horizon_audit_stat
-         (hour_bucket, horizon_node, login_local, login_ldap,
-          login_oidc, login_oauth, login_token, rejected, over_budget)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [2026082214, 'pod-2:bbb', 2, 0, 0, 0, 0, 0, 0],
-    );
+          login_oidc, login_oauth, rejected, over_budget)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
+    await db.query(insert, [2026082214, 'pod-1:aaa', 3, 0, 1, 0, 1, 0]);
+    await db.query(insert, [2026082214, 'pod-2:bbb', 2, 0, 0, 0, 0, 0]);
     const r = await db.query<Record<string, unknown>>(
-      `SELECT hour_bucket,
-              SUM(login_local) AS login_local,
-              SUM(login_token) AS login_token,
+      `SELECT SUM(login_local) AS login_local,
+              SUM(login_oidc)  AS login_oidc,
               SUM(rejected)    AS rejected,
               string_agg(DISTINCT split_part(horizon_node, ':', 1), ',') AS nodes
          FROM horizon_audit_stat
@@ -208,7 +151,7 @@ describe('reading', () => {
     // Delta rows SUM rather than overwrite, and two pods that share a host
     // name would still each contribute a row.
     expect(Number(r.rows[0].login_local)).toBe(5);
-    expect(Number(r.rows[0].login_token)).toBe(12);
+    expect(Number(r.rows[0].login_oidc)).toBe(1);
     expect(String(r.rows[0].nodes).split(',').sort()).toEqual(['pod-1', 'pod-2']);
   });
 
@@ -224,13 +167,17 @@ describe('reading', () => {
    * on anything else.
    */
   it('hands back bigint columns in a form the row mapper accepts either way', async () => {
-    const r = await db.query<{ hour_bucket: unknown; id: unknown }>(
-      `SELECT id, hour_bucket FROM horizon_audit WHERE hour_bucket IS NOT NULL LIMIT 1`,
+    // `horizon_audit.id` and `horizon_audit_stat.hour_bucket` are the two
+    // bigints the mapper reads back.
+    const r = await db.query<{ id: unknown }>('SELECT id FROM horizon_audit LIMIT 1');
+    expect(['string', 'number']).toContain(typeof r.rows[0].id);
+    const h = await db.query<{ hour_bucket: unknown }>(
+      'SELECT hour_bucket FROM horizon_audit_stat LIMIT 1',
     );
-    for (const v of [r.rows[0].hour_bucket, r.rows[0].id]) {
-      expect(['string', 'number']).toContain(typeof v);
+    if (h.rows.length > 0) {
+      expect(['string', 'number']).toContain(typeof h.rows[0].hour_bucket);
+      expect(toNumber(h.rows[0].hour_bucket, 'hour_bucket')).toBeGreaterThan(0);
     }
-    expect(toNumber(r.rows[0].hour_bucket, 'hour_bucket')).toBe(2026082214);
   });
 });
 
@@ -247,41 +194,18 @@ describe('retention', () => {
     const left = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM horizon_audit');
     expect(left.rows[0].n).toBe(0);
   });
-});
 
-/**
- * The probe used to match on an index NAME alone. `ON CONFLICT` infers its
- * target from the index's properties, so a plain or full index carrying the
- * right name passes a name check and then fails every upsert with 42P10 —
- * and `CREATE INDEX IF NOT EXISTS` will not replace it.
- */
-describe('the aggregate conflict index', () => {
-  const probeSql = `SELECT count(*)::int AS n
-       FROM pg_index i
-       JOIN pg_class c ON c.oid = i.indexrelid
-      WHERE i.indrelid = to_regclass($1)
-        AND c.relname = $2
-        AND i.indisunique
-        AND i.indpred IS NOT NULL`;
-
-  it('recognises the shipped index', async () => {
-    const r = await db.query<{ n: number }>(probeSql, ['horizon_audit', 'horizon_audit_bucket_idx']);
-    expect(r.rows[0].n).toBe(1);
-  });
-
-  it('rejects a same-named index that is not unique and not partial', async () => {
-    await db.exec(`
-      CREATE TABLE decoy (hour_bucket bigint, kind text, username text, horizon_node text);
-      CREATE INDEX horizon_audit_bucket_idx_decoy ON decoy (hour_bucket);
-    `);
-    const r = await db.query<{ n: number }>(probeSql, ['decoy', 'horizon_audit_bucket_idx_decoy']);
-    // Right name, wrong properties — the upsert would fail 42P10.
-    expect(r.rows[0].n).toBe(0);
-  });
-
-  it('rejects a unique index that is not partial', async () => {
-    await db.exec(`CREATE UNIQUE INDEX decoy_full_idx ON decoy (hour_bucket, kind, username, horizon_node)`);
-    const r = await db.query<{ n: number }>(probeSql, ['decoy', 'decoy_full_idx']);
-    expect(r.rows[0].n).toBe(0);
+  // Token usage is a fourth thing the sweep has to reach. It shipped without
+  // one and grew forever: the table is hour-keyed and nothing else prunes it.
+  it('expires token usage on the same retention as the audit', async () => {
+    await db.query(
+      `INSERT INTO horizon_token_usage (hour_bucket, token_id, username, count, horizon_node)
+       VALUES (2026010100,'old','sre',5,'n1'), (2027060100,'fresh','sre',9,'n1')`,
+    );
+    await db.query('DELETE FROM horizon_token_usage WHERE hour_bucket < $1', [2027010100]);
+    const left = await db.query<{ token_id: string }>(
+      'SELECT token_id FROM horizon_token_usage ORDER BY token_id',
+    );
+    expect(left.rows.map((r) => r.token_id)).toEqual(['fresh']);
   });
 });

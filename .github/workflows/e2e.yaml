@@ -60,8 +60,9 @@
 #             meters, through to the metric its output step materialised.
 #             Also the LOGIN AUDIT, which is why this case runs a Postgres:
 #             the sign-in the suite performs to reach anything is recorded
-#             and read back on the audit page, API-token use collapses into
-#             one aggregated row, and a refused bearer leaves none
+#             and read back on the audit page, a valid API token is counted
+#             on the Token usage tab without becoming a sign-in, and a
+#             refused bearer leaves nothing at all
 #             components: LayerWidgetTile, TimeChart, TopList, RecordList,
 #             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
 #             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
@@ -74,7 +75,7 @@
 #             AlarmsWidget, SectionBreak, AppShell, DebugView,
 #             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
 #             live debug), DebugMal (MAL live debug), AuditView,
-#             AuditStatBlock, AuditList
+#             AuditStatBlock, AuditList, TokenUsageList
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE
 #             tests: the trace page on a non-BanyanDB backend — query-API

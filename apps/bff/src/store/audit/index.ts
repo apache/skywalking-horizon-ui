@@ -79,8 +79,12 @@ export function createAuditService({ audit }: AuditSetup): AuditService {
     },
     'audit: recording sign-ins',
   );
+  const store = new PostgresAuditStore(audit.postgres);
   return new BufferedAuditService({
-    store: new PostgresAuditStore(audit.postgres),
+    store,
+    // The token-usage statistic shares this store's pool — a separate
+    // contract, not a separate connection.
+    tokenStore: store.tokenUsage(),
     config: audit,
   });
 }

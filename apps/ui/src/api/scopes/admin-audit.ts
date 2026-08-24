@@ -17,7 +17,7 @@
 
 import type { BffClient } from '../client';
 
-export type AuditKind = 'local' | 'ldap' | 'break-glass' | 'sso' | 'api-token' | 'oauth-token';
+export type AuditKind = 'local' | 'ldap' | 'break-glass' | 'sso';
 export type AuditReason = 'no_roles' | 'zero_group_mappings';
 export type AuditStatWindow = 2 | 6 | 12;
 
@@ -27,8 +27,8 @@ export interface AuditEntry {
   kind: AuditKind;
   outcome: 0 | 1;
   reason?: AuditReason;
-  /** The verified principal. A login name, a verified email, or a token id —
-   *  `kind` says how to read it. Never an unverified attempt. */
+  /** The verified principal — a login name, or a verified email on the SSO
+   *  path. Never an unverified attempt. */
   username: string;
   mail?: string;
   provider?: string;
@@ -41,11 +41,6 @@ export interface AuditEntry {
   clientIp?: string;
   horizonNode: string;
   horizonIp?: string;
-  /** Present only on an aggregate row — a credential-hour rather than a
-   *  single sign-in. */
-  hourBucket?: number;
-  /** 1 on a sign-in row; the accumulated uses on an aggregate. */
-  count: number;
 }
 
 export interface AuditPage {
@@ -66,7 +61,6 @@ export interface AuditLoginCounts {
   ldap: number;
   oidc: number;
   oauth: number;
-  token: number;
 }
 
 export interface AuditStatColumn {
@@ -98,6 +92,45 @@ export interface AuditHealth {
   overBudgetThisHour: number;
 }
 
+/**
+ * One credential's hour, merged across every Horizon that served it.
+ *
+ * Carries no node. The stored rows are per node — that is what keeps replicas
+ * from overwriting each other — but they are summed before they leave the
+ * server, so a row here belongs to the deployment and naming one process for
+ * it would be picking a winner arbitrarily.
+ */
+export interface TokenUsageCredential {
+  hourBucket: number;
+  /** The hour's start, epoch ms. */
+  at: number;
+  tokenId: string;
+  username: string;
+  count: number;
+}
+
+/** One group per hour, so the span is capped at twelve. */
+export const MAX_TOKEN_USAGE_HOURS = 12;
+export const DEFAULT_TOKEN_USAGE_HOURS = 6;
+
+/** One hour of the window. */
+export interface TokenUsageHour {
+  hourBucket: number;
+  at: number;
+  /** Every use in the hour, across ALL credentials — not just the listed ones. */
+  total: number;
+  /** Distinct credentials used. Greater than `top.length` means the list is a
+   *  sample of the busiest, not the whole hour. */
+  credentials: number;
+  top: TokenUsageCredential[];
+}
+
+export interface TokenUsageResult {
+  hours: TokenUsageHour[];
+  /** The bounds actually covered, snapped out to whole hour groups. Not always
+   *  the bounds that were asked for, so the picker shows these back. */
+  range: { from: number; to: number };
+}
 
 /** Time range, how someone signed in, and who. Nothing else — the page is
  *  read, not queried. */
@@ -125,6 +158,18 @@ export class AdminAuditApi {
     }
     const qs = params.toString();
     return this.bff.request<AuditPage>('GET', `/api/admin/audit${qs ? `?${qs}` : ''}`);
+  }
+
+  /**
+   * Token usage — the separate statistic, one group per hour.
+   *
+   * A RANGE rather than a page: presenting a token is not a login, and the
+   * question is which hours were busy and who made them busy.
+   */
+  tokenUsage(range: { from: number; to: number }): Promise<TokenUsageResult> {
+    return this.bff.request<TokenUsageResult>(
+      'GET', `/api/admin/token-usage?from=${range.from}&to=${range.to}`,
+    );
   }
 
   stat(window: AuditStatWindow): Promise<AuditStatResult> {

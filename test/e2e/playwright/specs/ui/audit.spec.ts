@@ -16,20 +16,20 @@
  */
 
 import { test, expect, request as playwrightRequest } from '@playwright/test';
-import { E2E_TOKEN, E2E_TOKEN_ID, E2E_USER } from '../fixture.js';
+import { E2E_USER, E2E_TOKEN, E2E_TOKEN_ID } from '../fixture.js';
 
 /**
- * The login audit log, end to end: a real sign-in and a real token use become
- * rows an operator can read on the page.
+ * The login audit log, end to end: a real sign-in becomes a row an operator can
+ * read, and a real token use becomes a count on the tab beside it.
  *
  * The sign-in this asserts is not staged here — it is the one `auth.setup.ts`
  * performs through the real login form before any project runs. That is the
  * whole point: unit tests can prove the service records what it is handed,
  * and only this can prove the login path hands it anything.
  *
- * The core case compresses the flush intervals (2s events, 4s aggregates)
- * from the shipped 15s/60s, so the polls below are seconds rather than
- * minutes. What is being tested is that a row ARRIVES, not the timer.
+ * The core case compresses the flush intervals (2s events, 4s statistics and
+ * token usage) from the shipped 15s/60s, so the polls below are seconds rather
+ * than minutes. What is being tested is that a row ARRIVES, not the timer.
  */
 
 const AUDIT_URL = '/admin/audit';
@@ -91,6 +91,33 @@ async function reloadUntil(
     .toBeGreaterThan(0);
 }
 
+/**
+ * The Token usage tab's own poll.
+ *
+ * `reloadUntil` cannot serve it: a reload lands on the Login tab, and the
+ * heading it waits for exists only there. This re-opens the tab on every
+ * attempt and returns the credential's count, so the caller asserts a NUMBER
+ * rather than the presence of a row that might read zero.
+ */
+async function tokenUsesAfterReload(
+  page: import('@playwright/test').Page,
+  tokenId: string,
+): Promise<number> {
+  let uses = 0;
+  await expect
+    .poll(async () => {
+      await page.goto(AUDIT_URL);
+      await page.getByRole('tab', { name: /token usage/i }).click();
+      await expect(page.getByRole('heading', { name: /^token usage$/i })).toBeVisible();
+      const row = page.locator('tbody tr', { hasText: tokenId }).first();
+      if ((await row.count()) === 0) return 0;
+      uses = Number((await row.locator('td').nth(1).innerText()).trim());
+      return uses;
+    }, { timeout: 60_000, message: `waiting for ${tokenId}'s uses to reach the Token usage tab` })
+    .toBeGreaterThan(0);
+  return uses;
+}
+
 test.describe('login audit', () => {
   test('records the sign-in that got us here', async ({ page }) => {
     await page.goto(AUDIT_URL);
@@ -117,45 +144,31 @@ test.describe('login audit', () => {
     await expect(page.getByText(/no sign-ins recorded in this window/i)).toHaveCount(0);
   });
 
-  /**
-   * Token use is COUNTED, not written per request: many uses collapse into one
-   * cumulative row per credential per hour. Nothing else in the suite exercises
-   * that path, and it is the one the store's upsert serves — a statement that
-   * was invalid SQL for an entire development phase while every unit test
-   * passed.
-   */
-  test('counts API-token use into one aggregated row', async ({ page, baseURL }) => {
-    // A context with NO storage state, so the token is the only credential
-    // presented. The shared `request` fixture carries the signed-in session
-    // cookie, which would satisfy the route by itself and prove nothing.
-    //
-    // And an AUTHENTICATED route: `/api/health` is public, so it never reaches
-    // the middleware that resolves a bearer, and no use would be counted.
+  test('counts token use on its own tab, and never as a sign-in', async ({ page, baseURL }) => {
+    // A VALID bearer, unlike the refusal test below. Presenting one is not a
+    // sign-in, so this must produce no audit row and a count instead — the
+    // boundary the two tabs exist to draw.
     const api = await anonymousApi(baseURL);
-    const uses = 4;
-    for (let i = 0; i < uses; i += 1) {
-      const res = await api.get('/api/menu', {
-        headers: { Authorization: `Bearer ${E2E_TOKEN}` },
-      });
+    const USES = 3;
+    for (let i = 0; i < USES; i += 1) {
+      const res = await api.get('/api/menu', { headers: { Authorization: `Bearer ${E2E_TOKEN}` } });
       expect(
         res.status(),
-        `the fixture token must be accepted on an authenticated route; body: ${(await res.text()).slice(0, 200)}`,
+        `the fixture token must resolve — a non-200 means the mounted tokens file did not reach Horizon; body: ${(await res.text()).slice(0, 200)}`,
       ).toBe(200);
     }
     await api.dispose();
 
     await page.goto(AUDIT_URL);
     await expectRecording(page);
-    // The token is recorded by its ID — the credential presented — never by
-    // the user it names.
-    await reloadUntil(page, `tbody tr:has-text("${E2E_TOKEN_ID}")`, 'the token aggregate');
-    const row = page.locator('tbody tr', { hasText: E2E_TOKEN_ID }).first();
 
-    // The count column proves aggregation rather than one row per request:
-    // `uses` requests must appear as a single row carrying a number, and the
-    // list must not have grown by `uses` rows.
-    await expect(row).toContainText(new RegExp(`\\b[${uses}-9]\\b`));
-    await expect(page.locator('tbody tr', { hasText: E2E_TOKEN_ID })).toHaveCount(1);
+    // It is NOT a sign-in: no row on the Login tab names the token or its user.
+    await expect(page.locator('tbody tr', { hasText: E2E_TOKEN_ID })).toHaveCount(0);
+
+    // Assert the COUNT, not merely the row: a tab rendering the id with a zero
+    // beside it would pass a presence check while proving nothing arrived.
+    // At least USES, never exactly — the suite may drive the token again.
+    expect(await tokenUsesAfterReload(page, E2E_TOKEN_ID)).toBeGreaterThanOrEqual(USES);
   });
 
   test('does not record a refused credential', async ({ page, baseURL }) => {

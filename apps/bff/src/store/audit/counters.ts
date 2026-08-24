@@ -16,8 +16,8 @@
  */
 
 /**
- * The hour-scoped accounting behind the audit log: the write budget, the token
- * usage buckets, and the statistics deltas.
+ * The hour-scoped accounting behind the audit log: the write budget and the
+ * statistics deltas.
  *
  * Pure and synchronous — no timers, no store, no clock of its own (every entry
  * point takes `at`). That is deliberate: this is where all the arithmetic that
@@ -26,21 +26,15 @@
  */
 
 import type {
-  AuditAggregate,
   AuditKind,
   AuditLoginCounts,
   AuditStat,
-  TokenUse,
 } from './types.js';
 
 /** Hour buckets retained in memory. Eviction is oldest-first, so a sustained
  *  outage degrades to "recent hours are right, older ones were dropped"
  *  rather than to an OOM. */
 export const MAX_HOUR_BUCKETS = 3;
-/** Total token buckets. Past this, NEW keys are refused and existing ones keep
- *  counting — losing a new principal's first use beats losing everyone's. */
-export const MAX_ENTRIES = 10_000;
-export const MAX_ENTRY_AGE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * `yyyyMMddHH` in **UTC** — SkyWalking's own time-bucket shape, so this table
@@ -70,21 +64,8 @@ export function hourBucketStart(bucket: number): number {
   return Date.UTC(year, month - 1, day, hour);
 }
 
-interface Bucket {
-  kind: 'api-token' | 'oauth-token';
-  username: string;
-  hourBucket: number;
-  /** Running total since this process started counting this key. NEVER reset
-   *  by a flush — that is what makes a retry idempotent. */
-  count: number;
-  /** `count` as of the last flush that committed. The gap between the two is
-   *  what an eviction actually loses. */
-  flushed: number;
-  lastAt: number;
-}
-
 function emptyLogin(): AuditLoginCounts {
-  return { local: 0, ldap: 0, oidc: 0, oauth: 0, token: 0 };
+  return { local: 0, ldap: 0, oidc: 0, oauth: 0 };
 }
 
 interface StatAccum {
@@ -101,7 +82,7 @@ function isEmpty(s: StatAccum): boolean {
   const l = s.login;
   return (
     l.local === 0 && l.ldap === 0 && l.oidc === 0 && l.oauth === 0 &&
-    l.token === 0 && s.rejected === 0 && s.overBudget === 0
+    s.rejected === 0 && s.overBudget === 0
   );
 }
 
@@ -110,13 +91,6 @@ export interface CountersOptions {
 }
 
 export class AuditCounters {
-  private readonly buckets = new Map<string, Bucket>();
-  /** Hours present in `buckets`, maintained incrementally so the hot path can
-   *  ask "is this hour new?" without scanning. */
-  private readonly hours = new Set<number>();
-  /** The hour a cap-triggered eviction was last attempted in, so a
-   *  permanently full map does not rescan on every refused key. */
-  private capEvictHour = 0;
   private readonly stats = new Map<number, StatAccum>();
 
   /** The hour the budget below applies to. */
@@ -134,10 +108,6 @@ export class AuditCounters {
   private unconfirmedSinceStart = 0;
 
   constructor(private readonly opts: CountersOptions) {}
-
-  get bufferedEntries(): number {
-    return this.buckets.size;
-  }
 
   get unconfirmed(): number {
     return this.unconfirmedSinceStart;
@@ -162,13 +132,7 @@ export class AuditCounters {
    * Reserve one row against this hour's budget.
    *
    * The budget counts ROWS THIS NODE ADDS TO THE TABLE, because that is the
-   * only thing it protects. An event row costs 1; a token key first seen this
-   * hour costs 1 (the row it will create); re-flushing a key already counted
-   * costs 0, since the upsert updates a row that is already paid for.
-   *
-   * Charging per write instead would spend the budget on rows that already
-   * exist — at a 60s flush that is 60 writes per principal per hour, and ~17
-   * active principals would exhaust the default 1000 on a healthy system.
+   * only thing it protects: one per sign-in recorded.
    */
   private reserveRow(at: number, principal: string): boolean {
     // FORWARD only. A bare inequality would let one late-arriving row from a
@@ -274,102 +238,12 @@ export class AuditCounters {
       // directory outage left as the only way in. The row records
       // `break-glass`; the chart counts it where it belongs.
       case 'break-glass': s.login.local += 1; break;
-      case 'api-token': case 'oauth-token': s.login.token += 1; break;
       // One `kind`, two series: verifying a signed ID token and reading an
       // address from a userinfo call are different assurances, so the caller
       // passes the protocol rather than leaving `sso` uncounted.
       case 'sso': if (protocol === 'oauth2') s.login.oauth += 1; else s.login.oidc += 1; break;
     }
     return true;
-  }
-
-  /** Count one accepted token use. Refused tokens never reach here. */
-  countTokenUse(use: TokenUse): void {
-    const hourBucket = hourBucketOf(use.at);
-    const key = `${hourBucket}|${use.kind}|${use.username}`;
-    const existing = this.buckets.get(key);
-    if (existing) {
-      existing.count += 1;
-      existing.lastAt = use.at;
-      this.stat(hourBucket).login.token += 1;
-      return;
-    }
-    // Reclaim BEFORE testing the cap — evicting only after a successful
-    // insert wedges the map permanently, because at the cap the insert never
-    // happens and the eviction that would free space never runs.
-    //
-    // But NOT on every use. `countTokenUse` runs on every authenticated
-    // request, and a scan of the whole map here makes that O(map): filling
-    // 10 000 keys becomes 50M comparisons, which is a real cost on a busy
-    // node and not merely a slow test. Eviction can only ever free something
-    // when a new HOUR appears or when the map is actually full, so those are
-    // the only two triggers — and the second is attempted once per hour, or a
-    // permanently full map would scan on every refused key.
-    const newHour = !this.hours.has(hourBucket);
-    const atCap = this.buckets.size >= MAX_ENTRIES;
-    if (newHour || (atCap && this.capEvictHour !== hourBucket)) {
-      if (atCap) this.capEvictHour = hourBucket;
-      this.evictBuckets(use.at, hourBucket);
-    }
-    if (this.buckets.size >= MAX_ENTRIES) {
-      // Refused for MEMORY, so it costs no budget — the row it would have
-      // created will never exist. Reserving first would let token churn eat
-      // the sign-in budget while producing nothing.
-      this.unconfirmedSinceStart += 1;
-      return;
-    }
-    // A new key is a new row, so it spends one. A key rejected on budget never
-    // reaches the map, so `over_budget` and `token_lost` cannot both count it.
-    if (!this.reserveRow(use.at, use.username)) return;
-    this.buckets.set(key, {
-      kind: use.kind,
-      username: use.username,
-      hourBucket,
-      count: 1,
-      flushed: 0,
-      lastAt: use.at,
-    });
-    this.hours.add(hourBucket);
-    this.stat(hourBucket).login.token += 1;
-  }
-
-  /** Buckets with uses not yet written. A bucket whose `count` equals its
-   *  `flushed` has nothing to say and is skipped rather than re-upserted. */
-  pendingAggregates(): Array<Omit<AuditAggregate, 'shape'> & { key: string }> {
-    const out: Array<Omit<AuditAggregate, 'shape'> & { key: string }> = [];
-    for (const [key, b] of this.buckets) {
-      if (b.count === b.flushed) continue;
-      out.push({
-        key,
-        kind: b.kind,
-        username: b.username,
-        hourBucket: b.hourBucket,
-        // The bucket start, not the last use: an aggregate names an hour.
-        at: hourBucketStart(b.hourBucket),
-        count: b.count,
-      });
-    }
-    return out;
-  }
-
-  /**
-   * Record that a flush committed, at the counts that were ACTUALLY WRITTEN.
-   *
-   * Re-reading `b.count` here instead would silently lose every use that
-   * arrived during the write: `pendingAggregates` freezes the count by value,
-   * the store round trip yields the event loop, and `countTokenUse` keeps
-   * incrementing. Marking the live total flushed would tell the bucket that
-   * uses it never sent are safely stored — and at an hour boundary the key is
-   * never revisited, so the loss is permanent and recurs on the last flush of
-   * every hour.
-   *
-   * `Math.max` because an out-of-order retry must never move `flushed` back.
-   */
-  markFlushed(written: ReadonlyArray<{ key: string; count: number }>): void {
-    for (const { key, count } of written) {
-      const b = this.buckets.get(key);
-      if (b) b.flushed = Math.max(b.flushed, count);
-    }
   }
 
   /** Statistics deltas ready to append, and the accumulators are reset — stat
@@ -400,7 +274,6 @@ export class AuditCounters {
       s.login.ldap += st.login.ldap;
       s.login.oidc += st.login.oidc;
       s.login.oauth += st.login.oauth;
-      s.login.token += st.login.token;
       s.rejected += st.rejected;
       s.overBudget += st.overBudget;
     }
@@ -411,40 +284,6 @@ export class AuditCounters {
    *  asked for, and this one is diagnostic. */
   countWriteUncertain(rows: number, _at: number): void {
     this.unconfirmedSinceStart += rows;
-  }
-
-  /**
-   * Age and count bounds.
-   *
-   * EVICTION IS NOT LOSS. Counts are cumulative and a flush does not clear
-   * them, so a bucket whose running total was last written at 412 and is
-   * evicted at 412 lost nothing. Reporting every routine hour-rollover as a
-   * drop would put a permanently climbing number in front of an operator
-   * whose system is working perfectly. Only `count - flushed` is at risk, and
-   * even that is UNCONFIRMED rather than lost — see `unconfirmed`.
-   */
-  private evictBuckets(now: number, incoming: number): void {
-    // `incoming` is about to be inserted, so it counts toward the retained
-    // hours and is never itself a candidate — eviction runs BEFORE the insert
-    // (so a full map can recover), which would otherwise let the map hold one
-    // hour more than the bound.
-    const hours = [...new Set([...this.buckets.values()].map((b) => b.hourBucket).concat(incoming))]
-      .sort((a, b) => a - b);
-    const doomed = new Set(hours.slice(0, Math.max(0, hours.length - MAX_HOUR_BUCKETS)));
-    doomed.delete(incoming);
-    for (const [key, b] of this.buckets) {
-      const tooOld = now - b.lastAt > MAX_ENTRY_AGE_MS;
-      if (!doomed.has(b.hourBucket) && !tooOld) continue;
-      // `flushed` only advances on a CONFIRMED write, so this gap includes
-      // counts a commit-then-timeout actually persisted. Unconfirmed, not lost.
-      const unconfirmed = b.count - b.flushed;
-      if (unconfirmed > 0) {
-        this.unconfirmedSinceStart += unconfirmed;
-      }
-      this.buckets.delete(key);
-    }
-    this.hours.clear();
-    for (const b of this.buckets.values()) this.hours.add(b.hourBucket);
   }
 
   /** `incoming` is about to be added and is never a candidate. */

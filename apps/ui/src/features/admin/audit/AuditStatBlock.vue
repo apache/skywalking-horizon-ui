@@ -56,7 +56,6 @@ const SERIES = [
   { key: 'ldap', label: 'LDAP', token: 'var(--sw-cyan)' },
   { key: 'oidc', label: 'Single sign-on (OIDC)', token: 'var(--sw-purple)' },
   { key: 'oauth', label: 'Single sign-on (OAuth)', token: 'var(--sw-pink)' },
-  { key: 'token', label: 'Tokens', token: 'var(--sw-info)' },
   { key: 'rejected', label: 'Refused', token: 'var(--sw-err)' },
 ] as const;
 

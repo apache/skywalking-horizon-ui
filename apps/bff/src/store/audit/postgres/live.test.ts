@@ -30,8 +30,10 @@
  *   HORIZON_AUDIT_TEST_PG=postgres://horizon@127.0.0.1:55432/horizon \
  *     pnpm --filter @skywalking-horizon-ui/bff test:unit -- live
  *
- * It creates its own schema and cleans up after itself, so point it at a
- * scratch database rather than anything you care about.
+ * It creates its own schema if the database has none, and deletes every row
+ * it wrote on the way out — its rows are stamped with a test node id, so the
+ * cleanup touches nothing else. Point it at a scratch database anyway: schema
+ * creation is not undone.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -39,6 +41,7 @@ import pgDriver from 'pg';
 import type { AuditConfig } from '../../../config/schema.js';
 import { BufferedAuditService } from '../service.js';
 import { PostgresAuditStore } from './store.js';
+import { hourBucketStart } from '../counters.js';
 
 const URL = process.env.HORIZON_AUDIT_TEST_PG;
 const NODE = 'live-test:aaa';
@@ -68,7 +71,20 @@ describe.skipIf(!URL)('the audit log against a real PostgreSQL', () => {
     await admin.end();
   }, 60_000);
 
-  afterAll(async () => { await svc?.stop(); });
+  // Every row this suite writes is stamped with NODE, so its cleanup can be
+  // exact. It was claimed in the header long before it was true: the suite
+  // left its rows in whatever database it was pointed at.
+  afterAll(async () => {
+    await svc?.stop();
+    const admin = new pgDriver.Pool({ connectionString: URL, max: 1 });
+    try {
+      for (const table of ['horizon_audit', 'horizon_audit_stat', 'horizon_token_usage']) {
+        await admin.query(`DELETE FROM ${table} WHERE horizon_node = $1`, [NODE]);
+      }
+    } finally {
+      await admin.end();
+    }
+  });
 
   it('creates its schema and reports itself available', async () => {
     const probe = await store.probe();
@@ -93,22 +109,6 @@ describe.skipIf(!URL)('the audit log against a real PostgreSQL', () => {
     // `pg` returns bigint as a string; narrowing it for a tidier type would be
     // a silent precision bug, so the contract keeps it a string.
     expect(typeof page.rows[0].id).toBe('string');
-  });
-
-  /** The statement that was invalid SQL for an entire phase: written as
-   *  `INSERT ... SELECT ... FROM (VALUES ...)` it fails 42804 every time. */
-  it('upserts a token aggregate cumulatively, leaving exactly one row', async () => {
-    for (let i = 0; i < 5; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: AT });
-    await svc.tick();
-    let agg = (await svc.query({ pageNum: 1, pageSize: 50, kind: ['api-token'] })).rows;
-    expect(agg).toHaveLength(1);
-    expect(agg[0].count).toBe(5);
-
-    for (let i = 0; i < 4; i += 1) svc.countTokenUse({ kind: 'api-token', username: 'ab12cd', at: AT });
-    await svc.tick();
-    agg = (await svc.query({ pageNum: 1, pageSize: 50, kind: ['api-token'] })).rows;
-    expect(agg, 'a second flush must overwrite, not append').toHaveLength(1);
-    expect(agg[0].count).toBe(9);
   });
 
   /** The filter names ONE principal: a fragment finds nothing, and a wildcard
@@ -158,7 +158,7 @@ describe.skipIf(!URL)('the audit log against a real PostgreSQL', () => {
     // chart non-uniform in time.
     expect(stat.columns).toHaveLength(2);
     const counted = stat.columns.reduce(
-      (n, c) => n + c.login.local + c.login.ldap + c.login.token + c.rejected, 0,
+      (n, c) => n + c.login.local + c.login.ldap + c.rejected, 0,
     );
     expect(counted).toBeGreaterThan(0);
     expect(stat.horizonNodes).toBe(1);
@@ -167,4 +167,41 @@ describe.skipIf(!URL)('the audit log against a real PostgreSQL', () => {
   it('runs retention without error', async () => {
     await expect(store.sweep()).resolves.toBeTypeOf('number');
   });
+
+  // Asserted through the real `sweep()`, not by re-running its statement:
+  // token usage shipped outside retention and grew forever, and only calling
+  // the method that is supposed to reach the table proves that it does.
+  it('expires token usage past retention, and keeps what is inside it', async () => {
+    const tokens = store.tokenUsage();
+    const outside = hourBucket(AT - (pg.retentionDays + 1) * 86_400_000);
+    // An hour inside retention but NOT the current one: `top` is capped at
+    // TOP_TOKENS_PER_HOUR, so a busy current hour could rank this row out of
+    // the list and fail the assertion for a reason retention had no part in.
+    const inside = hourBucket(AT - 2 * 86_400_000);
+    await tokens.writeUsage([
+      { hourBucket: outside, tokenId: 'expired', username: 'sre', count: 4, horizonNode: NODE },
+      { hourBucket: inside, tokenId: 'current', username: 'sre', count: 6, horizonNode: NODE },
+    ]);
+
+    await store.sweep();
+
+    // Only this suite's own rows are asserted on. The database may be shared
+    // with a running Horizon, whose real token traffic lands in `inside` too.
+    const OWN = ['expired', 'current'];
+    const survivors = async (at: number): Promise<string[]> => {
+      const rows = await tokens.readWindow({ from: at, to: at + 3_600_000 });
+      return rows.map((r) => r.tokenId).filter((id) => OWN.includes(id));
+    };
+    expect(await survivors(hourBucketStart(outside))).toEqual([]);
+    expect(await survivors(hourBucketStart(inside))).toEqual(['current']);
+  });
 });
+
+/** epoch ms → `yyyyMMddHH`, UTC — the form the table is keyed on. */
+function hourBucket(ms: number): number {
+  const d = new Date(ms);
+  return d.getUTCFullYear() * 1_000_000
+    + (d.getUTCMonth() + 1) * 10_000
+    + d.getUTCDate() * 100
+    + d.getUTCHours();
+}

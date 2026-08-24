@@ -48,22 +48,20 @@
  */
 
 import type { PageResult } from '../../logic/paging/read-page.js';
+import type { TokenUse } from './token-counters.js';
+import type { TokenUsageRange, TokenUsageResult } from './token-usage.js';
 
 export type AuditKind =
   | 'local'
   | 'ldap'
   | 'break-glass'
-  | 'sso'
-  | 'api-token'
-  | 'oauth-token';
+  | 'sso';
 
 export const AUDIT_KINDS: readonly AuditKind[] = [
   'local',
   'ldap',
   'break-glass',
   'sso',
-  'api-token',
-  'oauth-token',
 ];
 
 /** The only reasons that reach a ROW. Both are refusals a caller can reach
@@ -79,9 +77,8 @@ export interface AuditFields {
   /** epoch ms, UTC. */
   at: number;
   kind: AuditKind;
-  /** The verified principal — never null, never caller-supplied text.
-   *  Login kinds hold the login name or verified email; `api-token` holds the
-   *  token id; `oauth-token` holds the `sub`. */
+  /** The verified principal — never null, never caller-supplied text: the
+   *  login name, or the verified email address on the SSO path. */
   username: string;
   /** SSO only as the code stands — local users have no email field and the
    *  LDAP path requests no mail attribute. */
@@ -120,43 +117,17 @@ export interface AuditEvent extends AuditFields {
   clientIp?: string;
 }
 
-/**
- * One flushed token bucket. No outcome: a refused token produces no
- * aggregate, so this shape is accepted by construction.
- *
- * `username` is the token id for `api-token` and the **`sub`** for
- * `oauth-token` — never the `jti`. A `jti` names one issuance and is minted
- * fresh on every access-token call, so keying on it would make aggregate rows
- * grow with request volume rather than with the user count.
- */
-export interface AuditAggregate extends AuditFields {
-  shape: 'aggregate';
-  kind: 'api-token' | 'oauth-token';
-  /** yyyyMMddHH, UTC. */
-  hourBucket: number;
-  /** CUMULATIVE since this process started — never a delta. A flush writes
-   *  the running total and does not clear it, so a retry after a
-   *  commit-then-timeout overwrites with the same number. */
-  count: number;
-}
-
-export type NewAuditEntry = AuditEvent | AuditAggregate;
-
 /** What the service stamps on every row. The store never invents identity. */
 export interface StoreStamp {
   /** `<hostname>:<boot-id>` — one Horizon PROCESS. Not an OAP node, not a
-   *  k8s node: a restart opens a new one, so replicas never collide on a
-   *  cumulative count. */
+   *  k8s node: a restart opens a new one, which is what keeps two replicas
+   *  on one host distinguishable in the statistics. */
   horizonNode: string;
   /** Best effort, and a hint rather than an identifier. */
   horizonIp?: string;
 }
 
-/**
- * A row as READ BACK — flat rather than discriminated, because a reader is
- * looking at storage, where both shapes share one table and `hourBucket` is
- * what tells them apart.
- */
+/** A row as READ BACK. One shape: every row is a single sign-in. */
 export interface AuditEntry extends AuditFields, StoreStamp {
   /** Opaque and monotonic. A STRING: Postgres hands `bigint` back as text
    *  because it exceeds `Number.MAX_SAFE_INTEGER`, and narrowing it to a
@@ -165,18 +136,6 @@ export interface AuditEntry extends AuditFields, StoreStamp {
   outcome: 0 | 1;
   reason?: AuditReason;
   clientIp?: string;
-  /** Present if and only if this is an aggregate row. */
-  hourBucket?: number;
-  /** 1 on an event row. */
-  count: number;
-}
-
-/** One accepted token use, counted in memory. Refused tokens never reach here. */
-export interface TokenUse {
-  kind: 'api-token' | 'oauth-token';
-  /** The token id, or the `sub`. */
-  username: string;
-  at: number;
 }
 
 /**
@@ -248,9 +207,6 @@ export interface AuditLoginCounts {
   ldap: number;
   oidc: number;
   oauth: number;
-  /** Token USES — the sum of aggregate counts, not a row count. One row can
-   *  represent ten thousand uses. */
-  token: number;
 }
 
 /**
@@ -285,8 +241,9 @@ export interface AuditStatColumn {
 export interface AuditStatResult {
   /** Oldest first, one per hour in the window. */
   columns: AuditStatColumn[];
-  /** Not stacked into the columns — these count rows and uses that were never
-   *  written, so drawing them beside rows that were would misread as volume. */
+  /** Not stacked into the columns — sign-in rows the hourly budget refused, so
+   *  drawing them beside rows that WERE written would misread as volume. Token
+   *  use is not budgeted and never appears here. */
   overBudget: number;
   /** Distinct hosts that contributed. An estimate: `horizonNode` carries a
    *  boot id, so counting those would count process incarnations — 40 after a
@@ -359,9 +316,16 @@ export interface AuditService {
    */
   recordEvent(event: Omit<AuditEvent, 'shape'>): void;
 
-  /** Count one ACCEPTED token use. In-memory and synchronous; the service
-   *  tick writes it per hour. Refused tokens are not passed here at all. */
+  /**
+   * One token use, for the SEPARATE statistic — not an audit row.
+   *
+   * Presenting a token is not a login, so it records no sign-in. Synchronous
+   * and non-throwing like `recordEvent`, for the same reason: the request
+   * path performs no I/O.
+   */
   countTokenUse(use: TokenUse): void;
+
+  queryTokenUsage(range: TokenUsageRange): Promise<TokenUsageResult>;
 
   query(filter: AuditFilter): Promise<AuditPageResult>;
   queryStat(window: AuditStatWindow): Promise<AuditStatResult>;
@@ -383,8 +347,6 @@ export interface AuditStore {
    *  wrong for an audit record — a duplicated sign-in is visible and
    *  harmless, a missing one is neither. */
   writeEvents(rows: ReadonlyArray<AuditEvent & StoreStamp>): Promise<void>;
-  /** Cumulative counts, upserted, so this retry IS idempotent. */
-  writeAggregates(rows: ReadonlyArray<AuditAggregate & StoreStamp>): Promise<void>;
   /** Appends one interval's delta. */
   writeStat(stat: AuditStat): Promise<void>;
 

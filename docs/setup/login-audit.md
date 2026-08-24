@@ -11,7 +11,6 @@ It records sign-ins, not changes. "Who changed what" is not this feature: templa
 So a row exists for:
 
 - every **successful** sign-in — password, LDAP, break-glass, single sign-on;
-- every **use of a token**, counted per hour rather than one row per request — per credential for an API token, and per **person** for an OAuth token (see below);
 - exactly **two refusals**, both of which happen *after* authentication has already succeeded:
   - the account authenticated but has no roles;
   - the LDAP account authenticated but matched no group mapping.
@@ -27,20 +26,19 @@ A refused **password** sign-in is logged at `warn`, which is the shipped product
 | | |
 |---|---|
 | Time | to the second |
-| Auth Channel | password, LDAP, break-glass, single sign-on, API token, OAuth token. Single sign-on also names the protocol that proved the identity — **OIDC** means a signed ID token Horizon verified, **OAuth** means an address read from the provider's userinfo call, which is the weaker of the two |
+| Auth Channel | password, LDAP, break-glass, single sign-on. Single sign-on also names the protocol that proved the identity — **OIDC** means a signed ID token Horizon verified, **OAuth** means an address read from the provider's userinfo call, which is the weaker of the two |
 | Provider | for single sign-on, which provider proved the identity — the id you gave it in `auth.sso.providers` |
-| Login ID | the login name, the verified email address, an API token's id, or — for an OAuth token — the account it was issued for. "Auth Channel" says which |
+| Login ID | the login name, or the verified email address on the single sign-on path. "Auth Channel" says which |
 | Roles | what the sign-in granted, comma-separated. Recorded rather than looked up later, because a role table changes and the question is what this person was given at this moment |
 | Result | accepted, or refused with the reason |
 | Client address | where the sign-in came from (see [Addresses behind a proxy](#addresses-behind-a-proxy)) |
-| Uses | on an hourly-total row only, how many times that credential was used in the hour. Blank on a sign-in, which is always one |
 | Recorded by | which Horizon process wrote the row, and its address |
+
+**Token use is not recorded here, and that is the boundary the page draws.** Presenting an API token on a request is not a login — nobody signs in — so it produces no audit row. What a token did is a matter of *traffic*, and it is counted on the page's **Token usage** tab instead: one row per token per hour, not one per request. A token that is refused is not counted either, and — as noted above — currently leaves no line anywhere; watch the request logs for those.
 
 It records the **sign-in**, and nothing about the systems around it: no OAP state, and no configuration detail of the identity provider beyond which one it was.
 
-**An OAuth token is recorded per person, not per credential**, and that is deliberate rather than an omission. Horizon mints a fresh token identifier on every access-token call, so counting by credential would make the table grow with request volume instead of with the number of people using it — a client that refreshes on every request would produce thousands of rows a day on its own. The row therefore names the account the token was issued for. Telling one OAuth client from another is therefore not something this log can do.
-
-**Passwords, tokens, session identifiers and single sign-on exchange material are never recorded.** Neither is the hash a token is verified against. The token *id* is recorded, which names a credential without being one.
+**Passwords, tokens, session identifiers and single sign-on exchange material are never recorded.** Neither is the hash a token is verified against. Where a credential has to be named at all — on the Token usage tab — it is named by its *id*, which identifies a credential without being one.
 
 **Email addresses appear only for single sign-on**, where the verified address is the identity Horizon uses. Local and LDAP accounts have no email field for Horizon to record.
 
@@ -107,19 +105,45 @@ It is off by default and has to be named, because `pg` will connect in cleartext
 
 ## Reading the page
 
-**Admin → Login audit.** Top to bottom: an hourly summary, the filters, then the list.
+**Admin → Login audit.** Two tabs, because the two records answer different questions at different grains: **Login** is people arriving, **Token usage** is hours of machine traffic.
+
+### Login
+
+Top to bottom: an hourly summary, the filters, then the list.
 
 The summary is stacked by how people signed in, over the last 2, 6 or 12 hours. It is **estimated, and summed across nodes** — each Horizon process counts what it tried to record, and the page adds those counters together for the hour, so a bar is the whole deployment's total rather than any one node's. The counters are close to the stored rows without being reconciled against them. The one per-node figure on the page is in the footer, which reports the process you happen to be talking to. The list below is the record itself — the rows as they were written, not a separate count reconciled against them.
 
 Records refused by the hourly limit are deliberately *not* drawn as a bar. They appear as a note instead when the count is non-zero, because they describe records that were never written, and charting them beside records that were would read as extra volume.
 
-Two other counts are kept but **not shown on the page**: writes whose outcome could not be confirmed, and token uses discarded when a long outage exhausted the in-memory buffers. They are *unconfirmed* rather than known-lost — a write that commits and then times out leaves the row in the database and the count here, and nothing on Horizon's side can tell that from a write that never landed. Both reach the application log rather than the page: the recovery line names how many accumulated during an outage.
+One other count is kept but **not shown on the page**: writes whose outcome could not be confirmed. They are *unconfirmed* rather than known-lost — a write that commits and then times out leaves the row in the database and the count here, and nothing on Horizon's side can tell that from a write that never landed. It reaches the application log rather than the page: the recovery line names how many accumulated during an outage.
 
-**Filters** are **Time range**, **Auth Channel** and **Login ID** — the same three the list is headed with. `Login ID` matches **exactly** — it names one principal, so a partial name finds nothing. A token id is shown in full on its row and can be copied from there. There is deliberately nothing else: this page is read, not queried, and every extra predicate is an index to carry and another way to ask the database something slow. The other fields on a row are for reading once you have found it.
-
-**The list holds two shapes of row, and marks them apart.** Most rows are a single sign-in at a single instant. Rows tagged **hourly total** are not: they summarise one credential's use over one hour, and are the only way token traffic is recorded. Such a row shows the hour rather than a timestamp, a count in `Uses`, and no client address — a credential-hour has no single address, so the cell is blank because the question does not apply, not because the answer is unknown.
+**Filters** are **Time range**, **Auth Channel** and **Login ID** — the same three the list is headed with. `Login ID` matches **exactly** — it names one principal, so a partial name finds nothing. There is deliberately nothing else: this page is read, not queried, and every extra predicate is an index to carry and another way to ask the database something slow. The other fields on a row are for reading once you have found it.
 
 The list pages 50 at a time and reports only whether there is more, never a total. Selecting a row expands the investigation fields.
+
+### Token usage
+
+Presenting an API token is not a sign-in, so it produces no audit row — what a token did is a matter of traffic. This tab counts that traffic: **one row per token per hour**, newest hour first.
+
+**Only API tokens from the tokens file are counted.** The other bearer Horizon accepts is the access token its own authorization server issues to an agent or MCP client at sign-in. That one is deliberately left out: the sign-in behind it is already a row on the Login tab, so counting its requests here as well would report one person's session as machine traffic. Browser sessions never reach this tab at all — they carry a cookie, not a token.
+
+Pick a **Time range** — the last 2, 6 or 12 hours, or **Custom…** for an explicit start and end. Twelve hours is the widest span the page will read; a custom range longer than that is refused rather than silently trimmed, and a request that reaches the server for more is clamped to the last twelve.
+
+**The range you get is widened to whole groups, and the picker shows it back.** A group is an hour, so asking for 10:50–11:10 is answered as 10:00–12:00 — both hours it touches, rather than the one it happens to end in. After a query the start and end you see are the ones actually read.
+
+**A group is one whole hour, and the hours are UTC shown on your clock.** Where your offset is a whole number of hours the groups fall on the hour, as you would expect. Where it is not — India at +05:30, Adelaide at +09:30, Nepal at +05:45 — a group runs from half or quarter past to half or quarter past, because an hour bucket has to begin somewhere and that somewhere is the top of the UTC hour. The group headings always state the span they cover — and on the day a clock goes back, where both ends of the repeated hour read the same, the heading carries each end's offset so the two are still distinguishable.
+
+Each hour is one group. Its header gives the hour, a bar showing that hour against the busiest in the range, and two figures that always describe the **whole** hour: **Uses**, every request whose token was accepted, and **Credentials**, how many distinct tokens made them.
+
+**Accepted means the credential was recognised, not that the request succeeded.** A token is counted the moment it resolves to a live account — before permissions are consulted — so a request that is then refused for lack of a role, or that fails further on, is still a use. That is deliberate: the tab answers "what is this credential doing", and a token hammering endpoints it may not touch is exactly the thing you want visible. A token that fails to resolve at all is never counted, so the figures cannot be moved by someone without a valid credential.
+
+The rows beneath name only the **busiest ten** tokens, and the line above the table always says which case you are looking at — *"Every credential used in this hour is listed"* when nothing was dropped, or *"Top 10 of N credentials — the rest are counted in the total, not listed"* when there were more. The unlisted ones are still inside the hour's **Uses** and **Credentials**, so the sample never disagrees with the totals above it.
+
+Per row, in order: the token **id** — which names a credential without being one — its **Uses** for that hour, that as a **Rate** per second, and the **User** it acts as.
+
+**Treat a token id as permanent, and never give it to a second person.** The id is what every hour of history is filed under, and history is not rewritten: if you edit a token's owner in the tokens file, or delete a token and later add a new one reusing its id, the hours already recorded keep the name they were written with, and the same id then spans two owners with nothing on the page to separate them. Retire an id rather than reassigning it — issuing a new token gives you a new one for free. The two measures sit beside the credential they belong to, and the rate is written to the same precision on every row so the column reads as one scale; a rate too small to show at that precision is written as a floor (`<0.001/s`) rather than as zero.
+
+An hour with no token traffic still appears, saying so. An hour that is still in progress counts only what has happened so far.
 
 ## Permissions
 
