@@ -39,7 +39,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check license header
-        uses: apache/skywalking-eyes@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
+        uses: apache/skywalking-eyes@61275cc80d0798a405cb070f7d3a8aaf7cf2c2c1 # v0.8.0
 
   build-and-check:
     # Every Node-side gate in one job. They all need the same checkout + pnpm
@@ -115,18 +115,29 @@ jobs:
       - name: Package the distributable
         run: pnpm package
 
-      # After `pnpm package`, never before: collect-dist-licenses writes its
-      # LICENSE / NOTICE / report into dist/, and packaging starts by wiping
-      # that directory.
-      # The binary tarball bundles the full production dependency tree — the
-      # BFF runtime deps (dist/node_modules) AND the UI deps Vite compiles into
-      # the static bundle — so ASF policy requires every one of their licenses
-      # reproduced in the binary LICENSE/NOTICE. This fails if either:
-      #   1. a dep carries a Category-X / unknown license (check-dist-licenses), or
-      #   2. the committed binary LICENSE/NOTICE reference is stale (--check) —
-      #      i.e. prod deps changed without `pnpm licenses:bin:update`.
-      - name: Verify binary LICENSE/NOTICE (drift + ASF allow/deny)
-        run: pnpm licenses:bin:check
+      # The binary tarball bundles the whole production dependency tree — the
+      # BFF runtime deps and the UI deps Vite compiles into the static bundle —
+      # so the binary LICENSE has to name every one of them. license-eye
+      # regenerates it from LICENSE.tpl and `git diff` is the drift gate: a
+      # dependency added or removed without running `pnpm licenses:bin:update`
+      # fails here.
+      #
+      # Built from a commit rather than v0.8.0 because pnpm support landed after
+      # that release; revert to a tag once one ships with it.
+      #
+      # A license the tool cannot identify makes `dependency resolve` itself
+      # exit non-zero, so an unknown license fails this step too. The licenses/
+      # directory beside the LICENSE is maintained by hand — see CLAUDE.md.
+      - name: Set up Go for license-eye
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Verify binary LICENSE is current
+        run: |
+          go install github.com/apache/skywalking-eyes/cmd/license-eye@ab60c97524d4fe73142b27055a262cf1520f66a4
+          pnpm licenses:bin:check
 
       - name: Compare source vs. binary LICENSE/NOTICE shape
         run: |
@@ -153,9 +164,8 @@ jobs:
         with:
           name: dist-license-report
           path: |
-            dist/LICENSE
-            dist/NOTICE
-            dist/.dependency-report.json
+            dist-material/release-docs/LICENSE
+            dist-material/release-docs/NOTICE
 
       # A dist/ that assembles but 404s at `/` is not a working release.
       - name: Boot the packaged server and smoke-test it

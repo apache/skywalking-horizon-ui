@@ -86,6 +86,13 @@ English is the source of truth. Every UI string and every translatable template 
 - **One icon component.** No icon font, no inlined SVG one-offs.
 - **No CSS-in-JS, no Tailwind.** The design is built on CSS custom properties; Tailwind fights the token system.
 - **License headers** on every `.ts` / `.vue` / `.js` / `.yaml` / `.yml` / `.css` / `.scss`. JSON, Markdown, lock files, and generated `.d.ts` are excluded — see `.licenserc.yaml`. CI enforces; run `license-eye -c .licenserc.yaml header check` before pushing.
+- **Adding or removing a production dependency means updating the binary LICENSE.** The binary tarball bundles the whole production tree, so ASF requires the binary `LICENSE` to name every bundled package. It is generated, not hand-edited: run `pnpm licenses:bin:update` and commit the result. CI regenerates it and fails on any diff, so a dependency change that skips this step is caught — but it is caught in CI rather than in review, which wastes a round trip.
+
+  **If the new dependency's license is not one of the standard permissive ones** — MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, Apache-2.0 — its full license text must also ship. Copy the package's own `LICENSE` file to `dist-material/release-docs/licenses/LICENSE-<name>-<version>.<ext>` and commit it; that directory is maintained BY HAND, nothing generates it. The binary `LICENSE` preamble promises those texts are there, so a missing one makes the release artifact lie. Dual-licensed packages (`(MIT OR CC0-1.0)`) count as non-standard here — ship the text rather than silently electing an alternative.
+
+  **A dependency whose license `license-eye` cannot identify fails the build**, because `dependency resolve` exits non-zero on an unresolved package. Do not paper over it with a `dependency.licenses` entry in `.licenserc.yaml` unless the package genuinely ships its terms somewhere the tool cannot read — verify against the package's own LICENSE file first, and say in a comment what you verified.
+
+  `NOTICE` is hand-maintained too. Carry a bundled project's NOTICE content into ours only when that project is Apache-2.0 AND its NOTICE says something beyond its own copyright line — boilerplate "developed at The Apache Software Foundation" adds nothing, since ours already says it.
 - **Multi-layer is the spine.** Almost every screen has "this could appear in multiple layers" semantics. Build for that from day one.
 - **Synced crosshairs.** Multiple time-series on a dashboard share one cursor. Don't build charts that ignore this.
 - **Density beats whitespace.** This is an observability-class UI; information density is a feature.
