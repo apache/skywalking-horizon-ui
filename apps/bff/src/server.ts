@@ -197,7 +197,7 @@ app.addHook('onSend', (req, reply, payload, done) => {
 });
 
 /** Reported on /api/health and as the MCP server version an agent sees. */
-const HORIZON_VERSION = process.env.HORIZON_VERSION ?? '1.0.0';
+const HORIZON_VERSION = process.env.HORIZON_VERSION ?? '1.1.0-dev';
 
 const sessions = new SessionStore({ ttlMinutes: () => source.current.session.ttlMinutes });
 // API tokens ride the same pre-handler as the session cookie, so every route
