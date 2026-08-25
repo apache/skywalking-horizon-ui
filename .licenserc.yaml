@@ -62,6 +62,9 @@ header:
     # renders the binary tarball's LICENSE from. A license-header comment on it
     # would bleed straight into that output.
     - 'dist-material/release-docs/**/*.tpl'
+    # A bare pinned commit SHA read by both release.sh and CI — a comment
+    # header would have to be stripped by every reader.
+    - '.license-eye-version'
 
   comment: on-failure
 

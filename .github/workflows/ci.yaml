@@ -136,7 +136,7 @@ jobs:
 
       - name: Verify binary LICENSE is current
         run: |
-          go install github.com/apache/skywalking-eyes/cmd/license-eye@ab60c97524d4fe73142b27055a262cf1520f66a4
+          go install "github.com/apache/skywalking-eyes/cmd/license-eye@$(tr -d '[:space:]' < .license-eye-version)"
           pnpm licenses:bin:check
 
       - name: Compare source vs. binary LICENSE/NOTICE shape

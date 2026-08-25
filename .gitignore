@@ -63,6 +63,8 @@ horizon-wire.jsonl
 
 # Release
 scripts/.release-work
+# Pinned license-eye installed by release.sh (see .license-eye-version).
+scripts/.release-tools
 scripts/.finalize-work
 # e2e failure diagnostics — collected on a red run, never committed.
 e2e-logs/
