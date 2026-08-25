@@ -20,16 +20,17 @@
  * set for one (layer, scope) without running any MQE. The SPA renders
  * the empty grid first, then fires `POST /api/layer/:key/dashboard` to
  * populate cells. Accepts `?scope=service|instance|endpoint|…` and
- * defaults to `service`.
+ * defaults to `service`, plus `?page=<id>` to select one of a component's
+ * extension pages — omitted means the component's default grid, and an id
+ * the template doesn't declare is a 404 rather than a silent fall back.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
-  widgetsForScope,
+  widgetsForScopePage,
   type LayerTemplate,
 } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
@@ -38,9 +39,7 @@ import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { scopeSchema } from '../../logic/dashboard/schema.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
-export interface DashboardConfigDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface DashboardConfigDeps extends AuthDeps {
   /** OAP UI-template client — serve the in-use REMOTE widget config,
    *  matching the admin + the config-bundle endpoint. Without one, or with no
    *  readable remote row, the route answers with its in-code defaults. */
@@ -58,14 +57,17 @@ export function registerDashboardConfigRoute(app: FastifyInstance, deps: Dashboa
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { scope?: string };
+      const q = req.query as { scope?: string; page?: string };
       const scopeParsed = q.scope ? scopeSchema.safeParse(q.scope) : null;
       const scope = scopeParsed?.success ? scopeParsed.data : 'service';
+      const page = q.page || undefined;
       const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
       if (eff.blocked) {
         // Template store unreachable / layer disabled — block: empty grid,
         // no in-code defaults. The SPA's banner explains the empty state.
-        return reply.send({ layer: layerKey, scope, widgets: [] });
+        // An explicit page can't be judged unknown from here: the template
+        // that would name it is exactly what could not be read.
+        return reply.send({ layer: layerKey, scope, page, widgets: [] });
       }
       const rawTpl = eff.template;
       const locale = localeFromRequest(req);
@@ -79,8 +81,17 @@ export function registerDashboardConfigRoute(app: FastifyInstance, deps: Dashboa
             locale,
           )
         : null;
-      const widgets = tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(rawTpl, layerKey);
-      return reply.send({ layer: layerKey, scope, widgets });
+      if (tpl) {
+        const widgets = widgetsForScopePage(tpl, scope, page);
+        // Unknown explicit page — never the default grid under the wrong
+        // URL, which an operator would read as the page they asked for.
+        if (widgets === null) return reply.code(404).send({ error: 'unknown_page', layer: layerKey, scope, page });
+        return reply.send({ layer: layerKey, scope, page, widgets });
+      }
+      // No template at all: only the in-code default set exists, and it is
+      // the default page by definition.
+      if (page) return reply.code(404).send({ error: 'unknown_page', layer: layerKey, scope, page });
+      return reply.send({ layer: layerKey, scope, widgets: defaultWidgetsFor(rawTpl, layerKey) });
     },
   );
 }

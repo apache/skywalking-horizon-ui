@@ -24,6 +24,12 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import {
+  resolveRecordRange,
+  recordRangeWarning,
+  MAX_RECORD_RANGE_DAYS,
+  SLOW_RECORD_RANGE_HOURS,
+} from '@/utils/recordTimeRange';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { BrowserErrorCategory, BrowserErrorRow, BrowserErrorsResponse, LayerDef } from '@/api/client';
@@ -163,12 +169,30 @@ watch(isCustomRange, (custom) => {
 // browser-local, so `new Date(value)` yields the correct absolute instant.
 // The BFF renders it in OAP-server-local using the OAP offset; sending a
 // bare local string would be misread as OAP-local and miss by the TZ delta.
-const startMsRef = computed<number | null>(() =>
-  isCustomRange.value && customStart.value ? new Date(customStart.value).getTime() : null,
+// Null unless the pair VALIDATES: a half-filled or reversed range used to yield
+// a bound the query then ran with, so an unusable range came back as some other
+// window's results.
+const resolvedRange = computed(() => {
+  if (!isCustomRange.value) return null;
+  const r = resolveRecordRange(customStart.value, customEnd.value);
+  return typeof r === 'string' ? null : r;
+});
+const rangeError = computed<string | null>(() => {
+  if (!isCustomRange.value) return null;
+  const r = resolveRecordRange(customStart.value, customEnd.value);
+  return typeof r === 'string' ? r : null;
+});
+/** Non-blocking caution about the window's size — presets included, since cost
+ *  follows the span rather than how it was chosen. */
+const rangeWarning = computed<string | null>(() =>
+  recordRangeWarning(
+    isCustomRange.value
+      ? (resolvedRange.value ? resolvedRange.value.endMs - resolvedRange.value.startMs : null)
+      : windowMinutes.value * 60_000,
+  ),
 );
-const endMsRef = computed<number | null>(() =>
-  isCustomRange.value && customEnd.value ? new Date(customEnd.value).getTime() : null,
-);
+const startMsRef = computed<number | null>(() => resolvedRange.value?.startMs ?? null);
+const endMsRef = computed<number | null>(() => resolvedRange.value?.endMs ?? null);
 const windowMinutesEffective = computed<number>(() => (isCustomRange.value ? 0 : windowMinutes.value));
 const page = ref(1);
 const pageSize = ref(30);
@@ -258,6 +282,7 @@ function runQuery(): void {
   // a click landing inside the resolution window would otherwise fire a read
   // with no service — every browser app's JS errors under this app's title.
   if (!serviceReady.value) return;
+  if (rangeError.value) return;
   applyConditions();
   page.value = 1;
   hasQueried.value = true;
@@ -360,7 +385,7 @@ const {
   closeExpanded,
   toggleRow,
   resolveRow,
-} = useSourceMapResolution(t);
+} = useSourceMapResolution(t, replay);
 watch(serviceKey, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
@@ -432,6 +457,14 @@ function loc(row: BrowserErrorRow): string {
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ t(p.label) }}</option>
             <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
           </select>
+          <!-- Refusal and caution share the slot under the control they are
+               about: the error stops the query, the hint only advises. -->
+          <span v-if="rangeError" class="cf-note cf-note--err">
+            {{ t(rangeError, { d: MAX_RECORD_RANGE_DAYS }) }}
+          </span>
+          <span v-else-if="rangeWarning" class="cf-note">
+            {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
+          </span>
         </label>
         <label class="cf">
           <span>{{ t('Page size') }}</span>
@@ -824,4 +857,14 @@ function loc(row: BrowserErrorRow): string {
   font-weight: 600;
 }
 .sw-btn.primary:hover { background: var(--sw-accent-2); color: var(--sw-bg-0); }
+.cf-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--sw-warn);
+}
+.cf-note--err {
+  color: var(--sw-err);
+}
 </style>

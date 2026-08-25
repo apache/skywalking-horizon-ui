@@ -8,24 +8,30 @@ This page is the top-level map. Each subsection has its own detail page:
 |---|---|---|
 | `server` | HTTP listener and static asset path. | [server](server.md) |
 | `templates` | Template source mode: OAP-backed (`live`) or local read-only bundle (`readonly`). | [below](#template-source-mode) |
+| `security` | Which outbound link domains a dashboard template may point at. | [security](security.md) |
+| `audit` | Optional durable record of who signed in, when and from where. Off by default; Postgres-backed. | [login-audit](login-audit.md) |
 | `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth, MQE override. | [oap](oap.md) |
-| `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass. | [auth](auth.md) |
+| `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass, single sign-on, API tokens. | [auth](auth.md) |
 | `rbac` | Role definitions, permission grants, landing route per role. | [rbac](rbac.md) |
 | `session` | Cookie name, TTL, secure flag. | [session](session.md) |
-| `audit` | Audit trail switch + log file path. | [audit](audit.md) |
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
 | `query` | Per-request query limits (layer-landing service cap, Overview top-N). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
 | `ai` | AI assistant: provider, model, credentials, prompt overrides, history cap. | [AI Assistant](../operate/ai-assistant.md) |
+| `mcp` | Whether an external agent may read this Horizon over the Model Context Protocol. | [MCP](../operate/mcp.md) |
+| `oauth` | Horizon as an authorization server, so an MCP client can sign its operator in through a browser. Off by default. | [MCP](../operate/mcp.md) |
 | `performance` | How hard the BFF fans queries out to OAP, plus render caps and the largest page a list may display. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
 
 ```yaml
-server: { host, port, staticDir? }
+server: { host, port, staticDir?, publicUrl?, trustProxy? }   # publicUrl = the PUBLIC base URL
 
 templates: { mode? }          # live (default) | readonly
+
+security:
+  trustedLinkDomains?: string[]   # outbound link allow-list for templates
 
 oap:
   queryUrl: string
@@ -40,6 +46,11 @@ auth:
   local?: { users: [{ username, passwordHash, roles? }] }
   ldap?: { ... }
   breakGlass?: { username, passwordHash, roles? }
+  sso?:                        # single sign-on — Horizon as the CLIENT
+    providers: [{ id, displayName?, kind?, issuer?, clientId, clientSecret?,
+                  allowedDomains? }]      # HOW you sign in, per provider
+    roles?: { defaultRoles?, roleByEmail?, roleByDomain? }   # WHAT you get, ONE table
+  tokensFile?: string          # path to API tokens for callers with no browser
 
 rbac:
   enabled?: boolean
@@ -47,7 +58,6 @@ rbac:
   landingByRole?: { <name>: "/route" }
 
 session: { ttlMinutes?, cookieName?, cookieSecure? }
-audit:   { enabled?, file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
 query:   { landingServiceCap?, overviewTopN? }
 sourceMaps: { enabled?, maxFileBytes?, maxTotalBytes?, maxFileCount?, bootMountDir? }
@@ -62,6 +72,18 @@ ai:
   systemPrompt?: string        # blank → bundled default
   starters?: [string, ...]     # blank → bundled defaults
   history?: { maxMb? }
+
+mcp:
+  enabled?: boolean            # ON by default
+  name?: string                # what this deployment calls itself to an agent
+
+oauth:                         # authorization server — OFF by default
+  enabled?: boolean
+  issuer?: string              # defaults to server.publicUrl
+  signingKey?: string          # secret — env only, 32+ chars (openssl rand -base64 32)
+  accessTokenMinutes?: number
+  refreshTokenDays?: number    # 0 disables refresh tokens
+  clientMetadataHosts?: [string, ...]   # hosts whose client-metadata URLs are accepted
 
 performance:
   bulk:
@@ -78,6 +100,10 @@ layers:  { excluded?: [{ key, reason? }] }
 ```
 
 The `ai` block's fields, env-var forms, and provider recipes are documented on [AI Assistant](../operate/ai-assistant.md).
+
+`ai` and `mcp` are independent. `ai` configures the model **this Horizon talks to** for its own assistant panel, and is off until you give it one. `mcp` lets an **external** agent — Claude Code, Codex, Claude Desktop — read this Horizon through the Model Context Protocol, with the model staying on the caller's side; it needs no provider and no key, so it is on by default. Turn it off with `enabled: false` (or `HORIZON_MCP_ENABLED=false`) and `POST /api/mcp` answers 503.
+
+`oauth` is a third, separate thing again: it makes Horizon an **authorization server** — the role Google plays when an application offers "Sign in with Google", except here Horizon is the one issuing and the login page shown is its own. It lets an MCP client send its operator through a browser login instead of being handed a token. It is off by default and needs two values to start — a public base URL (from `server.publicUrl`, or `oauth.issuer` to override it) and `signingKey`, a secret. Both are required: with either missing the server stays off and its endpoints answer 404, and a warning names what is missing at boot. See [MCP](../operate/mcp.md).
 
 ## Environment variable interpolation
 
@@ -124,15 +150,20 @@ Applied live:
 
 - Auth backend selection (re-evaluated on next login).
 - RBAC roles and policy (re-evaluated on next route call).
-- OAP URLs and credentials (used on next outbound call).
+- OAP URLs and credentials (used on the BFF's next outbound call; a page already open can show lists cached from the previous deployment for up to a minute, so reload after repointing).
 - Session TTL (applies to every session immediately, already-signed-in ones included — see [Sessions](session.md#hot-reload)).
-- `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below.
+- `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below. One caveat on `enabled`: turning it on in a live file enables uploads and resolves, but the static mount is scanned only at startup, so a BFF that booted with `sourceMaps.enabled: false` has an empty mounted set until it restarts.
+- `debugLog` in full — `enabled`, `file` and the redaction flags. Changing `file` rotates the wire log to the new path, finishing the write in flight on the old one.
+- `security.trustedLinkDomains` — applied the next time a template's outbound link is published or read back.
 
 These changes require a process restart:
 
 - `server.host`, `server.port` — the listener already bound.
+- `server.staticDir` — the static root is registered with the HTTP server at startup.
+- `server.trustProxy` — the HTTP server is constructed once with this value, so a live edit is ignored until restart.
+- The whole `audit` block — the store is opened and the writer started at boot, so turning the login audit on, off, or repointing it takes effect on the next restart.
 - `templates.mode` — the template source is chosen at boot (the OAP seed either ran or was skipped). Editing it in a live file logs a warning and keeps the boot-time mode until restart.
-- Capability probes — the OAP schema introspection cache is per-process.
+- Nothing about OAP capability detection. The schema-introspection and trace-API probes are cached for five minutes and keyed by `oap.queryUrl`, so an OAP upgrade is picked up within that window and repointing OAP re-probes at once — neither needs a restart.
 - `sourceMaps.bootMountDir` — the static source-map directory is scanned once at startup, so a new directory (and newly-dropped `.map` files) needs a restart. The count of maps loaded from that mount is fixed by the startup scan as well: lowering `sourceMaps.maxFileCount` afterwards trims only the in-memory uploaded set, never the already-mounted maps — restart to re-scan a mount against a lower count.
 - **Raising** `sourceMaps.maxFileBytes` — the multipart upload size limit is fixed at startup; lowering it applies live.
 

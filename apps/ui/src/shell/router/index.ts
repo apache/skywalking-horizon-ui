@@ -26,17 +26,42 @@ const placeholder = () => import('@/shell/PlaceholderView.vue');
 // reads `:layerKey` from the URL and pulls layer config / live data.
 // Sub-route components fill the tab body via a nested router-view; the
 // canonical landing is `/service`.
+/**
+ * The default grid for an entity component plus its extension pages —
+ * `/layer/:layerKey/service` and `/layer/:layerKey/service/:pageId`.
+ *
+ * Both records point at the same view and carry the scope in `meta`, so
+ * the view reads which component it renders instead of deriving it from
+ * the URL. `pageId` is absent on the first record, which is exactly how
+ * the view tells "the component's default page" from "a named one".
+ */
+function entityDashboardRoutes(scope: 'service' | 'instance' | 'endpoint'): RouteRecordRaw[] {
+  const component = () => import('@/render/layer-dashboard/LayerDashboardsView.vue');
+  return [
+    { path: scope, component, meta: { dashboardScope: scope } },
+    { path: `${scope}/:pageId`, component, meta: { dashboardScope: scope } },
+  ];
+}
+
 function layerRoute(): RouteRecordRaw {
   return {
     path: 'layer/:layerKey',
     component: () => import('@/layer/LayerShell.vue'),
     children: [
-      { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }) },
+      // No redirect here: which sub-page a layer lands on depends on the
+      // layer's resolved rows, which the router cannot see. `LayerShell`
+      // owns it — see the bare-path branch of its route watcher.
+      { path: '', component: () => import('@/layer/LayerLanding.vue') },
       // Same view component, scope inferred from the URL — widget set
       // differs per scope via the JSON template's `dashboards.<scope>` array.
-      { path: 'service', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
-      { path: 'instance', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
-      { path: 'endpoint', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
+      // Scope travels in `meta`, not in the URL shape. The view used to
+      // infer it by testing whether the path ENDED WITH a known segment,
+      // which a second segment breaks: `/layer/K/instance/runtime` matches
+      // nothing and would fall through to `service`, querying Service
+      // metrics on an Instance page and rendering a plausible wrong grid.
+      ...entityDashboardRoutes('service'),
+      ...entityDashboardRoutes('instance'),
+      ...entityDashboardRoutes('endpoint'),
       {
         path: 'topology',
         component: () => import('@/layer/service-map/LayerTopologyTab.vue'),
@@ -144,6 +169,12 @@ const shellRoutes: RouteRecordRaw[] = [
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
+  // The signed-in operator's own account. No `meta.verb`: reading your own
+  // identity is not a privilege, so the guard's auth check is the only gate.
+  // Named `account`, not `profile` — `profile` is SkyWalking's profiling
+  // vocabulary here (profile:read, /api/profile/*), and one word must not
+  // name two concepts.
+  { path: 'account', name: 'account', component: () => import('@/features/account/AccountView.vue') },
   // 3D Infra Map lives as a TOP-LEVEL standalone route OUTSIDE
   {
     path: 'operate/cluster',
@@ -297,6 +328,12 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'auth:read' },
   },
   {
+    path: 'admin/audit',
+    name: 'admin-audit',
+    component: () => import('@/features/admin/audit/AuditView.vue'),
+    meta: { verb: 'audit:read' },
+  },
+  {
     path: 'admin/roles',
     name: 'admin-roles',
     component: () => import('@/features/admin/roles/RolesView.vue'),
@@ -312,6 +349,17 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/features/auth/LoginView.vue'),
       meta: { public: true },
+    },
+    // OAuth consent — where an operator lends an external agent part of their
+    // own access. Outside the AppShell deliberately: this is a decision with
+    // two exits, and a sidebar offering a third would let someone wander off
+    // mid-grant, leaving the client waiting on a callback that never arrives.
+    // NOT public — being signed in is what the screen is attesting to, and the
+    // guard's login round-trip is why the agent never sees a password.
+    {
+      path: '/oauth/consent',
+      name: 'oauth-consent',
+      component: () => import('@/features/auth/OAuthConsentView.vue'),
     },
     // 3D Infra Map — standalone fullscreen route OUTSIDE the AppShell.
     // No sidebar, no topbar, no time-range ticker, no global refresh —

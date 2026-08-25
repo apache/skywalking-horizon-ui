@@ -86,6 +86,13 @@ English is the source of truth. Every UI string and every translatable template 
 - **One icon component.** No icon font, no inlined SVG one-offs.
 - **No CSS-in-JS, no Tailwind.** The design is built on CSS custom properties; Tailwind fights the token system.
 - **License headers** on every `.ts` / `.vue` / `.js` / `.yaml` / `.yml` / `.css` / `.scss`. JSON, Markdown, lock files, and generated `.d.ts` are excluded — see `.licenserc.yaml`. CI enforces; run `license-eye -c .licenserc.yaml header check` before pushing.
+- **Adding or removing a production dependency means updating the binary LICENSE.** The binary tarball bundles the whole production tree, so ASF requires the binary `LICENSE` to name every bundled package. It is generated, not hand-edited: run `pnpm licenses:bin:update` and commit the result. CI regenerates it and fails on any diff, so a dependency change that skips this step is caught — but it is caught in CI rather than in review, which wastes a round trip.
+
+  **If the new dependency's license is not one of the standard permissive ones** — MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, Apache-2.0 — its full license text must also ship. Copy the package's own `LICENSE` file to `dist-material/release-docs/licenses/LICENSE-<name>-<version>.<ext>` and commit it; that directory is maintained BY HAND, nothing generates it. The binary `LICENSE` preamble promises those texts are there, so a missing one makes the release artifact lie. Dual-licensed packages (`(MIT OR CC0-1.0)`) count as non-standard here — ship the text rather than silently electing an alternative.
+
+  **A dependency whose license `license-eye` cannot identify fails the build**, because `dependency resolve` exits non-zero on an unresolved package. Do not paper over it with a `dependency.licenses` entry in `.licenserc.yaml` unless the package genuinely ships its terms somewhere the tool cannot read — verify against the package's own LICENSE file first, and say in a comment what you verified.
+
+  `NOTICE` is hand-maintained too. Carry a bundled project's NOTICE content into ours only when that project is Apache-2.0 AND its NOTICE says something beyond its own copyright line — boilerplate "developed at The Apache Software Foundation" adds nothing, since ours already says it.
 - **Multi-layer is the spine.** Almost every screen has "this could appear in multiple layers" semantics. Build for that from day one.
 - **Synced crosshairs.** Multiple time-series on a dashboard share one cursor. Don't build charts that ignore this.
 - **Density beats whitespace.** This is an observability-class UI; information density is a feature.
@@ -118,6 +125,24 @@ English is the source of truth. Every UI string and every translatable template 
 ## Changelog (`docs/changelog/`)
 
 Keep the changelog current as part of the change, not as an afterthought. Written from the operator's point of view — what's new on screen and what's now possible — never file-by-file implementation (that's the git log).
+
+**The shape of a version file.** In this order, and omit any section that has nothing in it:
+
+```
+# <version>
+
+## Breaking changes and migration        ← only when there is one
+## <Scope>                               ← one per feature area
+### Features
+### Fixes
+## Dependencies                          ← only when they moved
+```
+
+- **Breaking changes and migration come first, prefixed `**Breaking:**`.** A reader upgrading needs to know before anything else whether this release will refuse to start, or will start and behave differently. Say what changes, and say what to do about it — the entry is only complete once someone can act on it without reading the diff. A release with none has no such section: an empty heading reads as though we forgot.
+- **Then one section per SCOPE, and each scope splits into Features and Fixes.** The scope is the area an operator thinks in — *Dashboards*, *Traces, logs and events*, *Profiling*, *Sign-in and access control*, *Operating Horizon*. A reader who cares about one area reads one section and is done, instead of sifting a flat list for the entries that touch them. Keep the same scope names across releases so they are recognisable release to release; a scope with only features, or only fixes, keeps just the subsection it needs.
+- **A UI fix NAMES the widget, component or page it affects.** "Fixed a chart rendering issue" tells a reader nothing and cannot be checked against their own screen; *"the Kubernetes Node Status card showed a raw `1` instead of its conditions"* tells them exactly where to look and whether they saw it. Name the thing the way the interface names it, so it can be found by reading the screen rather than the source.
+- **Dependencies last, and only when they moved.** What was upgraded or replaced and what it means for the operator — a cleared advisory, a new minimum version, a behaviour that changes because a library did. Not a lockfile diff; a version bump nobody can observe is not an entry.
+
 
 **The layout: one file per version, kept forever.** `docs/changelog/<version>.md` — every shipped version has one, and so does the version in flight. There is **no root `CHANGELOG.md`**. Each file is a website page: an H1 title carrying the version, then the notes, listed in `docs/menu.yml` under **Release Notes**.
 

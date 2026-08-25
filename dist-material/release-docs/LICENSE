@@ -137,8 +137,8 @@
 
    6. Trademarks. This License does not grant permission to use the trade
       names, trademarks, service marks, or product names of the Licensor,
-      except as required for describing the origin of the Work and
-      reproducing the content of the NOTICE file.
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
 
    7. Disclaimer of Warranty. Unless required by applicable law or
       agreed to in writing, Licensor provides the Work (and each
@@ -162,7 +162,7 @@
       other commercial damages or losses), even if such Contributor
       has been advised of the possibility of such damages.
 
-   9. Accepting Warranty or Support. While redistributing
+   9. Accepting Warranty or Additional Liability. While redistributing
       the Work or Derivative Works thereof, You may choose to offer,
       and charge a fee for, acceptance of support, warranty, indemnity,
       or other liability obligations and/or rights consistent with this
@@ -171,34 +171,7 @@
       of any other Contributor, and only if You agree to indemnify,
       defend, and hold each Contributor harmless for any liability
       incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or support.
-
-   END OF TERMS AND CONDITIONS
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright [yyyy] [name of copyright owner]
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+      of your accepting any such warranty or additional liability.
 
 
 ========================================================================
@@ -207,319 +180,443 @@
    The Apache SkyWalking Horizon UI binary distribution includes a number
    of subcomponents with separate copyright notices and license terms.
    Your use of the source code for these subcomponents is subject to the
-   terms and conditions of the licenses listed below. The full text of
-   each license is reproduced in the licenses/ directory of this
+   terms and conditions of the licenses listed below.
+
+   Subcomponents under a license other than the standard permissive ones
+   (MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD and Apache-2.0) have their
+   full license text reproduced in the licenses/ directory of this
    distribution.
 
    By license family, the bundled third-party software is:
 ========================================================================
 
-
 --- (MIT OR CC0-1.0) ---
 
-  * type-fest@0.7.1 (licenses/type-fest-0.7.1/license)
+  * type-fest@0.7.1
 
 --- (MPL-2.0 OR Apache-2.0) ---
 
-  * dompurify@3.4.13 (licenses/dompurify-3.4.13/LICENSE)
+  * dompurify@3.4.13
 
 --- 0BSD ---
 
-  * tslib@2.3.0 (licenses/tslib-2.3.0/LICENSE.txt)
-  * tslib@2.8.1 (licenses/tslib-2.8.1/LICENSE.txt)
+  * tslib@2.3.0
+  * tslib@2.8.1
 
 --- Apache-2.0 ---
 
-  * @aws-sdk/client-bedrock-agent-runtime@3.1100.0 (licenses/@aws-sdk__client-bedrock-agent-runtime-3.1100.0/LICENSE)
-  * @aws-sdk/client-bedrock-runtime@3.1100.0 (licenses/@aws-sdk__client-bedrock-runtime-3.1100.0/LICENSE)
-  * @aws-sdk/client-kendra@3.1100.0 (licenses/@aws-sdk__client-kendra-3.1100.0/LICENSE)
-  * @aws-sdk/core@3.977.4 (licenses/@aws-sdk__core-3.977.4/LICENSE)
-  * @aws-sdk/credential-provider-env@3.972.65 (licenses/@aws-sdk__credential-provider-env-3.972.65/LICENSE)
+  * @aws-sdk/client-bedrock-agent-runtime@3.1100.0
+  * @aws-sdk/client-bedrock-runtime@3.1100.0
+  * @aws-sdk/client-kendra@3.1100.0
+  * @aws-sdk/core@3.977.4
+  * @aws-sdk/credential-provider-env@3.972.65
   * @aws-sdk/credential-provider-http@3.972.67
-  * @aws-sdk/credential-provider-ini@3.973.10 (licenses/@aws-sdk__credential-provider-ini-3.973.10/LICENSE)
+  * @aws-sdk/credential-provider-ini@3.973.10
   * @aws-sdk/credential-provider-login@3.972.72
-  * @aws-sdk/credential-provider-node@3.972.76 (licenses/@aws-sdk__credential-provider-node-3.972.76/LICENSE)
-  * @aws-sdk/credential-provider-process@3.972.65 (licenses/@aws-sdk__credential-provider-process-3.972.65/LICENSE)
-  * @aws-sdk/credential-provider-sso@3.973.9 (licenses/@aws-sdk__credential-provider-sso-3.973.9/LICENSE)
-  * @aws-sdk/credential-provider-web-identity@3.972.71 (licenses/@aws-sdk__credential-provider-web-identity-3.972.71/LICENSE)
-  * @aws-sdk/eventstream-handler-node@3.972.31 (licenses/@aws-sdk__eventstream-handler-node-3.972.31/LICENSE)
-  * @aws-sdk/middleware-eventstream@3.972.26 (licenses/@aws-sdk__middleware-eventstream-3.972.26/LICENSE)
-  * @aws-sdk/middleware-websocket@3.972.47 (licenses/@aws-sdk__middleware-websocket-3.972.47/LICENSE)
+  * @aws-sdk/credential-provider-node@3.972.76
+  * @aws-sdk/credential-provider-process@3.972.65
+  * @aws-sdk/credential-provider-sso@3.973.9
+  * @aws-sdk/credential-provider-web-identity@3.972.71
+  * @aws-sdk/eventstream-handler-node@3.972.31
+  * @aws-sdk/middleware-eventstream@3.972.26
+  * @aws-sdk/middleware-websocket@3.972.47
   * @aws-sdk/nested-clients@3.997.39
-  * @aws-sdk/signature-v4-multi-region@3.996.43 (licenses/@aws-sdk__signature-v4-multi-region-3.996.43/LICENSE)
-  * @aws-sdk/token-providers@3.1100.0 (licenses/@aws-sdk__token-providers-3.1100.0/LICENSE)
-  * @aws-sdk/types@3.974.2 (licenses/@aws-sdk__types-3.974.2/LICENSE)
-  * @aws-sdk/xml-builder@3.972.37 (licenses/@aws-sdk__xml-builder-3.972.37/LICENSE)
-  * @aws/lambda-invoke-store@0.3.0 (licenses/@aws__lambda-invoke-store-0.3.0/LICENSE)
-  * @smithy/core@3.31.1 (licenses/@smithy__core-3.31.1/LICENSE)
-  * @smithy/credential-provider-imds@4.4.16 (licenses/@smithy__credential-provider-imds-4.4.16/LICENSE)
-  * @smithy/fetch-http-handler@5.6.13 (licenses/@smithy__fetch-http-handler-5.6.13/LICENSE)
-  * @smithy/node-http-handler@4.9.13 (licenses/@smithy__node-http-handler-4.9.13/LICENSE)
-  * @smithy/signature-v4@5.6.12 (licenses/@smithy__signature-v4-5.6.12/LICENSE)
-  * @smithy/types@4.16.1 (licenses/@smithy__types-4.16.1/LICENSE)
-  * d3-flame-graph@4.1.3 (licenses/d3-flame-graph-4.1.3/LICENSE)
+  * @aws-sdk/signature-v4-multi-region@3.996.43
+  * @aws-sdk/token-providers@3.1100.0
+  * @aws-sdk/types@3.974.2
+  * @aws-sdk/xml-builder@3.972.37
+  * @aws/lambda-invoke-store@0.3.0
+  * @grpc/grpc-js@1.14.4
+  * @grpc/proto-loader@0.8.1
+  * @smithy/core@3.31.1
+  * @smithy/credential-provider-imds@4.4.16
+  * @smithy/fetch-http-handler@5.6.13
+  * @smithy/node-http-handler@4.9.13
+  * @smithy/signature-v4@5.6.12
+  * @smithy/types@4.16.1
+  * d3-flame-graph@4.1.3
   * draco3d@1.5.7
-  * echarts@6.1.0 (licenses/echarts-6.1.0/LICENSE)
-  * openai@6.49.0 (licenses/openai-6.49.0/LICENSE)
-  * typescript@5.6.3 (licenses/typescript-5.6.3/LICENSE.txt)
+  * echarts@6.1.0
+  * long@5.3.2
+  * openai@6.49.0
+  * typescript@5.6.3
 
 --- BSD-2-Clause ---
 
-  * entities@7.0.1 (licenses/entities-7.0.1/LICENSE)
+  * entities@7.0.1
+  * json-schema-typed@8.0.2
 
 --- BSD-3-Clause ---
 
-  * d3-ease@3.0.1 (licenses/d3-ease-3.0.1/LICENSE)
-  * fast-uri@3.1.5 (licenses/fast-uri-3.1.5/LICENSE)
-  * fast-uri@4.1.2 (licenses/fast-uri-4.1.2/LICENSE)
-  * ieee754@1.2.1 (licenses/ieee754-1.2.1/LICENSE)
-  * light-my-request@6.6.0 (licenses/light-my-request-6.6.0/LICENSE)
-  * rw@1.3.3 (licenses/rw-1.3.3/LICENSE)
-  * secure-json-parse@2.7.0 (licenses/secure-json-parse-2.7.0/LICENSE.md)
-  * secure-json-parse@4.1.0 (licenses/secure-json-parse-4.1.0/LICENSE)
-  * source-map-js@1.2.1 (licenses/source-map-js-1.2.1/LICENSE)
-  * zrender@6.1.0 (licenses/zrender-6.1.0/LICENSE)
+  * @protobufjs/aspromise@1.1.2
+  * @protobufjs/base64@1.1.2
+  * @protobufjs/codegen@2.0.5
+  * @protobufjs/eventemitter@1.1.1
+  * @protobufjs/fetch@1.1.1
+  * @protobufjs/float@1.0.2
+  * @protobufjs/path@1.1.2
+  * @protobufjs/pool@1.1.0
+  * @protobufjs/utf8@1.1.2
+  * d3-ease@3.0.1
+  * fast-uri@3.1.5
+  * fast-uri@4.1.2
+  * ieee754@1.2.1
+  * light-my-request@6.6.0
+  * protobufjs@7.6.5
+  * qs@6.15.3
+  * rw@1.3.3
+  * secure-json-parse@2.7.0
+  * secure-json-parse@4.1.0
+  * source-map-js@1.2.1
+  * zrender@6.1.0
 
 --- BlueOak-1.0.0 ---
 
-  * glob@13.0.6 (licenses/glob-13.0.6/LICENSE.md)
-  * lru-cache@11.5.2 (licenses/lru-cache-11.5.2/LICENSE.md)
-  * minimatch@10.2.6 (licenses/minimatch-10.2.6/LICENSE.md)
-  * minipass@7.1.3 (licenses/minipass-7.1.3/LICENSE.md)
-  * path-scurry@2.0.2 (licenses/path-scurry-2.0.2/LICENSE.md)
+  * glob@13.0.6
+  * lru-cache@11.5.2
+  * minimatch@10.2.6
+  * minipass@7.1.3
+  * path-scurry@2.0.2
 
 --- ISC ---
 
-  * d3@7.9.0 (licenses/d3-7.9.0/LICENSE)
-  * d3-array@3.2.4 (licenses/d3-array-3.2.4/LICENSE)
-  * d3-axis@3.0.0 (licenses/d3-axis-3.0.0/LICENSE)
-  * d3-brush@3.0.0 (licenses/d3-brush-3.0.0/LICENSE)
-  * d3-chord@3.0.1 (licenses/d3-chord-3.0.1/LICENSE)
-  * d3-color@3.1.0 (licenses/d3-color-3.1.0/LICENSE)
-  * d3-contour@4.0.2 (licenses/d3-contour-4.0.2/LICENSE)
-  * d3-delaunay@6.0.4 (licenses/d3-delaunay-6.0.4/LICENSE)
-  * d3-dispatch@3.0.1 (licenses/d3-dispatch-3.0.1/LICENSE)
-  * d3-drag@3.0.0 (licenses/d3-drag-3.0.0/LICENSE)
-  * d3-dsv@3.0.1 (licenses/d3-dsv-3.0.1/LICENSE)
-  * d3-fetch@3.0.1 (licenses/d3-fetch-3.0.1/LICENSE)
-  * d3-force@3.0.0 (licenses/d3-force-3.0.0/LICENSE)
-  * d3-format@3.1.2 (licenses/d3-format-3.1.2/LICENSE)
-  * d3-geo@3.1.1 (licenses/d3-geo-3.1.1/LICENSE)
-  * d3-hierarchy@3.1.2 (licenses/d3-hierarchy-3.1.2/LICENSE)
-  * d3-interpolate@3.0.1 (licenses/d3-interpolate-3.0.1/LICENSE)
-  * d3-path@3.1.0 (licenses/d3-path-3.1.0/LICENSE)
-  * d3-polygon@3.0.1 (licenses/d3-polygon-3.0.1/LICENSE)
-  * d3-quadtree@3.0.1 (licenses/d3-quadtree-3.0.1/LICENSE)
-  * d3-random@3.0.1 (licenses/d3-random-3.0.1/LICENSE)
-  * d3-scale@4.0.2 (licenses/d3-scale-4.0.2/LICENSE)
-  * d3-scale-chromatic@3.1.0 (licenses/d3-scale-chromatic-3.1.0/LICENSE)
-  * d3-selection@3.0.0 (licenses/d3-selection-3.0.0/LICENSE)
-  * d3-shape@3.2.0 (licenses/d3-shape-3.2.0/LICENSE)
-  * d3-time@3.1.0 (licenses/d3-time-3.1.0/LICENSE)
-  * d3-time-format@4.1.0 (licenses/d3-time-format-4.1.0/LICENSE)
-  * d3-timer@3.0.1 (licenses/d3-timer-3.0.1/LICENSE)
-  * d3-transition@3.0.1 (licenses/d3-transition-3.0.1/LICENSE)
-  * d3-zoom@3.0.0 (licenses/d3-zoom-3.0.0/LICENSE)
-  * delaunator@5.1.0 (licenses/delaunator-5.1.0/LICENSE)
-  * fastq@1.20.1 (licenses/fastq-1.20.1/LICENSE)
-  * inherits@2.0.4 (licenses/inherits-2.0.4/LICENSE)
-  * internmap@2.0.3 (licenses/internmap-2.0.3/LICENSE)
-  * once@1.4.0 (licenses/once-1.4.0/LICENSE)
-  * picocolors@1.1.1 (licenses/picocolors-1.1.1/LICENSE)
-  * potpack@1.0.2 (licenses/potpack-1.0.2/LICENSE)
-  * semver@7.8.5 (licenses/semver-7.8.5/LICENSE)
-  * setprototypeof@1.2.0 (licenses/setprototypeof-1.2.0/LICENSE)
-  * split2@4.2.0 (licenses/split2-4.2.0/LICENSE)
+  * cliui@8.0.1
+  * d3@7.9.0
+  * d3-array@3.2.4
+  * d3-axis@3.0.0
+  * d3-brush@3.0.0
+  * d3-chord@3.0.1
+  * d3-color@3.1.0
+  * d3-contour@4.0.2
+  * d3-delaunay@6.0.4
+  * d3-dispatch@3.0.1
+  * d3-drag@3.0.0
+  * d3-dsv@3.0.1
+  * d3-fetch@3.0.1
+  * d3-force@3.0.0
+  * d3-format@3.1.2
+  * d3-geo@3.1.1
+  * d3-hierarchy@3.1.2
+  * d3-interpolate@3.0.1
+  * d3-path@3.1.0
+  * d3-polygon@3.0.1
+  * d3-quadtree@3.0.1
+  * d3-random@3.0.1
+  * d3-scale@4.0.2
+  * d3-scale-chromatic@3.1.0
+  * d3-selection@3.0.0
+  * d3-shape@3.2.0
+  * d3-time@3.1.0
+  * d3-time-format@4.1.0
+  * d3-timer@3.0.1
+  * d3-transition@3.0.1
+  * d3-zoom@3.0.0
+  * delaunator@5.1.0
+  * fastq@1.20.1
+  * get-caller-file@2.0.5
+  * inherits@2.0.4
+  * internmap@2.0.3
+  * isexe@2.0.0
+  * once@1.4.0
+  * pg-int8@1.0.1
+  * picocolors@1.1.1
+  * potpack@1.0.2
+  * semver@7.8.5
+  * setprototypeof@1.2.0
+  * split2@4.2.0
   * strict-event-emitter-types@2.0.0
-  * wrappy@1.0.2 (licenses/wrappy-1.0.2/LICENSE)
-  * yaml@2.9.0 (licenses/yaml-2.9.0/LICENSE)
+  * which@2.0.2
+  * wrappy@1.0.2
+  * y18n@5.0.8
+  * yaml@2.9.0
+  * yargs-parser@21.1.1
+  * zod-to-json-schema@3.25.2
 
 --- MIT ---
 
-  * @babel/helper-string-parser@7.29.7 (licenses/@babel__helper-string-parser-7.29.7/LICENSE)
-  * @babel/helper-validator-identifier@7.29.7 (licenses/@babel__helper-validator-identifier-7.29.7/LICENSE)
-  * @babel/parser@7.29.7 (licenses/@babel__parser-7.29.7/LICENSE)
-  * @babel/types@7.29.7 (licenses/@babel__types-7.29.7/LICENSE)
+  * @babel/helper-string-parser@7.29.7
+  * @babel/helper-validator-identifier@7.29.7
+  * @babel/parser@7.29.7
+  * @babel/types@7.29.7
   * @cfworker/json-schema@4.1.1
-  * @fastify/accept-negotiator@2.0.1 (licenses/@fastify__accept-negotiator-2.0.1/LICENSE)
-  * @fastify/ajv-compiler@4.0.5 (licenses/@fastify__ajv-compiler-4.0.5/LICENSE)
-  * @fastify/busboy@3.2.0 (licenses/@fastify__busboy-3.2.0/LICENSE)
-  * @fastify/cookie@11.1.2 (licenses/@fastify__cookie-11.1.2/LICENSE)
-  * @fastify/deepmerge@3.2.1 (licenses/@fastify__deepmerge-3.2.1/LICENSE)
-  * @fastify/error@4.2.0 (licenses/@fastify__error-4.2.0/LICENSE)
-  * @fastify/fast-json-stringify-compiler@5.1.0 (licenses/@fastify__fast-json-stringify-compiler-5.1.0/LICENSE)
-  * @fastify/forwarded@3.0.2 (licenses/@fastify__forwarded-3.0.2/LICENSE)
-  * @fastify/merge-json-schemas@0.2.1 (licenses/@fastify__merge-json-schemas-0.2.1/LICENSE)
-  * @fastify/multipart@10.1.0 (licenses/@fastify__multipart-10.1.0/LICENSE)
-  * @fastify/proxy-addr@5.1.0 (licenses/@fastify__proxy-addr-5.1.0/LICENSE)
-  * @fastify/send@4.1.0 (licenses/@fastify__send-4.1.0/LICENSE)
-  * @fastify/static@10.1.2 (licenses/@fastify__static-10.1.2/LICENSE)
-  * @intlify/core-base@10.0.8 (licenses/@intlify__core-base-10.0.8/LICENSE)
-  * @intlify/message-compiler@10.0.8 (licenses/@intlify__message-compiler-10.0.8/LICENSE)
-  * @intlify/shared@10.0.8 (licenses/@intlify__shared-10.0.8/LICENSE)
-  * @jridgewell/resolve-uri@3.1.2 (licenses/@jridgewell__resolve-uri-3.1.2/LICENSE)
-  * @jridgewell/sourcemap-codec@1.5.5 (licenses/@jridgewell__sourcemap-codec-1.5.5/LICENSE)
-  * @jridgewell/trace-mapping@0.3.31 (licenses/@jridgewell__trace-mapping-0.3.31/LICENSE)
-  * @langchain/aws@1.4.3 (licenses/@langchain__aws-1.4.3/LICENSE)
-  * @langchain/core@1.2.4 (licenses/@langchain__core-1.2.4/LICENSE)
-  * @langchain/langgraph@1.4.8 (licenses/@langchain__langgraph-1.4.8/LICENSE)
-  * @langchain/langgraph-checkpoint@1.1.3 (licenses/@langchain__langgraph-checkpoint-1.1.3/LICENSE)
-  * @langchain/langgraph-sdk@1.9.28 (licenses/@langchain__langgraph-sdk-1.9.28/LICENSE)
-  * @langchain/openai@1.5.5 (licenses/@langchain__openai-1.5.5/LICENSE)
-  * @langchain/protocol@0.0.18 (licenses/@langchain__protocol-0.0.18/LICENSE)
-  * @lukeed/ms@2.0.2 (licenses/@lukeed__ms-2.0.2/license)
-  * @phc/format@1.0.0 (licenses/@phc__format-1.0.0/license)
-  * @pinojs/redact@0.4.0 (licenses/@pinojs__redact-0.4.0/LICENSE)
-  * @pmndrs/pointer-events@6.6.30 (licenses/@pmndrs__pointer-events-6.6.30/LICENSE)
-  * @standard-schema/spec@1.1.0 (licenses/@standard-schema__spec-1.1.0/LICENSE)
-  * @tanstack/match-sorter-utils@8.19.4 (licenses/@tanstack__match-sorter-utils-8.19.4/LICENSE)
-  * @tanstack/query-core@5.101.4 (licenses/@tanstack__query-core-5.101.4/LICENSE)
-  * @tanstack/vue-query@5.101.4 (licenses/@tanstack__vue-query-5.101.4/LICENSE)
-  * @tresjs/cientos@5.8.1 (licenses/@tresjs__cientos-5.8.1/LICENSE)
-  * @tresjs/core@5.8.3 (licenses/@tresjs__core-5.8.3/LICENSE)
-  * @types/draco3d@1.4.10 (licenses/@types__draco3d-1.4.10/LICENSE)
-  * @types/json-schema@7.0.15 (licenses/@types__json-schema-7.0.15/LICENSE)
-  * @types/offscreencanvas@2019.7.3 (licenses/@types__offscreencanvas-2019.7.3/LICENSE)
-  * @types/trusted-types@2.0.7 (licenses/@types__trusted-types-2.0.7/LICENSE)
-  * @types/web-bluetooth@0.0.21 (licenses/@types__web-bluetooth-0.0.21/LICENSE)
-  * @types/webxr@0.5.24 (licenses/@types__webxr-0.5.24/LICENSE)
-  * @vue/compiler-core@3.5.40 (licenses/@vue__compiler-core-3.5.40/LICENSE)
-  * @vue/compiler-dom@3.5.40 (licenses/@vue__compiler-dom-3.5.40/LICENSE)
-  * @vue/compiler-sfc@3.5.40 (licenses/@vue__compiler-sfc-3.5.40/LICENSE)
-  * @vue/compiler-ssr@3.5.40 (licenses/@vue__compiler-ssr-3.5.40/LICENSE)
+  * @fastify/accept-negotiator@2.0.1
+  * @fastify/ajv-compiler@4.0.5
+  * @fastify/busboy@3.2.0
+  * @fastify/cookie@11.1.2
+  * @fastify/deepmerge@3.2.1
+  * @fastify/error@4.2.0
+  * @fastify/fast-json-stringify-compiler@5.1.0
+  * @fastify/forwarded@3.0.2
+  * @fastify/merge-json-schemas@0.2.1
+  * @fastify/multipart@10.1.0
+  * @fastify/proxy-addr@5.1.0
+  * @fastify/send@4.1.0
+  * @fastify/static@10.1.2
+  * @hono/node-server@2.1.1
+  * @intlify/core-base@10.0.8
+  * @intlify/message-compiler@10.0.8
+  * @intlify/shared@10.0.8
+  * @jridgewell/resolve-uri@3.1.2
+  * @jridgewell/sourcemap-codec@1.5.5
+  * @jridgewell/trace-mapping@0.3.31
+  * @js-sdsl/ordered-map@4.4.2
+  * @langchain/aws@1.4.3
+  * @langchain/core@1.2.4
+  * @langchain/langgraph@1.4.8
+  * @langchain/langgraph-checkpoint@1.1.3
+  * @langchain/langgraph-sdk@1.9.28
+  * @langchain/openai@1.5.5
+  * @langchain/protocol@0.0.18
+  * @lukeed/ms@2.0.2
+  * @modelcontextprotocol/sdk@1.30.0
+  * @phc/format@1.0.0
+  * @pinojs/redact@0.4.0
+  * @pmndrs/pointer-events@6.6.30
+  * @standard-schema/spec@1.1.0
+  * @tanstack/match-sorter-utils@8.19.4
+  * @tanstack/query-core@5.101.4
+  * @tanstack/vue-query@5.101.4
+  * @tresjs/cientos@5.8.1
+  * @tresjs/core@5.8.3
+  * @types/draco3d@1.4.10
+  * @types/json-schema@7.0.15
+  * @types/node@22.20.1
+  * @types/offscreencanvas@2019.7.3
+  * @types/trusted-types@2.0.7
+  * @types/web-bluetooth@0.0.21
+  * @types/webxr@0.5.24
+  * @vue/compiler-core@3.5.40
+  * @vue/compiler-dom@3.5.40
+  * @vue/compiler-sfc@3.5.40
+  * @vue/compiler-ssr@3.5.40
   * @vue/devtools-api@6.6.4
-  * @vue/devtools-api@8.2.1 (licenses/@vue__devtools-api-8.2.1/LICENSE)
-  * @vue/devtools-kit@8.2.1 (licenses/@vue__devtools-kit-8.2.1/LICENSE)
-  * @vue/devtools-shared@8.2.1 (licenses/@vue__devtools-shared-8.2.1/LICENSE)
-  * @vue/reactivity@3.5.40 (licenses/@vue__reactivity-3.5.40/LICENSE)
-  * @vue/runtime-core@3.5.40 (licenses/@vue__runtime-core-3.5.40/LICENSE)
-  * @vue/runtime-dom@3.5.40 (licenses/@vue__runtime-dom-3.5.40/LICENSE)
-  * @vue/server-renderer@3.5.40 (licenses/@vue__server-renderer-3.5.40/LICENSE)
-  * @vue/shared@3.5.40 (licenses/@vue__shared-3.5.40/LICENSE)
-  * @vueuse/core@14.4.0 (licenses/@vueuse__core-14.4.0/LICENSE)
-  * @vueuse/metadata@14.4.0 (licenses/@vueuse__metadata-14.4.0/LICENSE)
-  * @vueuse/shared@14.4.0 (licenses/@vueuse__shared-14.4.0/LICENSE)
-  * abort-controller@3.0.0 (licenses/abort-controller-3.0.0/LICENSE)
+  * @vue/devtools-api@8.2.1
+  * @vue/devtools-kit@8.2.1
+  * @vue/devtools-shared@8.2.1
+  * @vue/reactivity@3.5.40
+  * @vue/runtime-core@3.5.40
+  * @vue/runtime-dom@3.5.40
+  * @vue/server-renderer@3.5.40
+  * @vue/shared@3.5.40
+  * @vueuse/core@14.4.0
+  * @vueuse/metadata@14.4.0
+  * @vueuse/shared@14.4.0
+  * abort-controller@3.0.0
   * abstract-logging@2.0.1
-  * ajv@8.20.0 (licenses/ajv-8.20.0/LICENSE)
-  * ajv-formats@3.0.1 (licenses/ajv-formats-3.0.1/LICENSE)
-  * argon2@0.41.1 (licenses/argon2-0.41.1/LICENSE)
-  * atomic-sleep@1.0.0 (licenses/atomic-sleep-1.0.0/LICENSE)
-  * avvio@9.3.0 (licenses/avvio-9.3.0/LICENSE)
-  * balanced-match@4.0.4 (licenses/balanced-match-4.0.4/LICENSE.md)
-  * base64-js@1.5.1 (licenses/base64-js-1.5.1/LICENSE)
-  * birpc@2.9.0 (licenses/birpc-2.9.0/LICENSE)
-  * bowser@2.14.1 (licenses/bowser-2.14.1/LICENSE)
-  * brace-expansion@5.0.9 (licenses/brace-expansion-5.0.9/LICENSE)
-  * buffer@6.0.3 (licenses/buffer-6.0.3/LICENSE)
-  * camera-controls@3.1.2 (licenses/camera-controls-3.1.2/LICENSE)
-  * chokidar@4.0.3 (licenses/chokidar-4.0.3/LICENSE)
-  * colorette@2.0.20 (licenses/colorette-2.0.20/LICENSE.md)
-  * commander@7.2.0 (licenses/commander-7.2.0/LICENSE)
-  * content-disposition@2.0.1 (licenses/content-disposition-2.0.1/LICENSE)
-  * cookie@1.1.1 (licenses/cookie-1.1.1/LICENSE)
-  * cookie@2.0.1 (licenses/cookie-2.0.1/LICENSE)
-  * csstype@3.2.3 (licenses/csstype-3.2.3/LICENSE)
-  * dateformat@4.6.3 (licenses/dateformat-4.6.3/LICENSE)
-  * depd@2.0.0 (licenses/depd-2.0.0/LICENSE)
-  * dequal@2.0.3 (licenses/dequal-2.0.3/license)
-  * end-of-stream@1.4.5 (licenses/end-of-stream-1.4.5/LICENSE)
-  * escape-html@1.0.3 (licenses/escape-html-1.0.3/LICENSE)
-  * estree-walker@2.0.2 (licenses/estree-walker-2.0.2/LICENSE)
-  * event-target-shim@5.0.1 (licenses/event-target-shim-5.0.1/LICENSE)
-  * eventemitter3@4.0.7 (licenses/eventemitter3-4.0.7/LICENSE)
-  * eventemitter3@5.0.4 (licenses/eventemitter3-5.0.4/LICENSE)
-  * events@3.3.0 (licenses/events-3.3.0/LICENSE)
-  * fast-copy@3.0.2 (licenses/fast-copy-3.0.2/LICENSE)
-  * fast-decode-uri-component@1.0.1 (licenses/fast-decode-uri-component-1.0.1/LICENSE)
-  * fast-deep-equal@3.1.3 (licenses/fast-deep-equal-3.1.3/LICENSE)
-  * fast-json-stringify@7.0.1 (licenses/fast-json-stringify-7.0.1/LICENSE)
-  * fast-querystring@1.1.2 (licenses/fast-querystring-1.1.2/LICENSE)
-  * fast-safe-stringify@2.1.1 (licenses/fast-safe-stringify-2.1.1/LICENSE)
-  * fastify@5.11.0 (licenses/fastify-5.11.0/LICENSE)
-  * fastify-plugin@6.0.0 (licenses/fastify-plugin-6.0.0/LICENSE)
-  * fflate@0.6.11 (licenses/fflate-0.6.11/LICENSE)
-  * find-my-way@9.7.0 (licenses/find-my-way-9.7.0/LICENSE)
-  * help-me@5.0.0 (licenses/help-me-5.0.0/LICENSE)
-  * hookable@5.5.3 (licenses/hookable-5.5.3/LICENSE.md)
-  * http-errors@2.0.1 (licenses/http-errors-2.0.1/LICENSE)
-  * iconv-lite@0.6.3 (licenses/iconv-lite-0.6.3/LICENSE)
-  * ipaddr.js@2.4.0 (licenses/ipaddr.js-2.4.0/LICENSE)
-  * is-network-error@1.3.2 (licenses/is-network-error-1.3.2/license)
-  * joycon@3.1.1 (licenses/joycon-3.1.1/LICENSE)
+  * accepts@2.0.0
+  * ajv@8.20.0
+  * ajv-formats@3.0.1
+  * ansi-regex@5.0.1
+  * ansi-styles@4.3.0
+  * argon2@0.41.1
+  * atomic-sleep@1.0.0
+  * avvio@9.3.0
+  * balanced-match@4.0.4
+  * base64-js@1.5.1
+  * birpc@2.9.0
+  * body-parser@2.3.0
+  * bowser@2.14.1
+  * brace-expansion@5.0.9
+  * buffer@6.0.3
+  * bytes@3.1.2
+  * call-bind-apply-helpers@1.0.2
+  * call-bound@1.0.4
+  * camera-controls@3.1.2
+  * chokidar@4.0.3
+  * color-convert@2.0.1
+  * color-name@1.1.4
+  * colorette@2.0.20
+  * commander@7.2.0
+  * content-disposition@1.1.0
+  * content-disposition@2.0.1
+  * content-type@1.0.5
+  * content-type@2.1.0
+  * cookie@0.7.2
+  * cookie@1.1.1
+  * cookie@2.0.1
+  * cookie-signature@1.2.2
+  * cors@2.8.6
+  * cross-spawn@7.0.6
+  * csstype@3.2.3
+  * dateformat@4.6.3
+  * debug@4.4.3
+  * depd@2.0.0
+  * dequal@2.0.3
+  * dunder-proto@1.0.1
+  * ee-first@1.1.1
+  * emoji-regex@8.0.0
+  * encodeurl@2.0.0
+  * end-of-stream@1.4.5
+  * es-define-property@1.0.1
+  * es-errors@1.3.0
+  * es-object-atoms@1.1.2
+  * escalade@3.2.0
+  * escape-html@1.0.3
+  * estree-walker@2.0.2
+  * etag@1.8.1
+  * event-target-shim@5.0.1
+  * eventemitter3@4.0.7
+  * eventemitter3@5.0.4
+  * events@3.3.0
+  * eventsource@3.0.7
+  * eventsource-parser@3.1.1
+  * express@5.2.1
+  * express-rate-limit@8.6.2
+  * fast-copy@3.0.2
+  * fast-decode-uri-component@1.0.1
+  * fast-deep-equal@3.1.3
+  * fast-json-stringify@7.0.1
+  * fast-querystring@1.1.2
+  * fast-safe-stringify@2.1.1
+  * fastify@5.11.0
+  * fastify-plugin@6.0.0
+  * fflate@0.6.11
+  * finalhandler@2.1.1
+  * find-my-way@9.7.0
+  * forwarded@0.2.0
+  * fresh@2.0.0
+  * function-bind@1.1.2
+  * get-intrinsic@1.3.0
+  * get-proto@1.0.1
+  * gopd@1.2.0
+  * has-symbols@1.1.0
+  * hasown@2.0.4
+  * help-me@5.0.0
+  * hono@4.13.2
+  * hookable@5.5.3
+  * http-errors@2.0.1
+  * iconv-lite@0.6.3
+  * iconv-lite@0.7.3
+  * ip-address@10.5.0
+  * ipaddr.js@1.9.1
+  * ipaddr.js@2.4.0
+  * is-fullwidth-code-point@3.0.0
+  * is-network-error@1.3.2
+  * is-promise@4.0.0
+  * jose@6.2.9
+  * joycon@3.1.1
   * js-tiktoken@1.0.21
-  * json-schema-ref-resolver@3.0.0 (licenses/json-schema-ref-resolver-3.0.0/LICENSE)
-  * json-schema-traverse@1.0.0 (licenses/json-schema-traverse-1.0.0/LICENSE)
+  * json-schema-ref-resolver@3.0.0
+  * json-schema-traverse@1.0.0
   * langsmith@0.8.8
-  * ldapts@8.2.0 (licenses/ldapts-8.2.0/LICENSE)
-  * magic-string@0.30.21 (licenses/magic-string-0.30.21/LICENSE)
-  * marked@14.0.0 (licenses/marked-14.0.0/LICENSE.md)
-  * mime@3.0.0 (licenses/mime-3.0.0/LICENSE)
-  * minimist@1.2.8 (licenses/minimist-1.2.8/LICENSE)
-  * monaco-editor@0.55.1 (licenses/monaco-editor-0.55.1/LICENSE)
-  * mustache@4.2.0 (licenses/mustache-4.2.0/LICENSE)
-  * nanoid@3.3.18 (licenses/nanoid-3.3.18/LICENSE)
-  * node-addon-api@8.9.0 (licenses/node-addon-api-8.9.0/LICENSE.md)
-  * node-gyp-build@4.8.4 (licenses/node-gyp-build-4.8.4/LICENSE)
-  * on-exit-leak-free@2.1.2 (licenses/on-exit-leak-free-2.1.2/LICENSE)
-  * p-finally@1.0.0 (licenses/p-finally-1.0.0/license)
-  * p-queue@6.6.2 (licenses/p-queue-6.6.2/license)
-  * p-queue@9.3.3 (licenses/p-queue-9.3.3/license)
-  * p-retry@7.1.1 (licenses/p-retry-7.1.1/license)
-  * p-timeout@3.2.0 (licenses/p-timeout-3.2.0/license)
-  * p-timeout@7.0.1 (licenses/p-timeout-7.0.1/license)
-  * perfect-debounce@2.1.0 (licenses/perfect-debounce-2.1.0/LICENSE)
-  * pinia@2.3.1 (licenses/pinia-2.3.1/LICENSE)
-  * pino@9.14.0 (licenses/pino-9.14.0/LICENSE)
-  * pino-abstract-transport@2.0.0 (licenses/pino-abstract-transport-2.0.0/LICENSE)
-  * pino-pretty@11.3.0 (licenses/pino-pretty-11.3.0/LICENSE)
-  * pino-std-serializers@7.1.0 (licenses/pino-std-serializers-7.1.0/LICENSE)
-  * postcss@8.5.25 (licenses/postcss-8.5.25/LICENSE)
-  * process@0.11.10 (licenses/process-0.11.10/LICENSE)
-  * process-warning@4.0.1 (licenses/process-warning-4.0.1/LICENSE)
-  * process-warning@5.1.0 (licenses/process-warning-5.1.0/LICENSE)
-  * pump@3.0.4 (licenses/pump-3.0.4/LICENSE)
-  * quick-format-unescaped@4.0.4 (licenses/quick-format-unescaped-4.0.4/LICENSE)
-  * radashi@12.9.1 (licenses/radashi-12.9.1/LICENSE.md)
-  * readable-stream@4.7.0 (licenses/readable-stream-4.7.0/LICENSE)
-  * readdirp@4.1.2 (licenses/readdirp-4.1.2/LICENSE)
-  * real-require@0.2.0 (licenses/real-require-0.2.0/LICENSE.md)
-  * remove-accents@0.5.0 (licenses/remove-accents-0.5.0/LICENSE)
-  * require-from-string@2.0.2 (licenses/require-from-string-2.0.2/license)
-  * ret@0.5.0 (licenses/ret-0.5.0/LICENSE)
-  * reusify@1.1.0 (licenses/reusify-1.1.0/LICENSE)
-  * rfdc@1.4.1 (licenses/rfdc-1.4.1/LICENSE)
-  * safe-buffer@5.2.1 (licenses/safe-buffer-5.2.1/LICENSE)
-  * safe-regex2@5.1.1 (licenses/safe-regex2-5.1.1/LICENSE)
-  * safe-stable-stringify@2.5.0 (licenses/safe-stable-stringify-2.5.0/LICENSE)
-  * safer-buffer@2.1.2 (licenses/safer-buffer-2.1.2/LICENSE)
-  * set-cookie-parser@2.7.2 (licenses/set-cookie-parser-2.7.2/LICENSE)
-  * sonic-boom@4.2.1 (licenses/sonic-boom-4.2.1/LICENSE)
-  * stacktrace-parser@0.1.11 (licenses/stacktrace-parser-0.1.11/LICENSE)
+  * ldapts@8.2.0
+  * lodash.camelcase@4.3.0
+  * magic-string@0.30.21
+  * marked@14.0.0
+  * math-intrinsics@1.1.0
+  * media-typer@1.1.1
+  * merge-descriptors@2.0.0
+  * mime@3.0.0
+  * mime-db@1.54.0
+  * mime-types@3.0.2
+  * minimist@1.2.8
+  * monaco-editor@0.55.1
+  * ms@2.1.3
+  * mustache@4.2.0
+  * nanoid@3.3.18
+  * negotiator@1.0.0
+  * node-addon-api@8.9.0
+  * node-gyp-build@4.8.4
+  * object-assign@4.1.1
+  * object-inspect@1.13.4
+  * on-exit-leak-free@2.1.2
+  * on-finished@2.4.1
+  * p-finally@1.0.0
+  * p-queue@6.6.2
+  * p-queue@9.3.3
+  * p-retry@7.1.1
+  * p-timeout@3.2.0
+  * p-timeout@7.0.1
+  * parseurl@1.3.3
+  * path-key@3.1.1
+  * path-to-regexp@8.4.2
+  * perfect-debounce@2.1.0
+  * pg@8.23.0
+  * pg-cloudflare@1.4.0
+  * pg-connection-string@2.14.0
+  * pg-pool@3.14.0
+  * pg-protocol@1.16.0
+  * pg-types@2.2.0
+  * pgpass@1.0.5
+  * pinia@2.3.1
+  * pino@9.14.0
+  * pino-abstract-transport@2.0.0
+  * pino-pretty@11.3.0
+  * pino-std-serializers@7.1.0
+  * pkce-challenge@5.0.1
+  * postcss@8.5.25
+  * postgres-array@2.0.0
+  * postgres-bytea@1.0.1
+  * postgres-date@1.0.7
+  * postgres-interval@1.2.0
+  * process@0.11.10
+  * process-warning@4.0.1
+  * process-warning@5.1.0
+  * proxy-addr@2.0.7
+  * pump@3.0.4
+  * quick-format-unescaped@4.0.4
+  * radashi@12.9.1
+  * range-parser@1.3.0
+  * raw-body@3.0.2
+  * readable-stream@4.7.0
+  * readdirp@4.1.2
+  * real-require@0.2.0
+  * remove-accents@0.5.0
+  * require-directory@2.1.1
+  * require-from-string@2.0.2
+  * ret@0.5.0
+  * reusify@1.1.0
+  * rfdc@1.4.1
+  * router@2.2.0
+  * safe-buffer@5.2.1
+  * safe-regex2@5.1.1
+  * safe-stable-stringify@2.5.0
+  * safer-buffer@2.1.2
+  * send@1.2.1
+  * serve-static@2.2.1
+  * set-cookie-parser@2.7.2
+  * shebang-command@2.0.0
+  * shebang-regex@3.0.0
+  * side-channel@1.1.1
+  * side-channel-list@1.0.1
+  * side-channel-map@1.0.1
+  * side-channel-weakmap@1.0.2
+  * sonic-boom@4.2.1
+  * stacktrace-parser@0.1.11
   * stats-gl@4.2.3
-  * stats.js@0.17.0 (licenses/stats.js-0.17.0/LICENSE)
-  * statuses@2.0.2 (licenses/statuses-2.0.2/LICENSE)
-  * string_decoder@1.3.0 (licenses/string_decoder-1.3.0/LICENSE)
-  * strip-json-comments@3.1.1 (licenses/strip-json-comments-3.1.1/license)
-  * thread-stream@3.2.0 (licenses/thread-stream-3.2.0/LICENSE)
-  * three@0.184.0 (licenses/three-0.184.0/LICENSE)
-  * three-custom-shader-material@6.4.0 (licenses/three-custom-shader-material-6.4.0/LICENSE.md)
-  * three-mesh-bvh@0.9.13 (licenses/three-mesh-bvh-0.9.13/LICENSE)
-  * three-stdlib@2.36.1 (licenses/three-stdlib-2.36.1/LICENSE)
-  * toad-cache@3.7.4 (licenses/toad-cache-3.7.4/LICENSE)
-  * toidentifier@1.0.1 (licenses/toidentifier-1.0.1/LICENSE)
-  * vue@3.5.40 (licenses/vue-3.5.40/LICENSE)
-  * vue-demi@0.14.10 (licenses/vue-demi-0.14.10/LICENSE)
-  * vue-i18n@10.0.8 (licenses/vue-i18n-10.0.8/LICENSE)
-  * vue-router@4.6.4 (licenses/vue-router-4.6.4/LICENSE)
-  * ws@8.21.1 (licenses/ws-8.21.1/LICENSE)
-  * zod@3.25.76 (licenses/zod-3.25.76/LICENSE)
+  * stats.js@0.17.0
+  * statuses@2.0.2
+  * string-width@4.2.3
+  * string_decoder@1.3.0
+  * strip-ansi@6.0.1
+  * strip-json-comments@3.1.1
+  * thread-stream@3.2.0
+  * three@0.184.0
+  * three-custom-shader-material@6.4.0
+  * three-mesh-bvh@0.9.13
+  * three-stdlib@2.36.1
+  * toad-cache@3.7.4
+  * toidentifier@1.0.1
+  * type-is@2.1.0
+  * undici-types@6.21.0
+  * unpipe@1.0.0
+  * vary@1.1.2
+  * vue@3.5.40
+  * vue-demi@0.14.10
+  * vue-i18n@10.0.8
+  * vue-router@4.6.4
+  * wrap-ansi@7.0.0
+  * ws@8.21.1
+  * xtend@4.0.2
+  * yargs@17.7.3
+  * zod@3.25.76
 
 --- OFL-1.1 ---
 
-  * @fontsource-variable/inter@5.3.0 (licenses/@fontsource-variable__inter-5.3.0/LICENSE)
-  * @fontsource-variable/jetbrains-mono@5.3.0 (licenses/@fontsource-variable__jetbrains-mono-5.3.0/LICENSE)
+  * @fontsource-variable/inter@5.3.0
+  * @fontsource-variable/jetbrains-mono@5.3.0
 
 --- Unlicense ---
 
-  * robust-predicates@3.0.3 (licenses/robust-predicates-3.0.3/LICENSE)
+  * robust-predicates@3.0.3
+

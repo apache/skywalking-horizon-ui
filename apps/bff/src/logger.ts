@@ -47,8 +47,10 @@ export const loggerOptions: LoggerOptions = {
   // Backstop redaction for every credential horizon.yaml can carry. None is
   // intentionally logged, but a stray `logger.info({ config })` — or an error
   // object that happens to embed connection options — must not leak one. Covers
-  // the LLM key, the OAP basic-auth password, and the LDAP service-account bind
-  // password, each at its config path and under a `config.` wrapper.
+  // the LLM key, the OAP basic-auth password, the LDAP service-account bind
+  // password, each SSO provider's client secret, the OAuth signing key and the
+  // audit store's connection string — each at its config path and under a
+  // `config.` wrapper.
   redact: {
     paths: [
       'ai.apiKey',
@@ -61,8 +63,43 @@ export const loggerOptions: LoggerOptions = {
       'auth.ldap.bindPassword',
       'config.auth.ldap.bindPassword',
       '*.bindPassword',
+      // SSO: the per-provider client secret, and the OAuth signing key that
+      // every issued token is only as private as.
+      '*.clientSecret',
+      '*.client_secret',
+      'oauth.signingKey',
+      'config.oauth.signingKey',
+      '*.signingKey',
+      // The audit store's connection string. Not covered by any wildcard
+      // above, and it carries host, database, user and password in one value.
+      'audit.postgres.url',
+      'config.audit.postgres.url',
+      '*.postgres.url',
+      '*.connectionString',
     ],
     censor: '[redacted]',
+  },
+  /**
+   * Strip the query string from access-logged URLs.
+   *
+   * The audit page filters by person — `?username=alice@corp.example` — and
+   * Fastify's per-request `info` line carries the full URL, which the docs
+   * tell operators to turn on. That copies the identity of everyone an
+   * auditor looks up into a second store with its own retention, outside the
+   * audit log's own rules, and readable by anyone who can read logs. The path
+   * is what an access log is for; the arguments are not.
+   */
+  serializers: {
+    req(request: { method: string; url?: string; id?: unknown; ip?: string }) {
+      const url = request.url ?? '';
+      const cut = url.indexOf('?');
+      return {
+        id: request.id,
+        method: request.method,
+        url: cut === -1 ? url : `${url.slice(0, cut)}?[redacted]`,
+        ip: request.ip,
+      };
+    },
   },
   ...(isDev
     ? {

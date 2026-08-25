@@ -8,9 +8,9 @@ Role-Based Access Control. Defines the role → verb grants and the post-login l
 rbac:
   enabled: true
   roles:
-    viewer:     [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read]
-    maintainer: [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, cluster:read, inspect:read, ttl:read, config:read, infra-3d:read, ai:read]
-    operator:   [metrics:read, ..., rule:write:structural, live-debug:write, profile:enable, ai:read]
+    viewer:     [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read, mcp:read]
+    maintainer: [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, cluster:read, inspect:read, ttl:read, config:read, infra-3d:read, ai:read, mcp:read]
+    operator:   [metrics:read, ..., rule:write:structural, live-debug:write, profile:enable, ai:read, mcp:read]
     admin:      ["*"]
   landingByRole:
     viewer: /
@@ -31,7 +31,7 @@ rbac:
 
 | Role | Purpose | Grants |
 |---|---|---|
-| `viewer` | Read-only data catalog, inspect tools, public overviews, and the AI assistant. | `metrics:read`, `alarms:read`, `events:read`, `traces:read`, `logs:read`, `browser-errors:read`, `inspect:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`, `ai:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals. |
+| `viewer` | Read-only data catalog, inspect tools, public overviews, the AI assistant, and MCP. | `metrics:read`, `alarms:read`, `events:read`, `traces:read`, `logs:read`, `browser-errors:read`, `inspect:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`, `ai:read`, `mcp:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals. |
 | `maintainer` | Viewer + platform monitoring. | viewer baseline + `cluster:read`, `ttl:read`, `config:read`. |
 | `operator` | Configures observability. | maintainer baseline + `overview:write`, `source-map:write`, `setup:read`, `dashboard:read`/`write`, `alarm-setup:read`, `alarm-rule:read`, `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`, `live-debug:read`/`write`, `profile:enable`. There is no `setup:write` or `alarm-setup:write` verb — publishing on those pages rides `overview:write`, and alarm rules are read-only for every role. |
 | `admin` | Unrestricted. | `*`. |

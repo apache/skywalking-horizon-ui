@@ -24,11 +24,29 @@
 import type { HorizonConfig } from '../config/schema.js';
 import { hasVerb, resolveVerbsForRoles } from './verbs.js';
 
+/**
+ * Whoever a verb is being checked FOR. Takes the session rather than its roles
+ * so a caller cannot check the roles and forget the cap — there is no
+ * roles-only overload to reach for, which is the point.
+ */
+export interface VerbSubject {
+  roles: readonly string[];
+  /**
+   * An OAuth scope's CAP, when the credential came from one. Effective verbs
+   * are the INTERSECTION of what the user's roles grant and what the operator
+   * consented to give this client, so a scope can only ever narrow: an agent
+   * granted `horizon:full` by someone who is a viewer is still a viewer.
+   * Absent (a browser session, an API token) means no cap.
+   */
+  verbCap?: readonly string[];
+}
+
 export function sessionHasVerb(
   config: HorizonConfig,
-  roles: readonly string[],
+  subject: VerbSubject,
   required: string,
 ): boolean {
-  const verbs = resolveVerbsForRoles(config.rbac.roles, roles, config.rbac.enabled);
-  return hasVerb(verbs, required);
+  const verbs = resolveVerbsForRoles(config.rbac.roles, subject.roles, config.rbac.enabled);
+  if (!hasVerb(verbs, required)) return false;
+  return subject.verbCap ? hasVerb(subject.verbCap, required) : true;
 }

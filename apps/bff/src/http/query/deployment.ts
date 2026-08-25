@@ -27,9 +27,8 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike, DeploymentConfig, UITemplateClient } from '@skywalking-horizon-ui/api-client';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
 import {
@@ -45,9 +44,7 @@ import { parsePreviewDeployment } from '../../logic/layers/preview.js';
 import { buildDeployment, emptyDeploymentResponse } from '../../logic/oap/deployment.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
-export interface DeploymentRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface DeploymentRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serves the in-use REMOTE config, matching
    *  the admin + sidebar. */

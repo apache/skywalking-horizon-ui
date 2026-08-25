@@ -119,7 +119,6 @@ HORIZON_CONFIG=./horizon.yaml node dist/server.js
 - [ ] `server.host: 0.0.0.0` and TLS terminator in front.
 - [ ] `session.cookieSecure: true`.
 - [ ] `auth.local.users` empty in production (use LDAP) **or** all passwords are strong + hashes never in version control.
-- [ ] `audit.file` writes to durable storage (not a container tmpfs).
 - [ ] `debugLog.enabled: false` (or rotate aggressively).
 - [ ] OAP credentials, LDAP bind password, and break-glass hash use `${ENV_VAR}` interpolation, not literal values.
 - [ ] Container readiness probe wired to the public `GET /api/health` (not `/api/oap/info`, which is authenticated and returns 401 to an unauthenticated probe).
@@ -130,7 +129,7 @@ HORIZON_CONFIG=./horizon.yaml node dist/server.js
 
 - Auth backend switch: applies on next login.
 - RBAC role redefinition: applies on next route call.
-- OAP URL change: applies on next outbound call.
+- OAP URL change: the BFF uses the new address on its next outbound call. Lists already on screen can lag up to a minute, because the browser caches services and layers it fetched earlier — reload the page to see the new deployment immediately.
 
 Some changes still require a BFF restart:
 
@@ -145,7 +144,6 @@ An edit that fails validation does not apply — the BFF logs an error naming ea
 | Artifact | Path (default) | Override |
 |---|---|---|
 | Config | `./horizon.yaml` | `HORIZON_CONFIG=` |
-| Audit log | `./horizon-audit.jsonl` | `audit.file` |
 | Wire debug log | `./horizon-wire.jsonl` | `debugLog.file` |
 | Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages (edits are stored in OAP's `ui_template` store) |
 

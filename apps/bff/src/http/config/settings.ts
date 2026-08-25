@@ -41,8 +41,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { getSyncStatus, type SyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
@@ -55,9 +54,7 @@ import {
 } from '../../logic/templates/names.js';
 import { logger } from '../../logger.js';
 
-export interface SettingsRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface SettingsRouteDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
 }
 

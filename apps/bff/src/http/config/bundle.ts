@@ -56,12 +56,13 @@ import type {
   OverviewDashboard,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   allLayerTemplates,
+  extPagesForScope,
   widgetsForScope,
+  withTopNOrder,
   type LayerTemplate,
 } from '../../logic/layers/loader.js';
 import { loadOverviewDashboards } from '../../logic/overview/loader.js';
@@ -79,13 +80,16 @@ import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
-export interface ConfigBundleDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface ConfigBundleDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
 }
 
 type ScopeMap = Partial<Record<'service' | 'instance' | 'endpoint', DashboardWidget[]>>;
+
+/** Extension-page widget sets, keyed `<component>/<pageId>`. A sibling of
+ *  `ScopeMap` rather than an entry inside it, so the default grids stay
+ *  exactly the shape every existing reader expects. */
+type ExtPageMap = Record<string, DashboardWidget[]>;
 
 /** What the admin pages need to render their banners + per-row badges.
  *  The full bundled / remote configuration strings are intentionally
@@ -133,6 +137,10 @@ export interface ConfigBundle {
   etag: string;
   generatedAt: number;
   layers: Record<string, ScopeMap>;
+  /** Per-layer extension-page widgets. Absent for a layer with none, so a
+   *  bundle from a deployment that declares no pages is byte-identical to
+   *  one built before the feature existed. */
+  layerExtPages?: Record<string, ExtPageMap>;
   overviews: OverviewDashboard[];
   syncStatus: BundleSyncStatus;
 }
@@ -196,6 +204,7 @@ async function buildBundle(
   };
 
   const layers: Record<string, ScopeMap> = {};
+  const layerExtPages: Record<string, ExtPageMap> = {};
   // Localize + slice a resolved layer template into per-scope widget sets.
   const addLayer = (picked: LayerTemplate): void => {
     // Localize against the OAP overlay row (keyed on the layer's
@@ -203,11 +212,19 @@ async function buildBundle(
     // only, never a runtime fill — same remote-first rule as the template.
     const effective = localizeContent(picked, oapOverlayFor('layer', picked.key), locale);
     const scopes: ScopeMap = {};
+    const pages: ExtPageMap = {};
     for (const scope of ['service', 'instance', 'endpoint'] as const) {
       const ws = widgetsForScope(effective, scope);
       if (ws.length > 0) scopes[scope] = ws;
+      for (const page of extPagesForScope(effective, scope)) {
+        // Same enrichment the default grid gets: the bundle is what the
+        // UI renders a page from, so a raw list ranks `asc` backwards.
+        pages[`${scope}/${page.id}`] = withTopNOrder(page.widgets);
+      }
     }
-    layers[effective.key.toLowerCase()] = scopes;
+    const key = effective.key.toLowerCase();
+    layers[key] = scopes;
+    if (Object.keys(pages).length > 0) layerExtPages[key] = pages;
   };
   if (preferLocal) {
     // Preview (`?prefer=local`): the disk-bundled copy is the thing being
@@ -282,7 +299,12 @@ async function buildBundle(
     unreadable: sync.unreadable ?? [],
   };
 
-  const body = { layers, overviews, syncStatus };
+  const body = {
+    layers,
+    ...(Object.keys(layerExtPages).length > 0 ? { layerExtPages } : {}),
+    overviews,
+    syncStatus,
+  };
   // Locale folded into the etag so the SPA's per-locale caches don't
   // collide. Without this, switching from `en` to `zh-CN` would 304 off
   // the previous etag and never re-render localized content.

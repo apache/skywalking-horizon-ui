@@ -192,6 +192,9 @@ export interface TopologySpec {
   /** The chat window (minutes) the ego graph was resolved over, so the embedded
    *  map re-queries the SAME window — not the global topbar picker. */
   windowMinutes?: number;
+  /** Hops walked out from the seeds, so the map states the depth it was
+   *  CAPTURED at rather than a literal that drifts from it. */
+  depth?: number;
   /** Captured render-ready graph (nodes+edges WITH metric values + edge series).
    *  Present ⇒ the embedded map SEEDS from it and never re-queries OAP, so a
    *  reloaded conversation replays the exact map + edge part-graphs statically. */
@@ -308,7 +311,14 @@ export type SseEvent =
   | { type: 'error'; message: string }
   | { type: 'done' };
 
-export type ProposalStatus = 'pending' | 'approved' | 'dismissed' | 'failed';
+/**
+ * `proposed` is the REPLAY state: a captured proposal, shown as the case it
+ * made, with no decision attached and no actions offered. It exists because a
+ * frozen card has no live conversation to approve into — and because the
+ * template's catch-all reads any unknown status as a failure, so a card that
+ * merely could not be acted on was announcing that profiling had gone wrong.
+ */
+export type ProposalStatus = 'pending' | 'approved' | 'dismissed' | 'failed' | 'proposed';
 
 export type Block =
   | { kind: 'text'; text: string }

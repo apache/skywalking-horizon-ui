@@ -70,6 +70,9 @@ const selectedFile = ref<string | null>(null);
 const fileContent = ref<string | null>(null);
 const fileLoading = ref(false);
 const fileError = ref<string | null>(null);
+/** Ticket for the in-flight file read. A slow reply for the file the operator
+ *  has already navigated away from must not paint itself over the new one. */
+let fileGeneration = 0;
 
 const filesQuery = useQuery({
   queryKey: ['oal/files'],
@@ -81,17 +84,26 @@ const files = computed<string[]>(() => filesQuery.data.value?.files ?? []);
 watch(
   () => selectedFile.value,
   async (name) => {
+    const generation = (fileGeneration += 1);
     fileContent.value = null;
     fileError.value = null;
-    if (!name) return;
+    if (!name) {
+      fileLoading.value = false;
+      return;
+    }
     fileLoading.value = true;
     try {
-      fileContent.value = await bff.dsl.oalFileContent(name);
-      if (fileContent.value === null) fileError.value = t('file not found');
+      const text = await bff.dsl.oalFileContent(name);
+      if (generation !== fileGeneration) return;
+      fileContent.value = text;
+      if (text === null) fileError.value = t('file not found');
     } catch (err) {
+      if (generation !== fileGeneration) return;
       fileError.value = err instanceof Error ? err.message : String(err);
     } finally {
-      fileLoading.value = false;
+      // Only the current request may clear the indicator; a stale one finishing
+      // would otherwise present the new file's load as settled.
+      if (generation === fileGeneration) fileLoading.value = false;
     }
   },
 );

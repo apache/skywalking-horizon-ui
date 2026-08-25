@@ -45,12 +45,15 @@ import type {
   TopologyConfig,
   TracesConfig,
   Catalog,
+  InstanceAttributePredicate,
 } from '@skywalking-horizon-ui/api-client';
 
 import { pushEvent } from '@/controls/eventLog';
 import { COLD_STAGE_HEADER, readColdStageHeader } from '@/controls/coldStage';
 import { currentLocale } from '@/i18n';
 import { SessionApi } from './scopes/session';
+import { OAuthApi } from './scopes/oauth';
+import { OidcApi } from './scopes/oidc';
 
 /** Header the BFF reads to localize template responses. UI sends this
  *  on every request; the BFF falls back to Accept-Language only when
@@ -63,7 +66,9 @@ const LOCALE_HEADER = 'X-Horizon-Locale';
  *  sub-path. Mirrors the router's `createWebHistory(BASE_URL)`
  *  behavior — both must use the same prefix or the SPA navigates
  *  to working URLs but its data calls 404. */
-const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+/** Exported because a full-page navigation cannot go through this client — the
+ *  SSO start URL is an href the browser follows, not a fetch. */
+export const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 /** Prepend the deploy base to a path that starts with `/`. Exported
  *  so the direct-fetch paths (configs.bundle's 304 detection, dsl's
  *  text/plain responses) can apply the same prefix as the central
@@ -95,11 +100,14 @@ import { AlarmsApi } from './scopes/alarms';
 import { Infra3dApi } from './scopes/infra-3d';
 import { LayerTemplatesApi } from './scopes/layer-template';
 import { ConfigsApi } from './scopes/configs';
+import { AdminAuditApi } from './scopes/admin-audit';
 import { AdminAuthApi } from './scopes/admin-auth';
 import { AdminUsersApi } from './scopes/admin-users';
 import { TemplateSyncApi } from './scopes/template-sync';
 import { AiApi } from './scopes/ai';
 export type { AiConfigResponse } from './scopes/ai';
+export type { ConsentRequest } from './scopes/oauth';
+export type { SsoProvider } from './scopes/oidc';
 
 // ── Wire types re-exported from @skywalking-horizon-ui/api-client ────
 // Re-exported so consumers can import everything from this module.
@@ -289,6 +297,17 @@ export interface ZipkinTraceQuery {
 
 export interface MeResponse {
   username: string;
+  /** What the directory or identity provider calls this person. Display only —
+   *  `username` remains the identity every permission check and audit entry
+   *  uses, and is what the tooltip still shows. */
+  displayName?: string;
+  /** How this person signed in. Reported to them on the account page; never a
+   *  permission input, which comes from `roles` alone. */
+  authSource?: 'local' | 'ldap' | 'break-glass' | 'sso' | 'api-token' | 'oauth-token';
+  /** The SSO provider id, and its configured display name, when authSource is
+   *  'sso'. Both absent otherwise. */
+  provider?: string;
+  providerName?: string;
   roles: string[];
   verbs: string[];
   /** Server-suggested landing route based on the user's role. The
@@ -297,6 +316,26 @@ export interface MeResponse {
 }
 
 /** Wire shape returned by GET /api/admin/layer-templates. */
+/** One operator-authored extension page. `id` is the route segment and the
+ *  translation-overlay key, unique within its component. */
+/** The entity narrowing a page applies. Shared by extension pages and by
+ *  each component's default page. */
+export interface AdminEntityFilter {
+  /** Narrows the service list. Legal under any entity scope. */
+  serviceFilter?: string;
+  /** Instance scope only — the same, for the instance list. */
+  instanceFilter?: string;
+  instanceAttributes?: InstanceAttributePredicate[];
+}
+
+export interface AdminExtPage extends AdminEntityFilter {
+  id: string;
+  name: string;
+  /** What this page calls the entity it lists. */
+  alias?: string;
+  widgets: DashboardWidget[];
+}
+
 export interface AdminLayerTemplate {
   key: string;
   alias?: string;
@@ -346,6 +385,16 @@ export interface AdminLayerTemplate {
   /** Per-scope widget sets (keyed by AdminScope); `widgets` is the legacy
    *  service-scope fallback. */
   dashboards?: Record<string, DashboardWidget[]>;
+  /** Additional pages for the three entity components, beyond the default
+   *  grid each keeps in `dashboards`. A sibling block, so adding pages
+   *  leaves every existing widget and translation path untouched. */
+  dashboardExtPages?: Partial<Record<'service' | 'instance' | 'endpoint', AdminExtPage[]>>;
+  /** The same narrowing for each component's default page, which has no
+   *  page object of its own to carry it. */
+  dashboardDefaultFilters?: Partial<Record<'service' | 'instance' | 'endpoint', AdminEntityFilter>>;
+  /** Operator-defined sidebar row order. Row paths, never display names.
+   *  Absent means the built-in default order. */
+  menuOrder?: string[];
   topology?: TopologyConfig;
   deployment?: DeploymentConfig;
   endpointDependency?: EndpointDependencyConfig;
@@ -912,6 +961,8 @@ export class BffClient {
 
   // ── Sub-clients (one per scope) ───────────────────────────────────
   readonly session = new SessionApi(this);
+  readonly oauth = new OAuthApi(this);
+  readonly oidc = new OidcApi(this);
   readonly menu = new MenuApi(this);
   readonly overview = new OverviewApi(this);
   readonly layer = new LayerApi(this);
@@ -936,6 +987,7 @@ export class BffClient {
   readonly infra3d = new Infra3dApi(this);
   readonly layerTemplates = new LayerTemplatesApi(this);
   readonly configs = new ConfigsApi(this);
+  readonly adminAudit = new AdminAuditApi(this);
   readonly adminAuth = new AdminAuthApi(this);
   readonly adminUsers = new AdminUsersApi(this);
   readonly templateSync = new TemplateSyncApi(this);

@@ -14,7 +14,11 @@ Two relaxations are deliberate and worth knowing about: images may additionally 
 
 This governs HTTP caches, and nothing else. It does not erase data the page already holds in memory, and it does not stop the application storing something deliberately — the console keeps its dashboard configuration in browser storage on purpose, so a returning operator gets an instant first paint. If you need a workstation to retain nothing at all, clear the site's data or use a private window.
 
-**The audit trail carries no replayable credential.** Entries record a one-way correlation value rather than the session identifier itself, so actions from one session still group together while you read the log, but the file cannot be used to resume anyone's session. This matters because audit logs are routinely shipped to a SIEM or attached to a ticket, where more people can read them than can read the session store.
+**Sign-ins are recorded in the application log, and it carries no replayable credential.** A refused attempt is logged at `warn` with the username, the source address and the backend — so the production default surfaces someone guessing passwords — and the reason stays coarse on purpose, since a log that distinguishes "no such user" from "wrong password" is a way to enumerate who exists. A successful sign-in is logged at `info` with the roles it granted; the production default of `warn` hides those, so set `LOG_LEVEL=info` if you want them. Break-glass use is `warn` and always visible.
+
+No session identifier, password or token is ever written, so the log cannot be used to resume anyone's session. That matters because logs are routinely shipped to a SIEM or attached to a ticket, where more people can read them than can read the session store.
+
+**The application log is not an audit trail, and mutations are not attributed in it.** If you need "who changed what", OAP's own records are where template and rule changes land. Horizon does keep a **login** audit log — who signed in, when and from where — but it is an optional, off-by-default feature backed by a shared store, and it records sign-ins rather than changes. See [Login audit](login-audit.md).
 
 **Shipped assets are self-contained.** Horizon loads no fonts, scripts, styles or images from a third-party CDN — everything is packaged in the release. An air-gapped install needs no allow-listed egress for the console itself, and there is no third party who can change what your operators' browsers execute.
 
@@ -62,9 +66,9 @@ HORIZON_TRUSTED_LINK_DOMAINS='["wiki.internal"]'
 
 **Restrict who can reach OAP.** Horizon's protections apply to Horizon. OAP's own ports — the query API and, on 11.x, the admin surface that stores dashboard templates — have no authentication of their own, and anything that can write the template store can change what your operators see. Keep those ports on a trusted network.
 
-**Rate-limit the login endpoint at your ingress.** Horizon does not throttle failed sign-ins or bound how long a submitted username and password may be, so a determined client can attempt passwords as fast as it can open connections, and each attempt costs a password-hash verification or an LDAP round trip. If Horizon is reachable from anywhere untrusted, put a rate limit in front of it. Configure your proxy to pass the real client address so that limit applies per client rather than per proxy.
+**Rate-limit the login endpoint at your ingress.** Horizon does not throttle failed sign-ins, so a determined client can attempt passwords as fast as it can open connections, and each attempt costs a password-hash verification or an LDAP round trip. Field lengths ARE bounded — the username and password are capped at 64 characters each, so an attempt cannot be made arbitrarily expensive or write an arbitrarily large log entry — but that bounds the size of each attempt, not their rate. If Horizon is reachable from anywhere untrusted, put a rate limit in front of it. Configure your proxy to pass the real client address so that limit applies per client rather than per proxy.
 
-**Review who holds write permissions.** Anyone who can edit dashboards can change every metric expression an operator reads, and anyone who can edit templates can change where the documentation link points within your allow-list. See [Access Control](/setup/rbac).
+**Review who holds write permissions.** Anyone who can edit dashboards can change every metric expression an operator reads, and anyone who can edit templates can change where the documentation link points within your allow-list. See [Access Control](rbac.md).
 
 ## Reporting a vulnerability
 

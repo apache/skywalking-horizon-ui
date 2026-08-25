@@ -250,3 +250,134 @@ function withId(entry: unknown, id: string): unknown {
   void _replaced;
   return { [ID_KEY]: id, ...rest };
 }
+
+/**
+ * Overlay entries with no counterpart in the source — text for a widget,
+ * page or scope that no longer exists.
+ *
+ * These are harmless to RENDER: {@link mergeLocalizedNode} ignores them,
+ * which is what lets a catalog survive a template edit. They are worth
+ * surfacing anyway, because they are invisible otherwise and they can come
+ * back: reusing a deleted page's id later would pick up its old text.
+ *
+ * Paths are dotted, with array positions in brackets, matching what the
+ * translation editor shows — `dashboardExtPages.service[1].name`.
+ */
+export function staleOverlayPaths(source: unknown, overlay: unknown): string[] {
+  const out: string[] = [];
+  collectStale(source, overlay, '', out);
+  return out;
+}
+
+/** True when the overlay carries anything the source cannot place. */
+export function hasStaleOverlay(source: unknown, overlay: unknown): boolean {
+  return staleOverlayPaths(source, overlay).length > 0;
+}
+
+function collectStale(source: unknown, overlay: unknown, path: string, out: string[]): void {
+  if (overlay === null || overlay === undefined) return;
+
+  if (Array.isArray(overlay)) {
+    // A source that is not an array cannot place ANY of these entries.
+    if (!Array.isArray(source)) {
+      out.push(path);
+      return;
+    }
+    const ids = idAddressableIds(source);
+    // The SAME condition the merger uses: it only addresses by id when the
+    // OVERLAY carries ids too, and otherwise merges positionally. Branching
+    // on the source alone made a legacy id-less row take the id path, where
+    // every entry is skipped for having no id — so an over-long positional
+    // overlay reported nothing at all while its extra entry rendered
+    // nothing either. That is a leftover, and it was invisible.
+    if (ids && indexById(overlay)) {
+      const known = new Set(ids);
+      overlay.forEach((entry, i) => {
+        const id = entryIdOf(entry);
+        // A holed / unkeyed entry in an id-addressed array is dropped by
+        // the merger too — `i18n:validate` reports the mixed addressing.
+        if (id === null) return;
+        if (!known.has(id)) out.push(`${path}[${i}]`);
+        else collectStale(source[ids.indexOf(id)], entry, `${path}[${i}]`, out);
+      });
+      return;
+    }
+    overlay.forEach((entry, i) => {
+      if (i >= source.length) out.push(`${path}[${i}]`);
+      else collectStale(source[i], entry, `${path}[${i}]`, out);
+    });
+    return;
+  }
+
+  if (isPlainObject(overlay)) {
+    if (!isPlainObject(source)) {
+      out.push(path);
+      return;
+    }
+    for (const [k, v] of Object.entries(overlay)) {
+      // `id` is the matching key, never content — an overlay carries it so
+      // the merger can find its entry, and the source having one is what
+      // made the lookup work in the first place.
+      if (k === ID_KEY) continue;
+      const next = path ? `${path}.${k}` : k;
+      if (!(k in source)) out.push(next);
+      else collectStale(source[k], v, next, out);
+    }
+    return;
+  }
+
+  // A leaf. Stale only when the source has nothing there at all; a type
+  // mismatch is the merger's problem, not a deletion.
+  if (source === undefined || source === null) out.push(path);
+}
+
+function entryIdOf(value: unknown): string | null {
+  return entryId(value);
+}
+
+/**
+ * `overlay` with every stale entry removed — what the editor writes back
+ * when the operator cleans a locale up.
+ *
+ * Structural only: nothing the source still has is touched, so a cleanup
+ * can never change what a reader sees, only what the record carries.
+ */
+export function pruneOverlayToSource(source: unknown, overlay: unknown): unknown {
+  if (overlay === null || overlay === undefined) return overlay;
+
+  if (Array.isArray(overlay)) {
+    if (!Array.isArray(source)) return undefined;
+    const ids = idAddressableIds(source);
+    // Same condition as the merger, and here it is load-bearing for the
+    // function's own contract: taking the id path on a legacy id-less
+    // overlay filtered out EVERY entry, so pruning deleted live
+    // translations and changed what a reader sees.
+    if (ids && indexById(overlay)) {
+      const known = new Set(ids);
+      return overlay
+        .filter((entry) => {
+          const id = entryIdOf(entry);
+          return id !== null && known.has(id);
+        })
+        .map((entry) => pruneOverlayToSource(source[ids.indexOf(entryIdOf(entry) as string)], entry));
+    }
+    return overlay.slice(0, source.length).map((entry, i) => pruneOverlayToSource(source[i], entry));
+  }
+
+  if (isPlainObject(overlay)) {
+    if (!isPlainObject(source)) return undefined;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(overlay)) {
+      if (k === ID_KEY) {
+        put(out, k, v);
+        continue;
+      }
+      if (!(k in source)) continue;
+      const kept = pruneOverlayToSource(source[k], v);
+      if (kept !== undefined) put(out, k, kept);
+    }
+    return out;
+  }
+
+  return source === undefined || source === null ? undefined : overlay;
+}

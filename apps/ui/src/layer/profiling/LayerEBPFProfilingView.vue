@@ -175,10 +175,19 @@ function onPickTask(task: EBPFTask): void {
             :aria-label="t('Refresh task list')"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
+          <!-- Also gated on the roster still loading: the dialog reads this
+               service's process labels and whether OAP can profile it at all,
+               and until the reply lands neither is known. -->
           <button
             class="btn-new"
-            :disabled="!selectedId"
-            :title="!selectedId ? t('Pick a service') : t('Create a new eBPF task')"
+            :disabled="!selectedId || tasksLoading"
+            :title="
+              !selectedId
+                ? t('Pick a service')
+                : tasksLoading
+                  ? t('Reading…')
+                  : t('Create a new eBPF task')
+            "
             @click="showNewTask = true"
           >{{ t('+ New Task') }}</button>
         </div>

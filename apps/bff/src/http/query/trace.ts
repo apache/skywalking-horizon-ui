@@ -49,8 +49,7 @@ import type {
   ZipkinTraceDetailResponse,
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import {
@@ -75,9 +74,7 @@ import {
   type ZipkinClientOpts,
 } from '../../client/zipkin.js';
 
-export interface TraceRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface TraceRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serve the in-use REMOTE config (blocked /
    *  in-code defaults when there is none; see `resolveEffectiveLayer`). */
@@ -107,13 +104,22 @@ function rollingWindow(minutes: number, offsetMinutes: number): { start: string;
   const startMs = endMs - m * 60_000;
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
+/**
+ * An explicitly-bounded window, clamped to the same week the rolling one is.
+ *
+ * `endMs < startMs` admitted a zero-width window, and an unbounded span let a
+ * direct caller ask storage for a month or a year — the guard the rolling path
+ * has always had. The clamp keeps the most recent slice rather than refusing,
+ * so an over-wide request still answers with the part that matters.
+ */
 function explicitWindow(
   startMs: number,
   endMs: number,
   offsetMinutes: number,
 ): { start: string; end: string } | null {
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return null;
-  return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  const from = Math.max(startMs, endMs - MAX_WINDOW_MIN * 60_000);
+  return { start: fmtSecond(from, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
 export interface TraceListBody {

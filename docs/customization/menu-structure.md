@@ -1,6 +1,6 @@
 # Menu and Layers
 
-Horizon's sidebar follows the data OAP reports. You do not hand-build a menu tree in Horizon; you make OAP expose layers, then use templates and user preferences to control how those layers appear.
+Horizon's sidebar follows the data OAP reports. You do not hand-build a menu tree in Horizon; you make OAP expose layers, then use layer templates to control how those layers appear.
 
 ## What Controls the Sidebar
 
@@ -8,7 +8,6 @@ Horizon's sidebar follows the data OAP reports. You do not hand-build a menu tre
 |---|---|
 | OAP layers | Whether a layer exists and whether it has services. |
 | Layer templates | Display name, color, group, visible tabs, service-list columns, trace/log behavior, and dashboard widgets. |
-| User preference | Personal ordering of visible layers on the landing page and sidebar. |
 | RBAC | Whether operate, dashboard setup, and admin pages are visible for the signed-in user. |
 
 The result is intentionally reactive: when OAP starts reporting data for a layer, Horizon shows it; when a user lacks a permission, Horizon hides the page link.
@@ -58,13 +57,39 @@ The cascade only lands on destinations that also appear in the sidebar. A bundle
 
 `/landing-empty` is a real route (also reachable directly). It explains the situation in plain language — "No data is flowing yet" or "No dashboard configured yet" — and points the viewer at their operations team. As soon as a service starts reporting or an operator publishes a dashboard, the next visit (or the next 60s menu refresh) replaces the empty landing with the real one.
 
-## First Tab for a Layer
+## Rows Under a Layer
 
-When a user clicks a layer, Horizon opens the first enabled tab in this order:
+Expanding a layer shows one row per enabled component, plus any extension pages those components declare. The built-in order is:
 
 ```text
-service -> instance -> endpoint -> topology -> trace -> logs -> profiling
+service -> instance -> endpoint -> topology -> deployment -> dependency
+-> trace -> zipkin-trace -> logs -> browser-errors -> pod-logs
+-> trace-profiling -> ebpf-profiling -> network-profiling
+-> continuous-profiling -> pprof -> async-profiling
 ```
+
+Each entity component's extension pages follow that component. A layer with a Service page called *Resource usage* reads `Service → Resource usage → Instance → …`.
+
+Clicking the layer itself opens its **first** row. That is usually Service, but not always: a layer with the service component turned off (a sidecar-only or per-agent layer) opens on its instance list instead.
+
+Some layers are rendered as a direct link rather than an expandable section — a layer that resolves to a single row, and whose only enabled component is one that never carried sub-rows, gets no accordion, because it would only ever reveal the page the layer row already points at. A layer built on the entity components keeps its expandable section even when only one row resolves today, so a row appearing later does not change how the layer is reached.
+
+## Rearranging the Menu
+
+The built-in order suits most layers. When a layer carries several extension pages, the grouping can stop matching how a team reads the layer — for example, putting a filtered Service page directly beneath Topology.
+
+Turn on **Rearrange menu** in **Dashboard setup → Layer dashboards → Setup**, then drag the entries in the live menu preview. The preview shows the layer's real entries, so what you arrange is what operators see.
+
+- The switch only makes the entries draggable. Neither turning it on nor turning it off stores anything.
+- **Moving an entry** is what records the order.
+- An order equal to the built-in one is not recorded: drag everything back to where it started and the record is removed, the same as pressing Reset.
+- **Reset to built-in order** is the explicit way back. It appears once an arrangement exists, and removes only the order — never pages or widgets.
+- Deleting a page, or switching a component off, removes those entries from the stored order.
+- Enabling a component later adds its entry rather than hiding it, even though the saved order predates it.
+
+Like every other edit on this page, an arrangement lives in your local draft until you **Save (local)** and then **Check diff & push**.
+
+The order applies to everyone using that layer — it is layer configuration, not a personal preference.
 
 Disable unsupported tabs in the layer template. For example, a layer without traces should turn the trace tab off so users do not land on an empty page.
 
@@ -77,7 +102,7 @@ Disable unsupported tabs in the layer template. For example, a layer without tra
 | Group related layers | Same layer template `group` value on each layer. |
 | Move a layer to Operate | Layer template `visibility: operate`. |
 | Hide a tab | Layer template `components`. |
-| Change layer order | User layer-order preference. |
+| Reorder the rows under one layer | **Rearrange menu** in the layer's Setup tab. |
 | Add a new layer | Add it in OAP first, then add a Horizon layer template. |
 
 Use **Dashboard setup → Layer dashboards** for normal template edits. Save locally to preview, then sync to OAP when you want the change published for everyone.

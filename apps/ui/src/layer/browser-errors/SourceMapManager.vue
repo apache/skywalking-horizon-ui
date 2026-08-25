@@ -26,8 +26,15 @@ import { useI18n } from 'vue-i18n';
 import type { SourceMapDescriptor, SourceMapUsage } from '@/api/client';
 import Btn from '@/components/primitives/Btn.vue';
 import Icon from '@/components/icons/Icon.vue';
+import Modal from '@/features/operate/_shared/Modal.vue';
+import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n({ useScope: 'global' });
+
+/** Read from the session rather than taken as a prop: permission is ambient,
+ *  and both parents would otherwise have to remember to pass it. */
+const auth = useAuthStore();
+const canWrite = computed(() => auth.hasVerb('source-map:write'));
 
 const props = defineProps<{
   maps: SourceMapDescriptor[];
@@ -42,6 +49,18 @@ const emit = defineEmits<{
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+/** A source map is shared by everyone reading this layer's errors, so removing
+ *  one silently un-symbolicates other operators' stacks. */
+const pendingRemove = ref<SourceMapDescriptor | null>(null);
+function askRemove(m: SourceMapDescriptor): void {
+  pendingRemove.value = m;
+}
+function confirmRemove(): void {
+  const m = pendingRemove.value;
+  pendingRemove.value = null;
+  if (m) emit('remove', m.id);
+}
 
 function pick(): void {
   fileInput.value?.click();
@@ -78,7 +97,13 @@ const usedPct = computed(() => {
       <div class="smm-title"><Icon name="fn" /><span>{{ t('Source maps') }}</span></div>
       <div class="smm-actions">
         <Btn size="sm" kind="ghost" :disabled="busy" @click="emit('refresh')"><Icon name="refresh" />{{ t('Refresh') }}</Btn>
-        <Btn size="sm" kind="primary" :disabled="!enabled || busy" @click="pick"><Icon name="plus" />{{ t('Upload .map') }}</Btn>
+        <Btn
+          size="sm"
+          kind="primary"
+          :disabled="!enabled || !canWrite || busy"
+          :title="canWrite ? undefined : t('Requires the source-map:write permission.')"
+          @click="pick"
+        ><Icon name="plus" />{{ t('Upload .map') }}</Btn>
         <input ref="fileInput" type="file" accept=".map,application/json" hidden @change="onFile" />
       </div>
     </div>
@@ -114,9 +139,9 @@ const usedPct = computed(() => {
           <button
             v-if="m.origin === 'upload'"
             class="smm-del"
-            :disabled="busy"
-            :title="t('Remove from memory')"
-            @click="emit('remove', m.id)"
+            :disabled="busy || !canWrite"
+            :title="canWrite ? t('Remove from memory') : t('Requires the source-map:write permission.')"
+            @click="askRemove(m)"
           >
             <Icon name="more" />{{ t('Remove') }}
           </button>
@@ -125,6 +150,22 @@ const usedPct = computed(() => {
       </ul>
       <p v-else class="smm-empty">{{ t('No source maps loaded. Upload a .map to de-obfuscate stacks.') }}</p>
     </template>
+
+    <Modal
+      :open="pendingRemove !== null"
+      :title="t('Remove source map?')"
+      width="min(520px, 92vw)"
+      @close="pendingRemove = null"
+    >
+      <p class="smm-confirm">
+        {{ t('Stack traces that resolve through this map go back to their minified form for everyone reading this layer.') }}
+      </p>
+      <p class="smm-confirm smm-confirm--file">{{ pendingRemove?.label }}</p>
+      <template #footer>
+        <Btn size="sm" kind="ghost" @click="pendingRemove = null">{{ t('Cancel') }}</Btn>
+        <Btn size="sm" kind="danger" @click="confirmRemove">{{ t('Remove') }}</Btn>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -264,5 +305,16 @@ const usedPct = computed(() => {
   margin: 0;
   font-size: 12px;
   color: var(--sw-fg-2);
+}
+.smm-confirm {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sw-fg-2);
+}
+.smm-confirm--file {
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-0);
+  word-break: break-all;
 }
 </style>

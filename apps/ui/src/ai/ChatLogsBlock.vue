@@ -30,7 +30,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="clg">
     <div class="clg__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="clg__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="clg__view">
       <LayerLogsView
@@ -57,11 +57,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .clg__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.clg__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .clg__view {
   height: 500px;

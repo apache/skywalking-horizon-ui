@@ -32,7 +32,6 @@ import { configSchema } from '../../config/schema.js';
 import type { ConfigSource } from '../../config/loader.js';
 import { SessionStore } from '../../user/sessions.js';
 import { makeRouteAuthHook } from '../../rbac/route-policy.js';
-import { AuditLogger } from '../../audit/logger.js';
 import { registerInspectRoutes } from './inspect.js';
 
 function fakeConfig(): ConfigSource {
@@ -46,12 +45,10 @@ const notFoundFetch: FetchLike = async () => new Response('Not Found', { status:
 async function buildApp(fetchImpl: FetchLike): Promise<{ app: FastifyInstance; sessions: SessionStore }> {
   const config = fakeConfig();
   const sessions = new SessionStore({ ttlMinutes: 60 });
-  // audit is a typed dep the inspect routes never touch; the constructor is inert.
-  const audit = new AuditLogger('/tmp/horizon-inspect-test-audit.log');
   const app = Fastify();
   await app.register(cookie);
   app.addHook('onRoute', makeRouteAuthHook({ config, sessions }));
-  registerInspectRoutes(app, { config, sessions, audit, fetch: fetchImpl });
+  registerInspectRoutes(app, { config, sessions, fetch: fetchImpl });
   await app.ready();
   return { app, sessions };
 }

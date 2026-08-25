@@ -27,6 +27,16 @@
 export const E2E_USER = process.env.HORIZON_E2E_USER ?? 'e2e';
 export const E2E_PASSWORD = process.env.HORIZON_E2E_PASSWORD ?? 'e2e-passw0rd';
 
+/**
+ * The API token the core case mounts (`script/docker-compose/e2e-tokens.json`).
+ *
+ * A throwaway secret in a throwaway stack, committed on purpose so the spec
+ * and the fixture cannot drift — token usage is reported per token id, and the
+ * assertion needs to know which id to look for.
+ */
+export const E2E_TOKEN_ID = 'e2etok';
+export const E2E_TOKEN = `hzn_${E2E_TOKEN_ID}_e2e-token-secret-do-not-reuse`;
+
 /** Service names the instrumented demo app reports to OAP. */
 export const PROVIDER_SERVICE = 'e2e-service-provider';
 export const CONSUMER_SERVICE = 'e2e-service-consumer';
@@ -48,6 +58,39 @@ export const DEMO_ENDPOINTS = ['/users', '/logs/trigger'];
  * different fixture, not a different assertion here.
  */
 export const LAYER = 'general';
+
+/**
+ * A disposable layer that exists ONLY in the browser, for the authoring
+ * tests that do not need a live service roster.
+ *
+ * Horizon has no control that creates a layer: the admin's picker is the
+ * shipped templates, the templates stored on OAP, and the layers OAP
+ * reports services for. So this one is seeded into the operator's own
+ * local-draft store and viewed through preview mode, which injects a
+ * previewed layer the live menu does not list. Nothing about it reaches
+ * OAP, and it dies with the browser context.
+ */
+export const EXT_LAYER = 'e2e_ext';
+
+/** The localStorage key the local-draft store reads. */
+export const LOCAL_EDITS_KEY = 'horizon:localTemplateEdits:v1';
+
+/** Seed content for {@link EXT_LAYER}. It declares all three entity
+ *  components so pages can be authored under each, and carries one widget
+ *  so its default grid is distinguishable from an empty page. */
+export const EXT_LAYER_DRAFT = {
+  key: EXT_LAYER.toUpperCase(),
+  alias: 'E2E ext pages',
+  color: '#f97316',
+  slots: {},
+  metrics: {},
+  components: { service: true, instances: true, endpoints: true },
+  dashboards: {
+    service: [
+      { id: 'e2e-svc-load', type: 'line', title: 'Load', expressions: ['service_cpm'], span: 6, rowSpan: 2 },
+    ],
+  },
+};
 
 /**
  * Widest window the suite ever asks for. The fixture is minutes old, so a

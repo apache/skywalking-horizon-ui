@@ -33,15 +33,12 @@
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
 
-export interface TraceTagRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface TraceTagRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

@@ -72,6 +72,28 @@ const localEdits = useLocalTranslationEdits();
 const selectedKind = ref<'overview' | 'layer'>('overview');
 const selectedName = ref<string>('');
 const scope = ref<DashboardScope>('service');
+/** Which page of `scope` is being translated — `null` is the component's
+ *  default grid. A page's widgets live under `dashboardExtPages`, so
+ *  without this the editor could only ever reach the default grid's. */
+const page = ref<string | null>(null);
+/** The Page picker's options — DEFAULT plus one per declared page. Ids are
+ *  shown because two pages may legally share a display name. */
+const pageOptions = computed(() => [
+  { value: '', label: `${t('DEFAULT')}` },
+  ...scopePages.value.map((p) => ({ value: p.id, label: `${p.name} (${p.id})` })),
+]);
+
+/** Pages the selected template declares for the current scope. */
+const scopePages = computed<Array<{ id: string; name: string }>>(() => {
+  const eff = effective.value;
+  if (!eff) return [];
+  const tpl = eff.source as { dashboardExtPages?: Record<string, Array<{ id: string; name: string }>> };
+  return tpl.dashboardExtPages?.[scope.value] ?? [];
+});
+// A page id belongs to one component of one template.
+watch([scope, selectedName], () => {
+  page.value = null;
+});
 
 const {
   overviewSources,
@@ -140,6 +162,10 @@ const {
   allFields,
   filledCount,
   oapOverlayForTarget,
+  staleOverlayForTarget,
+  staleForLocale,
+  ensureOverlayFor,
+  overlayForLocale,
   draftOverlayForTarget,
   inUseOverlayForTarget,
   dirty,
@@ -183,6 +209,10 @@ function openPanel(fields: TranslatableField[], label: string, el: HTMLElement, 
   // stays viewable but the editor never opens — no edit can start that could
   // only end in a server 409. Sibling admin pages gate the same way.
   if (readOnly.value) return;
+  // Leftover entries block editing for the same reason they block the push:
+  // whatever is typed here can only leave the browser through a push, and a
+  // push would take the leftovers with it.
+  if (staleBlocked.value) return;
   // Widgets with no translatable text (e.g. a topology widget that
   // only carries `layer`) shouldn't open an empty panel.
   if (fields.length === 0) return;
@@ -220,9 +250,12 @@ function onSelectLayerWidget(payload: { widget: DashboardWidget; idx: number; el
   const eff = effective.value;
   if (!eff) return;
   const tpl = eff.source as unknown as AdminLayerTemplate & { dashboards?: Record<string, DashboardWidget[]> };
-  const prefix = tpl.dashboards
-    ? `dashboards.${scope.value}[${payload.idx}]`
-    : `widgets[${payload.idx}]`;
+  const pageIdx = page.value ? scopePages.value.findIndex((p) => p.id === page.value) : -1;
+  const prefix = pageIdx >= 0
+    ? `dashboardExtPages.${scope.value}[${pageIdx}].widgets[${payload.idx}]`
+    : tpl.dashboards
+      ? `dashboards.${scope.value}[${payload.idx}]`
+      : `widgets[${payload.idx}]`;
   openPanel(
     fieldsForPrefix(prefix),
     payload.widget.title || payload.widget.id || `widget ${payload.idx + 1}`,
@@ -240,11 +273,31 @@ function onSelectOverviewHeader(payload: { el: HTMLElement; event: MouseEvent })
   openPanel(fields, 'Dashboard header', payload.el, pointFromEvent(payload.event));
 }
 
+/** The selected page's own prose — its display name, which is the sidebar
+ *  row operators read. It has its own target on the canvas rather than
+ *  sharing the layer header's: that control's own label says it edits the
+ *  LAYER's name and aliases, and quietly doing something else when a page
+ *  happens to be selected is the kind of thing an operator only discovers
+ *  by publishing it. */
+function onSelectPageHeader(payload: { el: HTMLElement; event: MouseEvent }): void {
+  const pageIdx = page.value ? scopePages.value.findIndex((p) => p.id === page.value) : -1;
+  if (pageIdx < 0) return;
+  const prefix = `dashboardExtPages.${scope.value}[${pageIdx}]`;
+  const fields = allFields.value.filter(
+    (f) => f.path.startsWith(prefix) && !f.path.startsWith(`${prefix}.widgets[`),
+  );
+  openPanel(fields, scopePages.value[pageIdx].name, payload.el, pointFromEvent(payload.event));
+}
+
 /** Layer header → layer alias + slots aliases + documentLink. Excludes
  *  widget grids and per-widget fields. */
 function onSelectLayerHeader(payload: { el: HTMLElement; event: MouseEvent }): void {
   const fields = allFields.value.filter((f) => {
     if (f.path.startsWith('widgets[') || f.path.startsWith('dashboards.')) return false;
+    // Extension-page prose belongs to its page, not to the layer header —
+    // without this a page's name and every widget title on it landed in
+    // the header panel, which is where the operator edits the LAYER.
+    if (f.path.startsWith('dashboardExtPages.')) return false;
     if (f.path.startsWith('metrics.columns[')) return false;
     if (f.path.startsWith('overview.groups[')) return false;
     return true;
@@ -302,7 +355,149 @@ function prettyJson(o: unknown): string {
 
 /** Publish the active locale's draft → OAP as a sibling overlay row.
  *  Same propagation-wait + 504 chain the source-save path uses. */
+/**
+ * Leftover entries make this language read-only until they are removed.
+ *
+ * They render as nothing, so blocking is not about a broken page. It is
+ * that a push REBUILDS the whole row from the draft, and the draft only
+ * ever holds paths the current template yields — so any ordinary push
+ * already deletes them, silently, as a side effect of saving one edited
+ * string. Requiring the cleanup first turns that into something the
+ * operator did on purpose and can see the extent of beforehand.
+ *
+ * It also closes the case that makes leftovers worth surfacing at all: a
+ * page created later that derives a removed page's id inherits its text.
+ * An operator who never noticed the banner would carry that hazard
+ * through every future edit.
+ */
+const staleBlocked = computed<boolean>(() => staleOverlayForTarget.value.length > 0);
+const blockedHint = computed<string>(() =>
+  t('Remove the leftover entries first — this language is read-only until then.'),
+);
+
+/**
+ * Publish this locale with the leftover entries dropped.
+ *
+ * It reuses the ordinary push rather than editing the stored row in
+ * place: the overlay that push writes is rebuilt from the draft, so a
+ * normal publish IS the cleanup. Doing it through the same path means one
+ * write, one code path, and the same read-only and error handling — and
+ * it is the one push that stays available while `staleBlocked`, being the
+ * only way out of it.
+ */
+// A refetch can introduce leftovers while the panel is open. The gate is
+// on opening, so without this the operator keeps typing into a language
+// that can no longer accept it.
+watch(staleBlocked, (blocked) => {
+  if (blocked) closePanel();
+});
+
+/* ── Removing leftovers ─────────────────────────────────────────────
+ *
+ * A stored row is per (template, language), so leftovers arrive per
+ * language too — a template edit strands text in every language that had
+ * translated the thing it removed. Cleaning only the language in front of
+ * the operator would leave the others to be discovered one at a time, on
+ * the day someone tries to edit them.
+ *
+ * So the action asks for its extent instead of assuming one: it scans
+ * every language of this template first, says which carry leftovers, and
+ * offers all of them or just this one. Scanning is on demand rather than
+ * on page load, because it costs one overlay read per language and most
+ * operators never need it.
+ */
+const sweepOpen = ref(false);
+const sweepScanning = ref(false);
+const sweepResults = ref<Array<{ locale: Locale; count: number }>>([]);
+/** Languages whose stored row could not be READ. Reported rather than
+ *  folded into "clean": a sweep that counted them as checked would tell
+ *  the operator the template is clear when part of it was never seen. */
+const sweepUnread = ref<Locale[]>([]);
+/** Languages of this template that carry leftovers, current one first. */
+const sweepOthers = computed(() => sweepResults.value.filter((r) => r.locale !== target.value));
+
+async function openSweep(): Promise<void> {
+  if (saving.value || readOnly.value) return;
+  sweepOpen.value = true;
+  sweepScanning.value = true;
+  sweepResults.value = [];
+  sweepUnread.value = [];
+  try {
+    // Sequential: a fan-out of seven reads against the admin port is a
+    // burst no other screen produces, and this is not on a hot path.
+    const read: Locale[] = [];
+    for (const loc of targetLocales) {
+      if (await ensureOverlayFor(loc)) read.push(loc);
+      else sweepUnread.value = [...sweepUnread.value, loc];
+    }
+    sweepResults.value = read
+      .map((locale) => ({ locale, count: staleForLocale(locale).length }))
+      .filter((r) => r.count > 0);
+  } finally {
+    sweepScanning.value = false;
+  }
+}
+
+/** Remove leftovers in the given languages, one row at a time, and report
+ *  what actually landed — a partial sweep must not read as a whole one. */
+async function cleanLocales(locales: Locale[]): Promise<void> {
+  if (!selectedName.value || saving.value || readOnly.value) return;
+  sweepOpen.value = false;
+  saving.value = true;
+  const done: Locale[] = [];
+  const failed: Locale[] = [];
+  try {
+    for (const loc of locales) {
+      saveMsg.value = t('Removing leftovers in {locale}…', { locale: LOCALE_NATIVE_LABEL[loc] });
+      try {
+        await writeOverlay(selectedName.value, loc, overlayForLocale(loc));
+        done.push(loc);
+      } catch {
+        failed.push(loc);
+      }
+    }
+    // The outcome is composed AFTER the refresh, not before it: the
+    // countdown used to run over a partial-failure message and nothing
+    // put it back, so a sweep that half-failed ended up reporting the
+    // refresh and then nothing at all.
+    for (let n = 6; n > 0; n--) {
+      saveMsg.value = t('Removed. Refreshing in {n}s…', { n });
+      await sleep(1000);
+    }
+    await bff.templateSync.resync();
+    await refreshConfigBundle({ force: true });
+    if (failed.length) {
+      saveMsg.value = t('Removed leftovers in {n} language(s); {failed} still carry them.', {
+        n: done.length,
+        failed: failed.map((l) => LOCALE_NATIVE_LABEL[l]).join(', '),
+      });
+      // Left up: a partial result is the one an operator has to act on.
+      return;
+    }
+    saveMsg.value = t('Removed leftovers in {n} language(s).', { n: done.length });
+    setTimeout(() => (saveMsg.value = null), 6000);
+  } finally {
+    saving.value = false;
+  }
+}
+
+/** One (template, locale) row: rebuilt, or removed when the rebuild is
+ *  empty because nothing it held is translatable any more. */
+async function writeOverlay(name: string, loc: Locale, overlay: Record<string, unknown> | null): Promise<void> {
+  if (overlay === null) await bff.templateSync.deleteTranslation(name, loc);
+  else await bff.templateSync.saveTranslation(name, loc, overlay);
+  localEdits.remove(name, loc);
+  const next = { ...fetchedOverlays.value };
+  delete next[overlayKey(name, loc)];
+  fetchedOverlays.value = next;
+}
+
 async function pushToOap(): Promise<void> {
+  if (staleBlocked.value) return; // the sweep is the only push allowed here
+  await publishOverlay();
+}
+
+async function publishOverlay(): Promise<void> {
   const name = selectedName.value;
   const loc = target.value;
   const overlay = draftOverlayForTarget.value;
@@ -461,6 +656,25 @@ async function onImportFile(): Promise<void> {
 
     <SyncStatusBanner :banner="banner" />
 
+    <!-- Translations for widgets, pages or scopes the template no longer
+         has. This language is read-only until they go: see `staleBlocked`
+         for why removing them has to be deliberate rather than a side
+         effect of the next push. -->
+    <div v-if="staleBlocked" class="tv__stale">
+      <span class="tv__stale-tag">{{ t('Stale') }}</span>
+      <span class="tv__stale-count">{{ t('{n} leftover entry(s)', { n: staleOverlayForTarget.length }) }}</span>
+      <span class="tv__stale-text">{{
+        t('This language stores translations for widgets or pages this template no longer has. Editing and publishing are blocked until they are removed — a push rebuilds the whole row, so it would drop them without saying so.')
+      }}</span>
+      <button type="button" class="sw-btn xs is-primary" :disabled="readOnly || saving" @click="openSweep">
+        {{ saving ? t('Removing…') : t('Remove them') }}
+      </button>
+      <details class="tv__stale-list">
+        <summary>{{ t('Show') }}</summary>
+        <code v-for="p in staleOverlayForTarget" :key="p">{{ p }}</code>
+      </details>
+    </div>
+
     <div class="tv__picker">
       <label>
         <span>{{ t('Kind') }}</span>
@@ -492,6 +706,18 @@ async function onImportFile(): Promise<void> {
           :disabled="readOnly"
           :min-panel-width="220"
           @update:model-value="(v) => (scope = v as DashboardScope)"
+        />
+      </label>
+      <!-- Only when the component actually has pages: a picker with one
+           option is noise on every layer that has none. -->
+      <label v-if="selectedKind === 'layer' && scopePages.length > 0">
+        <span>{{ t('Page') }}</span>
+        <TypeaheadSelect
+          :model-value="page ?? ''"
+          :options="pageOptions"
+          :disabled="readOnly"
+          :min-panel-width="220"
+          @update:model-value="(v) => (page = (v as string) || null)"
         />
       </label>
       <label>
@@ -541,7 +767,8 @@ async function onImportFile(): Promise<void> {
         <button
           type="button"
           class="sw-btn"
-          :title="t('Import a translation JSON file as a local draft — review, then publish.')"
+          :disabled="staleBlocked || readOnly"
+          :title="staleBlocked ? blockedHint : t('Import a translation JSON file as a local draft — review, then publish.')"
           @click="onImportFile"
         >{{ t('Import') }}</button>
         <!-- Reset to ▾ dropdown — matches the layer / overview
@@ -551,7 +778,8 @@ async function onImportFile(): Promise<void> {
           <button
             type="button"
             class="sw-btn"
-            :disabled="readOnly || !selectedName"
+            :disabled="readOnly || !selectedName || staleBlocked"
+            :title="staleBlocked ? blockedHint : undefined"
             @click="resetDropdownOpen = !resetDropdownOpen"
           >
             {{ t('reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -584,13 +812,15 @@ async function onImportFile(): Promise<void> {
         <button
           type="button"
           class="sw-btn"
-          :disabled="!dirty || saving"
+          :disabled="!dirty || saving || staleBlocked || readOnly"
+          :title="staleBlocked ? blockedHint : undefined"
           @click="stageLocal"
         >{{ t('Stage local') }}</button>
         <button
           type="button"
           class="sw-btn is-primary"
-          :disabled="!dirty || saving"
+          :disabled="!dirty || saving || staleBlocked || readOnly"
+          :title="staleBlocked ? blockedHint : undefined"
           @click="pushOpen = true"
         >{{ t('Check diff & push') }}</button>
       </div>
@@ -614,6 +844,8 @@ async function onImportFile(): Promise<void> {
         v-else-if="selectedKind === 'layer' && localizedLayer"
         :template="localizedLayer"
         :scope="scope"
+        :page="page"
+        @select-page="onSelectPageHeader"
         :selected-widget-id="null"
         @select-widget="onSelectLayerWidget"
         @select-header="onSelectLayerHeader"
@@ -636,6 +868,50 @@ async function onImportFile(): Promise<void> {
     />
 
     <Modal
+      :open="sweepOpen"
+      :title="t('Remove leftover translations?')"
+      width="min(560px, 94vw)"
+      @close="sweepOpen = false"
+    >
+      <p v-if="sweepScanning" class="tv__sweep-scan">{{ t('Checking every language…') }}</p>
+      <template v-else>
+        <p class="tv__push-lede">
+          {{ t('Removing rewrites each language\'s stored row without the entries this template can no longer place. What renders does not change.') }}
+        </p>
+        <ul class="tv__sweep-list">
+          <li v-for="r in sweepResults" :key="r.locale" :class="{ on: r.locale === target }">
+            <span class="tv__sweep-loc">{{ LOCALE_NATIVE_LABEL[r.locale] }}</span>
+            <span class="tv__sweep-n">{{ t('{n} leftover entry(s)', { n: r.count }) }}</span>
+          </li>
+        </ul>
+        <p v-if="sweepResults.length === 0 && sweepUnread.length === 0" class="tv__sweep-scan">{{ t('No language carries leftover entries for this template.') }}</p>
+        <!-- Named, not folded into the clean count: these were never read,
+             so "all languages" would be a claim this scan cannot make. -->
+        <p v-if="sweepUnread.length > 0" class="tv__sweep-warn">
+          {{ t('Could not check {locales} — its stored translations were unreadable.', {
+            locales: sweepUnread.map((l) => LOCALE_NATIVE_LABEL[l]).join(', '),
+          }) }}
+        </p>
+      </template>
+      <template #footer>
+        <button class="sw-btn" type="button" @click="sweepOpen = false">{{ t('Cancel') }}</button>
+        <button
+          v-if="sweepOthers.length > 0"
+          class="sw-btn"
+          type="button"
+          :disabled="sweepScanning || saving"
+          @click="cleanLocales([target])"
+        >{{ t('Only {locale}', { locale: LOCALE_NATIVE_LABEL[target] }) }}</button>
+        <button
+          class="sw-btn is-primary"
+          type="button"
+          :disabled="sweepScanning || saving || sweepResults.length === 0"
+          @click="cleanLocales(sweepResults.map((r) => r.locale))"
+        >{{ t('All languages ({n})', { n: sweepResults.length }) }}</button>
+      </template>
+    </Modal>
+
+    <Modal
       :open="pushOpen"
       :title="t('Publish {locale} translations → OAP?', { locale: LOCALE_NATIVE_LABEL[target] })"
       width="min(1100px, 94vw)"
@@ -649,7 +925,7 @@ async function onImportFile(): Promise<void> {
       </div>
       <template #footer>
         <button class="sw-btn" type="button" @click="pushOpen = false">{{ t('Cancel') }}</button>
-        <button class="sw-btn is-primary" type="button" :disabled="saving" @click="pushToOap">
+        <button class="sw-btn is-primary" type="button" :disabled="saving || readOnly" @click="pushToOap">
           {{ saving ? t('Pushing…') : t('Confirm push') }}
         </button>
       </template>
@@ -658,6 +934,67 @@ async function onImportFile(): Promise<void> {
 </template>
 
 <style scoped>
+.tv__stale {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 11px;
+  margin-bottom: 10px;
+  border: 1px solid var(--sw-line-2);
+  border-left: 2px solid var(--sw-warn);
+  border-radius: 5px;
+  background: var(--sw-bg-2);
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+}
+.tv__sweep-scan { margin: 0; color: var(--sw-fg-2); font-size: 12.5px; }
+.tv__sweep-warn { margin: 10px 0 0; color: var(--sw-warn); font-size: 12.5px; }
+.tv__sweep-list { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.tv__sweep-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--sw-fg-1);
+}
+/* The language in front of the operator, so "Only this one" is unambiguous. */
+.tv__sweep-list li.on { border-color: var(--sw-warn); }
+.tv__sweep-loc { color: var(--sw-fg-0); }
+.tv__sweep-n { color: var(--sw-fg-2); }
+
+.tv__stale-tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sw-bg-0);
+  background: var(--sw-warn);
+}
+.tv__stale-count {
+  font-weight: 600;
+  color: var(--sw-fg-0);
+}
+.tv__stale-text {
+  color: var(--sw-fg-2);
+}
+.tv__stale-list summary {
+  cursor: pointer;
+  color: var(--sw-fg-2);
+}
+.tv__stale-list code {
+  display: block;
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+  padding: 1px 0;
+}
+
 .tv { padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 12px; max-width: 1600px; margin: 0 auto; }
 .tv__head h1 { margin: 2px 0 4px; font-size: 20px; color: var(--sw-fg-0); }
 .tv__kicker { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sw-warn); }

@@ -64,6 +64,12 @@ function persist(): void {
 export function layerEditName(key: string): string {
   return `horizon.layer.${key.toUpperCase()}`;
 }
+/** The inverse of {@link layerEditName} — `null` for a name of another
+ *  kind, so a caller iterating every stored row can filter by it. */
+export function layerKeyFromEditName(name: string): string | null {
+  const prefix = 'horizon.layer.';
+  return name.startsWith(prefix) && name.length > prefix.length ? name.slice(prefix.length) : null;
+}
 export function overviewEditName(id: string): string {
   return `horizon.overview.${id}`;
 }

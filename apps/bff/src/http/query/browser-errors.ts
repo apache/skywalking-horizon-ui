@@ -37,8 +37,7 @@ import type {
   BrowserErrorsResponse,
   FetchLike,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -49,13 +48,12 @@ import {
 } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
-export interface BrowserErrorsRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface BrowserErrorsRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 
 const DEFAULT_WINDOW_MIN = 30;
+const MAX_WINDOW_MIN = 60 * 24 * 7; // 1 week guard, mirrors trace.ts
 /** OAP feeds `paging.pageSize` straight to storage as a LIMIT. The cap
  *  is `performance.limits.maxPageSize.browserLogs` (default 100);
  *  mirror that server-side so the cap holds against direct API callers. */
@@ -78,11 +76,15 @@ function defaultWindow(
     typeof explicit.endMs === 'number' &&
     explicit.startMs < explicit.endMs
   ) {
-    return { start: fmtSecond(explicit.startMs, offsetMinutes), end: fmtSecond(explicit.endMs, offsetMinutes) };
+    // Clamped to the same week the rolling arm below is: an explicit range was
+    // the one path that could ask storage for a month or a year. The most
+    // recent slice is kept rather than refusing outright.
+    const from = Math.max(explicit.startMs, explicit.endMs - MAX_WINDOW_MIN * 60_000);
+    return { start: fmtSecond(from, offsetMinutes), end: fmtSecond(explicit.endMs, offsetMinutes) };
   }
   const m =
     Number.isFinite(minutes) && (minutes as number) > 0
-      ? Math.min(60 * 24 * 7, Math.round(minutes as number))
+      ? Math.min(MAX_WINDOW_MIN, Math.round(minutes as number))
       : DEFAULT_WINDOW_MIN;
   const endMs = Date.now();
   const startMs = endMs - m * 60_000;

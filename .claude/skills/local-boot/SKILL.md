@@ -49,6 +49,7 @@ config loader's `${VAR:default}` interpolation; Vite reads `BFF_PORT` +
 | `HORIZON_OAP_TIMEOUT_MS`    | `15000`                    | BFF     | OAP request timeout. Lower it (`4000`) when previewing the "OAP unreachable" landing block so errors surface fast. |
 | `HORIZON_OAP_AUTH`          | _(none)_                   | BFF     | OAP basic-auth as JSON, e.g. `{"username":"admin","password":"…"}`. The demo needs it (password from `oap-demo-env-auth.key`). |
 | `HORIZON_AUTH_LOCAL_USERS`  | `[]`                       | BFF     | Local login users (JSON array, single-line). Use `$(cat dev-users.json)`. |
+| `HORIZON_AUTH_TOKENS_FILE`  | _(none)_                   | BFF     | Path to an API-token file — the credential for non-browser callers (scripts, CI, MCP clients). Point it at `"$SK/dev-tokens.json"`, which is **git-ignored and not committed**: mint your own the first time with `pnpm --filter @skywalking-horizon-ui/bff cli:token admin --label dev`, then paste the printed entry into that file. A working token must never be committed, even a dev one — the repo is public. |
 | `HORIZON_AUTH_BACKEND`      | `local`                    | BFF     | `local` or `ldap`. |
 | `HORIZON_AUTH_LDAP`         | _(none)_                   | BFF     | LDAP config (JSON, single-line) when backend=ldap. Use `$(cat dev-ldap.json)`. |
 | `HORIZON_TEMPLATES_MODE`    | `live`                     | BFF     | `live` (seed + read ui_template) or `readonly` (render the bundle, config read-only). |
@@ -122,6 +123,7 @@ HORIZON_OAP_ADMIN_URL=https://demo.skywalking.apache.org:17128 \
 HORIZON_OAP_ZIPKIN_URL=https://demo.skywalking.apache.org:9412/zipkin \
 HORIZON_OAP_AUTH="{\"username\":\"admin\",\"password\":\"$OAP_PASSWORD\"}" \
 HORIZON_AUTH_LOCAL_USERS="$(cat "$SK/dev-users.json")" \
+HORIZON_AUTH_TOKENS_FILE="$SK/dev-tokens.json" \
   pnpm --filter @skywalking-horizon-ui/bff run dev &
 
 # UI — IPv4 host + loopback proxy bypass (run the binary directly so --host applies).
@@ -162,7 +164,7 @@ credential chain — a missing key is a clean 503, not an SSO prompt.
 | `HORIZON_AI_PROVIDER`       | `bedrock`                 | Transport — `openai-compatible` (default) or `bedrock`. |
 | `HORIZON_AI_MODEL`          | `deepseek.v3.2`           | Bedrock model / inference-profile id. |
 | `HORIZON_AI_REGION`         | `us-west-2`               | Bedrock-only extra; falls back to `AWS_REGION`. |
-| `HORIZON_AI_API_KEY`        | `$(cat bedrocks-api.key)` | **Secret** `ABSK` bearer. Redacted from logs, excluded from the audit trail. |
+| `HORIZON_AI_API_KEY`        | `$(cat bedrocks-api.key)` | **Secret** `ABSK` bearer. Redacted from logs. |
 
 Add these lines to the demo boot's BFF invocation (keep the SECRET / pkill /
 port-free steps from the demo section):
@@ -192,6 +194,116 @@ streams an answer with inline figures (open `/ai` for the full page). **On-deman
 pod logs** work when the OAP itself runs in Kubernetes (the public demo does) and
 its `enableOnDemandPodLog` is on — the assistant's `fetch_pod_logs` tool and the
 per-layer Pod Logs tab both read them live.
+
+## Boot with single sign-on (Google and/or GitHub)
+
+Horizon can hand the login to identity providers (`auth.sso`). The local dev
+config is split three ways, mirroring the split the config schema is heading
+toward — **a provider says how to authenticate; roles say what you get, and are
+not per-provider**:
+
+| File | Holds |
+|---|---|
+| `gmail_oauth.config` | Google provider: client id/secret + endpoints. Connection only. |
+| `github_oauth.config` | GitHub provider: client id/secret + endpoints, `namePath: login`, `emailsEndpoint`. Connection only. |
+| `oauth.config` | ONE role table for every provider: `defaultRoles`, `roleByEmail`, `roleByDomain`. Goes into `auth.sso.roles` verbatim. |
+
+All three are **git-ignored and must never be committed**: this directory is
+deny-by-default in `.gitignore`, with only SKILL.md, `dev-users.json`,
+`dev-ldap.json` and `ldap-seed.ldif` allow-listed.
+
+**Why one role table.** Roles resolve from the EMAIL ADDRESS alone — a token
+carries no provider — so a per-provider role table is a promise the architecture
+cannot keep. Keeping the addresses in one file also avoids the failure that
+cost a debugging session: two providers whose tables disagreed about the same
+address once resolved to NO roles, and an API token with no roles is refused,
+so adding a second provider logged every agent out with an unexplained 401.
+
+**Use the PACKAGED build, on ONE port.** The dev BFF is API-only, so the
+post-login redirect lands on an SPA route it does not serve and you get a 404
+that looks like a login failure. `dist/server.js` serves the UI and the API
+together, exactly as a real deployment does.
+
+```bash
+REPO="$(git rev-parse --show-toplevel)"; SK="$REPO/.claude/skills/local-boot"
+pnpm package                       # if dist/ is stale
+
+# Compose the providers with the shared role table. Drop either provider from
+# the list to boot with just one.
+export HORIZON_AUTH_SSO=$(python3 -c "
+import json
+roles = json.load(open('$SK/oauth.config'))
+prov = lambda f: json.load(open(f))['horizon']
+print(json.dumps({
+  'providers': [prov('$SK/gmail_oauth.config'), prov('$SK/github_oauth.config')],
+  'roles': {k: roles[k] for k in ('defaultRoles', 'roleByEmail', 'roleByDomain') if k in roles},
+}))")
+
+cd "$REPO/dist" && NODE_USE_ENV_PROXY=1 \
+  NO_PROXY="demo.skywalking.apache.org,127.0.0.1,localhost,::1" \
+  HORIZON_CONFIG=./horizon.yaml \
+  HORIZON_SERVER_HOST=127.0.0.1 HORIZON_SERVER_PORT=9091 \
+  HORIZON_PUBLIC_URL=http://127.0.0.1:9091 \
+  HORIZON_OAP_QUERY_URL=https://demo.skywalking.apache.org:12800 \
+  HORIZON_OAP_ADMIN_URL=https://demo.skywalking.apache.org:17128 \
+  HORIZON_OAP_AUTH="{\"username\":\"admin\",\"password\":\"$(cat "$SK/oap-demo-env-auth.key")\"}" \
+  HORIZON_AUTH_LOCAL_USERS="$(cat "$SK/dev-users.json")" \
+  HORIZON_AUTH_TOKENS_FILE="$SK/dev-tokens.json" \
+  HORIZON_TEMPLATES_MODE=readonly \
+  node server.js
+```
+
+Open **`http://127.0.0.1:9091`**. One provider renders as a button; two render
+as a themed picker with an arrow to continue.
+
+Things that each cost a debugging cycle:
+
+- **`NODE_USE_ENV_PROXY=1` plus `NO_PROXY`.** Node's `fetch` ignores
+  `http_proxy`, so behind a proxy OIDC discovery fails with
+  `provider_unreachable`. But the proxy also breaks the demo OAP's TLS, so the
+  OAP hosts have to be excluded — you need both, not either.
+- **`HORIZON_PUBLIC_URL` must byte-match a registered redirect URI.** `localhost`
+  and `127.0.0.1` are DIFFERENT registrations, and so is a different port.
+  Register `<publicUrl>/api/auth/oidc/callback`. Google takes a list; GitHub
+  takes up to 10 per OAuth App, so one app can serve dev and prod.
+- **GitHub needs `emailsEndpoint`.** `/user` reports `email: null` for any
+  account without a PUBLIC profile address, which is the default. The address
+  lives at `/user/emails`, and only entries marked `verified: true` are accepted
+  — Gitee spells verification `state`, so its list cannot be used here at all.
+- **`templates.mode=readonly`** skips the OAP template seed. Drop it to
+  exercise the live template store.
+
+Failures land back on `/login?sso_error=<reason>` and the page turns that into a
+sentence; the provider's own words stay in the server log deliberately.
+
+## Boot with the OAuth authorization server (agent login from a CLI)
+
+`oauth.enabled` makes Horizon issue its own tokens, so an MCP client can send
+its operator through the browser instead of being handed one. It is OFF by
+default and needs a real secret:
+
+```bash
+HORIZON_OAUTH_ENABLED=true \
+HORIZON_OAUTH_SIGNING_KEY="$(openssl rand -base64 32)" \
+  # …plus the SSO boot above
+```
+
+**The key must be 32+ characters.** Anything shorter is treated as no key at
+all: the authorization server stays OFF, its endpoints answer 404, and the boot
+warning names the length it got. It signs every token, authorization code and
+client registration, and none of them are stored — so a guessable key mints
+valid credentials for any user and nothing can tell the difference. A throwaway
+like `local-test-key` will NOT start it any more.
+
+Verify the whole flow against the real client:
+
+```bash
+codex -c 'mcp_servers.hz.url="http://127.0.0.1:9091/api/mcp"' mcp login hz
+```
+
+It prints an authorize URL, registers itself dynamically, and after you approve
+the consent screen reports `Successfully logged in`. The GUI has no OAuth path —
+only the CLI does — so a desktop client needs an API token instead.
 
 ## Boot against a local / remote no-auth OAP
 

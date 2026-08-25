@@ -1,0 +1,65 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `triggers` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/triggers/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+propose_profiling:
+  description: >-
+    PROPOSE a profiling task (does NOT start it — the user approves a decision card first). Use only when metrics + traces cannot localise the cause and a profile would confirm a specific hypothesis (a hot method, lock contention, a slow call, a saturated process). FIRST pick the profilingType by READING, not assuming: kb_layer_capabilities(layer).components lists which profiling this layer is SET UP for (traceProfiling / asyncProfiling / pprofProfiling / ebpfProfiling / networkProfiling) — prefer a type it declares, but that list is Horizon-side configuration, NOT a statement about the backend: OAP applies no layer gate to profiling, so a type the layer omits may still be accepted. Match the type to the runtime, which is what actually decides whether anything gets collected: async-profiler needs a JVM, pprof needs Go, and OAP can only decode trace profiles from Java and Go agents (read the service's instance language via kb_resolve_scope_drill first); eBPF is language-agnostic and is the option for a runtime the in-process profilers cannot reach; network profiling captures the process conversation graph and needs a Rover eBPF agent. The tool resolves target instances for you and returns any caveats it found — RELAY those to the user before they approve. You MUST supply cause (what you found), rationale (why profiling), and expectation (what it should reveal). Provide the endpoint for trace when known.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    serviceId: >-
+      OAP service id (from list_services)
+    service: >-
+      service NAME
+    profilingType: >-
+      the profiling flavor to propose — trace (in-process sampling; OAP decodes Java and Go agents), async (JVM async-profiler), pprof (Go), ebpf (kernel on/off-CPU, language-agnostic, needs Rover), or network (process conversation graph, needs Rover). Prefer one the layer declares (kb_layer_capabilities.components), and match it to the instance language.
+    durationMinutes: >-
+      collection window in minutes. What OAP does with it differs per type: trace accepts 1–15; pprof accepts 1–15 and only for CPU/BLOCK/MUTEX (point-in-time events ignore it); eBPF converts to seconds and requires at least 60s (1 minute); async converts to seconds and OAP sets no upper bound; network IGNORES it entirely and always runs a fixed 10 minutes.
+    endpoint: >-
+      trace only — endpoint (API) name to profile. OAP requires it and only checks it is non-empty, so a name that does not exist creates a task that collects nothing AND blocks any other trace task on that service until its window elapses — use an endpoint you have actually seen in this investigation.
+    event: >-
+      async/pprof only — the event to profile (default CPU). async: CPU, ALLOC, LOCK, WALL, CTIMER, ITIMER (CTIMER/ITIMER work where perf_events is unavailable, e.g. hardened containers). pprof: CPU, HEAP, BLOCK, MUTEX, GOROUTINE, ALLOCS, THREADCREATE (HEAP/GOROUTINE/ALLOCS/THREADCREATE are point-in-time snapshots, not windows).
+    targetType: >-
+      ebpf only — ON_CPU (default) ranks by on-CPU dump count; OFF_CPU ranks by time spent blocked, and is the one to pick for lock or I/O contention
+    instances: >-
+      optional — instance NAMES to target, when the service has more instances than one task accepts (32). Omit to target every runnable instance. Only meaningful for async and pprof, which are the flavours that carry an instance list
+    cause: >-
+      the analyzed cause SO FAR — what the investigation found
+    rationale: >-
+      why profiling is the right next step
+    expectation: >-
+      what the profile is expected to reveal or confirm
+
+analyze_profiling:
+  description: >-
+    Read a COMPLETED profiling task and CAPTURE its result as a block. Call this in a LATER turn, after a task the user approved has finished collecting (or when the user asks you to analyze an existing profile). Pass the taskId of the task that was approved whenever you have it — without one the tool picks a task itself, and that may not be the one the user is asking about. trace/async/pprof/ebpf capture the flame graph (a trace profile also shows the profiled trace's span waterfall beside the flame), and the reply lists the hottest frames so you can name the cause. Read the units the reply states rather than assuming — do not assume "sample count" for async: trace self time is MILLISECONDS; pprof "self samples" is a sample COUNT; async-profiler depends on the event — CPU/WALL/CTIMER/ITIMER are a sample COUNT, but ALLOC is BYTES ALLOCATED and LOCK is NANOSECONDS of contention, and the reply states which; eBPF has no self time — it ranks by inclusive share, of time blocked for OFF_CPU and of dump count for ON_CPU. network CAPTURES the process-conversation graph as a frozen process-topology block (process nodes + the conversations between them). An EMPTY graph is usually too-early rather than unsupported — OAP runs a network task for a fixed 10 minutes, so wait it out before concluding anything; only say network profiling is unavailable when no process reports at all. If it reports no data collected yet, tell the user to wait for the task to finish, then analyze again — do NOT retry immediately.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME to analyze the profile for
+    profilingType: >-
+      which profiling result to read — trace (in-process sampling; flame plus the profiled trace's span waterfall), pprof (Go), async (Java async-profiler), ebpf (on/off-CPU), or network (captures the process-conversation graph and renders it as a frozen graph block, not a flame; text-only when no process reports)
+    taskId: >-
+      the task id to analyze — always pass the id returned when the user approved a card. Omit ONLY when the user asks about an existing profile you have no id for; the tool then picks one of the service's tasks of this type, which need not be the newest.
+    event: >-
+      async only — which captured event to render, when the task recorded more than one (e.g. CPU + ALLOC). Their units differ and cannot share one flame, so only one renders per call; the result's tip names the others when you should call again with a different one. Omit to get the first.

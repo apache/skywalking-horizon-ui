@@ -26,7 +26,7 @@
  * the composable re-fires when the operator switches service or layer.
  */
 
-import { computed, ref, watch, type Ref } from 'vue';
+import { computed, nextTick, ref, watch, type Ref } from 'vue';
 import { bffClient } from '@/api/client';
 import type {
   EBPFAnalysisTree,
@@ -71,6 +71,24 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   const newTaskError = ref<string | null>(null);
   const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 
+  /** Request tickets, one per stage: a reply for the service or task the
+   *  operator has already moved off must not publish under the current one. */
+  let tasksRequestGeneration = 0;
+  let schedulesRequestGeneration = 0;
+  /** The analysis stage has its own ticket: it is the slowest call on the page
+   *  and outlives a task switch far more often than the lists above do. */
+  let analyzeRequestGeneration = 0;
+
+  // Changing the selection orphans an analysis in flight: it was launched for
+  // the previous target, so its graph must not land under this one and its
+  // spinner must not be the one this selection clears. A watch rather than a
+  // bump at each call site — the selection is also set from the template.
+  watch(currentTask, () => {
+    analyzeRequestGeneration += 1;
+    analyzeLoading.value = false;
+    analyzeTip.value = '';
+  });
+
   watch(
     () => layerKey.value + '|' + (selectedId.value ?? ''),
     () => void refreshTasks(),
@@ -78,15 +96,33 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   );
 
   async function refreshTasks(): Promise<void> {
+    const generation = (tasksRequestGeneration += 1);
+    // A new task list orphans the schedules hanging off the old one, and any
+    // analysis hanging off those.
+    schedulesRequestGeneration += 1;
+    analyzeRequestGeneration += 1;
+    analyzeLoading.value = false;
     tasksError.value = null;
+    // Cleared for every service change, not only when the service goes away —
+    // including the CAPABILITY and the process labels, which the New Task
+    // dialog reads. Leaving them was the previous service's answer offered for
+    // this one: its labels in the picker, and its "profiling is available"
+    // while the new service's reply was still in flight or had failed.
+    tasks.value = [];
+    currentTask.value = null;
+    schedules.value = [];
+    analyzeTrees.value = [];
+    couldProfiling.value = false;
+    allProcessLabels.value = [];
     if (!service.value) {
-      tasks.value = [];
-      currentTask.value = null;
+      tasksLoading.value = false;
       return;
     }
+    const svc = service.value;
     tasksLoading.value = true;
     try {
-      const resp = await bffClient.ebpf.tasks(layerKey.value, service.value!);
+      const resp = await bffClient.ebpf.tasks(layerKey.value, svc);
+      if (generation !== tasksRequestGeneration) return;
       if (!resp.reachable && resp.error) tasksError.value = resp.error;
       tasks.value = resp.tasks ?? [];
       couldProfiling.value = resp.couldProfiling;
@@ -99,33 +135,48 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
         analyzeTrees.value = [];
       }
     } catch (e) {
+      if (generation !== tasksRequestGeneration) return;
       tasksError.value = e instanceof Error ? e.message : String(e);
     } finally {
-      tasksLoading.value = false;
+      if (generation === tasksRequestGeneration) tasksLoading.value = false;
     }
   }
 
   async function pickTask(t: EBPFTask): Promise<void> {
+    const generation = (schedulesRequestGeneration += 1);
     currentTask.value = t;
+    schedules.value = [];
     analyzeTrees.value = [];
     analyzeTip.value = '';
     schedulesError.value = null;
     try {
       const resp = await bffClient.ebpf.schedules(t.taskId);
+      // Rapid task clicks race here.
+      if (generation !== schedulesRequestGeneration) return;
       if (!resp.reachable && resp.error) schedulesError.value = resp.error;
       schedules.value = resp.schedules ?? [];
       resetFiltersForTask();
       // Auto-trigger analyze on task switch (booster-ui behaviour).
       if (schedules.value.length) await runAnalyze();
     } catch (e) {
+      if (generation !== schedulesRequestGeneration) return;
       schedulesError.value = e instanceof Error ? e.message : String(e);
     }
   }
 
+  /** True while a task pick is resetting the filters, so the watcher below does
+   *  not read that reset as an operator narrowing the selection. */
+  let resettingFilters = false;
+
   function resetFiltersForTask(): void {
+    resettingFilters = true;
     selectedLabels.value = [];
     selectedProcessIds.value = [];
     aggregateType.value = 'COUNT';
+    // Released after the watcher would have flushed for this change.
+    void nextTick(() => {
+      resettingFilters = false;
+    });
   }
 
   const labelOptions = computed<string[]>(() => {
@@ -176,6 +227,7 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
         merged.push({ ...r });
       }
     }
+    const generation = (analyzeRequestGeneration += 1);
     analyzeLoading.value = true;
     analyzeTip.value = '';
     try {
@@ -184,14 +236,18 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
         timeRanges: merged,
         aggregateType: aggregateType.value,
       });
+      // A task or service switch while this runs must not paint the old
+      // target's flame graph under the new one.
+      if (generation !== analyzeRequestGeneration) return;
       analyzeTrees.value = resp.trees ?? [];
       analyzeTip.value = resp.tip ?? '';
       if (!resp.reachable && resp.error) analyzeTip.value = resp.error;
     } catch (e) {
+      if (generation !== analyzeRequestGeneration) return;
       analyzeTip.value = e instanceof Error ? e.message : String(e);
       analyzeTrees.value = [];
     } finally {
-      analyzeLoading.value = false;
+      if (generation === analyzeRequestGeneration) analyzeLoading.value = false;
     }
   }
 
@@ -231,6 +287,7 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   // (push / splice). Without it the watcher only fires when the array
   // reference itself changes, which is never on pin/unpin.
   watch(selectedProcessIds, () => {
+    if (resettingFilters) return;
     if (!schedules.value.length) return;
     void runAnalyze();
   }, { deep: true });

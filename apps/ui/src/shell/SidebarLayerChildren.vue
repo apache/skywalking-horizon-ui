@@ -17,9 +17,13 @@
 <!--
   The L2 tab cluster under an expanded layer row — one canonical copy for
   every placement (grouped, ungrouped, operate). `inGroup` only nudges the
-  CSS class; the row set itself is identical, capability-gated off the
-  layer's `caps`/`slots`. The visible tab order mirrors `firstLayerTab` in
-  `useLayers`.
+  CSS class; which rows exist and in what order comes from the layer's
+  resolved `menuRows`, so this component decides only how a row LOOKS.
+
+  Labels are resolved by literal translation calls in the map below rather
+  than travelling as data on the row: `check-ui-i18n.mjs` only recognises
+  literal keys, so passing a key through a variable would report every
+  sidebar string as an orphan.
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
@@ -27,168 +31,75 @@ import { RouterLink } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
-import { firstLayerTab } from '@/shell/useLayers';
+import { layerMenuRows } from '@/shell/useLayers';
 import { useRouteActive } from '@/shell/useSidebarActive';
 
 const props = defineProps<{ layer: LayerDef; inGroup?: boolean }>();
 
 const { t } = useI18n({ useScope: 'global' });
-const { route, isActive } = useRouteActive();
+const { route, isActive, isActiveExact } = useRouteActive();
 
 const L = computed(() => props.layer);
-const hasInstances = computed(() => L.value.caps.instances ?? Boolean(L.value.slots.instances));
-const hasEndpoints = computed(() => L.value.caps.endpoints ?? Boolean(L.value.slots.endpoints));
-const hasTopology = computed(() =>
-  Boolean(L.value.caps.serviceMap || L.value.caps.instanceTopology || L.value.caps.processTopology),
+
+function labelFor(path: string): string {
+  const slots = L.value.slots;
+  switch (path) {
+    case 'service': return t('Service');
+    case 'instance': return slots.instances ?? t('Instance');
+    case 'endpoint': return slots.endpoints ?? t('Endpoint');
+    case 'topology': return slots.topology ?? t('Topology');
+    case 'deployment': return slots.deployment ?? t('Deployment');
+    case 'dependency':
+      return slots.endpointDependency ?? t('{endpoint} dependency', { endpoint: slots.endpoints ?? t('Endpoint') });
+    case 'trace': return t('Traces');
+    case 'zipkin-trace': return t('OTel & Zipkin Traces');
+    case 'logs': return t('Logs');
+    case 'browser-errors': return t('Browser Logs');
+    case 'pod-logs': return t('Pod Logs');
+    case 'trace-profiling': return t('Trace Profiling');
+    case 'ebpf-profiling': return t('eBPF Profiling');
+    case 'network-profiling': return t('Network Profiling');
+    case 'continuous-profiling': return t('Continuous Profiling');
+    case 'pprof': return t('pprof (Go)');
+    case 'async-profiling': return t('Async Profiling');
+    default: return path;
+  }
+}
+
+const rows = computed(() =>
+  layerMenuRows(L.value).map((r) => ({
+    ...r,
+    to: `/layer/${L.value.key}/${r.path}`,
+    // The page's own name when it has one; otherwise the component's
+    // literal translation.
+    label: r.name ?? labelFor(r.path),
+    // An extension page's route sits UNDER its component's, so the
+    // prefix match that lights up a component would light it up for
+    // every one of its pages too. Component rows therefore match
+    // exactly; only they can be a prefix of another row.
+    exact: !r.path.includes('/'),
+  })),
 );
+// The layer's own row already links here, and the bare `/layer/:key` URL
+// redirects to it — both light up the first row.
+const firstRowTo = computed(() => rows.value[0]?.to ?? '');
 </script>
 
 <template>
   <div class="layer-children" :class="{ 'in-group': inGroup }">
     <RouterLink
-      v-if="L.caps.dashboards"
-      :to="`/layer/${L.key}/${firstLayerTab(L)}`"
+      v-for="row in rows"
+      :key="row.path"
+      :to="row.to"
       class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/${firstLayerTab(L)}`) || route.path === `/layer/${L.key}` }"
+      :class="{
+        'is-active':
+          (row.exact ? isActiveExact(row.to) : isActive(row.to)) ||
+          (row.to === firstRowTo && route.path === `/layer/${L.key}`),
+      }"
     >
-      <Icon name="svc" /><span>{{ t('Service') }}</span>
-      <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="hasInstances"
-      :to="`/layer/${L.key}/instance`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/instance`) }"
-    >
-      <Icon name="prof" /><span>{{ L.slots.instances ?? t('Instance') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="hasEndpoints"
-      :to="`/layer/${L.key}/endpoint`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
-    >
-      <Icon name="ep" /><span>{{ L.slots.endpoints ?? t('Endpoint') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="hasTopology"
-      :to="`/layer/${L.key}/topology`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
-    >
-      <Icon name="topo" /><span>{{ L.slots.topology ?? t('Topology') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.deployment"
-      :to="`/layer/${L.key}/deployment`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
-    >
-      <Icon name="topo" /><span>{{ L.slots.deployment ?? t('Deployment') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.endpointDependency"
-      :to="`/layer/${L.key}/dependency`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/dependency`) }"
-    >
-      <Icon name="ep" /><span>{{ L.slots.endpointDependency ?? t('{endpoint} dependency', { endpoint: L.slots.endpoints ?? t('Endpoint') }) }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.traces"
-      :to="`/layer/${L.key}/trace`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/trace`) }"
-    >
-      <Icon name="trace" /><span>{{ t('Traces') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.traces && L.traces?.source === 'both'"
-      :to="`/layer/${L.key}/zipkin-trace`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/zipkin-trace`) }"
-    >
-      <Icon name="trace" /><span>{{ t('OTel & Zipkin Traces') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.logs"
-      :to="`/layer/${L.key}/logs`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/logs`) }"
-    >
-      <Icon name="log" /><span>{{ t('Logs') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.evaluationRecord"
-      :to="`/layer/${L.key}/evaluation-record`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/evaluation-record`) }"
-    >
-      <Icon name="log" /><span>Evaluation Record</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.browserErrors"
-      :to="`/layer/${L.key}/browser-errors`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/browser-errors`) }"
-    >
-      <Icon name="web" /><span>{{ t('Browser Logs') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.podLogs"
-      :to="`/layer/${L.key}/pod-logs`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/pod-logs`) }"
-    >
-      <Icon name="log" /><span>{{ t('Pod Logs') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.traceProfiling"
-      :to="`/layer/${L.key}/trace-profiling`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/trace-profiling`) }"
-    >
-      <Icon name="flame" /><span>{{ t('Trace Profiling') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.ebpfProfiling"
-      :to="`/layer/${L.key}/ebpf-profiling`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/ebpf-profiling`) }"
-    >
-      <Icon name="flame" /><span>{{ t('eBPF Profiling') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.networkProfiling"
-      :to="`/layer/${L.key}/network-profiling`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/network-profiling`) }"
-    >
-      <Icon name="prof" /><span>{{ t('Network Profiling') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.continuousProfiling"
-      :to="`/layer/${L.key}/continuous-profiling`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/continuous-profiling`) }"
-    >
-      <Icon name="set" /><span>{{ t('Continuous Profiling') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.pprofProfiling"
-      :to="`/layer/${L.key}/pprof`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/pprof`) }"
-    >
-      <Icon name="prof" /><span>{{ t('pprof (Go)') }}</span>
-    </RouterLink>
-    <RouterLink
-      v-if="L.caps.asyncProfiling"
-      :to="`/layer/${L.key}/async-profiling`"
-      class="sw-nav-item"
-      :class="{ 'is-active': isActive(`/layer/${L.key}/async-profiling`) }"
-    >
-      <Icon name="flame" /><span>{{ t('Async Profiling') }}</span>
+      <Icon :name="row.icon" /><span>{{ row.label }}</span>
+      <span v-if="row.path === 'service'" class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
     </RouterLink>
   </div>
 </template>

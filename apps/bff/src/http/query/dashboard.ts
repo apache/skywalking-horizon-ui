@@ -38,8 +38,7 @@ import type {
   FetchLike,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
@@ -48,7 +47,7 @@ import {
   getServerOffsetMinutes,
   windowFromRange,
 } from '../../util/window.js';
-import { widgetsForScope } from '../../logic/layers/loader.js';
+import { widgetsForScopePage } from '../../logic/layers/loader.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
@@ -56,9 +55,7 @@ import { bodySchema, MAX_REQUEST_WIDGETS } from '../../logic/dashboard/schema.js
 import { flattenTabWidgets } from '../../logic/dashboard/gates.js';
 import { runWidgets } from '../../logic/dashboard/run.js';
 
-export interface DashboardRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface DashboardRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — serve the in-use REMOTE widget set when the
    *  caller doesn't pass explicit widgets. */
@@ -113,18 +110,35 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
       const scope = parsed.data.scope ?? 'service';
-      const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+      const page = parsed.data.page;
       // Blocked (template store unreachable / layer disabled) → no
       // BFF-derived widgets and no in-code defaults; the grid stays empty.
       // An explicit `widgets[]` in the body still runs — the caller owns it.
-      const widgets: DashboardWidget[] = flattenTabWidgets(
-        parsed.data.widgets ??
-          (eff.blocked
-            ? []
-            : eff.template
-              ? widgetsForScope(eff.template, scope)
-              : defaultWidgetsFor(eff.template, layerKey)),
-      );
+      const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+      // An explicit page is checked FIRST, whether or not the caller sent
+      // its own widgets. Checking only the widget-less path meant the SPA —
+      // which always sends widgets — could name a page that does not exist
+      // and get a 200 back, so the one contract this parameter exists for
+      // never applied to its main caller.
+      if (page && !eff.blocked) {
+        const known = eff.template ? widgetsForScopePage(eff.template, scope, page) !== null : false;
+        if (!known) {
+          return reply.code(404).send({ error: 'unknown_page', layer: layerKey, scope, page });
+        }
+      }
+      let fromTemplate: DashboardWidget[] = [];
+      if (!parsed.data.widgets && !eff.blocked) {
+        if (eff.template) {
+          const resolved = widgetsForScopePage(eff.template, scope, page);
+          if (resolved === null) {
+            return reply.code(404).send({ error: 'unknown_page', layer: layerKey, scope, page });
+          }
+          fromTemplate = resolved;
+        } else {
+          fromTemplate = defaultWidgetsFor(eff.template, layerKey);
+        }
+      }
+      const widgets: DashboardWidget[] = flattenTabWidgets(parsed.data.widgets ?? fromTemplate);
       // Re-apply the cap AFTER expansion for a body-PROVIDED set: a tab counts
       // as 1 in the zod cap but flattens to many leaves, so a hand-built body
       // could fan past it. The SPA pre-flattens + chunks, so this never trips

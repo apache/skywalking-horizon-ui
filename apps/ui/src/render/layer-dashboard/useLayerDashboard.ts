@@ -34,6 +34,7 @@ import { bffClient } from '@/api/client';
 import {
   ensureConfigBundle,
   getDashboardConfig,
+  isMissingPage,
   useConfigBundle,
 } from '@/controls/configBundle';
 import {
@@ -45,6 +46,7 @@ import {
   fanoutEntities,
 } from './entityFanout';
 import { compoundKey, splitCompound } from '@/state/layerSelection';
+import { usePreviewMode } from '@/controls/previewMode';
 import type {
   DashboardConfig,
   DashboardResponse,
@@ -52,35 +54,74 @@ import type {
   DashboardWidgetResult,
 } from '@skywalking-horizon-ui/api-client';
 
-export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
+/**
+ * The widget set for one page of one scope.
+ *
+ * `page` selects an extension page; omitted means the component's default
+ * grid. A page the layer doesn't declare resolves to `notFound`, never to
+ * the default grid — rendering the default under a page URL would show
+ * real widgets that are not the ones the URL promised.
+ */
+export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>, page?: Ref<string | undefined>) {
   // Prefer the preloaded bundle. The bundle preload kicks off at app
   // mount in AppShell; if for some reason this composable runs first
   // we still trigger it here so the lookup eventually resolves.
   void ensureConfigBundle();
   const { loaded } = useConfigBundle();
-  const bundled = computed<DashboardConfig | null>(() => {
-    if (!loaded.value) return null;
+  const pageId = computed<string | undefined>(() => page?.value);
+  /** Set when the PREVIEWED draft says this page does not exist — the
+   *  preview equivalent of the BFF's 404, decided without a request. */
+  const previewMissing = computed<boolean>(() => {
+    if (!loaded.value || !pageId.value) return false;
     const s = (scope?.value ?? 'service') as 'service' | 'instance' | 'endpoint';
-    const widgets = getDashboardConfig(layerKey.value, s);
+    return isMissingPage(getDashboardConfig(layerKey.value, s, pageId.value));
+  });
+  const bundled = computed<DashboardConfig | null>(() => {
+    if (!loaded.value || previewMissing.value) return null;
+    const s = (scope?.value ?? 'service') as 'service' | 'instance' | 'endpoint';
+    const widgets = getDashboardConfig(layerKey.value, s, pageId.value);
     if (!widgets) return null;
-    return { layer: layerKey.value, scope: s, widgets };
+    return { layer: layerKey.value, scope: s, page: pageId.value, widgets };
   });
   // Network fallback — only fires if the bundle lookup came back null
-  // (e.g. a layer added since the cached bundle was written). Keeps
-  // the page rendering even when localStorage is stale.
+  // (e.g. a layer added since the cached bundle was written, or a page
+  // the cached bundle predates). Keeps the page rendering even when
+  // localStorage is stale.
   const q = useQuery({
-    queryKey: ['dashboard-config', layerKey, scope ?? computed(() => 'service')],
-    queryFn: () => bffClient.layer.dashboardConfig(layerKey.value, scope?.value),
-    enabled: computed(() => layerKey.value.length > 0 && loaded.value && bundled.value === null),
+    queryKey: ['dashboard-config', layerKey, scope ?? computed(() => 'service'), pageId],
+    queryFn: () => bffClient.layer.dashboardConfig(layerKey.value, scope?.value, pageId.value),
+    // A page the preview already knows is gone needs no request to
+    // confirm it — asking would fetch the PUBLISHED copy.
+    enabled: computed(
+      () => layerKey.value.length > 0 && loaded.value && bundled.value === null && !previewMissing.value,
+    ),
     staleTime: 5 * 60_000,
+    // A 404 is the answer, not a failure to reach one.
+    retry: false,
   });
   useAutoRefreshSubscribe(() => q.refetch());
 
   return {
     config: computed(() => bundled.value ?? q.data.value ?? null),
-    isLoading: computed(() => !loaded.value && q.isLoading.value),
+    // Loading until the page lookup has ANSWERED — config or 404. The old
+    // rule (`!loaded && q.isLoading`) went false the moment the bundle
+    // landed, so a page the bundle predates showed "No widgets defined"
+    // while its network lookup was still in flight: an empty page and a
+    // missing one look identical, and the operator sees the wrong one
+    // first.
+    isLoading: computed(() => !loaded.value || (bundled.value === null && !previewMissing.value && q.isFetching.value)),
+    /** The layer resolved, but the requested page is not one of its
+     *  pages. Only ever true for an explicit page: with none asked for,
+     *  the BFF always has a default grid to answer with. */
+    notFound: computed(() => Boolean(pageId.value) && (previewMissing.value || isNotFound(q.error.value))),
     error: q.error,
   };
+}
+
+function isNotFound(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const status = (err as { status?: unknown }).status;
+  return status === 404;
 }
 
 export interface DashboardEntityRefs {
@@ -100,6 +141,11 @@ export function useLayerDashboard(
   layerKey: Ref<string>,
   service: Ref<string | null>,
   scope?: Ref<string>,
+  /** Which page of `scope` is rendered; absent on the default grid. Part
+   *  of the request AND the cache key: two pages of one component are
+   *  different widget sets against the same entity, and the BFF cannot
+   *  check a page it was never told about. */
+  page?: Ref<string | undefined>,
   /** Optional `?mockTop=N` passthrough — when set, every TopList in
    *  the response is padded to N synthetic rows for UI sizing tests. */
   mockTop?: Ref<number>,
@@ -148,6 +194,21 @@ export function useLayerDashboard(
   // instance / endpoint are the "live metrics" scopes that benefit
   // from polling.
   const METRIC_SCOPES = new Set(['service', 'instance', 'endpoint']);
+  const previewMode = usePreviewMode();
+  /**
+   * The page as the SERVER may be told it.
+   *
+   * `page` is the BFF's "does this route resolve" check, and a preview
+   * renders a draft OAP has never seen — so naming it there refuses every
+   * request for an unpublished page. One value for the primary request
+   * AND the comparison fan-out: they are the same page against different
+   * entities, and the first fix omitted it in only one of them, which
+   * left every pinned entity 404ing while the primary rendered.
+   *
+   * The query KEY still carries the real page id — two pages are
+   * different widget sets and must not share a cache entry.
+   */
+  const requestPage = computed<string | undefined>(() => (previewMode.value ? undefined : page?.value));
   const refetchIntervalRef = computed(() => {
     const s = scope?.value ?? 'service';
     return METRIC_SCOPES.has(s) ? 30_000 : false;
@@ -174,6 +235,7 @@ export function useLayerDashboard(
       layerKey,
       service,
       scope ?? computed(() => 'service'),
+      page ?? computed(() => undefined),
       mockTop ?? computed(() => 0),
       entityRefs.instance ?? computed(() => null),
       entityRefs.endpoint ?? computed(() => null),
@@ -199,6 +261,13 @@ export function useLayerDashboard(
               endMs: rangeRef.value.endMs,
             }
           : {}),
+        // Named only when the server can know it. `page` exists so the BFF
+        // can refuse a route that does not resolve — but a PREVIEW renders
+        // a draft OAP has never seen, whose page is unknown by definition,
+        // and the widgets travel in this same body. Sending it there turned
+        // "check this page exists" into "refuse every unpublished page",
+        // so Preview → Local rendered a grid with no metrics in it.
+        ...(requestPage.value ? { page: requestPage.value } : {}),
         ...(widgetsList?.value.length ? { widgets: widgetsList.value } : {}),
       };
       const opts = mockTop?.value ? { mockTop: mockTop.value } : {};
@@ -317,12 +386,13 @@ export function useLayerDashboard(
             mockTop?.value ?? 0,
             rangeKey.value,
             widgetsJson.value,
+            page?.value,
           ),
           queryFn: (): Promise<DashboardResponse> =>
             limit(() =>
               bffClient.layer.dashboard(
                 layerKey.value,
-                entityDashboardBody(s, svc, name, rangeRef.value, widgetsList?.value ?? null),
+                entityDashboardBody(s, svc, name, rangeRef.value, widgetsList?.value ?? null, requestPage.value),
                 opts,
               ),
             ),

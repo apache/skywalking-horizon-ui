@@ -17,6 +17,13 @@ Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.
 - Profiling only on your approval — when metrics and traces can't pinpoint a cause, the assistant proposes the flavor that fits the target (trace / async-profiler / pprof / eBPF / network) as a decision card; nothing runs until you approve it, and the analysis renders inline as the real flame graph, trace waterfall, or process graph.
 - Bring your own LLM — off by default, enabled via the `ai:` config block against any OpenAI-compatible endpoint or Amazon Bedrock, with the API key env-only and redacted from logs; access is RBAC-gated (`ai:read`), every data tool enforces the same read verbs the signed-in user already holds, and the assistant never changes configuration, rules, or dashboards.
 
+### MCP — bring your own agent
+
+- Horizon speaks the Model Context Protocol at `POST /api/mcp`, so Claude Code, Codex, Claude Desktop or any MCP client gets the same 28 investigation tools the assistant uses, plus the root-cause playbooks as prompts. On by default and needing no LLM provider, because the model stays on the caller's side.
+- The same permissions, never more — the endpoint takes the login every other route takes (an API token, or a browser session), is gated by `mcp:read`, and every tool re-checks the read verb its own screen needs, so an agent sees exactly what the operator it authenticated as sees.
+- A browser login instead of a pasted secret — an optional OAuth 2.1 authorization server sends the operator through Horizon's own login page (LDAP and all), with a consent screen naming what the grant would carry; the token holds the intersection of the consented scope and the user's live roles, so it can only ever narrow.
+- Answers a model can read, and a client that can draw gets the real widgets — figures come back as a log-scaled sparkline with bucketed min/avg/max and the extremes, trace/log lists come back as rows, and a host with inline rendering mounts Horizon's own chart, topology and trace components from a self-contained bundle that makes no network requests at all.
+
 ### Layers & dashboards
 
 - Bundled instrumentation layers across four tiers — Apps (GENERAL, BROWSER, mobile, VIRTUAL_DATABASE/CACHE/MQ/GENAI), Service Mesh (MESH, MESH_DP, MESH_CP, CILIUM_SERVICE), Middleware (databases, queues, gateways, Flink, Airflow), and Infrastructure (K8S, OS_LINUX/WINDOWS, AWS) — plus a self-observability group (SO11Y_OAP, SO11Y_SATELLITE, BANYANDB).
@@ -82,7 +89,7 @@ Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.
 Horizon UI is a pnpm-workspaces monorepo:
 
 - `apps/ui` — the Vue 3 + TypeScript (strict) single-page app, built with Vite. State via Pinia, data via `@tanstack/vue-query`, charts via Apache ECharts (wrapped — never instantiated directly in a view), topology and flame graphs via D3, 3D via Three.js + TresJS, code editing via Monaco.
-- `apps/bff` — a Fastify (Node) backend-for-frontend. It is the only tier that talks to OAP, shaping every reply for the SPA, owning timezone conversion, template sync, auth/RBAC, and the audit log.
+- `apps/bff` — a Fastify (Node) backend-for-frontend. It is the only tier that talks to OAP, shaping every reply for the SPA, owning timezone conversion, template sync, and auth/RBAC.
 - `packages/api-client`, `packages/design-tokens` — the shared typed client for the BFF, and the canonical design tokens. Bundled dashboard JSON lives with the BFF that serves it.
 
 The BFF speaks three OAP contracts, all owned upstream and treated as fixed:
@@ -140,13 +147,13 @@ Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}`
 
 - `server` — host / port.
 - `oap` — `queryUrl`, `adminUrl`, `zipkinUrl`, `timeoutMs`, and optional outbound basic-auth.
-- `auth` — backend `local` or `ldap` (with LDAP bind / user-filter / group-mapping and an optional audited break-glass local admin).
+- `auth` — backend `local` or `ldap` (with LDAP bind / user-filter / group-mapping and an optional break-glass local admin), plus single sign-on and API tokens.
 - `rbac` — four built-in roles (viewer / maintainer / operator / admin) over fine-grained, verb-namespaced permissions (e.g. `dashboard:write`, `rule:write:structural`, `source-map:write`).
 - `templates` — `live` (default: bundled templates seed through OAP 11's REST API and stay editable) or `readonly` (render from the local bundle; required for OAP 10 because Horizon does not consume its legacy GraphQL template API).
 - `ai` — the AI assistant: `enabled` (off by default), provider (`openai-compatible` or `bedrock`), model, base URL, and an env-only API key.
 - `performance` — how hard the BFF fans metric queries out to OAP (per-route bulk sizes and concurrency) plus protective caps (topology render valve, the largest page a list may display).
 - `query` — load caps: `landingServiceCap` (how many top services a layer landing fetches metrics for) and `overviewTopN` (the Overview KPI rollup window).
-- `session`, `audit` (audit-log toggle + file), `debugLog` (the outbound OAP wire log), `sourceMaps` (browser-error source-map cache), and `layers.excluded` — the audit and wire-log files default under `/data/*` in the container.
+- `session`, `debugLog` (the outbound OAP wire log), `sourceMaps` (browser-error source-map cache), and `layers.excluded` — the wire-log file defaults under `/data/*` in the container.
 
 Local user passwords are argon2-hashed; generate a hash with the BFF CLI. Set `session.cookieSecure: true` when running behind HTTPS.
 

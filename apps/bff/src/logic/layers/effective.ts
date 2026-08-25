@@ -61,13 +61,38 @@ import { formatName, parseEnvelope } from '../templates/names.js';
 import { canonicalLayerKey } from '../templates/identity.js';
 import { logger } from '../../logger.js';
 
+/**
+ * Why {@link resolveEffectiveLayer} returned what it did. `blocked` folds the
+ * two block states into one boolean for routes, which is all a route needs —
+ * but a reader that has to EXPLAIN the outcome cannot tell an OAP outage from
+ * an empty layer, and those warrant opposite responses. The AI tools report
+ * this verbatim so an agent never calls an unreachable store "no metrics".
+ */
+export type EffectiveLayerReason =
+  /** A remote row resolved — `template` is non-null. */
+  | 'ok'
+  /** Admin port unreachable. Affects EVERY layer; an OAP health incident. */
+  | 'store-unreachable'
+  /** An administrator disabled this layer's row. Deliberate, one layer. */
+  | 'layer-disabled'
+  /** Reachable, but nothing readable for this layer — unsynced, identity-
+   *  invalid or unparseable. One layer; routes use in-code defaults. */
+  | 'no-remote-row'
+  /** The read itself threw. Rare (the sync layer soft-fails internally), and
+   *  distinct from `no-remote-row`: nothing is known about the layer, so it
+   *  must not be reported as "not synced". */
+  | 'read-error';
+
 export interface EffectiveLayer {
   /** Remote OAP row content to render, or `null` (use in-code defaults
    *  when `blocked` is false, render nothing when `blocked` is true). */
   template: LayerTemplate | null;
   /** Template store unreachable OR this layer's row disabled — block the
-   *  feature (no defaults, no bundled). */
+   *  feature (no defaults, no bundled). Equivalent to `reason` being
+   *  `store-unreachable` or `layer-disabled`. */
   blocked: boolean;
+  /** The distinction `blocked` discards. */
+  reason: EffectiveLayerReason;
 }
 
 export async function resolveEffectiveLayer(
@@ -76,7 +101,7 @@ export async function resolveEffectiveLayer(
 ): Promise<EffectiveLayer> {
   // Unconfigured (tests / no OAP admin wired) — never hard-block on a
   // missing client; fall through to in-code defaults.
-  if (!uiTemplateClient) return { template: null, blocked: false };
+  if (!uiTemplateClient) return { template: null, blocked: false, reason: 'no-remote-row' };
   try {
     const sync = await getSyncStatus({
       client: uiTemplateClient(),
@@ -88,31 +113,31 @@ export async function resolveEffectiveLayer(
     // live config is worse than an empty page behind the connectivity banner.
     // An OAP that never serves the template store (10.x) runs
     // `templates.mode: readonly`, where `unreachable` is always false.
-    if (sync.unreachable) return { template: null, blocked: true };
+    if (sync.unreachable) return { template: null, blocked: true, reason: 'store-unreachable' };
     const name = formatName('layer', canonicalLayerKey(layerKey));
     const row = sync.rows.find(
       (r) => r.name === name && r.kind === 'layer' && r.locale === undefined,
     );
     // No remote row → reachable but unknown/unsynced layer → in-code defaults.
-    if (!row) return { template: null, blocked: false };
+    if (!row) return { template: null, blocked: false, reason: 'no-remote-row' };
     // Admin disabled the layer's template → block (the sidebar also hides it).
-    if (row.status === 'disabled') return { template: null, blocked: true };
+    if (row.status === 'disabled') return { template: null, blocked: true, reason: 'layer-disabled' };
     // The row's own name got us here, but the name alone is not the identity:
     // `effective` is what the shared identity rule leaves behind, so a row
     // carrying another layer's template never renders as this one.
     if (row.effective === 'remote' && row.remote) {
       const env = parseEnvelope(row.remote.configuration);
       if (env?.content && typeof env.content === 'object' && 'key' in env.content) {
-        return { template: env.content as LayerTemplate, blocked: false };
+        return { template: env.content as LayerTemplate, blocked: false, reason: 'ok' };
       }
     }
     // Bundled-fallback (seed didn't land), identity-invalid, or unparseable
     // remote → we do NOT resurrect bundled at render time; in-code defaults.
-    return { template: null, blocked: false };
+    return { template: null, blocked: false, reason: 'no-remote-row' };
   } catch {
     // Unexpected read error (getSyncStatus soft-fails internally, so this
     // is rare) — default rather than blank the app on a transient bug.
-    return { template: null, blocked: false };
+    return { template: null, blocked: false, reason: 'read-error' };
   }
 }
 

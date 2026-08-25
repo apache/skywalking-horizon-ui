@@ -28,9 +28,8 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike, InstanceTopologyConfig, UITemplateClient } from '@skywalking-horizon-ui/api-client';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
 import {
@@ -45,9 +44,7 @@ import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { buildInstanceTopology, emptyInstanceTopologyResponse } from '../../logic/oap/instance-topology.js';
 
-export interface InstanceTopologyRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface InstanceTopologyRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   /** OAP UI-template client — lets the route serve the in-use REMOTE
    *  topology config, matching the admin + sidebar. */

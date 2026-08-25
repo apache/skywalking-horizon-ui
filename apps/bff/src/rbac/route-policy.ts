@@ -76,7 +76,7 @@ export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
     for (const v of required) {
-      if (!sessionHasVerb(deps.config.current, session.roles, v)) {
+      if (!sessionHasVerb(deps.config.current, session, v)) {
         return void reply.code(403).send({ error: 'permission_denied', verb: v });
       }
     }
@@ -101,7 +101,27 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/auth/login':                          'public',
   'POST /api/auth/logout':                         'public',
   'GET /api/health':                               'public',
+  // The OAuth authorization server. Public by protocol: discovery and dynamic
+  // registration are unauthenticated by spec, /authorize sends the operator to
+  // the login page itself, and /token authenticates by presenting a code or a
+  // refresh token rather than a session. The two consent routes are NOT public
+  // — they are what proves who is granting the access.
+  'GET /.well-known/oauth-protected-resource':         'public',
+  'GET /.well-known/oauth-protected-resource/api/mcp': 'public',
+  'GET /.well-known/oauth-authorization-server':       'public',
+  'POST /api/oauth/register':                      'public',
+  'GET /api/oauth/authorize':                      'public',
+  'POST /api/oauth/token':                         'public',
+  'GET /api/oauth/consent':                        'auth',
+  'POST /api/oauth/consent':                       'auth',
   'GET /api/auth/health':                          'public',
+  // Single sign-on. Public for the same reason the password login is: these
+  // are how someone becomes authenticated, so requiring authentication would
+  // be circular. /providers lists only ids and labels — no secret, and the
+  // login page must render the buttons before anyone is signed in.
+  'GET /api/auth/oidc/providers':                  'public',
+  'GET /api/auth/oidc/start':                      'public',
+  'GET /api/auth/oidc/callback':                   'public',
 
   // ── Authenticated — any signed-in user (shell bootstrap) ──
   'GET /api/auth/me':                              'auth',
@@ -205,6 +225,18 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/ai/config':                            'auth',
   'POST /api/ai/chat':                             'ai:read',
 
+  // MCP. One verb on the endpoint, then the SAME per-tool read verbs the chat
+  // agent goes through — an external agent is a client of this user's account,
+  // not a new principal, so it can never read what its operator cannot.
+  'POST /api/mcp':                                 'mcp:read',
+  // The session-bearing transport's two other methods. Answered 405 with a
+  // fixed JSON-RPC error and no lookup of any kind, so they are 'public': the
+  // reply is the same for every caller, and demanding a credential before
+  // saying "wrong method" would only make a misconfigured client report an auth
+  // failure instead of the method mismatch it actually has.
+  'GET /api/mcp':                                  'public',
+  'DELETE /api/mcp':                               'public',
+
   // ── Maintainer — platform-monitoring reads ──
   'GET /api/cluster/state':                        'cluster:read',
   'GET /api/inspect/metrics':                      'inspect:read',
@@ -242,6 +274,13 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/oal/rules/:source':                    'rule:read',
   'GET /api/catalog/list':                         'rule:read',
   'GET /api/catalog/bundled':                      'rule:read',
+  'GET /api/admin/audit':                          'audit:read',
+  'GET /api/admin/audit/stat':                     'audit:read',
+  'GET /api/admin/audit/status':                   'audit:read',
+  // Token usage answers the same operator question from the other side, and
+  // holds credential identifiers — same verb, and the same wildcard exemption.
+  'GET /api/admin/token-usage':                    'audit:read',
+
   'POST /api/rule':                                'rule:write',
   'POST /api/rule/inactivate':                     'rule:write',
   'POST /api/rule/delete':                         'rule:delete',

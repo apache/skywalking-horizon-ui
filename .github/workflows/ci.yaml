@@ -39,7 +39,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check license header
-        uses: apache/skywalking-eyes@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
+        uses: apache/skywalking-eyes@61275cc80d0798a405cb070f7d3a8aaf7cf2c2c1 # v0.8.0
 
   build-and-check:
     # Every Node-side gate in one job. They all need the same checkout + pnpm
@@ -69,8 +69,23 @@ jobs:
       # shipping defect rather than operator error — and the loader only
       # JSON.parses them, which is how an orderBy naming a nonexistent column
       # and an unsupported aggregation both shipped.
-      - name: Lint, source budget, i18n, security, bundled templates
+      - name: Lint, source budget, i18n, security, docs links, bundled templates
         run: pnpm lint
+
+      # The vendored BanyanDB wire contract, in one regenerate-then-diff gate —
+      # the same shape as `licenses:bin:check`. Re-fetches the .proto from the
+      # PINNED upstream commits, regenerates proto.pb.d.ts from what it fetched,
+      # then diffs both: so it proves in one pass that nobody hand-edited a
+      # vendored .proto, that nobody hand-edited the generated declarations, and
+      # that the two are in step. `git diff --exit-code` names the paths that
+      # moved, which is what says whether the contract or the generator drifted.
+      #
+      # Pinning commits rather than branches is what stops an upstream release
+      # turning an unrelated PR red. `pnpm proto:check:types` is the same check
+      # minus the fetch, kept for working offline — redundant here, since this
+      # step regenerates from the freshly fetched tree anyway.
+      - name: Vendored proto tree matches its pinned upstream
+        run: pnpm proto:check
 
       # Advisories against what actually SHIPS. `--prod` matches the scope the
       # binary LICENSE is generated from, so the two gates describe the same
@@ -115,18 +130,29 @@ jobs:
       - name: Package the distributable
         run: pnpm package
 
-      # After `pnpm package`, never before: collect-dist-licenses writes its
-      # LICENSE / NOTICE / report into dist/, and packaging starts by wiping
-      # that directory.
-      # The binary tarball bundles the full production dependency tree — the
-      # BFF runtime deps (dist/node_modules) AND the UI deps Vite compiles into
-      # the static bundle — so ASF policy requires every one of their licenses
-      # reproduced in the binary LICENSE/NOTICE. This fails if either:
-      #   1. a dep carries a Category-X / unknown license (check-dist-licenses), or
-      #   2. the committed binary LICENSE/NOTICE reference is stale (--check) —
-      #      i.e. prod deps changed without `pnpm licenses:bin:update`.
-      - name: Verify binary LICENSE/NOTICE (drift + ASF allow/deny)
-        run: pnpm licenses:bin:check
+      # The binary tarball bundles the whole production dependency tree — the
+      # BFF runtime deps and the UI deps Vite compiles into the static bundle —
+      # so the binary LICENSE has to name every one of them. license-eye
+      # regenerates it from LICENSE.tpl and `git diff` is the drift gate: a
+      # dependency added or removed without running `pnpm licenses:bin:update`
+      # fails here.
+      #
+      # Built from a commit rather than v0.8.0 because pnpm support landed after
+      # that release; revert to a tag once one ships with it.
+      #
+      # A license the tool cannot identify makes `dependency resolve` itself
+      # exit non-zero, so an unknown license fails this step too. The licenses/
+      # directory beside the LICENSE is maintained by hand — see CLAUDE.md.
+      - name: Set up Go for license-eye
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Verify binary LICENSE is current
+        run: |
+          go install "github.com/apache/skywalking-eyes/cmd/license-eye@$(tr -d '[:space:]' < .license-eye-version)"
+          pnpm licenses:bin:check
 
       - name: Compare source vs. binary LICENSE/NOTICE shape
         run: |
@@ -153,9 +179,8 @@ jobs:
         with:
           name: dist-license-report
           path: |
-            dist/LICENSE
-            dist/NOTICE
-            dist/.dependency-report.json
+            dist-material/release-docs/LICENSE
+            dist-material/release-docs/NOTICE
 
       # A dist/ that assembles but 404s at `/` is not a working release.
       - name: Boot the packaged server and smoke-test it
@@ -163,7 +188,7 @@ jobs:
           set -eu
           # No HORIZON_STATIC_DIR on purpose: the packaged layout must serve
           # the UI from the static/ dir beside server.js without being told.
-          HORIZON_SERVER_PORT=8099 HORIZON_AUDIT_FILE=/tmp/ci-audit.jsonl \
+          HORIZON_SERVER_PORT=8099 \
             node dist/server.js > /tmp/ci-boot.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf -o /dev/null "http://127.0.0.1:8099/api/health" && break
@@ -215,6 +240,32 @@ jobs:
           case "$cc" in *no-store*) fail "hashed asset ${asset} is no-store — static files must stay cacheable" ;; esac
           echo "packaged artifact boots, serves the UI, and carries its security headers"
 
+  banyandb-client-it:
+    # The BanyanDB client's only real coverage. Its unit tests exercise
+    # encoding in isolation; everything that matters — schema reconciliation,
+    # the write path's series construction, query criteria — is only true or
+    # false against a running server, and each of those has already shipped a
+    # bug that type-check, lint and unit tests all passed.
+    #
+    # Self-contained: testcontainers starts the BanyanDB that
+    # `test/e2e/script/env` pins, on an ephemeral port, and stops it after. No
+    # service container to declare and no port to collide with.
+    name: BanyanDB client IT
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Integration tests against a real BanyanDB
+        run: pnpm test:it
+
   required:
     # Status-check name pinned to "Required" so Apache branch protection
     # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
@@ -225,7 +276,7 @@ jobs:
     # here because `needs` does not cross workflow boundaries.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, build-and-check]
+    needs: [license-header, build-and-check, banyandb-client-it]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -233,3 +284,4 @@ jobs:
         run: |
           [[ ${{ needs.license-header.result }} == 'success' ]] || exit 1
           [[ ${{ needs.build-and-check.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.banyandb-client-it.result }} == 'success' ]] || exit 1

@@ -31,7 +31,11 @@ CASE ?= core
 # that is where CI invokes the CLI. So a case runs from there too — started
 # from `test/e2e` it dies on its first step, with a `No such file or
 # directory` that reads like a missing script rather than a wrong directory.
-ROOT = $(CURDIR)/..
+# `$(CURDIR)` is this Makefile's directory — `test/e2e` — so reaching the
+# repo root takes TWO levels, not one. With one, every case file resolved
+# against `test/` and infra-e2e reported the case as "not exist", which
+# reads as a missing file rather than a wrong directory.
+ROOT = $(CURDIR)/../..
 CASE_FILE = test/e2e/cases/$(CASE)/e2e.yaml
 
 .PHONY: images
@@ -44,8 +48,16 @@ images:
 images-demo:
 	SKIP_HORIZON_IMAGE=true bash script/prepare/build-images.sh
 
+# The browser runner records a first failure in a marker file so infra-e2e's
+# retry budget cannot re-run a red suite fifteen times. That file lives in
+# /tmp and outlives the run, which is right within one run and wrong between
+# them: locally, the next `make run` would short-circuit the browser project
+# and report the PREVIOUS failure without executing a single spec. CI never
+# sees it (fresh runner each time), so clearing it here is what makes a local
+# re-run mean what it appears to mean.
 .PHONY: run
 run:
+	rm -f /tmp/skywalking-infra-e2e/playwright-*.failed
 	cd $(ROOT) && $(E2E) run -c $(CASE_FILE)
 
 # The istio case with profiling switched off, for machines with no Linux

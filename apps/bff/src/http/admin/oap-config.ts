@@ -29,14 +29,11 @@ import type {
   OapConfigEntry,
   OapConfigResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { fetchConfigDump } from '../../client/config-dump.js';
 
-export interface OapConfigRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface OapConfigRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

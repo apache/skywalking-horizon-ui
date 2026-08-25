@@ -80,6 +80,7 @@ const GATES: ReadonlyArray<{ verb: string; rows: string[]; paths: string[] }> = 
   { verb: 'user:read', rows: ['Users'], paths: ['/admin/users'] },
   { verb: 'auth:read', rows: ['Auth status'], paths: ['/admin/auth-status'] },
   { verb: 'role:read', rows: ['Roles & permissions'], paths: ['/admin/roles'] },
+  { verb: 'audit:read', rows: ['Login audit'], paths: ['/admin/audit'] },
 ];
 
 /** The verbs the shell's own nav blocks are gated on — no static-menu entry

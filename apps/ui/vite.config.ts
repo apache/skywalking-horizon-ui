@@ -65,6 +65,14 @@ export default defineConfig(({ command }) => ({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // Vitest reads this file, so the setup lives here rather than in a
+  // `vitest.config.ts` — a separate config would replace this one and the
+  // `@` alias with it.
+  test: {
+    // ABSOLUTE: `test:unit` passes `--root src/`, so a relative path would
+    // resolve to `src/vitest.setup.ts` and fail to load.
+    setupFiles: [fileURLToPath(new URL('./vitest.setup.ts', import.meta.url))],
+  },
   server: {
     port: UI_DEV_PORT,
     strictPort: true,

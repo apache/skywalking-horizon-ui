@@ -94,7 +94,12 @@ function remove(list: TopologyMetricDef[], i: number): void {
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
         <input type="checkbox" :checked="showGroup" @change="toggleShowGroup" />
-        <span class="comp-label">{{ t('Show') }} <code>&lt;group&gt;::</code> {{ t('as a chip in the node panel') }}</span>
+        <!-- One key, not three fragments: ja and ko put the prefix and the
+             verb in a different order, which a split sentence cannot express
+             and which left `Show` translated as a mid-sentence clause. -->
+        <i18n-t keypath="Show {prefix} as a chip in the node panel" tag="span" class="comp-label" scope="global">
+          <template #prefix><code>&lt;group&gt;::</code></template>
+        </i18n-t>
       </label>
       <span class="naming-prefix-hint">
         {{ t('Off:') }} <code>mesh-svr::reviews</code> {{ t('reads as') }} <code>reviews</code> {{ t('everywhere.') }}

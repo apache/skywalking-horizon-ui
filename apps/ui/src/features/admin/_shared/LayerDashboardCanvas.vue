@@ -48,6 +48,10 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{
   template: AdminLayerTemplate;
   scope: AdminScope;
+  /** Which page of `scope` to preview — `null` is the component's default
+   *  grid. Without it the canvas always drew the default, so an extension
+   *  page's widgets could not be clicked to translate them. */
+  page?: string | null;
   /** Selected widget id; the matching cell gets the accent outline. */
   selectedWidgetId?: string | null;
 }>();
@@ -55,10 +59,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   'select-widget': [payload: { widget: DashboardWidget; idx: number; el: HTMLElement; event: MouseEvent }];
   'select-header': [payload: { el: HTMLElement; event: MouseEvent }];
+  'select-page': [payload: { el: HTMLElement; event: MouseEvent }];
 }>();
 
 const widgets = computed<DashboardWidget[]>(() => {
   const tpl = props.template as AdminLayerTemplate & { dashboards?: Record<string, DashboardWidget[]> };
+  if (props.page) {
+    const scope = props.scope as 'service' | 'instance' | 'endpoint';
+    return tpl.dashboardExtPages?.[scope]?.find((p) => p.id === props.page)?.widgets ?? [];
+  }
   if (tpl.dashboards?.[props.scope]) return tpl.dashboards[props.scope];
   if (props.scope === 'service' && tpl.widgets) return tpl.widgets;
   return [];
@@ -81,6 +90,19 @@ function onCellClick(e: MouseEvent, w: DashboardWidget, i: number): void {
 function onHeaderClick(e: MouseEvent): void {
   emit('select-header', { el: e.currentTarget as HTMLElement, event: e });
 }
+
+function onPageClick(e: MouseEvent): void {
+  e.stopPropagation();
+  emit('select-page', { el: e.currentTarget as HTMLElement, event: e });
+}
+
+/** The selected page's own record, so its name can be shown and clicked
+ *  as itself rather than through the layer header. */
+const activePageRef = computed(() => {
+  if (!props.page) return null;
+  const scope = props.scope as 'service' | 'instance' | 'endpoint';
+  return props.template.dashboardExtPages?.[scope]?.find((p) => p.id === props.page) ?? null;
+});
 </script>
 
 <template>
@@ -93,6 +115,17 @@ function onHeaderClick(e: MouseEvent): void {
     <p class="ldc-layer-hint">
       {{ t("Click to translate the layer's display name + term aliases (services / instances / endpoints).") }}
     </p>
+  </header>
+
+  <!-- The page's own name gets its own target. Folding it into the layer
+       header meant clicking a control that says it edits the LAYER, and
+       editing something else. -->
+  <header v-if="activePageRef" class="ldc-page-head" @click="onPageClick">
+    <div class="ldc-layer-head-row">
+      <h3 class="ldc-layer-alias">{{ activePageRef.name }}</h3>
+      <code class="ldc-layer-key">{{ activePageRef.id }}</code>
+    </div>
+    <p class="ldc-layer-hint">{{ t("Click to translate this page's name — the row operators see in the sidebar.") }}</p>
   </header>
   <div class="ldc-canvas">
     <div v-if="widgets.length === 0" class="ldc-empty">
@@ -151,6 +184,15 @@ function onHeaderClick(e: MouseEvent): void {
 </template>
 
 <style scoped>
+.ldc-page-head {
+  cursor: pointer;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sw-line-2);
+  border-left: 2px solid var(--sw-accent);
+}
+.ldc-page-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
 .ldc-layer-head {
   margin: 8px 12px 0;
   padding: 8px 12px;

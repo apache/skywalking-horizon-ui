@@ -49,14 +49,11 @@ import type {
   InstanceAlarmStatus,
 } from '@skywalking-horizon-ui/api-client';
 import { AlarmStatusApiError } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapClients } from '../../client/index.js';
 
-export interface AlarmRulesRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface AlarmRulesRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
 

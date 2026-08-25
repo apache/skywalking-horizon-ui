@@ -30,7 +30,7 @@ A layer with zero services is hidden from the sidebar (it appears in the menu re
 
 ### 3. Identify the layer's metric prefix
 
-Browse OAP's [metric catalog](https://skywalking.apache.org/docs/main/next/en/setup/backend/metric-name-and-its-attributes/) (or use Horizon's Inspect page once you have it running) to find the metric naming convention for the layer. For example:
+Use Horizon's own [Metrics Inspect](../operate/inspect.md) page to browse what your OAP actually defines — it reads the live catalog, so it answers for the version you are running rather than for a release note. The OAL and MAL scripts in the SkyWalking distribution are the source those names come from. Layers follow a naming convention:
 
 - `GENERAL` → `service_cpm`, `service_apdex`, `service_percentile`, `endpoint_cpm`, `endpoint_resp_time`
 - `MESH` → `mesh_service_cpm`, `mesh_service_resp_time`
@@ -78,7 +78,7 @@ Bundled template changes need a BFF restart (templates are loaded once at startu
 ### 7. Verify in the UI
 
 - The layer appears in the sidebar **Layers** section (assuming `visibility: public` and at least one service).
-- Click it — should land on the `service` tab (or whichever tab is first-enabled per `components`).
+- Click it — should land on its first menu row: usually `service`, or the first enabled component when the service component is off. A custom menu order, if the layer has one, decides it instead. See [Menu and layers](menu-structure.md).
 - Service list picker shows the columns from `header.columns` with the right values.
 - Per-service drill-down shows the widgets from `dashboards.service`.
 

@@ -33,7 +33,7 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <div class="ced">
     <div class="ced__cap">
-      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+      <span class="ced__cap-t">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</span><ChatCapturedTag :at="capturedAt" />
     </div>
     <div class="ced__view">
       <LayerEndpointDependencyView
@@ -60,11 +60,17 @@ const { t } = useI18n({ useScope: 'global' });
   gap: 10px;
 }
 .ced__cap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
+}
+.ced__cap-t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* The embedded view is content-sized (its graph card carries a bounded pixel
    height); the block clips any overflow and keeps its own rounded edge. */

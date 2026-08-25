@@ -52,6 +52,26 @@ RUN pnpm package
 FROM node:24-alpine
 WORKDIR /app
 
+# The server only needs the Node runtime. The upstream image also includes
+# npm, Corepack and Yarn; keeping those unused package managers would ship
+# their dependency trees (and any vulnerabilities in them) in production.
+# Build tooling remains available in the throwaway build stage above.
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /opt/yarn-* \
+    && rm -f \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+    && node --version \
+    && ! command -v npm \
+    && ! command -v npx \
+    && ! command -v corepack \
+    && ! command -v yarn
+
 RUN addgroup -S horizon && adduser -S -G horizon horizon
 
 COPY --from=build /src/dist/server.js              ./server.js
@@ -65,7 +85,12 @@ COPY --from=build /src/dist/static                 ./static
 COPY --from=build /src/dist/horizon.yaml           ./horizon.yaml
 
 COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled_templates
-COPY --from=build --chown=horizon:horizon /src/dist/resources           ./resources
+COPY --from=build --chown=horizon:horizon /src/dist/skills              ./skills
+# BanyanDB wire contract, read from disk at runtime by @grpc/proto-loader.
+COPY --from=build --chown=horizon:horizon /src/dist/proto               ./proto
+# The ui:// card bundle. Present because the image build runs build:mcp-app;
+# without it MCP still works, text-only.
+COPY --from=build --chown=horizon:horizon /src/dist/mcp-app             ./mcp-app
 
 RUN mkdir -p /data && chown horizon:horizon /data
 VOLUME ["/data"]
@@ -80,7 +105,6 @@ ENV NODE_ENV=production \
     HORIZON_SERVER_PORT=8081 \
     HORIZON_STATIC_DIR=/app/static \
     HORIZON_CONFIG=/app/horizon.yaml \
-    HORIZON_AUDIT_FILE=/data/horizon-audit.jsonl \
     HORIZON_WIRE_LOG_FILE=/data/horizon-wire.jsonl \
     HORIZON_SOURCEMAPS_DIR=/app/sourcemaps \
     # Match this to the container memory limit and your sourceMaps budget — the in-heap map cache lives inside it.

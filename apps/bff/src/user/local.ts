@@ -17,6 +17,7 @@
 
 import argon2 from 'argon2';
 import type { HorizonConfig } from '../config/schema.js';
+import { granted, refused, type Verified } from './outcome.js';
 
 // Pre-computed dummy hash used to keep the timing path identical when a
 // username does not exist. This blunts username-enumeration attacks.
@@ -26,13 +27,17 @@ const DUMMY_HASH =
 export interface VerifiedUser {
   username: string;
   roles: string[];
+  /** What to SHOW instead of `username`. Never an identity: roles and every
+   *  permission check use `username` alone, because a display name is supplied
+   *  by a directory or a provider and is not unique. */
+  displayName?: string;
 }
 
 export async function verifyLocalCredentials(
   cfg: HorizonConfig,
   username: string,
   password: string,
-): Promise<VerifiedUser | null> {
+): Promise<Verified<VerifiedUser>> {
   const user = cfg.auth.local.users.find((u) => u.username === username);
   const hash = user?.passwordHash ?? DUMMY_HASH;
   let ok = false;
@@ -41,6 +46,8 @@ export async function verifyLocalCredentials(
   } catch {
     ok = false;
   }
-  if (!user || !ok) return null;
-  return { username: user.username, roles: user.roles };
+  // One reason for both branches: "no such user" and "wrong password" must
+  // not be distinguishable, here or anywhere downstream.
+  if (!user || !ok) return refused('invalid_credentials');
+  return granted({ username: user.username, roles: user.roles });
 }

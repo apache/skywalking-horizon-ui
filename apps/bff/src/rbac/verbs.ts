@@ -66,12 +66,23 @@ export const VERBS = {
    *  the caller's read scopes — never widens them. */
   aiRead: 'ai:read',
 
+  /** Connect an external agent over MCP. Separate from `ai:read` because the
+   *  two differ in who runs the model: the assistant sends the conversation to
+   *  the provider Horizon is configured with, while MCP leaves the model on
+   *  the caller's side and Horizon only answers tool calls. A deployment can
+   *  reasonably allow one and not the other. The same per-tool read verbs
+   *  apply on both paths. */
+  mcpRead: 'mcp:read',
+
+  /** Read the login audit log. See WILDCARD_EXEMPT_VERBS — this one is NOT
+   *  reachable through `*:read`. */
+  auditRead: 'audit:read',
+
   userRead: 'user:read',
   userWrite: 'user:write',
   roleRead: 'role:read',
   roleWrite: 'role:write',
   authRead: 'auth:read',
-  auditRead: 'audit:read',
   admin: 'admin',
 } as const;
 
@@ -94,14 +105,33 @@ export type KnownVerb = (typeof VERBS)[keyof typeof VERBS];
  */
 export const RESERVED_VERBS: readonly Verb[] = [
   'alarm-rule:write',
-  'audit:read',
   'role:write',
   'user:write',
 ];
 
+/**
+ * Verbs a WILDCARD may not reach. Only a bare `*`, `admin`, or the exact verb
+ * grants one.
+ *
+ * `audit:read` is here because the ordinary grammar cannot contain it. A verb
+ * shaped `<area>:read` is matched by `*:read`, which is a documented role
+ * recipe, and `SCOPE_VERBS['horizon:read']` — the DEFAULT OAuth scope — maps
+ * to exactly that. Without this set, enabling an optional audit log would
+ * silently hand every read-only MCP client and every `*:read` role the full
+ * login history: usernames, verified email addresses, source addresses, and
+ * internal cluster addressing. The consent screen renders that scope as the
+ * single line `*:read` and names none of it.
+ *
+ * So the containment is built rather than declared. Keep the set small: each
+ * entry is a place the grammar stops being uniform, and that is only worth it
+ * where a wildcard grant would leak something an operator would not expect.
+ */
+export const WILDCARD_EXEMPT_VERBS: ReadonlySet<Verb> = new Set<Verb>(['audit:read']);
+
 function matchOne(grant: Verb, required: Verb): boolean {
   if (grant === '*' || grant === 'admin') return true;
   if (grant === required) return true;
+  if (WILDCARD_EXEMPT_VERBS.has(required)) return false;
   // `area:*` matches any verb in that area (and any sub-action — `rule:*` covers `rule:write:structural`)
   const [grantArea, grantAction, grantSub] = grant.split(':', 3);
   const [reqArea, reqAction, reqSub] = required.split(':', 3);

@@ -37,8 +37,7 @@ import type {
   OverviewDashboardResponse,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
-import type { ConfigSource } from '../../config/loader.js';
-import type { SessionStore } from '../../user/sessions.js';
+import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   resolveEffectiveOverviews,
@@ -47,9 +46,7 @@ import {
 import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
-export interface OverviewRouteDeps {
-  config: ConfigSource;
-  sessions: SessionStore;
+export interface OverviewRouteDeps extends AuthDeps {
   /** OAP UI-template client — serve the in-use REMOTE overviews + apply OAP
    *  translation overlays, matching the bundle. Without one the list is empty:
    *  the disk bundle is never a render-time source. */

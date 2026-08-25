@@ -76,12 +76,23 @@ describe('entityDashboardKey — mirrors the single-query key shape', () => {
       'GENERAL',
       'svcA',
       'instance',
+      null, // page — the component's default grid
       0,
       'inst2',
       null,
       'MINUTE:1:2',
       null,
     ]);
+  });
+
+  it('keys a comparison on its PAGE too', () => {
+    // Two pages of one component are different widget sets against the
+    // same entity, so a shared key would serve one page's data for the
+    // other.
+    const dflt = entityDashboardKey('GENERAL', 'service', 'svcA', '', 0, null, null);
+    const page = entityDashboardKey('GENERAL', 'service', 'svcA', '', 0, null, null, 'agents');
+    expect(page).not.toEqual(dflt);
+    expect(page).toContain('agents');
   });
 
   it('distinct entities produce distinct keys (per-entity cache)', () => {

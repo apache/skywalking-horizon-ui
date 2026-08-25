@@ -1,0 +1,49 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `kubernetes` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/kubernetes/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+list_pod_containers:
+  description: >-
+    List the containers of a Kubernetes pod so you can pick which one to read logs from. `serviceInstanceId` is the pod's ServiceInstance id (from kb_resolve_scope_drill(serviceId, 'instance')). On-demand pod logs are OAP-gated (off by default) — if unavailable, this says so.
+  params:
+    serviceInstanceId: >-
+      the pod's ServiceInstance id (from kb_resolve_scope_drill)
+
+fetch_pod_logs:
+  description: >-
+    Read a Kubernetes pod container's LIVE logs (on-demand, pulled from the K8s API through OAP, never stored) and return the fetched lines to you (a one-shot read, not a live tail). Use this to find the ERROR STACK once metrics point at a pod, and as the main move for a middleware LEAF (a DB/MQ/cache has no downstream to walk — read its logs instead). `serviceInstanceId` is the pod's ServiceInstance id (from kb_resolve_scope_drill). Omit `container` to auto-pick the first. FETCH UNFILTERED and read the returned lines YOURSELF to find the error — do NOT guess keywordsOfContent up front: a server-side regex silently drops any error that does not contain your guessed word, and an empty filtered pane looks like a silent pod (misleading the operator). If nothing looks wrong, that IS the finding (the pod is clean); widen the window before concluding it is silent. Use keywordsOfContent (OAP full-line regex) ONLY to grep for an error signature you ALREADY know — e.g. a message seen in a trace span log or an app-log search. OAP-gated: if disabled it tells you so.
+  params:
+    layer: >-
+      OAP layer key of the pod, e.g. K8S_SERVICE
+    serviceInstanceId: >-
+      the pod's ServiceInstance id (from kb_resolve_scope_drill)
+    container: >-
+      container name (from list_pod_containers); omit to auto-pick the first
+    service: >-
+      service name (for the block heading)
+    pod: >-
+      pod / instance name (for the block heading)
+    windowSeconds: >-
+      trailing look-back seconds (default 300, max 1800). On-demand logs are collected over time — use a WIDE window (e.g. 1800) and widen before concluding a pod is silent; a narrow window on a quiet pod returns nothing.
+    keywordsOfContent: >-
+      include only lines matching these (OAP full-line regex) — use ONLY for a KNOWN error signature, never as a first-pass guess; fetch unfiltered otherwise
+    excludingKeywordsOfContent: >-
+      drop lines matching these (OAP full-line regex)

@@ -139,6 +139,7 @@ export function useSidebarMenu() {
         { icon: 'user', label: t('Users'), to: '/admin/users', verb: 'user:read' },
         { icon: 'set', label: t('Auth status'), to: '/admin/auth-status', verb: 'auth:read' },
         { icon: 'set', label: t('Roles & permissions'), to: '/admin/roles', verb: 'role:read' },
+        { icon: 'set', label: t('Login audit'), to: '/admin/audit', verb: 'audit:read' },
       ],
     },
   ]);

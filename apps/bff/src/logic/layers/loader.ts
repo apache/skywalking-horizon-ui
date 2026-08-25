@@ -42,6 +42,7 @@ import type {
   InstanceTopologyConfig,
   ProcessTopologyConfig,
   DeploymentConfig,
+  InstanceAttributePredicate,
   InstanceListConfig,
   ServiceNamingRule,
   TopologyConfig,
@@ -141,6 +142,69 @@ export interface LayerDashboards {
   asyncProfiling?: DashboardWidget[];
 }
 
+/** The three entity components that can carry more than one dashboard
+ *  page. The other `LayerDashboards` scopes are single-page features. */
+export type EntityDashboardScope = 'service' | 'instance' | 'endpoint';
+
+export const ENTITY_DASHBOARD_SCOPES: readonly EntityDashboardScope[] = [
+  'service',
+  'instance',
+  'endpoint',
+];
+
+/** Upper bound on extension pages per component. A sidebar that needs
+ *  scrolling to reach a layer's own tabs stops being a menu. */
+export const MAX_EXT_PAGES_PER_SCOPE = 12;
+
+/** Page ids are route segments, so they are lowercase and hyphenated. */
+export const EXT_PAGE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * One additional dashboard page for an entity component, beyond the
+ * component's default `dashboards.<scope>` grid.
+ *
+ * `id` is both the identity and the route segment (`/layer/K/service/<id>`),
+ * unique within its component. Uniqueness is load-bearing twice over: it
+ * addresses the route, and it is what makes the page array id-addressable
+ * for translation overlays — a duplicate would silently drop the whole
+ * array back to position-based matching.
+ */
+/** The entity narrowing a page applies, default or extension. */
+export interface LayerEntityFilter {
+  /** Narrows the service picker — a bare term is a case-insensitive
+   *  substring match against the raw OAP service name, `/…/` is a regular
+   *  expression. Legal under any entity scope: Instance and Endpoint
+   *  pages show the service picker too. */
+  serviceFilter?: string;
+  /** Instance scope only. Same grammar, matched against the raw instance
+   *  name. */
+  instanceFilter?: string;
+  /** Instance scope only. Every predicate must hold, and they AND with
+   *  {@link instanceFilter}. Read through the same normalisation the
+   *  widget-level `visibleWhen: { kind: 'entity' }` gate uses. */
+  instanceAttributes?: InstanceAttributePredicate[];
+}
+
+export interface LayerDashboardExtPage extends LayerEntityFilter {
+  id: string;
+  /** Display name. Translatable; duplicates across pages are legal
+   *  because identity is the id, never the label. */
+  name: string;
+  /** What this page calls the entity it lists. The layer's `aliases`
+   *  name the default page only. */
+  alias?: string;
+  widgets: DashboardWidget[];
+}
+
+/** One attribute condition on an Instance page. Declared in the shared
+ *  package beside the evaluator that reads it, so the BFF's rules and the
+ *  browser's cannot describe different shapes. */
+export type { InstanceAttributePredicate };
+
+/** More conditions than this on one page is a filter nobody can reason
+ *  about, and each one costs a pass over every instance. */
+export { MAX_INSTANCE_ATTRIBUTE_PREDICATES } from '@skywalking-horizon-ui/api-client';
+
 export interface LayerTemplate {
   /** UPPER_SNAKE enum key (matches OAP). */
   key: string;
@@ -174,6 +238,18 @@ export interface LayerTemplate {
   metrics: LayerHeaderConfig;
   /** Per-scope widget sets. `service` is the layer's primary landing. */
   dashboards?: LayerDashboards;
+  /** Additional dashboard pages for the entity components, beyond the
+   *  default grid each keeps in `dashboards`. A sibling block so that
+   *  adding pages leaves every existing widget and translation path
+   *  byte-identical. Absent on every bundled template. */
+  dashboardExtPages?: Partial<Record<EntityDashboardScope, LayerDashboardExtPage[]>>;
+  /** The same narrowing for the page every component already has. Its own
+   *  block because `dashboards.<scope>` is a bare widget array with
+   *  nowhere to hang a filter. */
+  dashboardDefaultFilters?: Partial<Record<EntityDashboardScope, LayerEntityFilter>>;
+  /** Operator-defined sidebar row order. Row PATHS, never display names.
+   *  Absent means the built-in default order. */
+  menuOrder?: string[];
   /** Legacy single widget list — treated as `dashboards.service`. */
   widgets?: DashboardWidget[];
   /** Service-map dashboard config — operator-editable node + edge MQE.
@@ -455,8 +531,38 @@ export function widgetsForScope(
   template: LayerTemplate,
   scope: DashboardScope,
 ): DashboardWidget[] {
+  return withTopNOrder(defaultGridFor(template, scope));
+}
+
+/**
+ * The grid a component's default page ACTUALLY shows, fallbacks included.
+ *
+ * A scope with no grid of its own falls back to Service's, and then to the
+ * legacy flat list — so an Instance page can be showing Service's widgets.
+ * Exported because publish validation has to seed widget ids from the same
+ * place: comparing an extension page against the LITERAL `dashboards
+ * .instance` let a page reuse an id that the instance page really does
+ * render, which is the collision the rule exists to prevent.
+ */
+export function defaultGridFor(
+  template: Pick<LayerTemplate, 'dashboards' | 'widgets'>,
+  scope: DashboardScope,
+): DashboardWidget[] {
   const d = template.dashboards;
-  const raw = !d ? (template.widgets ?? []) : (d[scope] ?? d.service ?? template.widgets ?? []);
+  return !d ? (template.widgets ?? []) : (d[scope] ?? d.service ?? template.widgets ?? []);
+}
+
+/**
+ * Resolve `top` / `record` sort direction from the MQE, recursively into
+ * tab panels.
+ *
+ * Every path that hands widgets to the UI has to run this, not just the
+ * default grid: the renderer reads `topNOrder` to decide which way a
+ * ranking sorts, and a widget that arrives without it is treated as
+ * descending. An extension-page widget built on `top_n(metric, 10, asc)`
+ * therefore ranked backwards.
+ */
+export function withTopNOrder(raw: DashboardWidget[]): DashboardWidget[] {
   const enrichLeaf = (w: DashboardWidget): DashboardWidget => {
     if (w.type !== 'top' && w.type !== 'record') return w;
     const order = topNOrderOf(w.expressions);
@@ -475,6 +581,80 @@ export function widgetsForScope(
     }
     return enrichLeaf(w);
   });
+}
+
+/** Whether `scope` is one of the three components that can carry
+ *  extension pages. */
+function isEntityDashboardScope(scope: string): scope is EntityDashboardScope {
+  return (ENTITY_DASHBOARD_SCOPES as readonly string[]).includes(scope);
+}
+
+/** A component's extension pages, in template order. Empty for a scope
+ *  that declares none, and for the scopes that cannot carry them. */
+export function extPagesForScope(
+  template: LayerTemplate,
+  scope: DashboardScope,
+): LayerDashboardExtPage[] {
+  if (!isEntityDashboardScope(scope)) return [];
+  return template.dashboardExtPages?.[scope] ?? [];
+}
+
+/**
+ * Resolving a `page` request against a scope, keeping the three outcomes
+ * distinct:
+ *
+ *   - `page` omitted  → the component's DEFAULT page (`dashboards.<scope>`)
+ *   - `page` known    → that extension page
+ *   - `page` unknown  → not found, never a silent fall back to the default
+ *
+ * Collapsing the third case into the first is the failure worth guarding:
+ * a mistyped or stale bookmark would render the default grid under the
+ * wrong URL, and the operator would read it as the page they asked for.
+ */
+export type ExtPageResolution =
+  | { kind: 'default' }
+  | { kind: 'page'; page: LayerDashboardExtPage }
+  | { kind: 'unknown' };
+
+export function resolveExtPage(
+  template: LayerTemplate,
+  scope: DashboardScope,
+  pageId: string | undefined | null,
+): ExtPageResolution {
+  if (pageId === undefined || pageId === null || pageId === '') return { kind: 'default' };
+  const page = extPagesForScope(template, scope).find((p) => p.id === pageId);
+  return page ? { kind: 'page', page } : { kind: 'unknown' };
+}
+
+/**
+ * The widgets for one page of a scope. Deliberately does NOT inherit
+ * `widgetsForScope`'s `?? d.service` fallback: that fallback exists so a
+ * template with only a legacy flat `widgets` list still renders its
+ * Service grid everywhere, and applying it to an extension page would
+ * make an unknown page render the Service default.
+ */
+export function widgetsForScopePage(
+  template: LayerTemplate,
+  scope: DashboardScope,
+  pageId: string | undefined | null,
+): DashboardWidget[] | null {
+  const resolved = resolveExtPage(template, scope, pageId);
+  if (resolved.kind === 'unknown') return null;
+  if (resolved.kind === 'default') return widgetsForScope(template, scope);
+  return withTopNOrder(resolved.page.widgets);
+}
+
+/** Every widget a component can show, across its default page and all of
+ *  its extension pages — for catalogs and counts that must see the whole
+ *  scope rather than one screen. */
+export function allWidgetsForScope(
+  template: LayerTemplate,
+  scope: DashboardScope,
+): DashboardWidget[] {
+  return [
+    ...widgetsForScope(template, scope),
+    ...extPagesForScope(template, scope).flatMap((p) => withTopNOrder(p.widgets)),
+  ];
 }
 
 /** Resolve the topology config — operator override if present, else
