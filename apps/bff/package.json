@@ -20,12 +20,14 @@
     "lint:fix": "eslint . --fix",
     "test:unit": "vitest run --root src/ --pool=threads",
     "test:unit:watch": "vitest --root src/ --pool=threads",
-    "cli:token": "tsx src/cli/token.ts"
+    "cli:token": "tsx src/cli/token.ts",
+    "test:it": "vitest run --config vitest.it.config.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.0",
     "@fastify/static": "^10.1.2",
+    "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.8.1",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@langchain/aws": "^1.4.3",
@@ -55,6 +57,7 @@
     "@typescript-eslint/parser": "^8.65.0",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.5",
+    "testcontainers": "^12.1.0",
     "tsx": "^4.23.1",
     "typescript": "~5.6.3",
     "typescript-eslint": "^8.65.0",

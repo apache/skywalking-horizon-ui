@@ -41,11 +41,18 @@
 # OAP. Must be at or after 5b481a41a9 (#13877), which added the
 # server-admin/ui-management module Horizon's template store talks to on the
 # admin host. Before that commit `templates.mode: live` cannot work.
-SW_OAP_COMMIT=c59f7b410b20596a1effa09161d334cb081eea33
+# Not the v11.0.0 tag commit (6f1fd78e): ghcr publishes per master push and
+# that commit is off-master, so no image is built for it — a release tag is
+# not a pinnable reference here.
+SW_OAP_COMMIT=9ae0b8d3941030a192c6a194f773850de1d4cd5e
 
 # BanyanDB — the storage every case runs on. OAP's own default selector is
 # banyandb, so no SW_STORAGE override is needed anywhere.
-SW_BANYANDB_COMMIT=d552528a6f1571c26cd449b711db8f7351ada73e
+#
+# This is the v0.11.0 RELEASE commit. 0.11 is the first release carrying the
+# schema-consistency surface the BanyanDB client depends on: SchemaBarrierService,
+# STATUS_SCHEMA_NOT_APPLIED, and created_at on schema objects.
+SW_BANYANDB_COMMIT=3b83e18fb0481d02e44eaa5df137fcf7b000754b
 
 # Java agent image. Carries the agent at /skywalking/agent and presets
 # JAVA_TOOL_OPTIONS, so the demo services need no -javaagent of their own.
