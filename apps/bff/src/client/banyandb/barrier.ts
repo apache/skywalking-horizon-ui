@@ -17,25 +17,22 @@
 
 import type { BanyanDBChannel } from './channel.js';
 import { status as GrpcStatus } from '@grpc/grpc-js';
-import type { banyandb } from './proto.pb.js';
+import type { banyandb, google } from './proto.pb.js';
 import { BanyanDBError } from './errors.js';
 import type { ModRevision } from './registry.js';
 
 const SVC = 'banyandb.schema.v1.SchemaBarrierService';
 
+/** The kinds the barrier accepts. A plain string on the wire; named here so a
+ *  caller building a key does not have to guess the spelling. */
 export type SchemaKind = 'group' | 'stream' | 'measure' | 'index_rule' | 'index_rule_binding';
 
-export interface SchemaKey {
-  kind: SchemaKind;
-  group: string;
-  name: string;
-}
-
-export interface NodeLaggard {
-  node: string;
-  currentModRevision: ModRevision;
-  missingKeys: SchemaKey[];
-}
+// The wire types, used directly. Restating them as camelCase shapes and
+// mapping between the two added a second definition that `proto:check` cannot
+// keep honest, and encoded an optimism the wire does not share — every scalar
+// in a protobuf message is optional, whatever the client would prefer.
+export type SchemaKey = banyandb.schema.v1.SchemaKey;
+export type NodeLaggard = banyandb.schema.v1.NodeLaggard;
 
 export interface BarrierResult {
   applied: boolean;
@@ -45,28 +42,8 @@ export interface BarrierResult {
   unimplemented?: true;
 }
 
-// Derived from the generated declarations rather than restated: the schema
-// proto is generated now, so a hand-written copy would be a second source that
-// `proto:check` cannot keep honest.
-type WireLaggard = banyandb.schema.v1.NodeLaggard;
-
-function toLaggards(raw: WireLaggard[] | undefined): NodeLaggard[] {
-  return (raw ?? []).map((l) => ({
-    node: l.node ?? '',
-    currentModRevision: l.current_mod_revision ?? '0',
-    // The generated fields are optional because protobuf scalars always are;
-    // the client's own SchemaKey is not, so the absent case is named here
-    // rather than leaking `undefined` into a reported laggard.
-    missingKeys: (l.missing_keys ?? []).map((k) => ({
-      kind: (k.kind ?? '') as SchemaKind,
-      group: k.group ?? '',
-      name: k.name ?? '',
-    })),
-  }));
-}
-
 /** Durations cross the wire as seconds plus nanos, not milliseconds. */
-function duration(ms: number): { seconds: string; nanos: number } {
+function duration(ms: number): google.protobuf.Duration {
   return { seconds: String(Math.floor(ms / 1000)), nanos: (ms % 1000) * 1_000_000 };
 }
 
@@ -102,7 +79,7 @@ export async function awaitSchemaApplied(
       },
       timeoutMs + 5_000,
     );
-    return { applied: res.applied === true, laggards: toLaggards(res.laggards) };
+    return { applied: res.applied === true, laggards: res.laggards ?? [] };
   } catch (err) {
     if (isUnimplemented(err)) return { applied: false, laggards: [], unimplemented: true };
     // A genuine NOT_FOUND means the schema is absent, which a caller must not
@@ -127,7 +104,7 @@ export async function awaitRevisionApplied(
       banyandb.schema.v1.AwaitRevisionAppliedRequest,
       banyandb.schema.v1.AwaitRevisionAppliedResponse
     >(SVC, 'AwaitRevisionApplied', { min_revision: minRevision, timeout: duration(timeoutMs) }, timeoutMs + 5_000);
-    return { applied: res.applied === true, laggards: toLaggards(res.laggards) };
+    return { applied: res.applied === true, laggards: res.laggards ?? [] };
   } catch (err) {
     if (isUnimplemented(err)) return { applied: false, laggards: [], unimplemented: true };
     throw err;

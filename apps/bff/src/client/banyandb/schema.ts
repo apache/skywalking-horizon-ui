@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-import type { banyandb } from './proto.pb.js';
-import type { FieldType, TagType } from './values.js';
+import type { banyandb, google } from './proto.pb.js';
+import { pbTimestamp, type FieldType, type TagType } from './values.js';
 
 /**
  * How a caller declares what it wants to exist in BanyanDB.
@@ -158,9 +158,11 @@ function toTagFamilies(families: FamilyDef[]): banyandb.database.v1.TagFamilySpe
   }));
 }
 
-function pbTime(d: Date): { seconds: string; nanos: number } {
-  const ms = d.getTime();
-  return { seconds: String(Math.floor(ms / 1000)), nanos: (ms % 1000) * 1_000_000 };
+/** A Date, as the generated Timestamp. `pbTimestamp` owns the conversion — a
+ *  second copy of it here is a second place for the whole-millisecond rule to
+ *  drift away from what the server enforces. */
+function pbTime(d: Date): google.protobuf.Timestamp {
+  return pbTimestamp(d.getTime());
 }
 
 export function toGroupProto(def: GroupDef): banyandb.common.v1.Group {
