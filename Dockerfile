@@ -86,6 +86,8 @@ COPY --from=build /src/dist/horizon.yaml           ./horizon.yaml
 
 COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled_templates
 COPY --from=build --chown=horizon:horizon /src/dist/skills              ./skills
+# BanyanDB wire contract, read from disk at runtime by @grpc/proto-loader.
+COPY --from=build --chown=horizon:horizon /src/dist/proto               ./proto
 # The ui:// card bundle. Present because the image build runs build:mcp-app;
 # without it MCP still works, text-only.
 COPY --from=build --chown=horizon:horizon /src/dist/mcp-app             ./mcp-app

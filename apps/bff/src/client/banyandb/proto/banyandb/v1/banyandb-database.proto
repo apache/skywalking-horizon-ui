@@ -1,0 +1,1057 @@
+// Licensed to Apache Software Foundation (ASF) under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Apache Software Foundation (ASF) licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+option java_package = "org.apache.skywalking.banyandb.database.v1";
+
+package banyandb.database.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+import "banyandb/v1/banyandb-common.proto";
+import "banyandb/v1/banyandb-model.proto";
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_META = 1;
+  ROLE_DATA = 2;
+  ROLE_LIAISON = 3;
+}
+
+message Node {
+  common.v1.Metadata metadata = 1;
+  repeated Role roles = 2;
+  string grpc_address = 3;
+  string http_address = 4;
+  google.protobuf.Timestamp created_at = 5;
+  // labels is a set of key-value pairs to describe the node.
+  map<string, string> labels = 6;
+  string property_repair_gossip_grpc_address = 7;
+  string property_schema_grpc_address = 8;
+  string property_schema_gossip_grpc_address = 9;
+}
+
+message Shard {
+  uint64 id = 1;
+  common.v1.Metadata metadata = 2;
+  common.v1.Catalog catalog = 3;
+  string node = 4;
+  uint32 total = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+enum TagType {
+  TAG_TYPE_UNSPECIFIED = 0;
+  TAG_TYPE_STRING = 1;
+  TAG_TYPE_INT = 2;
+  TAG_TYPE_STRING_ARRAY = 3;
+  TAG_TYPE_INT_ARRAY = 4;
+  TAG_TYPE_DATA_BINARY = 5;
+  TAG_TYPE_TIMESTAMP = 6;
+}
+
+message TagFamilySpec {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // tags defines accepted tags
+  repeated TagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+}
+
+message TagSpec {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  TagType type = 2 [(validate.rules).enum.defined_only = true];
+}
+
+// Stream intends to store streaming data, for example, traces or logs
+message Stream {
+  // metadata is the identity of a trace series
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag_families
+  repeated TagFamilySpec tag_families = 2 [(validate.rules).repeated.min_items = 1];
+  // entity indicates how to generate a series and shard a stream
+  Entity entity = 3 [(validate.rules).message.required = true];
+  // updated_at indicates when the stream is updated
+  google.protobuf.Timestamp updated_at = 4;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message Entity {
+  repeated string tag_names = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+message ShardingKey {
+  repeated string tag_names = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+enum FieldType {
+  FIELD_TYPE_UNSPECIFIED = 0;
+  FIELD_TYPE_STRING = 1;
+  FIELD_TYPE_INT = 2;
+  FIELD_TYPE_DATA_BINARY = 3;
+  FIELD_TYPE_FLOAT = 4;
+}
+
+enum EncodingMethod {
+  ENCODING_METHOD_UNSPECIFIED = 0;
+  ENCODING_METHOD_GORILLA = 1;
+}
+
+enum CompressionMethod {
+  COMPRESSION_METHOD_UNSPECIFIED = 0;
+  COMPRESSION_METHOD_ZSTD = 1;
+}
+
+// FieldSpec is the specification of field
+message FieldSpec {
+  // name is the identity of a field
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // field_type denotes the type of field value
+  FieldType field_type = 2 [(validate.rules).enum.defined_only = true];
+  // encoding_method indicates how to encode data during writing
+  EncodingMethod encoding_method = 3 [(validate.rules).enum.defined_only = true];
+  // compression_method indicates how to compress data during writing
+  CompressionMethod compression_method = 4 [(validate.rules).enum.defined_only = true];
+}
+
+// Measure intends to store data point
+message Measure {
+  // metadata is the identity of a measure
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag_families are for filter measures
+  repeated TagFamilySpec tag_families = 2 [(validate.rules).repeated.min_items = 1];
+  // fields denote measure values
+  repeated FieldSpec fields = 3;
+  // entity indicates which tags will be to generate a series and shard a measure
+  Entity entity = 4 [(validate.rules).message.required = true];
+  // interval indicates how frequently to send a data point
+  // valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h", "d".
+  string interval = 5;
+  // updated_at indicates when the measure is updated
+  google.protobuf.Timestamp updated_at = 6;
+  // index_mode specifies whether the data should be stored exclusively in the index,
+  // meaning it will not be stored in the data storage system.
+  bool index_mode = 7;
+  // sharding_key determines the distribution of TopN-related data.
+  ShardingKey sharding_key = 8;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// TopNAggregation generates offline TopN statistics for a measure's TopN approximation
+message TopNAggregation {
+  // metadata is the identity of an aggregation
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // source_measure denotes the data source of this aggregation
+  common.v1.Metadata source_measure = 2 [(validate.rules).message.required = true];
+  // field_name is the name of field used for ranking
+  string field_name = 3 [(validate.rules).string.min_len = 1];
+  // field_value_sort indicates how to sort fields
+  // ASC: bottomN
+  // DESC: topN
+  // UNSPECIFIED: topN + bottomN
+  // todo validate plugin exist bug https://github.com/bufbuild/protoc-gen-validate/issues/672
+  model.v1.Sort field_value_sort = 4;
+  // group_by_tag_names groups data points into statistical counters
+  repeated string group_by_tag_names = 5;
+  // criteria select partial data points from measure
+  model.v1.Criteria criteria = 6;
+  // counters_number sets the number of counters to be tracked. The default value is 1000
+  int32 counters_number = 7;
+  // lru_size defines how much entry is allowed to be maintained in the memory
+  int32 lru_size = 8;
+  // updated_at indicates when the measure is updated
+  google.protobuf.Timestamp updated_at = 9;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// IndexRule defines how to generate indices based on tags and the index type
+// IndexRule should bind to a subject through an IndexRuleBinding to generate proper indices.
+message IndexRule {
+  // metadata define the rule's identity
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tags are the combination that refers to an indexed object
+  // If the elements in tags are more than 1, the object will generate a multi-tag index
+  // Caveat: All tags in a multi-tag MUST have an identical IndexType
+  repeated string tags = 2 [(validate.rules).repeated.min_items = 1];
+  // Type determine the index structure under the hood
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_INVERTED = 1;
+    TYPE_SKIPPING = 2;
+    // TYPE_TREE is a tree index, which is used for storing hierarchical data.
+    TYPE_TREE = 3;
+  }
+  // type is the IndexType of this IndexObject.
+  Type type = 3 [(validate.rules).enum.defined_only = true];
+  // updated_at indicates when the IndexRule is updated
+  google.protobuf.Timestamp updated_at = 4;
+
+  // analyzer analyzes tag value to support the full-text searching for TYPE_INVERTED indices.
+  // available analyzers are:
+  // - "standard" provides grammar based tokenization
+  // - "simple" breaks text into tokens at any non-letter character,
+  //            such as numbers, spaces, hyphens and apostrophes, discards non-letter characters,
+  //            and changes uppercase to lowercase.
+  // - "keyword" is a “noop” analyzer which returns the entire input string as a single token.
+  // - "url" breaks test into tokens at any non-letter and non-digit character.
+  string analyzer = 5;
+  // no_sort indicates whether the index is not for sorting.
+  bool no_sort = 6;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// Subject defines which stream or measure would generate indices
+message Subject {
+  // catalog is where the subject belongs to
+  // todo validate plugin exist bug https://github.com/bufbuild/protoc-gen-validate/issues/672
+  common.v1.Catalog catalog = 1;
+  // name refers to a stream or measure in a particular catalog
+  string name = 2 [(validate.rules).string.min_len = 1];
+}
+
+// IndexRuleBinding is a bridge to connect severalIndexRules to a subject
+// This binding is valid between begin_at_nanoseconds and expire_at_nanoseconds, that provides flexible strategies
+// to control how to generate time series indices.
+message IndexRuleBinding {
+  // metadata is the identity of this binding
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // rules refers to the IndexRule
+  repeated string rules = 2 [(validate.rules).repeated.min_items = 1];
+  // subject indicates the subject of binding action
+  Subject subject = 3 [(validate.rules).message.required = true];
+  // begin_at_nanoseconds is the timestamp, after which the binding will be active
+  google.protobuf.Timestamp begin_at = 4 [(validate.rules).timestamp.required = true];
+  // expire_at_nanoseconds it the timestamp, after which the binding will be inactive
+  // expire_at_nanoseconds must be larger than begin_at_nanoseconds
+  google.protobuf.Timestamp expire_at = 5 [(validate.rules).timestamp.required = true];
+  // updated_at indicates when the IndexRuleBinding is updated
+  google.protobuf.Timestamp updated_at = 6;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// Property stores the user defined data
+message Property {
+  // metadata is the identity of a property
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag stores the content of a property
+  repeated TagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+  // updated_at indicates when the property is updated
+  google.protobuf.Timestamp updated_at = 6;
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// TraceTagSpec defines the specification of a tag in a trace.
+message TraceTagSpec {
+  // name is the name of the tag.
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // type is the type of the tag.
+  TagType type = 2 [(validate.rules).enum.defined_only = true];
+}
+
+// Trace defines a tracing-specific storage resource.
+// It is suitable for storing traces and spans.
+// The name of a Trace is a logical namespace within a group,
+// while the group of a Trace corresponds to a physical directory.
+message Trace {
+  // metadata is the identity of the trace resource.
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tags are the specification of tags.
+  repeated TraceTagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+  // trace_id_tag_name is the name of the tag that stores the trace ID.
+  string trace_id_tag_name = 3 [(validate.rules).string.min_len = 1];
+  // timestamp_tag_name is the name of the tag that stores the timestamp.
+  string timestamp_tag_name = 4 [(validate.rules).string.min_len = 1];
+  // updated_at indicates when the trace resource is updated.
+  google.protobuf.Timestamp updated_at = 5;
+  // span_id_tag_name is the name of the tag that stores the span ID.
+  string span_id_tag_name = 6 [(validate.rules).string.min_len = 1];
+  // created_at is the first-appearance timestamp; survives updates unchanged.
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message StreamRegistryServiceCreateRequest {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message StreamRegistryServiceUpdateRequest {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message StreamRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message StreamRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceGetResponse {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_stream = 2;
+}
+
+message StreamRegistryServiceListRequest {
+  string group = 1;
+}
+
+message StreamRegistryServiceListResponse {
+  repeated banyandb.database.v1.Stream stream = 1;
+}
+
+service StreamRegistryService {
+  rpc Create(StreamRegistryServiceCreateRequest) returns (StreamRegistryServiceCreateResponse);
+  rpc Update(StreamRegistryServiceUpdateRequest) returns (StreamRegistryServiceUpdateResponse);
+  rpc Delete(StreamRegistryServiceDeleteRequest) returns (StreamRegistryServiceDeleteResponse);
+
+  rpc Get(StreamRegistryServiceGetRequest) returns (StreamRegistryServiceGetResponse);
+
+  rpc List(StreamRegistryServiceListRequest) returns (StreamRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(StreamRegistryServiceExistRequest) returns (StreamRegistryServiceExistResponse);
+}
+
+message IndexRuleBindingRegistryServiceCreateRequest {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceCreateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message IndexRuleBindingRegistryServiceUpdateRequest {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceUpdateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message IndexRuleBindingRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message IndexRuleBindingRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceGetResponse {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceListRequest {
+  string group = 1;
+}
+
+message IndexRuleBindingRegistryServiceListResponse {
+  repeated banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_index_rule_binding = 2;
+}
+
+service IndexRuleBindingRegistryService {
+  rpc Create(IndexRuleBindingRegistryServiceCreateRequest) returns (IndexRuleBindingRegistryServiceCreateResponse);
+  rpc Update(IndexRuleBindingRegistryServiceUpdateRequest) returns (IndexRuleBindingRegistryServiceUpdateResponse);
+  rpc Delete(IndexRuleBindingRegistryServiceDeleteRequest) returns (IndexRuleBindingRegistryServiceDeleteResponse);
+
+  rpc Get(IndexRuleBindingRegistryServiceGetRequest) returns (IndexRuleBindingRegistryServiceGetResponse);
+
+  rpc List(IndexRuleBindingRegistryServiceListRequest) returns (IndexRuleBindingRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(IndexRuleBindingRegistryServiceExistRequest) returns (IndexRuleBindingRegistryServiceExistResponse);
+}
+
+message IndexRuleRegistryServiceCreateRequest {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceCreateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message IndexRuleRegistryServiceUpdateRequest {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceUpdateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message IndexRuleRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message IndexRuleRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceGetResponse {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceListRequest {
+  string group = 1;
+}
+
+message IndexRuleRegistryServiceListResponse {
+  repeated banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_index_rule = 2;
+}
+
+service IndexRuleRegistryService {
+  rpc Create(IndexRuleRegistryServiceCreateRequest) returns (IndexRuleRegistryServiceCreateResponse);
+  rpc Update(IndexRuleRegistryServiceUpdateRequest) returns (IndexRuleRegistryServiceUpdateResponse);
+  rpc Delete(IndexRuleRegistryServiceDeleteRequest) returns (IndexRuleRegistryServiceDeleteResponse);
+
+  rpc Get(IndexRuleRegistryServiceGetRequest) returns (IndexRuleRegistryServiceGetResponse);
+
+  rpc List(IndexRuleRegistryServiceListRequest) returns (IndexRuleRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(IndexRuleRegistryServiceExistRequest) returns (IndexRuleRegistryServiceExistResponse);
+}
+
+message MeasureRegistryServiceCreateRequest {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message MeasureRegistryServiceUpdateRequest {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message MeasureRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message MeasureRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceGetResponse {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceListRequest {
+  string group = 1;
+}
+
+message MeasureRegistryServiceListResponse {
+  repeated banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_measure = 2;
+}
+
+service MeasureRegistryService {
+  rpc Create(MeasureRegistryServiceCreateRequest) returns (MeasureRegistryServiceCreateResponse);
+  rpc Update(MeasureRegistryServiceUpdateRequest) returns (MeasureRegistryServiceUpdateResponse);
+  rpc Delete(MeasureRegistryServiceDeleteRequest) returns (MeasureRegistryServiceDeleteResponse);
+
+  rpc Get(MeasureRegistryServiceGetRequest) returns (MeasureRegistryServiceGetResponse);
+
+  rpc List(MeasureRegistryServiceListRequest) returns (MeasureRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(MeasureRegistryServiceExistRequest) returns (MeasureRegistryServiceExistResponse);
+}
+
+message GroupRegistryServiceCreateRequest {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceCreateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message GroupRegistryServiceUpdateRequest {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceUpdateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+// GroupRegistryServiceDeleteRequest is the request for deleting a group.
+message GroupRegistryServiceDeleteRequest {
+  // group is the name of the group to delete.
+  string group = 1;
+  // dry_run indicates whether to perform a dry run without actually deleting data.
+  // When true, returns what would be deleted without making changes.
+  bool dry_run = 2;
+  // force indicates whether to force delete the group even if it contains data.
+  // When false, deletion will fail if the group is not empty.
+  bool force = 3;
+  // data_only indicates whether to delete only data files without removing metadata.
+  // When true, metadata are preserved.
+  bool data_only = 4;
+}
+
+// GroupRegistryServiceDeleteResponse is the response for deleting a group.
+message GroupRegistryServiceDeleteResponse {
+  // schema_info contains the schema resources that would be deleted (populated in dry-run mode).
+  SchemaInfo schema_info = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+// GroupDeletionTask represents the status of a group deletion operation.
+message GroupDeletionTask {
+  // Phase represents the current phase of the deletion task.
+  enum Phase {
+    PHASE_UNSPECIFIED = 0;
+    // PHASE_PENDING indicates the task is waiting to start.
+    PHASE_PENDING = 1;
+    // PHASE_IN_PROGRESS indicates the task is currently executing.
+    PHASE_IN_PROGRESS = 2;
+    // PHASE_COMPLETED indicates the task has completed successfully.
+    PHASE_COMPLETED = 3;
+    // PHASE_FAILED indicates the task has failed.
+    PHASE_FAILED = 4;
+  }
+  // current_phase is the current phase of the deletion task.
+  Phase current_phase = 1;
+  // total_counts maps resource types to their total count.
+  map<string, int32> total_counts = 2;
+  // deleted_counts maps resource types to the count of deleted resources.
+  map<string, int32> deleted_counts = 3;
+  // total_data_size_bytes is the total size of data to be deleted in bytes.
+  int64 total_data_size_bytes = 4;
+  // deleted_data_size_bytes is the size of data that has been deleted in bytes.
+  int64 deleted_data_size_bytes = 5;
+  // message provides additional information about the task status.
+  string message = 6;
+  // created_at is the timestamp when the task was created.
+  google.protobuf.Timestamp created_at = 7;
+  // updated_at is the timestamp when the task was last updated.
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// GroupRegistryServiceQueryRequest is the request for querying a group deletion task.
+message GroupRegistryServiceQueryRequest {
+  // group is the name of the group whose deletion task to query.
+  string group = 1;
+}
+
+// GroupRegistryServiceQueryResponse is the response for querying a group deletion task.
+message GroupRegistryServiceQueryResponse {
+  // task contains the status of the deletion task.
+  GroupDeletionTask task = 1;
+}
+
+message GroupRegistryServiceGetRequest {
+  string group = 1;
+}
+
+message GroupRegistryServiceGetResponse {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceListRequest {}
+
+message GroupRegistryServiceListResponse {
+  repeated banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceExistRequest {
+  string group = 1;
+}
+
+message GroupRegistryServiceExistResponse {
+  bool has_group = 1;
+}
+
+// GroupRegistryServiceInspectRequest is the request for inspecting a group's detailed information.
+message GroupRegistryServiceInspectRequest {
+  // group is the name of the group to inspect.
+  string group = 1;
+}
+
+// GroupRegistryServiceInspectResponse is the response for inspecting a group.
+message GroupRegistryServiceInspectResponse {
+  // group contains the group metadata.
+  banyandb.common.v1.Group group = 1;
+  // schema_info contains information about all schemas in the group.
+  SchemaInfo schema_info = 2;
+  // data_info contains data storage information for each node.
+  repeated DataInfo data_info = 3;
+  // liaison_info contains information about pending operations in liaison.
+  repeated LiaisonInfo liaison_info = 4;
+}
+
+// SchemaInfo contains information about all schema objects in a group.
+message SchemaInfo {
+  // streams is the list of stream names in the group.
+  repeated string streams = 1;
+  // measures is the list of measure names in the group.
+  repeated string measures = 2;
+  // traces is the list of trace names in the group.
+  repeated string traces = 3;
+  // properties is the list of property names in the group.
+  repeated string properties = 4;
+  // index_rules is the list of index rule names in the group.
+  repeated string index_rules = 5;
+  // index_rule_bindings is the list of index rule binding names in the group.
+  repeated string index_rule_bindings = 6;
+  // topn_aggregations is the list of TopN aggregation names in the group.
+  repeated string topn_aggregations = 7;
+}
+
+// DataInfo contains data storage information for a specific node.
+message DataInfo {
+  // node is the node that stores this data.
+  banyandb.database.v1.Node node = 1;
+  // segment_info contains information about each segment on this node.
+  repeated SegmentInfo segment_info = 2;
+  // data_size_bytes is the total size of data on this node in bytes.
+  int64 data_size_bytes = 3;
+}
+
+// SegmentInfo contains information about a specific time segment.
+message SegmentInfo {
+  // segment_id is the unique identifier of the segment.
+  string segment_id = 1;
+  // time_range_start is the start time of the segment.
+  string time_range_start = 2;
+  // time_range_end is the end time of the segment.
+  string time_range_end = 3;
+  // shard_info contains information about each shard in this segment.
+  repeated ShardInfo shard_info = 4;
+  // series_index_info contains information about the series index.
+  SeriesIndexInfo series_index_info = 5;
+}
+
+// ShardInfo contains information about a specific shard.
+message ShardInfo {
+  // shard_id is the unique identifier of the shard.
+  uint32 shard_id = 1;
+  // data_count is the number of data entries in this shard.
+  int64 data_count = 2;
+  // data_size_bytes is the size of data in this shard in bytes.
+  int64 data_size_bytes = 3;
+  // part_count is the number of parts in this shard.
+  int64 part_count = 4;
+  // inverted_index_info contains information about the inverted index.
+  InvertedIndexInfo inverted_index_info = 5;
+  // sidx_info contains information about sidx.
+  SIDXInfo sidx_info = 6;
+  // file_part_count is the number of file parts (excluding in-memory parts) in this shard.
+  int64 file_part_count = 7;
+}
+
+// SeriesIndexInfo contains information about the series index.
+message SeriesIndexInfo {
+  // data_count is the number of entries in the series index.
+  int64 data_count = 1;
+  // data_size_bytes is the size of the series index in bytes.
+  int64 data_size_bytes = 2;
+}
+
+// InvertedIndexInfo contains information about the inverted index.
+message InvertedIndexInfo {
+  // data_count is the number of entries in the inverted index.
+  int64 data_count = 1;
+  // data_size_bytes is the size of the inverted index in bytes.
+  int64 data_size_bytes = 2;
+}
+
+// SIDXInfo contains information about sidx.
+message SIDXInfo {
+  // data_count is the number of entries in sidx.
+  int64 data_count = 1;
+  // data_size_bytes is the size of sidx in bytes.
+  int64 data_size_bytes = 2;
+  // part_count is the number of parts in sidx.
+  int64 part_count = 3;
+}
+
+// LiaisonInfo contains information about pending operations in liaison.
+message LiaisonInfo {
+  // pending_write_data_count is the number of data entries waiting to be written.
+  int64 pending_write_data_count = 1;
+  // pending_sync_part_count is the number of parts waiting to be synchronized.
+  int64 pending_sync_part_count = 2;
+  // pending_sync_data_size_bytes is the size of data waiting to be synchronized in bytes.
+  int64 pending_sync_data_size_bytes = 3;
+  // pending_handoff_part_count is the number of parts waiting for handoff.
+  int64 pending_handoff_part_count = 4;
+  // pending_handoff_data_size_bytes is the size of data waiting for handoff in bytes.
+  int64 pending_handoff_data_size_bytes = 5;
+}
+
+service GroupRegistryService {
+  rpc Create(GroupRegistryServiceCreateRequest) returns (GroupRegistryServiceCreateResponse);
+  rpc Update(GroupRegistryServiceUpdateRequest) returns (GroupRegistryServiceUpdateResponse);
+  rpc Delete(GroupRegistryServiceDeleteRequest) returns (GroupRegistryServiceDeleteResponse);
+
+  rpc Get(GroupRegistryServiceGetRequest) returns (GroupRegistryServiceGetResponse);
+
+  rpc List(GroupRegistryServiceListRequest) returns (GroupRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(GroupRegistryServiceExistRequest) returns (GroupRegistryServiceExistResponse);
+
+  // Inspect retrieves detailed information about a group including its schemas, data distribution, and pending operations.
+  rpc Inspect(GroupRegistryServiceInspectRequest) returns (GroupRegistryServiceInspectResponse);
+
+  // Query retrieves the status of a group deletion task.
+  rpc Query(GroupRegistryServiceQueryRequest) returns (GroupRegistryServiceQueryResponse);
+}
+
+message TopNAggregationRegistryServiceCreateRequest {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceCreateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message TopNAggregationRegistryServiceUpdateRequest {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceUpdateResponse {
+  // mod_revision is the etcd revision assigned by the server on successful create/update.
+  int64 mod_revision = 1;
+}
+
+message TopNAggregationRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message TopNAggregationRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceGetResponse {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceListRequest {
+  string group = 1;
+}
+
+message TopNAggregationRegistryServiceListResponse {
+  repeated banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_top_n_aggregation = 2;
+}
+
+service TopNAggregationRegistryService {
+  rpc Create(TopNAggregationRegistryServiceCreateRequest) returns (TopNAggregationRegistryServiceCreateResponse);
+  rpc Update(TopNAggregationRegistryServiceUpdateRequest) returns (TopNAggregationRegistryServiceUpdateResponse);
+  rpc Delete(TopNAggregationRegistryServiceDeleteRequest) returns (TopNAggregationRegistryServiceDeleteResponse);
+  rpc Get(TopNAggregationRegistryServiceGetRequest) returns (TopNAggregationRegistryServiceGetResponse);
+  rpc List(TopNAggregationRegistryServiceListRequest) returns (TopNAggregationRegistryServiceListResponse);
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(TopNAggregationRegistryServiceExistRequest) returns (TopNAggregationRegistryServiceExistResponse);
+}
+
+message SnapshotRequest {
+  message Group {
+    common.v1.Catalog catalog = 1;
+    string group = 2;
+  }
+  repeated Group groups = 1;
+}
+
+message Snapshot {
+  common.v1.Catalog catalog = 1;
+  string name = 2;
+  string error = 3;
+}
+
+message SnapshotResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+service SnapshotService {
+  rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+}
+
+message PropertyRegistryServiceCreateRequest {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message PropertyRegistryServiceUpdateRequest {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message PropertyRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message PropertyRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceGetResponse {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceListRequest {
+  string group = 1;
+}
+
+message PropertyRegistryServiceListResponse {
+  repeated banyandb.database.v1.Property properties = 1;
+}
+
+message PropertyRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_property = 2;
+}
+
+service PropertyRegistryService {
+  rpc Create(PropertyRegistryServiceCreateRequest) returns (PropertyRegistryServiceCreateResponse);
+  rpc Update(PropertyRegistryServiceUpdateRequest) returns (PropertyRegistryServiceUpdateResponse);
+  rpc Delete(PropertyRegistryServiceDeleteRequest) returns (PropertyRegistryServiceDeleteResponse);
+
+  rpc Get(PropertyRegistryServiceGetRequest) returns (PropertyRegistryServiceGetResponse);
+
+  rpc List(PropertyRegistryServiceListRequest) returns (PropertyRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(PropertyRegistryServiceExistRequest) returns (PropertyRegistryServiceExistResponse);
+}
+
+message TraceRegistryServiceCreateRequest {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message TraceRegistryServiceUpdateRequest {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message TraceRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceDeleteResponse {
+  bool deleted = 1;
+  // delete_time is the server-assigned tombstone timestamp in unix nanos.
+  int64 delete_time = 2;
+  // mod_revision is the etcd revision of the tombstone; zero if the server did not record one.
+  int64 mod_revision = 3;
+}
+
+message TraceRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceGetResponse {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_trace = 2;
+}
+
+message TraceRegistryServiceListRequest {
+  string group = 1;
+}
+
+message TraceRegistryServiceListResponse {
+  repeated banyandb.database.v1.Trace trace = 1;
+}
+
+service TraceRegistryService {
+  rpc Create(TraceRegistryServiceCreateRequest) returns (TraceRegistryServiceCreateResponse);
+  rpc Update(TraceRegistryServiceUpdateRequest) returns (TraceRegistryServiceUpdateResponse);
+  rpc Delete(TraceRegistryServiceDeleteRequest) returns (TraceRegistryServiceDeleteResponse);
+
+  rpc Get(TraceRegistryServiceGetRequest) returns (TraceRegistryServiceGetResponse);
+
+  rpc List(TraceRegistryServiceListRequest) returns (TraceRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(TraceRegistryServiceExistRequest) returns (TraceRegistryServiceExistResponse);
+}
+
+message GetCurrentNodeRequest {}
+
+message GetCurrentNodeResponse {
+  banyandb.database.v1.Node node = 1;
+}
+
+service NodeQueryService {
+  rpc GetCurrentNode(GetCurrentNodeRequest) returns (GetCurrentNodeResponse) {}
+}
+
+message GetClusterStateRequest {}
+
+// RouteTable represents a collection of nodes grouped by their health state.
+// It provides a view of nodes that are registered, actively healthy, and those being evicted.
+message RouteTable {
+  // registered contains all nodes that have been discovered and registered in this route.
+  repeated banyandb.database.v1.Node registered = 1;
+  // active contains node names (Node.Metadata.Name) that are currently healthy and can handle requests.
+  repeated string active = 2;
+  // evictable contains node names (Node.Metadata.Name) that are unhealthy and being retried before eviction.
+  repeated string evictable = 3;
+}
+
+message GetClusterStateResponse {
+  // Liaison node: map's key could be "tire1" and "tire2". tire1 route traffic between liaison nodes, tire2 spread data among data nodes
+  // Data node: map's key could be "property" for gossip.
+  // Lifecycle agent: map's key could be the next stage's name.
+  map<string, RouteTable> route_tables = 1;
+}
+
+service ClusterStateService {
+  rpc GetClusterState(GetClusterStateRequest) returns (GetClusterStateResponse);
+}
