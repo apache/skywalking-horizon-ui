@@ -103,16 +103,34 @@ echo "GPG signing OK — signatures verify back to ${GPG_KEY_ID}."
 note "Step 2 — Tool check"
 
 MISSING=()
-for t in gpg svn shasum git gh node pnpm tar license-eye; do
+for t in gpg svn shasum git gh node pnpm tar go; do
     command -v "$t" >/dev/null || MISSING+=("$t")
 done
 if [ ${#MISSING[@]} -gt 0 ]; then
     err "Missing required tools: ${MISSING[*]}"
     exit 1
 fi
+
+# license-eye is PINNED, not taken from PATH. The binary LICENSE is generated
+# by it, so a different build produces a different file and the drift gate
+# fails on a difference that is the tool's, not the dependency tree's — which
+# is exactly what a released 0.8.0 on PATH did: no pnpm resolver, so every
+# package came out as a `node_modules/.pnpm/…` path instead of its name.
+# Same commit CI installs; both read `.license-eye-version`.
+LICENSE_EYE_VERSION="$(tr -d '[:space:]' < "${PROJECT_DIR}/.license-eye-version")"
+# NOT under WORK_DIR — that is wiped when the release clone is made, which
+# would delete this binary in the middle of the run.
+export GOBIN="${SCRIPT_DIR}/.release-tools"
+mkdir -p "${GOBIN}"
+echo "Installing license-eye @ ${LICENSE_EYE_VERSION}…"
+go install "github.com/apache/skywalking-eyes/cmd/license-eye@${LICENSE_EYE_VERSION}"
+export PATH="${GOBIN}:${PATH}"
+command -v license-eye >/dev/null || { err "license-eye install failed."; exit 1; }
+
 echo "All tools present."
 echo "node: $(node --version)"
 echo "pnpm: $(pnpm --version)"
+echo "license-eye: $(license-eye --version 2>&1 | head -1) (pinned ${LICENSE_EYE_VERSION})"
 
 # ========================== Step 3: Detect version ==========================
 note "Step 3 — Detect version"
