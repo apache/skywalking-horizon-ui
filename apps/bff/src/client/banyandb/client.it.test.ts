@@ -116,7 +116,7 @@ describe('fixture', () => {
 describe('schema', () => {
   it('creates a group, stream and measure, and stores exactly what was declared', async () => {
     for (const g of [streamGroup, measureGroup]) {
-      const res = await client.reconcileGroup(g);
+      const res = await client.schema.group(g);
       expect(res.action).toBe('created');
       expect(BigInt(res.modRevision)).toBeGreaterThan(0n);
 
@@ -133,7 +133,7 @@ describe('schema', () => {
       });
     }
 
-    expect((await client.reconcileStream(logStream)).action).toBe('created');
+    expect((await client.schema.stream(logStream)).action).toBe('created');
     const liveStream = await client.streams.get(logStream.group, logStream.name);
     expect(liveStream?.entity?.tag_names).toEqual(logStream.entity);
     expect(liveStream?.tag_families?.map((f) => f.name)).toEqual(logStream.families.map((f) => f.name));
@@ -141,7 +141,7 @@ describe('schema', () => {
       logStream.families[0]?.tags.map((t) => ({ name: t.name, type: t.type })),
     );
 
-    expect((await client.reconcileMeasure(counter)).action).toBe('created');
+    expect((await client.schema.measure(counter)).action).toBe('created');
     const liveMeasure = await client.measures.get(counter.group, counter.name);
     expect(liveMeasure?.entity?.tag_names).toEqual(counter.entity);
     expect(liveMeasure?.fields?.map((f) => f.name)).toEqual(counter.fields.map((f) => f.name));
@@ -154,9 +154,9 @@ describe('schema', () => {
   });
 
   it('is a no-op the second time — the same definition must not churn', async () => {
-    expect((await client.reconcileGroup(streamGroup)).action).toBe('unchanged');
-    expect((await client.reconcileStream(logStream)).action).toBe('unchanged');
-    expect((await client.reconcileMeasure(counter)).action).toBe('unchanged');
+    expect((await client.schema.group(streamGroup)).action).toBe('unchanged');
+    expect((await client.schema.stream(logStream)).action).toBe('unchanged');
+    expect((await client.schema.measure(counter)).action).toBe('unchanged');
   });
 
   it('is still a no-op when the definition writes its fields in another order', async () => {
@@ -171,20 +171,20 @@ describe('schema', () => {
       shardNum: streamGroup.shardNum,
       name: streamGroup.name,
     };
-    expect((await client.reconcileGroup(reordered)).action).toBe('unchanged');
+    expect((await client.schema.group(reordered)).action).toBe('unchanged');
   });
 
   it('refuses an entity naming a tag no family declares', async () => {
     // The server ACCEPTS this and silently shortens the series key, so the
     // refusal has to come from the client or not at all.
     await expect(
-      client.reconcileStream({ ...logStream, name: 'bad', entity: ['nope'] }),
+      client.schema.stream({ ...logStream, name: 'bad', entity: ['nope'] }),
     ).rejects.toThrow(/undeclared tag/);
   });
 
   it('refuses a changed entity on an existing stream', async () => {
     await expect(
-      client.reconcileStream({ ...logStream, entity: ['kind'] }),
+      client.schema.stream({ ...logStream, entity: ['kind'] }),
     ).rejects.toThrow(/cannot be updated/);
   });
 
@@ -195,7 +195,7 @@ describe('schema', () => {
         f.name === 'data' ? { ...f, tags: [...f.tags, { name: 'extra', type: 'TAG_TYPE_STRING' as const }] } : f,
       ),
     };
-    const res = await client.reconcileStream(grown);
+    const res = await client.schema.stream(grown);
     expect(res.action).toBe('updated');
     expect(res.changed).toContain('tag data.extra');
   });
@@ -203,7 +203,7 @@ describe('schema', () => {
 
 describe('index rule and binding', () => {
   it('creates a rule and the binding that activates it', async () => {
-    const rule = await client.reconcileIndexRule({
+    const rule = await client.schema.indexRule({
       group: streamGroup.name,
       name: 'kind_idx',
       tags: ['kind'],
@@ -216,7 +216,7 @@ describe('index rule and binding', () => {
     expect(liveRule?.type).toBe('TYPE_INVERTED');
     expect(liveRule?.analyzer).toBe('keyword');
 
-    const binding = await client.reconcileIndexRuleBinding({
+    const binding = await client.schema.indexRuleBinding({
       group: streamGroup.name,
       name: 'log_binding',
       rules: ['kind_idx'],

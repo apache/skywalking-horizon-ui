@@ -37,17 +37,11 @@ import {
   streamRegistry,
 } from './registry.js';
 import { awaitRevisionApplied, awaitSchemaApplied } from './barrier.js';
-import {
-  reconcileGroup,
-  reconcileIndexRule,
-  reconcileIndexRuleBinding,
-  reconcileMeasure,
-  reconcileStream,
-} from './reconcile.js';
+import { SchemaManager } from './schema-manager.js';
+import type { MeasureDef, StreamDef } from './schema.js';
 import { queryMeasure, queryStream } from './query.js';
 import { sendBatch, createMessageIds } from './write.js';
 import { toMeasureWriteRequests, toStreamWriteRequests, type MeasureRow, type StreamRow } from './rows.js';
-import type { GroupDef, IndexRuleBindingDef, IndexRuleDef, MeasureDef, StreamDef } from './schema.js';
 import type { MeasureQuery, StreamQuery } from './query.js';
 import type { ModRevision } from './registry.js';
 import type { SchemaKey } from './barrier.js';
@@ -58,6 +52,7 @@ export class BanyanDBClient {
 
   constructor(opts: BanyanDBOptions) {
     this.ch = new BanyanDBChannel(opts);
+    this.schema = new SchemaManager(this.ch);
   }
 
   readonly channel = (): BanyanDBChannel => this.ch;
@@ -86,11 +81,8 @@ export class BanyanDBClient {
     return indexRuleBindingRegistry(this.ch);
   }
 
-  reconcileGroup = (def: GroupDef) => reconcileGroup(this.ch, def);
-  reconcileStream = (def: StreamDef) => reconcileStream(this.ch, def);
-  reconcileMeasure = (def: MeasureDef) => reconcileMeasure(this.ch, def);
-  reconcileIndexRule = (def: IndexRuleDef) => reconcileIndexRule(this.ch, def);
-  reconcileIndexRuleBinding = (def: IndexRuleBindingDef) => reconcileIndexRuleBinding(this.ch, def);
+  /** Create or update the declared schema, one resource at a time. */
+  readonly schema: SchemaManager;
 
   awaitSchemaApplied = (keys: readonly { key: SchemaKey; minRevision: ModRevision }[], timeoutMs: number) =>
     awaitSchemaApplied(this.ch, keys, timeoutMs);
@@ -139,7 +131,7 @@ export class BanyanDBClient {
 
 export { BanyanDBChannel, type BanyanDBOptions } from './channel.js';
 export { BanyanDBError, type BanyanDBErrorCode } from './errors.js';
-export { SchemaConflictError, type Drift, type ReconcileResult } from './reconcile.js';
+export { SchemaManager, SchemaConflictError, type Drift, type SchemaChange, type SchemaAction } from './schema-manager.js';
 export * from './schema.js';
 export * from './values.js';
 export * from './status.js';

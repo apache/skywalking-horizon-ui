@@ -42,20 +42,26 @@ import {
 } from './schema.js';
 
 /**
- * Bring a declared resource into existence, or bring an existing one into
- * line with the declaration.
+ * Creating a declared resource, or bringing an existing one into line with the
+ * declaration.
  *
- * PostgreSQL gets this from syntax — `CREATE TABLE IF NOT EXISTS` and
+ * PostgreSQL gets this from syntax: `CREATE TABLE IF NOT EXISTS` and
  * `ADD COLUMN IF NOT EXISTS` are idempotent, so init and update are one
- * statement. BanyanDB has no such form and `Create` is not idempotent, so
- * get-compare-create-or-update is the client's work.
+ * statement that can be run on every boot. BanyanDB has no such form and
+ * `Create` is not idempotent, so get-compare-create-or-update is the client's
+ * work — and this is where it lives.
+ *
+ * It runs at boot and then stops. There is no watch, no retry loop and nothing
+ * that revisits a resource later.
  */
 
-export type ReconcileAction = 'created' | 'updated' | 'unchanged';
+export type SchemaAction = 'created' | 'updated' | 'unchanged';
 
-export interface ReconcileResult {
-  action: ReconcileAction;
+export interface SchemaChange {
+  action: SchemaAction;
   modRevision: ModRevision;
+  /** The fields that differed. Empty when the action is `created` — nothing
+   *  differed, there was nothing to differ from. */
   changed: string[];
 }
 
@@ -239,7 +245,7 @@ function settle(resource: string, drift: Drift[]): string[] {
   return drift.map((d) => d.field);
 }
 
-export async function reconcileGroup(ch: BanyanDBChannel, def: GroupDef): Promise<ReconcileResult> {
+async function applyGroup(ch: BanyanDBChannel, def: GroupDef): Promise<SchemaChange> {
   const registry = new GroupRegistry(ch);
   const live = await registry.get(def.name);
   if (!live) {
@@ -260,7 +266,7 @@ export async function reconcileGroup(ch: BanyanDBChannel, def: GroupDef): Promis
   return { action: 'updated', modRevision: await registry.update(merged), changed };
 }
 
-export async function reconcileStream(ch: BanyanDBChannel, def: StreamDef): Promise<ReconcileResult> {
+async function applyStream(ch: BanyanDBChannel, def: StreamDef): Promise<SchemaChange> {
   const missing = undeclaredEntityTags(def);
   if (missing.length > 0) {
     throw new BanyanDBError(
@@ -289,7 +295,7 @@ export async function reconcileStream(ch: BanyanDBChannel, def: StreamDef): Prom
   return { action: 'updated', modRevision: await registry.update(toStreamProto(def)), changed };
 }
 
-export async function reconcileMeasure(ch: BanyanDBChannel, def: MeasureDef): Promise<ReconcileResult> {
+async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef): Promise<SchemaChange> {
   const missing = undeclaredEntityTags(def);
   if (missing.length > 0) {
     throw new BanyanDBError(
@@ -321,10 +327,10 @@ export async function reconcileMeasure(ch: BanyanDBChannel, def: MeasureDef): Pr
   return { action: 'updated', modRevision: await registry.update(toMeasureProto(def)), changed };
 }
 
-export async function reconcileIndexRule(
+async function applyIndexRule(
   ch: BanyanDBChannel,
   def: IndexRuleDef,
-): Promise<ReconcileResult> {
+): Promise<SchemaChange> {
   const registry = indexRuleRegistry(ch);
   const proto = toIndexRuleProto(def);
   const live = await registry.get(def.group, def.name);
@@ -353,10 +359,10 @@ export async function reconcileIndexRule(
  * therefore re-asserted on every reconcile rather than trusted to have stayed
  * valid since it was written.
  */
-export async function reconcileIndexRuleBinding(
+async function applyIndexRuleBinding(
   ch: BanyanDBChannel,
   def: IndexRuleBindingDef,
-): Promise<ReconcileResult> {
+): Promise<SchemaChange> {
   const registry = indexRuleBindingRegistry(ch);
   const proto = toIndexRuleBindingProto(def);
   const live = await registry.get(def.group, def.name);
@@ -365,4 +371,23 @@ export async function reconcileIndexRuleBinding(
     return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
   }
   return { action: 'updated', modRevision: await registry.update(proto), changed: ['window', 'rules'] };
+}
+
+/**
+ * The schema side of the client, gathered behind one object.
+ *
+ * Each method is get-compare-create-or-update for one resource. Deciding WHICH
+ * resources should exist is the caller's: this offers no `applyAll`, because
+ * the order they are created in, and what belongs together, is a property of
+ * the thing being stored rather than of BanyanDB.
+ */
+export class SchemaManager {
+  constructor(private readonly ch: BanyanDBChannel) {}
+
+  group = (def: GroupDef): Promise<SchemaChange> => applyGroup(this.ch, def);
+  stream = (def: StreamDef): Promise<SchemaChange> => applyStream(this.ch, def);
+  measure = (def: MeasureDef): Promise<SchemaChange> => applyMeasure(this.ch, def);
+  indexRule = (def: IndexRuleDef): Promise<SchemaChange> => applyIndexRule(this.ch, def);
+  indexRuleBinding = (def: IndexRuleBindingDef): Promise<SchemaChange> =>
+    applyIndexRuleBinding(this.ch, def);
 }
