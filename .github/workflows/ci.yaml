@@ -240,6 +240,32 @@ jobs:
           case "$cc" in *no-store*) fail "hashed asset ${asset} is no-store — static files must stay cacheable" ;; esac
           echo "packaged artifact boots, serves the UI, and carries its security headers"
 
+  banyandb-client-it:
+    # The BanyanDB client's only real coverage. Its unit tests exercise
+    # encoding in isolation; everything that matters — schema reconciliation,
+    # the write path's series construction, query criteria — is only true or
+    # false against a running server, and each of those has already shipped a
+    # bug that type-check, lint and unit tests all passed.
+    #
+    # Self-contained: testcontainers starts the BanyanDB that
+    # `test/e2e/script/env` pins, on an ephemeral port, and stops it after. No
+    # service container to declare and no port to collide with.
+    name: BanyanDB client IT
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Integration tests against a real BanyanDB
+        run: pnpm test:it
+
   required:
     # Status-check name pinned to "Required" so Apache branch protection
     # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
@@ -250,7 +276,7 @@ jobs:
     # here because `needs` does not cross workflow boundaries.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, build-and-check]
+    needs: [license-header, build-and-check, banyandb-client-it]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -258,3 +284,4 @@ jobs:
         run: |
           [[ ${{ needs.license-header.result }} == 'success' ]] || exit 1
           [[ ${{ needs.build-and-check.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.banyandb-client-it.result }} == 'success' ]] || exit 1

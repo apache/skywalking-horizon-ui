@@ -21,6 +21,19 @@ import { describe, expect, it } from 'vitest';
 import { INCLUDE_DIR, loadBanyanDBProto, PROTO_FILES } from './proto.js';
 import type { banyandb } from './proto.pb.js';
 
+/**
+ * A guard on the vendored contract, not a test of BanyanDB.
+ *
+ * BanyanDB's own protos are the server's to be correct about. What is ours,
+ * and what breaks silently, is everything around them: that the SECOND pinned
+ * source is still vendored (the BanyanDB repo does not ship
+ * `validate/validate.proto`, and without it nothing parses); that a pin bump
+ * has not removed a service this client calls; and that the loader options the
+ * encoders are written against — `keepCase`, `longs: String` — still hold.
+ *
+ * Each of those fails at runtime with no error worth reading, which is why
+ * they are asserted here rather than discovered against a live server.
+ */
 describe('vendored BanyanDB proto tree', () => {
   it('vendors validate/validate.proto, without which nothing loads', () => {
     // Every banyandb .proto does `import "validate/validate.proto"`, and the
