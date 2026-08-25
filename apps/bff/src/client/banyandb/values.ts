@@ -54,16 +54,38 @@ type FieldValue = banyandb.model.v1.FieldValue;
 
 const NULL_TAG: TagValue = { null: 'NULL_VALUE' };
 
-/** 64-bit integers cross the wire as decimal strings (`longs: String`), so a
- *  `number` above 2^53 would already have lost precision before arriving here.
- *  Reject it rather than write a value the caller did not mean. */
+const INT64_MIN = -(2n ** 63n);
+const INT64_MAX = 2n ** 63n - 1n;
+
+/**
+ * 64-bit integers cross the wire as decimal strings (`longs: String`), and
+ * every way of getting one wrong is silent.
+ *
+ * The serializer does not validate: `"abc"` is written as 0, `"12.5"` as 12,
+ * and 2^63 wraps to its own negative. A `number` above 2^53 has already lost
+ * precision before it arrives. So the value is parsed and range-checked here,
+ * where the caller still has a stack to blame, rather than becoming a
+ * plausible-looking wrong number in storage.
+ */
 function int64(v: string | number | bigint, what: string): string {
-  if (typeof v === 'bigint') return v.toString();
-  if (typeof v === 'string') return v;
-  if (!Number.isSafeInteger(v)) {
-    throw new RangeError(`${what}: ${v} is not a safe integer — pass a bigint or a decimal string`);
+  let n: bigint;
+  if (typeof v === 'bigint') {
+    n = v;
+  } else if (typeof v === 'number') {
+    if (!Number.isSafeInteger(v)) {
+      throw new RangeError(`${what}: ${v} is not a safe integer — pass a bigint or a decimal string`);
+    }
+    n = BigInt(v);
+  } else {
+    if (!/^-?\d+$/.test(v)) {
+      throw new TypeError(`${what}: ${JSON.stringify(v)} is not a decimal integer`);
+    }
+    n = BigInt(v);
   }
-  return String(v);
+  if (n < INT64_MIN || n > INT64_MAX) {
+    throw new RangeError(`${what}: ${n} is outside the signed 64-bit range`);
+  }
+  return n.toString();
 }
 
 export function tagValue(type: TagType, v: TagInput, name = 'tag'): TagValue {

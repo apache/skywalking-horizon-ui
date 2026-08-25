@@ -45,7 +45,7 @@ function isAlreadyExists(err: unknown): boolean {
  * every method takes a single payload field, and Get/Exist take a Metadata.
  * Group is not one of them — see `GroupRegistry`.
  */
-class Registry<T extends { metadata?: banyandb.common.v1.Metadata }> {
+class Registry<T extends { metadata?: banyandb.common.v1.Metadata | null }> {
   constructor(
     private readonly ch: BanyanDBChannel,
     private readonly service: string,

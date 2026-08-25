@@ -69,7 +69,13 @@ export async function sendBatch<Req extends { message_id: string }>(
     call.on('end', () => resolve());
   });
 
-  for (const req of requests) call.write(req);
+  // `write()` returning false means the send buffer is full; ignoring it lets
+  // a large batch accumulate in memory rather than on the wire.
+  for (const req of requests) {
+    if (!call.write(req)) {
+      await new Promise<void>((resolve) => call.once('drain', resolve));
+    }
+  }
   call.end();
   await drained;
 

@@ -48,6 +48,17 @@ export interface GroupDef {
   /** Defaults to 0 on the server — no replica unless asked for. Always sent,
    *  because an update is a full replace and omitting it resets it. */
   replicas: number;
+  /**
+   * Lifecycle tiering. BanyanDB has no global setting for this: stages are a
+   * property of each group, so a deployment wanting hot/warm/cold has to
+   * declare them on every group it owns.
+   *
+   * Omit for a hot-only group. Present here so a caller CAN express tiering —
+   * an update replaces the whole resource, so a group whose stages this client
+   * could not represent would have them erased by an unrelated TTL change.
+   */
+  stages?: banyandb.common.v1.LifecycleStage[];
+  defaultStages?: string[];
 }
 
 export interface TagDef {
@@ -121,6 +132,19 @@ export interface IndexRuleBindingDef {
   expireAt: Date;
 }
 
+/**
+ * Whether the sharding key is an ordered subset of the entity, which the
+ * server requires. Returns the reason it is not, or null.
+ */
+export function shardingKeyProblem(def: MeasureDef): string | null {
+  if (!def.shardingKey) return null;
+  const positions = def.shardingKey.map((n) => def.entity.indexOf(n));
+  const absent = def.shardingKey.filter((_, i) => positions[i] === -1);
+  if (absent.length > 0) return `sharding key names ${absent.join(', ')}, which the entity does not`;
+  const ordered = positions.every((p, i) => i === 0 || p > (positions[i - 1] ?? -1));
+  return ordered ? null : 'sharding key is not in the same relative order as the entity';
+}
+
 /** Names a tag that no family declares — the mistake the server accepts. */
 export function undeclaredEntityTags(def: ResourceDef): string[] {
   const declared = new Set(def.families.flatMap((f) => f.tags.map((t) => t.name)));
@@ -148,6 +172,8 @@ export function toGroupProto(def: GroupDef): banyandb.common.v1.Group {
       segment_interval: { unit: def.segmentInterval.unit, num: def.segmentInterval.num },
       ttl: { unit: def.ttl.unit, num: def.ttl.num },
       replicas: def.replicas,
+      ...(def.stages ? { stages: def.stages } : {}),
+      ...(def.defaultStages ? { default_stages: def.defaultStages } : {}),
     },
   };
 }

@@ -72,6 +72,29 @@ function familiesForWrite(
 }
 
 /**
+ * An entity value may not be absent.
+ *
+ * Every other tag can legitimately be null. These cannot: they ARE the series,
+ * and a missing one is encoded as NULL and hashed like any other value — so
+ * two rows that should belong to different series collapse into one, silently,
+ * and the write still succeeds. The sharding key has the same problem for the
+ * same reason.
+ */
+function requireKeyValues(
+  def: { entity: string[]; shardingKey?: string[]; group: string; name: string },
+  tags: Record<string, TagInput>,
+): void {
+  const keys = new Set([...def.entity, ...(def.shardingKey ?? [])]);
+  const missing = [...keys].filter((name) => tags[name] === undefined || tags[name] === null);
+  if (missing.length > 0) {
+    throw new TypeError(
+      `${def.group}/${def.name}: no value for ${missing.join(', ')} — an entity or sharding-key tag ` +
+        'cannot be absent, or rows of different series collapse into one',
+    );
+  }
+}
+
+/**
  * The WRITE spec, which is NOT the schema spec.
  *
  * Three different messages are called `TagFamilySpec`. The registry takes
@@ -103,6 +126,7 @@ export function toStreamWriteRequests(
 ): StreamWriteRequest[] {
   const metadata = { group: def.group, name: def.name };
   const spec = writeTagFamilySpec(def.families);
+  for (const row of rows) requireKeyValues(def, row.tags);
   return rows.map((row, i) => ({
     // Both are latched on the first message and apply to the rest of the
     // stream; a reconnect starts a new stream and must send them again.
@@ -129,6 +153,7 @@ export function toMeasureWriteRequests(
     tag_family_spec: writeTagFamilySpec(def.families),
     field_names: def.fields.map((f) => f.name),
   };
+  for (const row of rows) requireKeyValues(def, row.tags);
   return rows.map((row, i) => ({
     ...(i === 0 ? { metadata, data_point_spec: spec } : {}),
     data_point: {

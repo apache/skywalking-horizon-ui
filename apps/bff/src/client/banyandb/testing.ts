@@ -84,17 +84,27 @@ export async function startBanyanDB(): Promise<BanyanDBFixture> {
     .withCommand(['standalone'])
     .withExposedPorts(GRPC_PORT, HTTP_PORT)
     .withWaitStrategy(
-      Wait.forHttp('/api/healthz', HTTP_PORT).forResponsePredicate((body) => body.includes('SERVING')),
+      // `includes('SERVING')` also matches NOT_SERVING, which is precisely the
+      // state worth waiting through.
+      Wait.forHttp('/api/healthz', HTTP_PORT).forResponsePredicate((body) => /(^|[^T])\bSERVING\b/.test(body) && !body.includes('NOT_SERVING')),
     )
     .withStartupTimeout(120_000)
     .start();
   const address = `${container.getHost()}:${container.getMappedPort(GRPC_PORT)}`;
 
   const client = new BanyanDBClient({ kind: 'banyandb', address, deadlineMs: 20_000 });
-  await client.connect();
-  // The health check proves the process serves; this proves the SCHEMA
-  // registry answers, which is the surface every test actually uses.
-  await client.groups.list();
+  try {
+    await client.connect();
+    // The health check proves the process serves; this proves the SCHEMA
+    // registry answers, which is the surface every test actually uses.
+    await client.groups.list();
+  } catch (err) {
+    // Otherwise a container outlives the run that started it, and the next one
+    // fails for a reason that has nothing to do with the change under test.
+    client.close();
+    await container.stop();
+    throw err;
+  }
 
   return {
     client,

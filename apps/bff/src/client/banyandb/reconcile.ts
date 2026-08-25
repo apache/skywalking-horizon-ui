@@ -31,6 +31,7 @@ import {
   toIndexRuleBindingProto,
   toIndexRuleProto,
   toMeasureProto,
+  shardingKeyProblem,
   toStreamProto,
   undeclaredEntityTags,
   type GroupDef,
@@ -129,6 +130,26 @@ function compareFamilies(
 ): Drift[] {
   const drift: Drift[] = [];
   const live = new Map((have ?? []).map((f) => [f.name ?? '', f.tags ?? []]));
+
+  // Walk the LIVE side too. Comparing only what is desired makes a removal
+  // invisible: dropping a tag reports `unchanged` and never happens, while a
+  // removal alongside an addition happens by accident, because the update
+  // replaces the resource with whatever was sent. Removals are reported so the
+  // update is deliberate and the server gets to accept or refuse it.
+  const wanted = new Map(want.map((f) => [f.name, new Set(f.tags.map((t) => t.name))]));
+  for (const [familyName, tags] of live) {
+    const keep = wanted.get(familyName);
+    if (!keep) {
+      drift.push({ field: `family ${familyName}`, want: 'absent', have: 'present', updatable: true });
+      continue;
+    }
+    for (const tag of tags) {
+      if (tag.name && !keep.has(tag.name)) {
+        drift.push({ field: `tag ${familyName}.${tag.name}`, want: 'absent', have: tag.type, updatable: true });
+      }
+    }
+  }
+
   for (const family of want) {
     const liveTags = live.get(family.name);
     if (!liveTags) {
@@ -173,11 +194,25 @@ export function compareMeasure(def: MeasureDef, live: banyandb.database.v1.Measu
   if ((def.interval ?? '') !== (live.interval ?? '')) {
     drift.push({ field: 'interval', want: def.interval, have: live.interval, updatable: false });
   }
+  if (!same(def.shardingKey ?? [], live.sharding_key?.tag_names ?? [])) {
+    drift.push({
+      field: 'shardingKey',
+      want: def.shardingKey ?? [],
+      have: live.sharding_key?.tag_names ?? [],
+      updatable: false,
+    });
+  }
   if ((def.indexMode ?? false) !== (live.index_mode ?? false)) {
     drift.push({ field: 'indexMode', want: def.indexMode ?? false, have: live.index_mode ?? false, updatable: false });
   }
   drift.push(...compareFamilies(def.families, live.tag_families));
 
+  const wantedFields = new Set(def.fields.map((f) => f.name));
+  for (const f of live.fields ?? []) {
+    if (f.name && !wantedFields.has(f.name)) {
+      drift.push({ field: `field ${f.name}`, want: 'absent', have: f.field_type, updatable: true });
+    }
+  }
   const liveFields = new Map((live.fields ?? []).map((f) => [f.name ?? '', f]));
   for (const field of def.fields) {
     const have = liveFields.get(field.name);
@@ -238,6 +273,13 @@ export async function reconcileStream(ch: BanyanDBChannel, def: StreamDef): Prom
   const live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(toStreamProto(def));
+    // Losing the race does not mean agreeing with the winner: another replica
+    // may have created a resource this definition would refuse, so it is read
+    // back and compared rather than accepted on the strength of existing.
+    if (!created) {
+      const won = await registry.get(def.group, def.name);
+      if (won) settle(`stream ${def.group}/${def.name}`, compareStream(def, won));
+    }
     return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
   }
   const changed = settle(`stream ${def.group}/${def.name}`, compareStream(def, live));
@@ -255,10 +297,21 @@ export async function reconcileMeasure(ch: BanyanDBChannel, def: MeasureDef): Pr
       `measure ${def.group}/${def.name}: entity names undeclared tag(s) ${missing.join(', ')}`,
     );
   }
+  const shardingProblem = shardingKeyProblem(def);
+  if (shardingProblem) {
+    throw new BanyanDBError('invalid', `measure ${def.group}/${def.name}: ${shardingProblem}`);
+  }
   const registry = measureRegistry(ch);
   const live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(toMeasureProto(def));
+    // Losing the race does not mean agreeing with the winner: another replica
+    // may have created a resource this definition would refuse, so it is read
+    // back and compared rather than accepted on the strength of existing.
+    if (!created) {
+      const won = await registry.get(def.group, def.name);
+      if (won) settle(`measure ${def.group}/${def.name}`, compareMeasure(def, won));
+    }
     return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
   }
   const changed = settle(`measure ${def.group}/${def.name}`, compareMeasure(def, live));

@@ -114,16 +114,43 @@ describe('fixture', () => {
 });
 
 describe('schema', () => {
-  it('creates a group, stream and measure from nothing', async () => {
+  it('creates a group, stream and measure, and stores exactly what was declared', async () => {
     for (const g of [streamGroup, measureGroup]) {
       const res = await client.reconcileGroup(g);
       expect(res.action).toBe('created');
       expect(BigInt(res.modRevision)).toBeGreaterThan(0n);
+
+      // Read the metadata back: an action and a revision only prove the call
+      // was accepted, not that the server stored what was asked for.
+      const live = await client.groups.get(g.name);
+      expect(live?.catalog).toBe(g.catalog);
+      expect(live?.resource_opts?.shard_num).toBe(g.shardNum);
+      expect(live?.resource_opts?.replicas ?? 0).toBe(g.replicas);
+      expect(live?.resource_opts?.ttl).toMatchObject({ unit: g.ttl.unit, num: g.ttl.num });
+      expect(live?.resource_opts?.segment_interval).toMatchObject({
+        unit: g.segmentInterval.unit,
+        num: g.segmentInterval.num,
+      });
     }
-    const s = await client.reconcileStream(logStream);
-    expect(s.action).toBe('created');
-    const m = await client.reconcileMeasure(counter);
-    expect(m.action).toBe('created');
+
+    expect((await client.reconcileStream(logStream)).action).toBe('created');
+    const liveStream = await client.streams.get(logStream.group, logStream.name);
+    expect(liveStream?.entity?.tag_names).toEqual(logStream.entity);
+    expect(liveStream?.tag_families?.map((f) => f.name)).toEqual(logStream.families.map((f) => f.name));
+    expect(liveStream?.tag_families?.[0]?.tags).toEqual(
+      logStream.families[0]?.tags.map((t) => ({ name: t.name, type: t.type })),
+    );
+
+    expect((await client.reconcileMeasure(counter)).action).toBe('created');
+    const liveMeasure = await client.measures.get(counter.group, counter.name);
+    expect(liveMeasure?.entity?.tag_names).toEqual(counter.entity);
+    expect(liveMeasure?.fields?.map((f) => f.name)).toEqual(counter.fields.map((f) => f.name));
+    expect(liveMeasure?.fields?.[0]).toMatchObject({
+      name: 'total',
+      field_type: 'FIELD_TYPE_INT',
+      encoding_method: 'ENCODING_METHOD_GORILLA',
+      compression_method: 'COMPRESSION_METHOD_ZSTD',
+    });
   });
 
   it('is a no-op the second time — the same definition must not churn', async () => {
@@ -184,6 +211,10 @@ describe('index rule and binding', () => {
       analyzer: 'keyword',
     });
     expect(['created', 'unchanged']).toContain(rule.action);
+    const liveRule = await client.indexRules.get(streamGroup.name, 'kind_idx');
+    expect(liveRule?.tags).toEqual(['kind']);
+    expect(liveRule?.type).toBe('TYPE_INVERTED');
+    expect(liveRule?.analyzer).toBe('keyword');
 
     const binding = await client.reconcileIndexRuleBinding({
       group: streamGroup.name,
@@ -194,6 +225,14 @@ describe('index rule and binding', () => {
       expireAt: new Date('2099-01-01T00:00:00Z'),
     });
     expect(['created', 'updated']).toContain(binding.action);
+    const liveBinding = await client.indexRuleBindings.get(streamGroup.name, 'log_binding');
+    expect(liveBinding?.rules).toEqual(['kind_idx']);
+    expect(liveBinding?.subject).toMatchObject({ name: 'log', catalog: 'CATALOG_STREAM' });
+    // A binding whose window does not contain `now` makes every rule on the
+    // subject inert while writes still succeed — so the window is asserted,
+    // not assumed.
+    expect(Number(liveBinding?.begin_at?.seconds)).toBeLessThan(Math.floor(now / 1000));
+    expect(Number(liveBinding?.expire_at?.seconds)).toBeGreaterThan(Math.floor(now / 1000));
   });
 });
 
@@ -260,6 +299,24 @@ describe('write and query', () => {
     });
     expect(got.length).toBeGreaterThanOrEqual(3);
     expect(new Set(got.map((e) => e.tags.principal))).toEqual(new Set(['alice', 'bob']));
+  });
+
+  it('filters on the INDEXED non-entity tag, which is what the binding activates', async () => {
+    // Creating a rule and a binding proves neither works. This is the only
+    // assertion that shows the index is live: `kind` is not an entity tag, so
+    // the filter can only be served by `kind_idx`.
+    const got = await client.queryStream({
+      group: streamGroup.name,
+      name: 'log',
+      timeRange: { beginMs: now - 60_000, endMs: now + 1000 },
+      projection: [{ family: 'searchable', tags: ['principal', 'kind', 'seq'] }],
+      criteria: eq('kind', 'TAG_TYPE_STRING', 'sso'),
+      limit: 50,
+    });
+    expect(got).toHaveLength(1);
+    expect(got[0]?.tags.kind).toBe('sso');
+    expect(got[0]?.tags.principal).toBe('alice');
+    expect(got[0]?.tags.seq).toBe('2');
   });
 
   it('filters on an entity tag', async () => {

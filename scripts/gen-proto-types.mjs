@@ -59,6 +59,10 @@ const FILES = [
   'banyandb/v1/banyandb-database.proto',
   'banyandb/v1/banyandb-stream.proto',
   'banyandb/v1/banyandb-measure.proto',
+  // Loaded at runtime by proto.ts, so its types belong here too — otherwise
+  // the barrier's request and response shapes are hand-written and sit outside
+  // what `proto:check` can keep honest.
+  'banyandb/v1/banyandb-schema.proto',
 ];
 
 // `longs: String` is why every 64-bit width maps to string: a JS number silently
@@ -86,7 +90,10 @@ function typeOf(field) {
   if (!r) return 'unknown';
   // google.protobuf.Struct / Value / ListValue are dynamic JSON by definition;
   // naming their generated shape would be more precise than it is true.
-  if (r.fullName === '.google.protobuf.Struct') return 'Record<string, unknown>';
+  // A Struct is not a plain object on this wire: the loader carries it as
+  // `{fields: {name: Value}}`, so typing it as a bare record invites a literal
+  // that serialises to an EMPTY Struct with no error.
+  if (r.fullName === '.google.protobuf.Struct') return '{ fields?: Record<string, unknown> }';
   if (r.fullName === '.google.protobuf.Value') return 'unknown';
   if (r.fullName === '.google.protobuf.ListValue') return 'unknown[]';
   return r.fullName.replace(/^\./, '');
@@ -102,11 +109,16 @@ function emitMessage(m, depth) {
   let out = `${ind(depth)}export interface ${m.name} {\n`;
   for (const f of m.fieldsArray) {
     let t = typeOf(f);
+    const isMessage = !SCALARS[f.type] && !(f.resolvedType instanceof protobuf.Enum);
     if (f.map) {
       const k = SCALARS[f.keyType] ?? 'string';
       t = `Partial<Record<${k}, ${t}>>`;
     } else if (f.repeated) {
       t = `${t}[]`;
+    } else if (isMessage) {
+      // `defaults: true` fills scalars but leaves an unset MESSAGE as null, not
+      // absent. Typing it optional-only lets `a.b.c` compile and then throw.
+      t = `${t} | null`;
     }
     // `defaults: true` fills scalars, but a message-typed field stays absent
     // when unset, and repeated/oneof members are genuinely optional.
