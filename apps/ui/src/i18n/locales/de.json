@@ -1792,6 +1792,7 @@
   "View all": "Alle anzeigen",
   "View cluster status →": "Cluster-Status anzeigen →",
   "View error traces": "Fehler-Traces anzeigen",
+  "View evaluation records": "Bewertungsdatensätze anzeigen",
   "View events for {name}": "Ereignisse für {name} anzeigen",
   "View slow traces": "Langsame Traces anzeigen",
   "View task detail": "Aufgabendetails anzeigen",

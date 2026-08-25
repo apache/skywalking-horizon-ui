@@ -1792,6 +1792,7 @@
   "View all": "すべて表示",
   "View cluster status →": "クラスター状態を表示 →",
   "View error traces": "エラートレースを表示",
+  "View evaluation records": "評価レコードを表示",
   "View events for {name}": "{name} のイベントを表示",
   "View slow traces": "遅いトレースを表示",
   "View task detail": "タスクの詳細を表示",

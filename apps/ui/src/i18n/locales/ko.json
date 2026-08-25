@@ -1792,6 +1792,7 @@
   "View all": "모두 보기",
   "View cluster status →": "클러스터 상태 보기 →",
   "View error traces": "오류 트레이스 보기",
+  "View evaluation records": "평가 레코드 보기",
   "View events for {name}": "{name}의 이벤트 보기",
   "View slow traces": "느린 트레이스 보기",
   "View task detail": "작업 상세 보기",
