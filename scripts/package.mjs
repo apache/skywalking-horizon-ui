@@ -115,6 +115,14 @@ cpSync(
   resolve(dist, 'skills'),
   { recursive: true },
 );
+// BanyanDB wire contract. `@grpc/proto-loader` reads .proto from disk at
+// runtime and no bundler carries a .proto, so the vendored tree ships as an
+// asset — same arrangement as `skills` above (see client/banyandb/proto.ts).
+cpSync(
+  resolve(root, 'apps/bff/src/client/banyandb/proto'),
+  resolve(dist, 'proto'),
+  { recursive: true },
+);
 cpSync(resolve(root, 'apps/bff/src/ai/mcp/app'), resolve(dist, 'mcp-app'), { recursive: true });
 cpSync(resolve(root, 'apps/ui/dist'), resolve(dist, 'static'), { recursive: true });
 cpSync(resolve(root, 'horizon.yaml'), resolve(dist, 'horizon.yaml'));

@@ -1,0 +1,24 @@
+{
+  "readme": "Pinned upstream sources for the vendored .proto tree in ./proto. Run `pnpm proto:sync` to re-materialize it; CI runs `pnpm proto:check`, which syncs and fails on any diff. Bumping a commit is a deliberate, reviewable change — the diff shows exactly what the wire contract gained.",
+  "dest": "apps/bff/src/client/banyandb/proto",
+  "sources": [
+    {
+      "name": "skywalking-banyandb-client-proto",
+      "repo": "https://github.com/apache/skywalking-banyandb-client-proto.git",
+      "commit": "b1c87663e57796402736a5f52dd3b4ca8d981e89",
+      "pinned": "2025-12-21",
+      "license": "Apache-2.0",
+      "copy": [{ "from": "proto/banyandb/v1", "to": "banyandb/v1", "match": "\\.proto$" }],
+      "note": "Predates BanyanDB 0.11.0: carries replicas, sharding_key and mod_revision, but no SchemaBarrierService, no STATUS_SCHEMA_NOT_APPLIED and no created_at."
+    },
+    {
+      "name": "protoc-gen-validate",
+      "repo": "https://github.com/bufbuild/protoc-gen-validate.git",
+      "commit": "32c2415389a3538082507ae537e7edd9578c64ed",
+      "pinned": "v1.0.4",
+      "license": "Apache-2.0",
+      "copy": [{ "from": "validate", "to": "validate", "match": "^validate\\.proto$" }],
+      "note": "Every banyandb .proto does `import \"validate/validate.proto\"`, and the BanyanDB proto repo does not vendor it — without this the tree does not load at all. google/protobuf/* needs no entry: @grpc/proto-loader carries the well-known types."
+    }
+  ]
+}

@@ -1,0 +1,742 @@
+// Licensed to Apache Software Foundation (ASF) under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Apache Software Foundation (ASF) licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+option java_package = "org.apache.skywalking.banyandb.database.v1";
+
+package banyandb.database.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+import "banyandb/v1/banyandb-common.proto";
+import "banyandb/v1/banyandb-model.proto";
+
+enum TagType {
+  TAG_TYPE_UNSPECIFIED = 0;
+  TAG_TYPE_STRING = 1;
+  TAG_TYPE_INT = 2;
+  TAG_TYPE_STRING_ARRAY = 3;
+  TAG_TYPE_INT_ARRAY = 4;
+  TAG_TYPE_DATA_BINARY = 5;
+  TAG_TYPE_TIMESTAMP = 6;
+}
+
+message TagFamilySpec {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // tags defines accepted tags
+  repeated TagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+}
+
+message TagSpec {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  TagType type = 2 [(validate.rules).enum.defined_only = true];
+}
+
+// Stream intends to store streaming data, for example, traces or logs
+message Stream {
+  // metadata is the identity of a trace series
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag_families
+  repeated TagFamilySpec tag_families = 2 [(validate.rules).repeated.min_items = 1];
+  // entity indicates how to generate a series and shard a stream
+  Entity entity = 3 [(validate.rules).message.required = true];
+  // updated_at indicates when the stream is updated
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message Entity {
+  repeated string tag_names = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+message ShardingKey {
+  repeated string tag_names = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+enum FieldType {
+  FIELD_TYPE_UNSPECIFIED = 0;
+  FIELD_TYPE_STRING = 1;
+  FIELD_TYPE_INT = 2;
+  FIELD_TYPE_DATA_BINARY = 3;
+  FIELD_TYPE_FLOAT = 4;
+}
+
+enum EncodingMethod {
+  ENCODING_METHOD_UNSPECIFIED = 0;
+  ENCODING_METHOD_GORILLA = 1;
+}
+
+enum CompressionMethod {
+  COMPRESSION_METHOD_UNSPECIFIED = 0;
+  COMPRESSION_METHOD_ZSTD = 1;
+}
+
+// FieldSpec is the specification of field
+message FieldSpec {
+  // name is the identity of a field
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // field_type denotes the type of field value
+  FieldType field_type = 2 [(validate.rules).enum.defined_only = true];
+  // encoding_method indicates how to encode data during writing
+  EncodingMethod encoding_method = 3 [(validate.rules).enum.defined_only = true];
+  // compression_method indicates how to compress data during writing
+  CompressionMethod compression_method = 4 [(validate.rules).enum.defined_only = true];
+}
+
+// Measure intends to store data point
+message Measure {
+  // metadata is the identity of a measure
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag_families are for filter measures
+  repeated TagFamilySpec tag_families = 2 [(validate.rules).repeated.min_items = 1];
+  // fields denote measure values
+  repeated FieldSpec fields = 3;
+  // entity indicates which tags will be to generate a series and shard a measure
+  Entity entity = 4 [(validate.rules).message.required = true];
+  // interval indicates how frequently to send a data point
+  // valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h", "d".
+  string interval = 5;
+  // updated_at indicates when the measure is updated
+  google.protobuf.Timestamp updated_at = 6;
+  // index_mode specifies whether the data should be stored exclusively in the index,
+  // meaning it will not be stored in the data storage system.
+  bool index_mode = 7;
+  // sharding_key determines the distribution of TopN-related data.
+  ShardingKey sharding_key = 8;
+}
+
+// TopNAggregation generates offline TopN statistics for a measure's TopN approximation
+message TopNAggregation {
+  // metadata is the identity of an aggregation
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // source_measure denotes the data source of this aggregation
+  common.v1.Metadata source_measure = 2 [(validate.rules).message.required = true];
+  // field_name is the name of field used for ranking
+  string field_name = 3 [(validate.rules).string.min_len = 1];
+  // field_value_sort indicates how to sort fields
+  // ASC: bottomN
+  // DESC: topN
+  // UNSPECIFIED: topN + bottomN
+  // todo validate plugin exist bug https://github.com/bufbuild/protoc-gen-validate/issues/672
+  model.v1.Sort field_value_sort = 4;
+  // group_by_tag_names groups data points into statistical counters
+  repeated string group_by_tag_names = 5;
+  // criteria select partial data points from measure
+  model.v1.Criteria criteria = 6;
+  // counters_number sets the number of counters to be tracked. The default value is 1000
+  int32 counters_number = 7;
+  // lru_size defines how much entry is allowed to be maintained in the memory
+  int32 lru_size = 8;
+  // updated_at indicates when the measure is updated
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// IndexRule defines how to generate indices based on tags and the index type
+// IndexRule should bind to a subject through an IndexRuleBinding to generate proper indices.
+message IndexRule {
+  // metadata define the rule's identity
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tags are the combination that refers to an indexed object
+  // If the elements in tags are more than 1, the object will generate a multi-tag index
+  // Caveat: All tags in a multi-tag MUST have an identical IndexType
+  repeated string tags = 2 [(validate.rules).repeated.min_items = 1];
+  // Type determine the index structure under the hood
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_INVERTED = 1;
+    TYPE_SKIPPING = 2;
+    // TYPE_TREE is a tree index, which is used for storing hierarchical data.
+    TYPE_TREE = 3;
+  }
+  // type is the IndexType of this IndexObject.
+  Type type = 3 [(validate.rules).enum.defined_only = true];
+  // updated_at indicates when the IndexRule is updated
+  google.protobuf.Timestamp updated_at = 4;
+
+  // analyzer analyzes tag value to support the full-text searching for TYPE_INVERTED indices.
+  // available analyzers are:
+  // - "standard" provides grammar based tokenization
+  // - "simple" breaks text into tokens at any non-letter character,
+  //            such as numbers, spaces, hyphens and apostrophes, discards non-letter characters,
+  //            and changes uppercase to lowercase.
+  // - "keyword" is a “noop” analyzer which returns the entire input string as a single token.
+  // - "url" breaks test into tokens at any non-letter and non-digit character.
+  string analyzer = 5;
+  // no_sort indicates whether the index is not for sorting.
+  bool no_sort = 6;
+}
+
+// Subject defines which stream or measure would generate indices
+message Subject {
+  // catalog is where the subject belongs to
+  // todo validate plugin exist bug https://github.com/bufbuild/protoc-gen-validate/issues/672
+  common.v1.Catalog catalog = 1;
+  // name refers to a stream or measure in a particular catalog
+  string name = 2 [(validate.rules).string.min_len = 1];
+}
+
+// IndexRuleBinding is a bridge to connect severalIndexRules to a subject
+// This binding is valid between begin_at_nanoseconds and expire_at_nanoseconds, that provides flexible strategies
+// to control how to generate time series indices.
+message IndexRuleBinding {
+  // metadata is the identity of this binding
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // rules refers to the IndexRule
+  repeated string rules = 2 [(validate.rules).repeated.min_items = 1];
+  // subject indicates the subject of binding action
+  Subject subject = 3 [(validate.rules).message.required = true];
+  // begin_at_nanoseconds is the timestamp, after which the binding will be active
+  google.protobuf.Timestamp begin_at = 4 [(validate.rules).timestamp.required = true];
+  // expire_at_nanoseconds it the timestamp, after which the binding will be inactive
+  // expire_at_nanoseconds must be larger than begin_at_nanoseconds
+  google.protobuf.Timestamp expire_at = 5 [(validate.rules).timestamp.required = true];
+  // updated_at indicates when the IndexRuleBinding is updated
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// Property stores the user defined data
+message Property {
+  // metadata is the identity of a property
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tag stores the content of a property
+  repeated TagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+  // updated_at indicates when the property is updated
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// TraceTagSpec defines the specification of a tag in a trace.
+message TraceTagSpec {
+  // name is the name of the tag.
+  string name = 1 [(validate.rules).string.min_len = 1];
+  // type is the type of the tag.
+  TagType type = 2 [(validate.rules).enum.defined_only = true];
+}
+
+// Trace defines a tracing-specific storage resource.
+// It is suitable for storing traces and spans.
+// The name of a Trace is a logical namespace within a group,
+// while the group of a Trace corresponds to a physical directory.
+message Trace {
+  // metadata is the identity of the trace resource.
+  common.v1.Metadata metadata = 1 [(validate.rules).message.required = true];
+  // tags are the specification of tags.
+  repeated TraceTagSpec tags = 2 [(validate.rules).repeated.min_items = 1];
+  // trace_id_tag_name is the name of the tag that stores the trace ID.
+  string trace_id_tag_name = 3 [(validate.rules).string.min_len = 1];
+  // timestamp_tag_name is the name of the tag that stores the timestamp.
+  string timestamp_tag_name = 4 [(validate.rules).string.min_len = 1];
+  // updated_at indicates when the trace resource is updated.
+  google.protobuf.Timestamp updated_at = 5;
+  // span_id_tag_name is the name of the tag that stores the span ID.
+  string span_id_tag_name = 6 [(validate.rules).string.min_len = 1];
+}
+
+message StreamRegistryServiceCreateRequest {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message StreamRegistryServiceUpdateRequest {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message StreamRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message StreamRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceGetResponse {
+  banyandb.database.v1.Stream stream = 1;
+}
+
+message StreamRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message StreamRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_stream = 2;
+}
+
+message StreamRegistryServiceListRequest {
+  string group = 1;
+}
+
+message StreamRegistryServiceListResponse {
+  repeated banyandb.database.v1.Stream stream = 1;
+}
+
+service StreamRegistryService {
+  rpc Create(StreamRegistryServiceCreateRequest) returns (StreamRegistryServiceCreateResponse);
+  rpc Update(StreamRegistryServiceUpdateRequest) returns (StreamRegistryServiceUpdateResponse);
+  rpc Delete(StreamRegistryServiceDeleteRequest) returns (StreamRegistryServiceDeleteResponse);
+
+  rpc Get(StreamRegistryServiceGetRequest) returns (StreamRegistryServiceGetResponse);
+
+  rpc List(StreamRegistryServiceListRequest) returns (StreamRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(StreamRegistryServiceExistRequest) returns (StreamRegistryServiceExistResponse);
+}
+
+message IndexRuleBindingRegistryServiceCreateRequest {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceCreateResponse {}
+
+message IndexRuleBindingRegistryServiceUpdateRequest {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceUpdateResponse {}
+
+message IndexRuleBindingRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message IndexRuleBindingRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceGetResponse {
+  banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceListRequest {
+  string group = 1;
+}
+
+message IndexRuleBindingRegistryServiceListResponse {
+  repeated banyandb.database.v1.IndexRuleBinding index_rule_binding = 1;
+}
+
+message IndexRuleBindingRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleBindingRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_index_rule_binding = 2;
+}
+
+service IndexRuleBindingRegistryService {
+  rpc Create(IndexRuleBindingRegistryServiceCreateRequest) returns (IndexRuleBindingRegistryServiceCreateResponse);
+  rpc Update(IndexRuleBindingRegistryServiceUpdateRequest) returns (IndexRuleBindingRegistryServiceUpdateResponse);
+  rpc Delete(IndexRuleBindingRegistryServiceDeleteRequest) returns (IndexRuleBindingRegistryServiceDeleteResponse);
+
+  rpc Get(IndexRuleBindingRegistryServiceGetRequest) returns (IndexRuleBindingRegistryServiceGetResponse);
+
+  rpc List(IndexRuleBindingRegistryServiceListRequest) returns (IndexRuleBindingRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(IndexRuleBindingRegistryServiceExistRequest) returns (IndexRuleBindingRegistryServiceExistResponse);
+}
+
+message IndexRuleRegistryServiceCreateRequest {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceCreateResponse {}
+
+message IndexRuleRegistryServiceUpdateRequest {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceUpdateResponse {}
+
+message IndexRuleRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message IndexRuleRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceGetResponse {
+  banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceListRequest {
+  string group = 1;
+}
+
+message IndexRuleRegistryServiceListResponse {
+  repeated banyandb.database.v1.IndexRule index_rule = 1;
+}
+
+message IndexRuleRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message IndexRuleRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_index_rule = 2;
+}
+
+service IndexRuleRegistryService {
+  rpc Create(IndexRuleRegistryServiceCreateRequest) returns (IndexRuleRegistryServiceCreateResponse);
+  rpc Update(IndexRuleRegistryServiceUpdateRequest) returns (IndexRuleRegistryServiceUpdateResponse);
+  rpc Delete(IndexRuleRegistryServiceDeleteRequest) returns (IndexRuleRegistryServiceDeleteResponse);
+
+  rpc Get(IndexRuleRegistryServiceGetRequest) returns (IndexRuleRegistryServiceGetResponse);
+
+  rpc List(IndexRuleRegistryServiceListRequest) returns (IndexRuleRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(IndexRuleRegistryServiceExistRequest) returns (IndexRuleRegistryServiceExistResponse);
+}
+
+message MeasureRegistryServiceCreateRequest {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message MeasureRegistryServiceUpdateRequest {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message MeasureRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message MeasureRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceGetResponse {
+  banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceListRequest {
+  string group = 1;
+}
+
+message MeasureRegistryServiceListResponse {
+  repeated banyandb.database.v1.Measure measure = 1;
+}
+
+message MeasureRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message MeasureRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_measure = 2;
+}
+
+service MeasureRegistryService {
+  rpc Create(MeasureRegistryServiceCreateRequest) returns (MeasureRegistryServiceCreateResponse);
+  rpc Update(MeasureRegistryServiceUpdateRequest) returns (MeasureRegistryServiceUpdateResponse);
+  rpc Delete(MeasureRegistryServiceDeleteRequest) returns (MeasureRegistryServiceDeleteResponse);
+
+  rpc Get(MeasureRegistryServiceGetRequest) returns (MeasureRegistryServiceGetResponse);
+
+  rpc List(MeasureRegistryServiceListRequest) returns (MeasureRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(MeasureRegistryServiceExistRequest) returns (MeasureRegistryServiceExistResponse);
+}
+
+message GroupRegistryServiceCreateRequest {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceCreateResponse {}
+
+message GroupRegistryServiceUpdateRequest {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceUpdateResponse {}
+
+message GroupRegistryServiceDeleteRequest {
+  string group = 1;
+}
+
+message GroupRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message GroupRegistryServiceGetRequest {
+  string group = 1;
+}
+
+message GroupRegistryServiceGetResponse {
+  banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceListRequest {}
+
+message GroupRegistryServiceListResponse {
+  repeated banyandb.common.v1.Group group = 1;
+}
+
+message GroupRegistryServiceExistRequest {
+  string group = 1;
+}
+
+message GroupRegistryServiceExistResponse {
+  bool has_group = 1;
+}
+
+service GroupRegistryService {
+  rpc Create(GroupRegistryServiceCreateRequest) returns (GroupRegistryServiceCreateResponse);
+  rpc Update(GroupRegistryServiceUpdateRequest) returns (GroupRegistryServiceUpdateResponse);
+  rpc Delete(GroupRegistryServiceDeleteRequest) returns (GroupRegistryServiceDeleteResponse);
+
+  rpc Get(GroupRegistryServiceGetRequest) returns (GroupRegistryServiceGetResponse);
+
+  rpc List(GroupRegistryServiceListRequest) returns (GroupRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(GroupRegistryServiceExistRequest) returns (GroupRegistryServiceExistResponse);
+}
+
+message TopNAggregationRegistryServiceCreateRequest {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceCreateResponse {}
+
+message TopNAggregationRegistryServiceUpdateRequest {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceUpdateResponse {}
+
+message TopNAggregationRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message TopNAggregationRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceGetResponse {
+  banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceListRequest {
+  string group = 1;
+}
+
+message TopNAggregationRegistryServiceListResponse {
+  repeated banyandb.database.v1.TopNAggregation top_n_aggregation = 1;
+}
+
+message TopNAggregationRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TopNAggregationRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_top_n_aggregation = 2;
+}
+
+service TopNAggregationRegistryService {
+  rpc Create(TopNAggregationRegistryServiceCreateRequest) returns (TopNAggregationRegistryServiceCreateResponse);
+  rpc Update(TopNAggregationRegistryServiceUpdateRequest) returns (TopNAggregationRegistryServiceUpdateResponse);
+  rpc Delete(TopNAggregationRegistryServiceDeleteRequest) returns (TopNAggregationRegistryServiceDeleteResponse);
+  rpc Get(TopNAggregationRegistryServiceGetRequest) returns (TopNAggregationRegistryServiceGetResponse);
+  rpc List(TopNAggregationRegistryServiceListRequest) returns (TopNAggregationRegistryServiceListResponse);
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(TopNAggregationRegistryServiceExistRequest) returns (TopNAggregationRegistryServiceExistResponse);
+}
+
+message SnapshotRequest {
+  message Group {
+    common.v1.Catalog catalog = 1;
+    string group = 2;
+  }
+  repeated Group groups = 1;
+}
+
+message Snapshot {
+  common.v1.Catalog catalog = 1;
+  string name = 2;
+  string error = 3;
+}
+
+message SnapshotResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+service SnapshotService {
+  rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+}
+
+message PropertyRegistryServiceCreateRequest {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message PropertyRegistryServiceUpdateRequest {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message PropertyRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message PropertyRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceGetResponse {
+  banyandb.database.v1.Property property = 1;
+}
+
+message PropertyRegistryServiceListRequest {
+  string group = 1;
+}
+
+message PropertyRegistryServiceListResponse {
+  repeated banyandb.database.v1.Property properties = 1;
+}
+
+message PropertyRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message PropertyRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_property = 2;
+}
+
+service PropertyRegistryService {
+  rpc Create(PropertyRegistryServiceCreateRequest) returns (PropertyRegistryServiceCreateResponse);
+  rpc Update(PropertyRegistryServiceUpdateRequest) returns (PropertyRegistryServiceUpdateResponse);
+  rpc Delete(PropertyRegistryServiceDeleteRequest) returns (PropertyRegistryServiceDeleteResponse);
+
+  rpc Get(PropertyRegistryServiceGetRequest) returns (PropertyRegistryServiceGetResponse);
+
+  rpc List(PropertyRegistryServiceListRequest) returns (PropertyRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(PropertyRegistryServiceExistRequest) returns (PropertyRegistryServiceExistResponse);
+}
+
+message TraceRegistryServiceCreateRequest {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceCreateResponse {
+  int64 mod_revision = 1;
+}
+
+message TraceRegistryServiceUpdateRequest {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceUpdateResponse {
+  int64 mod_revision = 1;
+}
+
+message TraceRegistryServiceDeleteRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceDeleteResponse {
+  bool deleted = 1;
+}
+
+message TraceRegistryServiceGetRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceGetResponse {
+  banyandb.database.v1.Trace trace = 1;
+}
+
+message TraceRegistryServiceExistRequest {
+  banyandb.common.v1.Metadata metadata = 1;
+}
+
+message TraceRegistryServiceExistResponse {
+  bool has_group = 1;
+  bool has_trace = 2;
+}
+
+message TraceRegistryServiceListRequest {
+  string group = 1;
+}
+
+message TraceRegistryServiceListResponse {
+  repeated banyandb.database.v1.Trace trace = 1;
+}
+
+service TraceRegistryService {
+  rpc Create(TraceRegistryServiceCreateRequest) returns (TraceRegistryServiceCreateResponse);
+  rpc Update(TraceRegistryServiceUpdateRequest) returns (TraceRegistryServiceUpdateResponse);
+  rpc Delete(TraceRegistryServiceDeleteRequest) returns (TraceRegistryServiceDeleteResponse);
+
+  rpc Get(TraceRegistryServiceGetRequest) returns (TraceRegistryServiceGetResponse);
+
+  rpc List(TraceRegistryServiceListRequest) returns (TraceRegistryServiceListResponse);
+
+  // Exist doesn't expose an HTTP endpoint. Please use HEAD method to touch Get instead
+  rpc Exist(TraceRegistryServiceExistRequest) returns (TraceRegistryServiceExistResponse);
+}

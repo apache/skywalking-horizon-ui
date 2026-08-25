@@ -1,0 +1,198 @@
+// Licensed to Apache Software Foundation (ASF) under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Apache Software Foundation (ASF) licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+option java_package = "org.apache.skywalking.banyandb.model.v1";
+
+package banyandb.model.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+message Str {
+  string value = 1;
+}
+
+message Int {
+  int64 value = 1;
+}
+
+message Float {
+  double value = 1;
+}
+
+message StrArray {
+  repeated string value = 1;
+}
+
+message IntArray {
+  repeated int64 value = 1;
+}
+
+message TagValue {
+  oneof value {
+    google.protobuf.NullValue null = 1;
+    Str str = 2;
+    StrArray str_array = 3;
+    Int int = 4;
+    IntArray int_array = 5;
+    bytes binary_data = 6;
+    google.protobuf.Timestamp timestamp = 7;
+  }
+}
+
+message TagFamilyForWrite {
+  repeated TagValue tags = 1;
+}
+
+message FieldValue {
+  oneof value {
+    google.protobuf.NullValue null = 1;
+    model.v1.Str str = 2;
+    model.v1.Int int = 3;
+    bytes binary_data = 4;
+    model.v1.Float float = 5;
+  }
+}
+
+enum AggregationFunction {
+  AGGREGATION_FUNCTION_UNSPECIFIED = 0;
+  AGGREGATION_FUNCTION_MEAN = 1;
+  AGGREGATION_FUNCTION_MAX = 2;
+  AGGREGATION_FUNCTION_MIN = 3;
+  AGGREGATION_FUNCTION_COUNT = 4;
+  AGGREGATION_FUNCTION_SUM = 5;
+}
+
+// Pair is the building block of a record which is equivalent to a key-value pair.
+// In the context of Trace, it could be metadata of a trace such as service_name, service_instance, etc.
+// Besides, other tags are organized in key-value pair in the underlying storage layer.
+// One should notice that the values can be a multi-value.
+message Tag {
+  string key = 1;
+  TagValue value = 2;
+}
+
+message TagFamily {
+  string name = 1;
+  repeated Tag tags = 2;
+}
+
+// Condition consists of the query condition with a single binary operator to be imposed
+// For 1:1 BinaryOp, values in condition must be an array with length = 1,
+// while for 1:N BinaryOp, values can be an array with length >= 1.
+message Condition {
+  // BinaryOp specifies the operation imposed to the given query condition
+  // For EQ, NE, LT, GT, LE and GE, only one operand should be given, i.e. one-to-one relationship.
+  // HAVING and NOT_HAVING allow multi-value to be the operand such as array/vector, i.e. one-to-many relationship.
+  // For example, "keyA" contains "valueA" **and** "valueB"
+  // MATCH performances a full-text search if the tag is analyzed.
+  // The string value applies to the same analyzer as the tag, but string array value does not.
+  // Each item in a string array is seen as a token instead of a query expression.
+  enum BinaryOp {
+    BINARY_OP_UNSPECIFIED = 0;
+    BINARY_OP_EQ = 1;
+    BINARY_OP_NE = 2;
+    BINARY_OP_LT = 3;
+    BINARY_OP_GT = 4;
+    BINARY_OP_LE = 5;
+    BINARY_OP_GE = 6;
+    BINARY_OP_HAVING = 7;
+    BINARY_OP_NOT_HAVING = 8;
+    BINARY_OP_IN = 9;
+    BINARY_OP_NOT_IN = 10;
+    BINARY_OP_MATCH = 11;
+  }
+  string name = 1;
+  BinaryOp op = 2;
+  TagValue value = 3;
+  message MatchOption {
+    string analyzer = 1;
+    enum Operator {
+      OPERATOR_UNSPECIFIED = 0;
+      OPERATOR_AND = 1;
+      OPERATOR_OR = 2;
+    }
+    Operator operator = 2;
+  }
+  MatchOption match_option = 4;
+}
+
+// tag_families are indexed.
+message Criteria {
+  oneof exp {
+    LogicalExpression le = 1;
+    Condition condition = 2;
+  }
+}
+
+// LogicalExpression supports logical operation
+message LogicalExpression {
+  enum LogicalOp {
+    LOGICAL_OP_UNSPECIFIED = 0;
+    LOGICAL_OP_AND = 1;
+    LOGICAL_OP_OR = 2;
+  }
+  // op is a logical operation
+  LogicalOp op = 1;
+  Criteria left = 2;
+  Criteria right = 3;
+}
+
+enum Sort {
+  SORT_UNSPECIFIED = 0;
+  SORT_DESC = 1;
+  SORT_ASC = 2;
+}
+
+// QueryOrder means a Sort operation to be done for a given index rule.
+// The index_rule_name refers to the name of a index rule bound to the subject.
+message QueryOrder {
+  string index_rule_name = 1;
+  Sort sort = 2;
+}
+
+// TagProjection is used to select the names of keys to be returned.
+message TagProjection {
+  message TagFamily {
+    string name = 1;
+    repeated string tags = 2;
+  }
+  repeated TagFamily tag_families = 1;
+}
+
+// TimeRange is a range query for uint64,
+// the range here follows left-inclusive and right-exclusive rule, i.e. [begin, end) if both edges exist
+message TimeRange {
+  google.protobuf.Timestamp begin = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+// Status is the response status for write
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_SUCCEED = 1;
+  STATUS_INVALID_TIMESTAMP = 2;
+  STATUS_NOT_FOUND = 3;
+  STATUS_EXPIRED_SCHEMA = 4;
+  STATUS_INTERNAL_ERROR = 5;
+  STATUS_DISK_FULL = 6;
+  STATUS_VERSION_UNSUPPORTED = 7; // Client version not supported
+  STATUS_VERSION_DEPRECATED = 8; // Client version deprecated but still supported
+  STATUS_METADATA_REQUIRED = 9; // Metadata is required for the first request
+}

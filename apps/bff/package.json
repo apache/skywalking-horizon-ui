@@ -26,6 +26,7 @@
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.0",
     "@fastify/static": "^10.1.2",
+    "@grpc/proto-loader": "^0.8.1",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@langchain/aws": "^1.4.3",
     "@langchain/core": "^1.2.4",

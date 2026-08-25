@@ -1,0 +1,219 @@
+// Licensed to Apache Software Foundation (ASF) under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Apache Software Foundation (ASF) licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+option java_package = "org.apache.skywalking.banyandb.measure.v1";
+
+package banyandb.measure.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+import "banyandb/v1/banyandb-common.proto";
+import "banyandb/v1/banyandb-model.proto";
+
+// DataPoint is stored in Measures
+message DataPoint {
+  // timestamp is in the timeunit of milliseconds.
+  google.protobuf.Timestamp timestamp = 1;
+  // tag_families contains tags selected in the projection
+  repeated model.v1.TagFamily tag_families = 2;
+  message Field {
+    string name = 1;
+    model.v1.FieldValue value = 2;
+  }
+  // fields contains fields selected in the projection
+  repeated Field fields = 3;
+  // sid is the series id of the data point
+  uint64 sid = 4;
+  // version is the version of the data point in a series
+  // sid, timestamp and version are used to identify a data point
+  int64 version = 5;
+}
+
+// QueryResponse is the response for a query to the Query module.
+message QueryResponse {
+  // data_points are the actual data returned
+  repeated DataPoint data_points = 1;
+  // trace contains the trace information of the query when trace is enabled
+  common.v1.Trace trace = 2;
+}
+
+// QueryRequest is the request contract for query.
+message QueryRequest {
+  // groups indicate where the data points are stored.
+  repeated string groups = 1 [(validate.rules).repeated.min_items = 1];
+  // name is the identity of a measure.
+  string name = 2 [(validate.rules).string.min_len = 1];
+  // time_range is a range query with begin/end time of entities in the timeunit of milliseconds.
+  model.v1.TimeRange time_range = 3 [(validate.rules).message.required = true];
+  // tag_families are indexed.
+  model.v1.Criteria criteria = 4;
+  // tag_projection can be used to select tags of the data points in the response
+  model.v1.TagProjection tag_projection = 5;
+  message FieldProjection {
+    repeated string names = 1;
+  }
+  // field_projection can be used to select fields of the data points in the response
+  FieldProjection field_projection = 6;
+  message GroupBy {
+    // tag_projection must be a subset of the tag_projection of QueryRequest
+    model.v1.TagProjection tag_projection = 1;
+    // field_name must be one of fields indicated by field_projection
+    string field_name = 2;
+  }
+  // group_by groups data points based on their field value for a specific tag and use field_name as the projection name
+  GroupBy group_by = 7;
+  message Aggregation {
+    model.v1.AggregationFunction function = 1;
+    // field_name must be one of files indicated by the field_projection
+    string field_name = 2;
+  }
+  // agg aggregates data points based on a field
+  Aggregation agg = 8;
+  message Top {
+    // number set the how many items should be returned
+    int32 number = 1;
+    // field_name must be one of files indicated by the field_projection
+    string field_name = 2;
+    // field_value_sort indicates how to sort fields
+    // ASC: bottomN
+    // DESC: topN
+    // UNSPECIFIED: topN
+    model.v1.Sort field_value_sort = 3;
+  }
+  // top limits the result based on a particular field.
+  // If order_by is specified, top sorts the dataset based on order_by's output
+  Top top = 9;
+  // offset is used to support pagination, together with the following limit.
+  // If top is specified, offset processes the dataset based on top's output
+  uint32 offset = 10;
+  // limit is used to impose a boundary on the number of records being returned.
+  // If top is specified, limit processes the dataset based on top's output
+  uint32 limit = 11;
+  // order_by is given to specify the sort for a tag.
+  model.v1.QueryOrder order_by = 12;
+  // trace is used to enable trace for the query
+  bool trace = 13;
+  // stages is used to specify the stage of the data points in the lifecycle
+  repeated string stages = 14;
+  // rewriteAggTopNResult will rewrite agg result to raw data
+  bool rewrite_agg_top_n_result = 15;
+}
+
+
+
+service MeasureService {
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Write(stream WriteRequest) returns (stream WriteResponse);
+  rpc TopN(TopNRequest) returns (TopNResponse);
+}
+
+// TopNList contains a series of topN items
+message TopNList {
+  // timestamp is in the timeunit of milliseconds.
+  google.protobuf.Timestamp timestamp = 1;
+  message Item {
+    repeated model.v1.Tag entity = 1;
+    model.v1.FieldValue value = 2;
+  }
+  // items contains top-n items in a list
+  repeated Item items = 2;
+}
+
+// TopNResponse is the response for a query to the Query module.
+message TopNResponse {
+  // lists contain a series topN lists ranked by timestamp
+  // if agg_func in query request is specified, lists' size should be one.
+  repeated TopNList lists = 1;
+  // trace contains the trace information of the query when trace is enabled
+  common.v1.Trace trace = 2;
+}
+
+// TopNRequest is the request contract for query.
+message TopNRequest {
+  // groups indicate where the data points are stored.
+  repeated string groups = 1 [(validate.rules).repeated.min_items = 1];
+  // name is the identity of a measure.
+  string name = 2 [(validate.rules).string.min_len = 1];
+  // time_range is a range query with begin/end time of entities in the timeunit of milliseconds.
+  model.v1.TimeRange time_range = 3 [(validate.rules).message.required = true];
+  // top_n set the how many items should be returned in each list.
+  int32 top_n = 4 [(validate.rules).int32.gt = 0];
+  // agg aggregates lists grouped by field names in the time_range
+  model.v1.AggregationFunction agg = 5;
+  // criteria select counters. Only equals are acceptable.
+  repeated model.v1.Condition conditions = 6;
+  // field_value_sort indicates how to sort fields
+  model.v1.Sort field_value_sort = 7;
+  // trace is used to enable trace for the query
+  bool trace = 8;
+  // stages is used to specify the stage of the data points in the lifecycle
+  repeated string stages = 9;
+}
+
+// TagFamilySpec defines the specification of a tag family.
+message TagFamilySpec {
+  // name of the tag family
+  string name = 1;
+  // names of tags in the tag family
+  repeated string tag_names = 2;
+}
+
+// DataPointSpec defines the specification of a data point.
+message DataPointSpec {
+  // the tag family specification
+  repeated TagFamilySpec tag_family_spec = 1;
+  // the field names
+  repeated string field_names = 2;
+}
+
+// DataPointValue is the data point for writing. It only contains values.
+message DataPointValue {
+  // timestamp is in the timeunit of milliseconds.
+  google.protobuf.Timestamp timestamp = 1 [(validate.rules).timestamp.required = true];
+  // the order of tag_families' items match DataPointSpec
+  repeated model.v1.TagFamilyForWrite tag_families = 2 [(validate.rules).repeated.min_items = 1];
+  // the order of fields match DataPointSpec
+  repeated model.v1.FieldValue fields = 3;
+  // the version of the data point
+  int64 version = 4;
+}
+
+// WriteRequest is the request contract for write
+message WriteRequest {
+  // the metadata is required only for the first request of gRPC stream.
+  common.v1.Metadata metadata = 1;
+  // the data_point is required.
+  DataPointValue data_point = 2 [(validate.rules).message.required = true];
+  // the message_id is required.
+  uint64 message_id = 3 [(validate.rules).uint64.gt = 0];
+  // the data point specification.
+  // If this is not set with the indicated metadata, use the schema definition.
+  // If this is not set, use the existing spec declaration from previous requests in the current gRPC stream.
+  DataPointSpec data_point_spec = 4;
+}
+
+// WriteResponse is the response contract for write
+message WriteResponse {
+  // the message_id from request.
+  uint64 message_id = 1 [(validate.rules).uint64.gt = 0];
+  // status indicates the request processing result
+  string status = 2;
+  // the metadata from request when request fails
+  common.v1.Metadata metadata = 3;
+}

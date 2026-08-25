@@ -23,6 +23,9 @@
     "lint:security": "node scripts/check-security.mjs && node scripts/check-security-selftest.mjs",
     "lint:templates": "pnpm --filter @skywalking-horizon-ui/bff run templates:validate",
     "test:unit": "pnpm -r run test:unit",
+    "proto:sync": "node scripts/sync-proto.mjs && node scripts/gen-proto-types.mjs",
+    "proto:check:types": "node scripts/gen-proto-types.mjs && git diff --exit-code -- apps/bff/src/client/banyandb/proto.pb.d.ts",
+    "proto:check": "pnpm proto:sync && git diff --exit-code -- apps/bff/src/client/banyandb/proto apps/bff/src/client/banyandb/proto.pb.d.ts",
     "license:check": "license-eye -c .licenserc.yaml header check",
     "license:fix": "license-eye -c .licenserc.yaml header fix",
     "licenses:bin:update": "printf 's\\n' | license-eye -c .licenserc.yaml dependency resolve --summary dist-material/release-docs/LICENSE.tpl",
@@ -33,6 +36,7 @@
     "build:mcp-app": "pnpm --filter ui run build:mcp-app && node scripts/build-mcp-app.mjs"
   },
   "devDependencies": {
+    "protobufjs": "^8.7.2",
     "typescript": "~5.6.3",
     "yaml": "^2.9.0"
   },

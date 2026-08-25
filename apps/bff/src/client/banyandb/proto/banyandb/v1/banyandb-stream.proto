@@ -1,0 +1,130 @@
+// Licensed to Apache Software Foundation (ASF) under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Apache Software Foundation (ASF) licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+syntax = "proto3";
+
+option java_package = "org.apache.skywalking.banyandb.stream.v1";
+
+package banyandb.stream.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+import "banyandb/v1/banyandb-common.proto";
+import "banyandb/v1/banyandb-model.proto";
+
+// Element represents
+// (stream context) a Span defined in Google Dapper paper or equivalently a Segment in Skywalking.
+// (Log context) a log
+message Element {
+  // element_id could be span_id of a Span or segment_id of a Segment in the context of stream
+  string element_id = 1;
+  // timestamp represents a millisecond
+  // 1) either the start time of a Span/Segment,
+  // 2) or the timestamp of a log
+  google.protobuf.Timestamp timestamp = 2;
+  // fields contains all indexed Field. Some typical names,
+  // - stream_id
+  // - duration
+  // - service_name
+  // - service_instance_id
+  // - end_time_milliseconds
+  repeated model.v1.TagFamily tag_families = 3;
+}
+
+// QueryResponse is the response for a query to the Query module.
+message QueryResponse {
+  // elements are the actual data returned
+  repeated Element elements = 1;
+  // trace contains the trace information of the query when trace is enabled
+  common.v1.Trace trace = 2;
+}
+
+// QueryRequest is the request contract for query.
+message QueryRequest {
+  // groups indicate where the elements are stored.
+  repeated string groups = 1 [(validate.rules).repeated.min_items = 1];
+  // name is the identity of a stream.
+  string name = 2 [(validate.rules).string.min_len = 1];
+  // time_range is a range query with begin/end time of entities in the timeunit of milliseconds.
+  // In the context of stream, it represents the range of the `startTime` for spans/segments,
+  // while in the context of Log, it means the range of the timestamp(s) for logs.
+  // it is always recommended to specify time range for performance reason
+  model.v1.TimeRange time_range = 3;
+  // offset is used to support pagination, together with the following limit
+  uint32 offset = 4;
+  // limit is used to impose a boundary on the number of records being returned
+  uint32 limit = 5;
+  // order_by is given to specify the sort for a field. So far, only fields in the type of Integer are supported
+  model.v1.QueryOrder order_by = 6;
+  // tag_families are indexed.
+  model.v1.Criteria criteria = 7;
+  // projection can be used to select the key names of the element in the response
+  model.v1.TagProjection projection = 8 [(validate.rules).message.required = true];
+  // trace is used to enable trace for the query
+  bool trace = 9;
+  // stage is used to specify the stage of the query in the lifecycle
+  repeated string stages = 10;
+}
+
+
+
+service StreamService {
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Write(stream WriteRequest) returns (stream WriteResponse);
+
+}
+
+// TagFamilySpec defines the specification of a tag family.
+message TagFamilySpec {
+  // name of the tag family
+  string name = 1;
+  // names of tags in the tag family
+  repeated string tag_names = 2;
+}
+
+message ElementValue {
+  // element_id could be span_id of a Span or segment_id of a Segment in the context of stream
+  string element_id = 1;
+  // timestamp is in the timeunit of milliseconds. It represents
+  // 1) either the start time of a Span/Segment,
+  // 2) or the timestamp of a log
+  google.protobuf.Timestamp timestamp = 2;
+  // the order of tag_families' items match TagFamilySpec
+  repeated model.v1.TagFamilyForWrite tag_families = 3;
+}
+
+message WriteRequest {
+  // the metadata is required only for the first request of gRPC stream.
+  common.v1.Metadata metadata = 1;
+  // the element is required.
+  ElementValue element = 2 [(validate.rules).message.required = true];
+  // the message_id is required.
+  uint64 message_id = 3 [(validate.rules).uint64.gt = 0];
+  // the tag family specification.
+  // If this is not set with the indicated metadata, use the schema definition.
+  // If this is not set, use the existing spec declaration from previous requests in the current gRPC stream.
+  repeated TagFamilySpec tag_family_spec = 4;
+}
+
+message WriteResponse {
+  // the message_id from request.
+  uint64 message_id = 1 [(validate.rules).uint64.gt = 0];
+  // status indicates the request processing result
+  string status = 2;
+  // the metadata from request when request fails
+  common.v1.Metadata metadata = 3;
+}

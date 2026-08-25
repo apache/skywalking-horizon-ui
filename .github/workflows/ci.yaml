@@ -72,6 +72,21 @@ jobs:
       - name: Lint, source budget, i18n, security, docs links, bundled templates
         run: pnpm lint
 
+      # The vendored BanyanDB wire contract, in one regenerate-then-diff gate —
+      # the same shape as `licenses:bin:check`. Re-fetches the .proto from the
+      # PINNED upstream commits, regenerates proto.pb.d.ts from what it fetched,
+      # then diffs both: so it proves in one pass that nobody hand-edited a
+      # vendored .proto, that nobody hand-edited the generated declarations, and
+      # that the two are in step. `git diff --exit-code` names the paths that
+      # moved, which is what says whether the contract or the generator drifted.
+      #
+      # Pinning commits rather than branches is what stops an upstream release
+      # turning an unrelated PR red. `pnpm proto:check:types` is the same check
+      # minus the fetch, kept for working offline — redundant here, since this
+      # step regenerates from the freshly fetched tree anyway.
+      - name: Vendored proto tree matches its pinned upstream
+        run: pnpm proto:check
+
       # Advisories against what actually SHIPS. `--prod` matches the scope the
       # binary LICENSE is generated from, so the two gates describe the same
       # artifact. A finding here is always something an operator would run, so
