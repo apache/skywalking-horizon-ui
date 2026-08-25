@@ -90,12 +90,13 @@ function typeOf(field) {
   if (!r) return 'unknown';
   // google.protobuf.Struct / Value / ListValue are dynamic JSON by definition;
   // naming their generated shape would be more precise than it is true.
-  // A Struct is not a plain object on this wire: the loader carries it as
-  // `{fields: {name: Value}}`, so typing it as a bare record invites a literal
-  // that serialises to an EMPTY Struct with no error.
-  if (r.fullName === '.google.protobuf.Struct') return '{ fields?: Record<string, unknown> }';
-  if (r.fullName === '.google.protobuf.Value') return 'unknown';
-  if (r.fullName === '.google.protobuf.ListValue') return 'unknown[]';
+  // The JSON-ish well-known types are wrappers, not the JS values they model.
+  // A Struct is `{fields: {name: Value}}` and a Value is a oneof — typing
+  // either as a bare object or as `unknown` invites a literal that type-checks
+  // and then serialises to an EMPTY message with no error from either side.
+  if (r.fullName === '.google.protobuf.Struct') return 'google.protobuf.Struct';
+  if (r.fullName === '.google.protobuf.Value') return 'google.protobuf.Value';
+  if (r.fullName === '.google.protobuf.ListValue') return 'google.protobuf.ListValue';
   return r.fullName.replace(/^\./, '');
 }
 
@@ -168,11 +169,33 @@ for (const top of root.nestedArray) {
 // drag in the entire descriptor surface. Kept honest by the same type-check:
 // an unreferenced entry here is dead, a missing one fails to compile.
 const referenced = new Set([...body.matchAll(/google\.protobuf\.([A-Za-z]+)/g)].map((m) => m[1]));
+// These three refer to each other, so naming one pulls in the others.
+if (referenced.has('Struct') || referenced.has('Value') || referenced.has('ListValue')) {
+  referenced.add('Struct');
+  referenced.add('Value');
+  referenced.add('ListValue');
+  referenced.add('NullValue');
+}
 const WELL_KNOWN = {
   // seconds is int64 → a decimal string, same rule as every other 64-bit field.
   Timestamp: '      export interface Timestamp {\n        seconds?: string;\n        nanos?: number;\n      }\n',
   Duration: '      export interface Duration {\n        seconds?: string;\n        nanos?: number;\n      }\n',
   NullValue: "      export type NullValue = 'NULL_VALUE';\n",
+  // The loader keeps these in their protobuf form, and the oneof arms are
+  // camelCase here because struct.proto declares them that way.
+  Struct:
+    '      export interface Struct {\n        fields?: Record<string, google.protobuf.Value>;\n      }\n',
+  Value:
+    '      export interface Value {\n' +
+    '        nullValue?: google.protobuf.NullValue;\n' +
+    '        numberValue?: number;\n' +
+    '        stringValue?: string;\n' +
+    '        boolValue?: boolean;\n' +
+    '        structValue?: google.protobuf.Struct;\n' +
+    '        listValue?: google.protobuf.ListValue;\n' +
+    "        kind?: 'nullValue' | 'numberValue' | 'stringValue' | 'boolValue' | 'structValue' | 'listValue';\n" +
+    '      }\n',
+  ListValue: '      export interface ListValue {\n        values?: google.protobuf.Value[];\n      }\n',
 };
 const wk = [...referenced].sort().filter((n) => WELL_KNOWN[n]);
 const missing = [...referenced].filter((n) => !WELL_KNOWN[n]);

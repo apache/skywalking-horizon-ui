@@ -47,7 +47,7 @@ export namespace banyandb {
         path?: string;
         symbol?: string;
         abi_version?: number;
-        config?: { fields?: Record<string, unknown> } | null;
+        config?: google.protobuf.Struct | null;
       }
       export interface Plugin {
         name?: string;
@@ -966,10 +966,25 @@ export namespace google {
         seconds?: string;
         nanos?: number;
       }
+      export interface ListValue {
+        values?: google.protobuf.Value[];
+      }
       export type NullValue = 'NULL_VALUE';
+      export interface Struct {
+        fields?: Record<string, google.protobuf.Value>;
+      }
       export interface Timestamp {
         seconds?: string;
         nanos?: number;
+      }
+      export interface Value {
+        nullValue?: google.protobuf.NullValue;
+        numberValue?: number;
+        stringValue?: string;
+        boolValue?: boolean;
+        structValue?: google.protobuf.Struct;
+        listValue?: google.protobuf.ListValue;
+        kind?: 'nullValue' | 'numberValue' | 'stringValue' | 'boolValue' | 'structValue' | 'listValue';
       }
   }
 }

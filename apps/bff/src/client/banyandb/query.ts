@@ -53,6 +53,12 @@ export interface StreamQuery {
   /** An empty rule name with a sort orders by TIMESTAMP and needs no index
    *  rule at all. A named rule must be bound to this subject. */
   orderBy?: { indexRuleName?: string; sort: 'SORT_ASC' | 'SORT_DESC' };
+  /**
+   * Which lifecycle stages to read. Omitted means the group's default stages,
+   * which is what an ordinary query wants; naming them is how a caller reaches
+   * data that has already aged into a warm or cold tier.
+   */
+  stages?: string[];
 }
 
 export interface MeasureQuery extends Omit<StreamQuery, 'projection'> {
@@ -150,6 +156,7 @@ export async function queryStream(
       ...(q.orderBy
         ? { order_by: { index_rule_name: q.orderBy.indexRuleName ?? '', sort: q.orderBy.sort } }
         : {}),
+      ...(q.stages?.length ? { stages: q.stages } : {}),
     },
     deadlineMs,
   );
@@ -184,6 +191,7 @@ export async function queryMeasure(
       ...(q.orderBy
         ? { order_by: { index_rule_name: q.orderBy.indexRuleName ?? '', sort: q.orderBy.sort } }
         : {}),
+      ...(q.stages?.length ? { stages: q.stages } : {}),
     },
     deadlineMs,
   );

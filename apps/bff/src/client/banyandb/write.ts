@@ -73,7 +73,13 @@ export async function sendBatch<Req extends { message_id: string }>(
   // a large batch accumulate in memory rather than on the wire.
   for (const req of requests) {
     if (!call.write(req)) {
-      await new Promise<void>((resolve) => call.once('drain', resolve));
+      // Raced against the stream ending: a transport error means `drain` never
+      // fires, and awaiting it alone would hang until the call deadline while
+      // the real failure sits unread in `drained`.
+      await Promise.race([
+        new Promise<void>((resolve) => call.once('drain', resolve)),
+        drained.catch(() => undefined),
+      ]);
     }
   }
   call.end();

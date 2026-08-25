@@ -17,6 +17,7 @@
 
 import type { BanyanDBChannel } from './channel.js';
 import { status as GrpcStatus } from '@grpc/grpc-js';
+import type { banyandb } from './proto.pb.js';
 import { BanyanDBError } from './errors.js';
 import type { ModRevision } from './registry.js';
 
@@ -44,26 +45,23 @@ export interface BarrierResult {
   unimplemented?: true;
 }
 
-interface WireKey {
-  kind: string;
-  group: string;
-  name: string;
-}
-
-interface WireLaggard {
-  node?: string;
-  current_mod_revision?: string;
-  missing_keys?: WireKey[];
-}
+// Derived from the generated declarations rather than restated: the schema
+// proto is generated now, so a hand-written copy would be a second source that
+// `proto:check` cannot keep honest.
+type WireKey = banyandb.schema.v1.SchemaKey;
+type WireLaggard = banyandb.schema.v1.NodeLaggard;
 
 function toLaggards(raw: WireLaggard[] | undefined): NodeLaggard[] {
   return (raw ?? []).map((l) => ({
     node: l.node ?? '',
     currentModRevision: l.current_mod_revision ?? '0',
+    // The generated fields are optional because protobuf scalars always are;
+    // the client's own SchemaKey is not, so the absent case is named here
+    // rather than leaking `undefined` into a reported laggard.
     missingKeys: (l.missing_keys ?? []).map((k) => ({
-      kind: k.kind as SchemaKind,
-      group: k.group,
-      name: k.name,
+      kind: (k.kind ?? '') as SchemaKind,
+      group: k.group ?? '',
+      name: k.name ?? '',
     })),
   }));
 }

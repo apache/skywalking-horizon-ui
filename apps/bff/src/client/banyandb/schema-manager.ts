@@ -127,6 +127,11 @@ export function compareGroup(def: GroupDef, live: banyandb.common.v1.Group): Dri
   });
   check('ttl', def.ttl, { unit: opts?.ttl?.unit, num: opts?.ttl?.num });
   check('replicas', def.replicas, opts?.replicas ?? 0);
+  // Tiering is a property of the group and of nothing else, so a change to it
+  // is the ONLY signal that a lifecycle edit happened — unreported, the update
+  // never runs and the configuration silently stays as it was.
+  check('stages', def.stages ?? [], opts?.stages ?? []);
+  check('defaultStages', def.defaultStages ?? [], opts?.default_stages ?? []);
   return drift;
 }
 
@@ -247,10 +252,15 @@ function settle(resource: string, drift: Drift[]): string[] {
 
 async function applyGroup(ch: BanyanDBChannel, def: GroupDef): Promise<SchemaChange> {
   const registry = new GroupRegistry(ch);
-  const live = await registry.get(def.name);
+  let live = await registry.get(def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(toGroupProto(def));
-    return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
+    if (created) return { action: 'created', modRevision, changed: [] };
+    // Another replica won the race. That is not agreement: it may be running an
+    // older definition, so what it created falls through to the ordinary
+    // comparison below rather than being accepted for existing.
+    live = await registry.get(def.name);
+    if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
   const changed = settle(`group ${def.name}`, compareGroup(def, live));
   if (changed.length === 0) {
@@ -276,17 +286,14 @@ async function applyStream(ch: BanyanDBChannel, def: StreamDef): Promise<SchemaC
     );
   }
   const registry = streamRegistry(ch);
-  const live = await registry.get(def.group, def.name);
+  let live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(toStreamProto(def));
-    // Losing the race does not mean agreeing with the winner: another replica
-    // may have created a resource this definition would refuse, so it is read
-    // back and compared rather than accepted on the strength of existing.
-    if (!created) {
-      const won = await registry.get(def.group, def.name);
-      if (won) settle(`stream ${def.group}/${def.name}`, compareStream(def, won));
-    }
-    return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
+    if (created) return { action: 'created', modRevision, changed: [] };
+    // Another replica won the race, possibly on an older definition — so what
+    // it created is compared like any other existing resource.
+    live = await registry.get(def.group, def.name);
+    if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
   const changed = settle(`stream ${def.group}/${def.name}`, compareStream(def, live));
   if (changed.length === 0) {
@@ -308,17 +315,14 @@ async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef): Promise<Schem
     throw new BanyanDBError('invalid', `measure ${def.group}/${def.name}: ${shardingProblem}`);
   }
   const registry = measureRegistry(ch);
-  const live = await registry.get(def.group, def.name);
+  let live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(toMeasureProto(def));
-    // Losing the race does not mean agreeing with the winner: another replica
-    // may have created a resource this definition would refuse, so it is read
-    // back and compared rather than accepted on the strength of existing.
-    if (!created) {
-      const won = await registry.get(def.group, def.name);
-      if (won) settle(`measure ${def.group}/${def.name}`, compareMeasure(def, won));
-    }
-    return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
+    if (created) return { action: 'created', modRevision, changed: [] };
+    // Another replica won the race, possibly on an older definition — so what
+    // it created is compared like any other existing resource.
+    live = await registry.get(def.group, def.name);
+    if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
   const changed = settle(`measure ${def.group}/${def.name}`, compareMeasure(def, live));
   if (changed.length === 0) {
@@ -333,10 +337,12 @@ async function applyIndexRule(
 ): Promise<SchemaChange> {
   const registry = indexRuleRegistry(ch);
   const proto = toIndexRuleProto(def);
-  const live = await registry.get(def.group, def.name);
+  let live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(proto);
-    return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
+    if (created) return { action: 'created', modRevision, changed: [] };
+    live = await registry.get(def.group, def.name);
+    if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
   // `analyzer` is what makes EQ mean equality rather than a token match, and a
   // rule's identity is group-global — so a wrong analyzer left uncorrected is
@@ -365,10 +371,12 @@ async function applyIndexRuleBinding(
 ): Promise<SchemaChange> {
   const registry = indexRuleBindingRegistry(ch);
   const proto = toIndexRuleBindingProto(def);
-  const live = await registry.get(def.group, def.name);
+  let live = await registry.get(def.group, def.name);
   if (!live) {
     const { created, modRevision } = await registry.createIfAbsent(proto);
-    return { action: created ? 'created' : 'unchanged', modRevision, changed: [] };
+    if (created) return { action: 'created', modRevision, changed: [] };
+    live = await registry.get(def.group, def.name);
+    if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
   return { action: 'updated', modRevision: await registry.update(proto), changed: ['window', 'rules'] };
 }
@@ -382,12 +390,38 @@ async function applyIndexRuleBinding(
  * the thing being stored rather than of BanyanDB.
  */
 export class SchemaManager {
+  /**
+   * Schema work runs one at a time, in call order.
+   *
+   * Every method is read-then-decide, so two running at once both read "absent"
+   * and both create — one of them then losing a race it need never have
+   * entered. Serialising costs nothing, because the schema is a fixed, small
+   * set applied once at boot rather than a hot path.
+   *
+   * This orders THIS process. Across replicas the create is still contended,
+   * which is why losing that race falls through to the ordinary comparison
+   * rather than accepting whatever the winner made.
+   */
+  private tail: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly ch: BanyanDBChannel) {}
 
-  group = (def: GroupDef): Promise<SchemaChange> => applyGroup(this.ch, def);
-  stream = (def: StreamDef): Promise<SchemaChange> => applyStream(this.ch, def);
-  measure = (def: MeasureDef): Promise<SchemaChange> => applyMeasure(this.ch, def);
-  indexRule = (def: IndexRuleDef): Promise<SchemaChange> => applyIndexRule(this.ch, def);
+  private serial<T>(op: () => Promise<T>): Promise<T> {
+    // Chained through a settled tail either way: one failure must not stop
+    // everything queued behind it from running.
+    const run = this.tail.then(op, op);
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  group = (def: GroupDef): Promise<SchemaChange> => this.serial(() => applyGroup(this.ch, def));
+  stream = (def: StreamDef): Promise<SchemaChange> => this.serial(() => applyStream(this.ch, def));
+  measure = (def: MeasureDef): Promise<SchemaChange> => this.serial(() => applyMeasure(this.ch, def));
+  indexRule = (def: IndexRuleDef): Promise<SchemaChange> =>
+    this.serial(() => applyIndexRule(this.ch, def));
   indexRuleBinding = (def: IndexRuleBindingDef): Promise<SchemaChange> =>
-    applyIndexRuleBinding(this.ch, def);
+    this.serial(() => applyIndexRuleBinding(this.ch, def));
 }

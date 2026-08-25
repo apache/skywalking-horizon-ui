@@ -67,7 +67,7 @@ const INT64_MAX = 2n ** 63n - 1n;
  * where the caller still has a stack to blame, rather than becoming a
  * plausible-looking wrong number in storage.
  */
-function int64(v: string | number | bigint, what: string): string {
+export function int64Value(v: string | number | bigint, what: string): string {
   let n: bigint;
   if (typeof v === 'bigint') {
     n = v;
@@ -94,12 +94,12 @@ export function tagValue(type: TagType, v: TagInput, name = 'tag'): TagValue {
     case 'TAG_TYPE_STRING':
       return { str: { value: String(v) } };
     case 'TAG_TYPE_INT':
-      return { int: { value: int64(v as string | number | bigint, name) } };
+      return { int: { value: int64Value(v as string | number | bigint, name) } };
     case 'TAG_TYPE_STRING_ARRAY':
       return { str_array: { value: (v as readonly unknown[]).map(String) } };
     case 'TAG_TYPE_INT_ARRAY':
       return {
-        int_array: { value: (v as readonly (string | number | bigint)[]).map((n) => int64(n, name)) },
+        int_array: { value: (v as readonly (string | number | bigint)[]).map((n) => int64Value(n, name)) },
       };
     case 'TAG_TYPE_DATA_BINARY':
       return { binary_data: v as Buffer };
@@ -140,7 +140,7 @@ export function fieldValue(type: FieldType, v: TagInput, name = 'field'): FieldV
     case 'FIELD_TYPE_STRING':
       return { str: { value: String(v) } };
     case 'FIELD_TYPE_INT':
-      return { int: { value: int64(v as string | number | bigint, name) } };
+      return { int: { value: int64Value(v as string | number | bigint, name) } };
     case 'FIELD_TYPE_FLOAT':
       return { float: { value: Number(v) } };
     case 'FIELD_TYPE_DATA_BINARY':

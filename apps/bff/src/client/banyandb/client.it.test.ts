@@ -339,7 +339,7 @@ describe('measure upsert', () => {
     const row = { timestampMs: at, tags: { bucket: 20260825, node: 'n1', label: 'x' }, fields: { total: 5, ratio: 0.25, note: 'first' } };
     expect((await client.writeMeasure(counter, [row]))[0]?.status).toBe('STATUS_SUCCEED');
     expect(
-      (await client.writeMeasure(counter, [{ ...row, fields: { total: 9, ratio: 0.75, note: 'second' }, version: String(Date.now() * 1_000_000) }]))[0]
+      (await client.writeMeasure(counter, [{ ...row, fields: { total: 9, ratio: 0.75, note: 'second' }, version: (BigInt(Date.now()) * 1_000_000n).toString() }]))[0]
         ?.status,
     ).toBe('STATUS_SUCCEED');
 

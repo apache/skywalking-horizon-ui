@@ -17,7 +17,7 @@
 
 import type { banyandb } from './proto.pb.js';
 import type { MeasureDef, StreamDef } from './schema.js';
-import { pbTimestamp, tagValue, fieldValue, type TagInput } from './values.js';
+import { int64Value, pbTimestamp, tagValue, fieldValue, type TagInput } from './values.js';
 
 /**
  * Building write requests from a schema definition.
@@ -126,7 +126,15 @@ export function toStreamWriteRequests(
 ): StreamWriteRequest[] {
   const metadata = { group: def.group, name: def.name };
   const spec = writeTagFamilySpec(def.families);
-  for (const row of rows) requireKeyValues(def, row.tags);
+  for (const row of rows) {
+    requireKeyValues(def, row.tags);
+    // An empty id is not "no id": the server mints a fresh one per write, so
+    // the dedup that makes a retry safe silently stops working and a re-sent
+    // batch duplicates every row.
+    if (!row.elementId) {
+      throw new TypeError(`${def.group}/${def.name}: elementId is empty — a retry would duplicate the row`);
+    }
+  }
   return rows.map((row, i) => ({
     // Both are latched on the first message and apply to the rest of the
     // stream; a reconnect starts a new stream and must send them again.
@@ -160,7 +168,10 @@ export function toMeasureWriteRequests(
       timestamp: pbTimestamp(row.timestampMs),
       tag_families: familiesForWrite(def.families, row.tags),
       fields: def.fields.map((f) => fieldValue(f.type, row.fields[f.name], f.name)),
-      ...(row.version ? { version: row.version } : {}),
+      // Validated like any other 64-bit value: this one decides which write
+      // WINS, so a silently truncated or wrapped version loses to the row it
+      // was meant to replace.
+      ...(row.version ? { version: int64Value(row.version, 'version') } : {}),
     },
     message_id: nextMessageId(),
   }));
