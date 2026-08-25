@@ -174,6 +174,26 @@ describe('schema', () => {
     expect((await client.schema.group(reordered)).action).toBe('unchanged');
   });
 
+  it('reports a removal but does not perform one', async () => {
+    // Every node applies the schema at boot and the registry has no
+    // compare-and-set, so during a rolling upgrade an older definition would
+    // otherwise strip a tag the newer nodes are writing to.
+    const shrunk: StreamDef = {
+      ...logStream,
+      families: logStream.families.map((f) =>
+        f.name === 'searchable' ? { ...f, tags: f.tags.filter((t) => t.name !== 'seq') } : f,
+      ),
+    };
+    const res = await client.schema.stream(shrunk);
+    expect(res.action).toBe('unchanged');
+    expect(res.changed.join(' ')).toContain('removal NOT applied');
+
+    // ...and the tag is still there.
+    const live = await client.streams.get(logStream.group, logStream.name);
+    const names = live?.tag_families?.find((f) => f.name === 'searchable')?.tags?.map((t) => t.name);
+    expect(names).toContain('seq');
+  });
+
   it('refuses an entity naming a tag no family declares', async () => {
     // The server ACCEPTS this and silently shortens the series key, so the
     // refusal has to come from the client or not at all.

@@ -73,6 +73,17 @@ export interface Drift {
   want: unknown;
   have: unknown;
   updatable: boolean;
+  /**
+   * This drift would DELETE something the server currently holds.
+   *
+   * Kept apart from ordinary drift because the two are not symmetric risks
+   * under a rolling upgrade. Every node applies the schema at boot, the
+   * registry offers no compare-and-set, and two versions of a definition are
+   * live at once — so an addition an older node does not know about is
+   * harmless to it, while a removal an older node believes in destroys a tag
+   * the newer ones are actively writing.
+   */
+  removes?: true;
 }
 
 export class SchemaConflictError extends BanyanDBError {
@@ -151,12 +162,12 @@ function compareFamilies(
   for (const [familyName, tags] of live) {
     const keep = wanted.get(familyName);
     if (!keep) {
-      drift.push({ field: `family ${familyName}`, want: 'absent', have: 'present', updatable: true });
+      drift.push({ field: `family ${familyName}`, want: 'absent', have: 'present', updatable: true, removes: true });
       continue;
     }
     for (const tag of tags) {
       if (tag.name && !keep.has(tag.name)) {
-        drift.push({ field: `tag ${familyName}.${tag.name}`, want: 'absent', have: tag.type, updatable: true });
+        drift.push({ field: `tag ${familyName}.${tag.name}`, want: 'absent', have: tag.type, updatable: true, removes: true });
       }
     }
   }
@@ -221,7 +232,7 @@ export function compareMeasure(def: MeasureDef, live: banyandb.database.v1.Measu
   const wantedFields = new Set(def.fields.map((f) => f.name));
   for (const f of live.fields ?? []) {
     if (f.name && !wantedFields.has(f.name)) {
-      drift.push({ field: `field ${f.name}`, want: 'absent', have: f.field_type, updatable: true });
+      drift.push({ field: `field ${f.name}`, want: 'absent', have: f.field_type, updatable: true, removes: true });
     }
   }
   const liveFields = new Map((live.fields ?? []).map((f) => [f.name ?? '', f]));
@@ -244,13 +255,31 @@ export function compareMeasure(def: MeasureDef, live: banyandb.database.v1.Measu
   return drift;
 }
 
-function settle(resource: string, drift: Drift[]): string[] {
+/**
+ * Decide what to do with the differences found, and report what changed.
+ *
+ * A removal is applied only when the caller has said it means one. Without
+ * that, a removal is REPORTED and the resource is left alone — because at boot
+ * the likeliest reason the server holds something this definition does not is
+ * that another node is running a newer one, and there is no compare-and-set to
+ * arbitrate between them.
+ */
+function settle(resource: string, drift: Drift[], allowRemovals: boolean): { changed: string[]; act: boolean } {
   const blocked = drift.filter((d) => !d.updatable);
   if (blocked.length > 0) throw new SchemaConflictError(resource, blocked);
-  return drift.map((d) => d.field);
+  const removals = drift.filter((d) => d.removes);
+  if (removals.length > 0 && !allowRemovals) {
+    return {
+      changed: drift.map((d) => (d.removes ? `${d.field} (removal NOT applied)` : d.field)),
+      // Additions alongside an unapplied removal are held back too: applying
+      // them means sending the definition, and sending it performs the removal.
+      act: false,
+    };
+  }
+  return { changed: drift.map((d) => d.field), act: drift.length > 0 };
 }
 
-async function applyGroup(ch: BanyanDBChannel, def: GroupDef): Promise<SchemaChange> {
+async function applyGroup(ch: BanyanDBChannel, def: GroupDef, allowRemovals: boolean): Promise<SchemaChange> {
   const registry = new GroupRegistry(ch);
   let live = await registry.get(def.name);
   if (!live) {
@@ -262,9 +291,9 @@ async function applyGroup(ch: BanyanDBChannel, def: GroupDef): Promise<SchemaCha
     live = await registry.get(def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  const changed = settle(`group ${def.name}`, compareGroup(def, live));
-  if (changed.length === 0) {
-    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed: [] };
+  const { changed, act } = settle(`group ${def.name}`, compareGroup(def, live), allowRemovals);
+  if (!act) {
+    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed };
   }
   // An Update REPLACES the whole group, so anything not sent is reset — and
   // `stages` / `default_stages` are lifecycle tiering this client does not
@@ -276,7 +305,7 @@ async function applyGroup(ch: BanyanDBChannel, def: GroupDef): Promise<SchemaCha
   return { action: 'updated', modRevision: await registry.update(merged), changed };
 }
 
-async function applyStream(ch: BanyanDBChannel, def: StreamDef): Promise<SchemaChange> {
+async function applyStream(ch: BanyanDBChannel, def: StreamDef, allowRemovals: boolean): Promise<SchemaChange> {
   const missing = undeclaredEntityTags(def);
   if (missing.length > 0) {
     throw new BanyanDBError(
@@ -295,14 +324,14 @@ async function applyStream(ch: BanyanDBChannel, def: StreamDef): Promise<SchemaC
     live = await registry.get(def.group, def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  const changed = settle(`stream ${def.group}/${def.name}`, compareStream(def, live));
-  if (changed.length === 0) {
-    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed: [] };
+  const { changed, act } = settle(`stream ${def.group}/${def.name}`, compareStream(def, live), allowRemovals);
+  if (!act) {
+    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed };
   }
   return { action: 'updated', modRevision: await registry.update(toStreamProto(def)), changed };
 }
 
-async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef): Promise<SchemaChange> {
+async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef, allowRemovals: boolean): Promise<SchemaChange> {
   const missing = undeclaredEntityTags(def);
   if (missing.length > 0) {
     throw new BanyanDBError(
@@ -324,9 +353,9 @@ async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef): Promise<Schem
     live = await registry.get(def.group, def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  const changed = settle(`measure ${def.group}/${def.name}`, compareMeasure(def, live));
-  if (changed.length === 0) {
-    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed: [] };
+  const { changed, act } = settle(`measure ${def.group}/${def.name}`, compareMeasure(def, live), allowRemovals);
+  if (!act) {
+    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed };
   }
   return { action: 'updated', modRevision: await registry.update(toMeasureProto(def)), changed };
 }
@@ -404,7 +433,19 @@ export class SchemaManager {
    */
   private tail: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly ch: BanyanDBChannel) {}
+  /**
+   * @param allowRemovals whether a difference that DELETES something the
+   *   server holds may be acted on. Off by default: every node applies the
+   *   schema at boot, so during a rolling upgrade the likeliest reason the
+   *   server holds a tag this definition lacks is that another node is running
+   *   a newer definition — and removing it destroys a column that node is
+   *   writing to. Turn it on for a deliberate migration, where one actor
+   *   applies the change and no older definition is still running.
+   */
+  constructor(
+    private readonly ch: BanyanDBChannel,
+    private readonly allowRemovals = false,
+  ) {}
 
   private serial<T>(op: () => Promise<T>): Promise<T> {
     // Chained through a settled tail either way: one failure must not stop
@@ -417,9 +458,12 @@ export class SchemaManager {
     return run;
   }
 
-  group = (def: GroupDef): Promise<SchemaChange> => this.serial(() => applyGroup(this.ch, def));
-  stream = (def: StreamDef): Promise<SchemaChange> => this.serial(() => applyStream(this.ch, def));
-  measure = (def: MeasureDef): Promise<SchemaChange> => this.serial(() => applyMeasure(this.ch, def));
+  group = (def: GroupDef): Promise<SchemaChange> =>
+    this.serial(() => applyGroup(this.ch, def, this.allowRemovals));
+  stream = (def: StreamDef): Promise<SchemaChange> =>
+    this.serial(() => applyStream(this.ch, def, this.allowRemovals));
+  measure = (def: MeasureDef): Promise<SchemaChange> =>
+    this.serial(() => applyMeasure(this.ch, def, this.allowRemovals));
   indexRule = (def: IndexRuleDef): Promise<SchemaChange> =>
     this.serial(() => applyIndexRule(this.ch, def));
   indexRuleBinding = (def: IndexRuleBindingDef): Promise<SchemaChange> =>
