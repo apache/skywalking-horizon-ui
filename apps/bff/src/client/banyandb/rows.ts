@@ -171,7 +171,7 @@ export function toMeasureWriteRequests(
       // Validated like any other 64-bit value: this one decides which write
       // WINS, so a silently truncated or wrapped version loses to the row it
       // was meant to replace.
-      ...(row.version ? { version: int64Value(row.version, 'version') } : {}),
+      ...(row.version !== undefined ? { version: int64Value(row.version, 'version') } : {}),
     },
     message_id: nextMessageId(),
   }));

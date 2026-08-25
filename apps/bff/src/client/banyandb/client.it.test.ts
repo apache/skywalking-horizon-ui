@@ -174,10 +174,10 @@ describe('schema', () => {
     expect((await client.schema.group(reordered)).action).toBe('unchanged');
   });
 
-  it('reports a removal but does not perform one', async () => {
+  it('keeps a tag this definition dropped, and says so', async () => {
     // Every node applies the schema at boot and the registry has no
-    // compare-and-set, so during a rolling upgrade an older definition would
-    // otherwise strip a tag the newer nodes are writing to.
+    // compare-and-set, so an older definition must not strip a tag the newer
+    // nodes are writing to.
     const shrunk: StreamDef = {
       ...logStream,
       families: logStream.families.map((f) =>
@@ -186,12 +186,37 @@ describe('schema', () => {
     };
     const res = await client.schema.stream(shrunk);
     expect(res.action).toBe('unchanged');
-    expect(res.changed.join(' ')).toContain('removal NOT applied');
+    expect(res.changed.join(' ')).toContain('(kept)');
 
-    // ...and the tag is still there.
     const live = await client.streams.get(logStream.group, logStream.name);
     const names = live?.tag_families?.find((f) => f.name === 'searchable')?.tags?.map((t) => t.name);
     expect(names).toContain('seq');
+  });
+
+  it('still applies an addition made alongside a dropped tag', async () => {
+    // live A+B, desired A+C  ->  A+B+C. Holding the addition back would leave
+    // the node unable to write the column it was upgraded to write.
+    const mixed: StreamDef = {
+      ...logStream,
+      families: logStream.families.map((f) =>
+        f.name === 'searchable'
+          ? {
+              ...f,
+              tags: [
+                ...f.tags.filter((t) => t.name !== 'seq'),
+                { name: 'added', type: 'TAG_TYPE_STRING' as const },
+              ],
+            }
+          : f,
+      ),
+    };
+    const res = await client.schema.stream(mixed);
+    expect(res.action).toBe('updated');
+
+    const live = await client.streams.get(logStream.group, logStream.name);
+    const names = live?.tag_families?.find((f) => f.name === 'searchable')?.tags?.map((t) => t.name);
+    expect(names).toContain('added'); // the addition landed
+    expect(names).toContain('seq'); // and the drop did not happen
   });
 
   it('refuses an entity naming a tag no family declares', async () => {

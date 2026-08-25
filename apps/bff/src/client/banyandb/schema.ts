@@ -172,8 +172,11 @@ export function toGroupProto(def: GroupDef): banyandb.common.v1.Group {
       segment_interval: { unit: def.segmentInterval.unit, num: def.segmentInterval.num },
       ttl: { unit: def.ttl.unit, num: def.ttl.num },
       replicas: def.replicas,
-      ...(def.stages ? { stages: def.stages } : {}),
-      ...(def.defaultStages ? { default_stages: def.defaultStages } : {}),
+      // `undefined` means "this definition does not manage tiering", so the
+      // live value is preserved; an explicit `[]` means hot-only and IS sent,
+      // which is the only way to convert a tiered group back.
+      ...(def.stages !== undefined ? { stages: def.stages } : {}),
+      ...(def.defaultStages !== undefined ? { default_stages: def.defaultStages } : {}),
     },
   };
 }

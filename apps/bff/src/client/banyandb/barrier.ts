@@ -48,7 +48,6 @@ export interface BarrierResult {
 // Derived from the generated declarations rather than restated: the schema
 // proto is generated now, so a hand-written copy would be a second source that
 // `proto:check` cannot keep honest.
-type WireKey = banyandb.schema.v1.SchemaKey;
 type WireLaggard = banyandb.schema.v1.NodeLaggard;
 
 function toLaggards(raw: WireLaggard[] | undefined): NodeLaggard[] {
@@ -91,8 +90,8 @@ export async function awaitSchemaApplied(
   if (keys.length === 0) return { applied: true, laggards: [] };
   try {
     const res = await ch.unary<
-      { keys: WireKey[]; min_revisions: string[]; timeout: { seconds: string; nanos: number } },
-      { applied?: boolean; laggards?: WireLaggard[] }
+      banyandb.schema.v1.AwaitSchemaAppliedRequest,
+      banyandb.schema.v1.AwaitSchemaAppliedResponse
     >(
       SVC,
       'AwaitSchemaApplied',
@@ -125,8 +124,8 @@ export async function awaitRevisionApplied(
 ): Promise<BarrierResult> {
   try {
     const res = await ch.unary<
-      { min_revision: string; timeout: { seconds: string; nanos: number } },
-      { applied?: boolean; laggards?: WireLaggard[] }
+      banyandb.schema.v1.AwaitRevisionAppliedRequest,
+      banyandb.schema.v1.AwaitRevisionAppliedResponse
     >(SVC, 'AwaitRevisionApplied', { min_revision: minRevision, timeout: duration(timeoutMs) }, timeoutMs + 5_000);
     return { applied: res.applied === true, laggards: toLaggards(res.laggards) };
   } catch (err) {

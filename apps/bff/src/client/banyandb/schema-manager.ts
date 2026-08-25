@@ -141,8 +141,13 @@ export function compareGroup(def: GroupDef, live: banyandb.common.v1.Group): Dri
   // Tiering is a property of the group and of nothing else, so a change to it
   // is the ONLY signal that a lifecycle edit happened — unreported, the update
   // never runs and the configuration silently stays as it was.
-  check('stages', def.stages ?? [], opts?.stages ?? []);
-  check('defaultStages', def.defaultStages ?? [], opts?.default_stages ?? []);
+  // Only compared when the definition manages them. Comparing `undefined` as
+  // `[]` reported drift that the update then could not act on, because an
+  // unmanaged value is not sent — drift on every boot, forever.
+  if (def.stages !== undefined) check('stages', def.stages, opts?.stages ?? []);
+  if (def.defaultStages !== undefined) {
+    check('defaultStages', def.defaultStages, opts?.default_stages ?? []);
+  }
   return drift;
 }
 
@@ -264,19 +269,57 @@ export function compareMeasure(def: MeasureDef, live: banyandb.database.v1.Measu
  * that another node is running a newer one, and there is no compare-and-set to
  * arbitrate between them.
  */
-function settle(resource: string, drift: Drift[], allowRemovals: boolean): { changed: string[]; act: boolean } {
+function settle(
+  resource: string,
+  drift: Drift[],
+  allowRemovals: boolean,
+): { changed: string[]; act: boolean; union: boolean } {
   const blocked = drift.filter((d) => !d.updatable);
   if (blocked.length > 0) throw new SchemaConflictError(resource, blocked);
   const removals = drift.filter((d) => d.removes);
   if (removals.length > 0 && !allowRemovals) {
+    // The additions still have to land. Sending the definition as written
+    // would perform the removal too, so the update carries the UNION of what
+    // the server holds and what this definition adds: live A+B plus desired
+    // A+C becomes A+B+C, which is the state both an old and a new node can
+    // work with.
     return {
-      changed: drift.map((d) => (d.removes ? `${d.field} (removal NOT applied)` : d.field)),
-      // Additions alongside an unapplied removal are held back too: applying
-      // them means sending the definition, and sending it performs the removal.
-      act: false,
+      changed: drift.map((d) => (d.removes ? `${d.field} (kept)` : d.field)),
+      act: drift.length > removals.length,
+      union: true,
     };
   }
-  return { changed: drift.map((d) => d.field), act: drift.length > 0 };
+  return { changed: drift.map((d) => d.field), act: drift.length > 0, union: false };
+}
+
+/** The definition plus whatever the server holds that it does not mention. */
+function unionFamilies(
+  want: StreamDef['families'],
+  have: banyandb.database.v1.TagFamilySpec[] | undefined,
+): banyandb.database.v1.TagFamilySpec[] {
+  // Typed against the PROTO, not the client's narrowed TagType: a tag already
+  // on the server may carry a type this client would never declare, and
+  // carrying it through unchanged is the whole point.
+  const out: banyandb.database.v1.TagFamilySpec[] = want.map((f) => ({
+    name: f.name,
+    tags: f.tags.map((t) => ({ name: t.name, type: t.type })),
+  }));
+  const byName = new Map(out.map((f) => [f.name, f]));
+  for (const liveFamily of have ?? []) {
+    const target = byName.get(liveFamily.name ?? '');
+    if (!target) {
+      out.push({
+        name: liveFamily.name ?? '',
+        tags: liveFamily.tags ?? [],
+      });
+      continue;
+    }
+    const known = new Set((target.tags ?? []).map((t) => t.name));
+    for (const t of liveFamily.tags ?? []) {
+      if (t.name && !known.has(t.name)) target.tags?.push({ name: t.name, type: t.type });
+    }
+  }
+  return out;
 }
 
 async function applyGroup(ch: BanyanDBChannel, def: GroupDef, allowRemovals: boolean): Promise<SchemaChange> {
@@ -324,11 +367,17 @@ async function applyStream(ch: BanyanDBChannel, def: StreamDef, allowRemovals: b
     live = await registry.get(def.group, def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  const { changed, act } = settle(`stream ${def.group}/${def.name}`, compareStream(def, live), allowRemovals);
+  const { changed, act, union } = settle(
+    `stream ${def.group}/${def.name}`,
+    compareStream(def, live),
+    allowRemovals,
+  );
   if (!act) {
     return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed };
   }
-  return { action: 'updated', modRevision: await registry.update(toStreamProto(def)), changed };
+  const proto = toStreamProto(def);
+  if (union) proto.tag_families = unionFamilies(def.families, live.tag_families);
+  return { action: 'updated', modRevision: await registry.update(proto), changed };
 }
 
 async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef, allowRemovals: boolean): Promise<SchemaChange> {
@@ -353,11 +402,21 @@ async function applyMeasure(ch: BanyanDBChannel, def: MeasureDef, allowRemovals:
     live = await registry.get(def.group, def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  const { changed, act } = settle(`measure ${def.group}/${def.name}`, compareMeasure(def, live), allowRemovals);
+  const { changed, act, union } = settle(
+    `measure ${def.group}/${def.name}`,
+    compareMeasure(def, live),
+    allowRemovals,
+  );
   if (!act) {
     return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed };
   }
-  return { action: 'updated', modRevision: await registry.update(toMeasureProto(def)), changed };
+  const proto = toMeasureProto(def);
+  if (union) {
+    proto.tag_families = unionFamilies(def.families, live.tag_families);
+    const known = new Set(def.fields.map((f) => f.name));
+    proto.fields = [...(proto.fields ?? []), ...(live.fields ?? []).filter((f) => f.name && !known.has(f.name))];
+  }
+  return { action: 'updated', modRevision: await registry.update(proto), changed };
 }
 
 async function applyIndexRule(
