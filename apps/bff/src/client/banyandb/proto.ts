@@ -81,13 +81,17 @@ const OPTIONS: Options = {
 
 /** Files that together cover the surface this client uses. `database` carries
  *  the registry services (`ensureSchema`), `stream`/`measure` the read and
- *  write paths, and `common`/`model` the shared messages both depend on. */
+ *  write paths, `schema` the barrier that makes a freshly created schema safe
+ *  to write to on a cluster, and `common`/`model` the shared messages the rest
+ *  depend on. `banyandb-bydbql.proto` is vendored but deliberately not loaded:
+ *  the query language is not how this client talks to the store. */
 export const PROTO_FILES = [
   'banyandb/v1/banyandb-common.proto',
   'banyandb/v1/banyandb-model.proto',
   'banyandb/v1/banyandb-database.proto',
   'banyandb/v1/banyandb-stream.proto',
   'banyandb/v1/banyandb-measure.proto',
+  'banyandb/v1/banyandb-schema.proto',
 ] as const;
 
 /** Load the wire contract. Synchronous and intended to be called once at

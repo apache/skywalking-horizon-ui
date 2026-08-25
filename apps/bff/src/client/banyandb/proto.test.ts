@@ -46,6 +46,10 @@ describe('vendored BanyanDB proto tree', () => {
       'banyandb.database.v1.MeasureRegistryService',
       'banyandb.database.v1.IndexRuleRegistryService',
       'banyandb.database.v1.IndexRuleBindingRegistryService',
+      // The schema barrier: `ensureSchema` creates objects and then immediately
+      // writes rows, which on a cluster races schema propagation to the data
+      // nodes. Its absence would force a poll-until-visible workaround.
+      'banyandb.schema.v1.SchemaBarrierService',
     ]) {
       expect(def[svc], `${svc} missing from the vendored tree`).toBeDefined();
     }
@@ -70,6 +74,13 @@ describe('vendored BanyanDB proto tree', () => {
 
     const ok: banyandb.model.v1.Status = 'STATUS_SUCCEED';
     expect(ok).toBe('STATUS_SUCCEED');
+
+    // Only present from BanyanDB 0.11.0. Pinned deliberately: a write rejected
+    // for schema propagation is TRANSIENT, and the audit service drops a failed
+    // batch rather than retrying it — so classifying this as permanent would
+    // discard sign-in records rather than defer them.
+    const notApplied: banyandb.model.v1.Status = 'STATUS_SCHEMA_NOT_APPLIED';
+    expect(notApplied).toBe('STATUS_SCHEMA_NOT_APPLIED');
   });
 
   it('keeps field names snake_case rather than camel-casing the wire', () => {

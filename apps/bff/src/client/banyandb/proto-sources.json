@@ -5,11 +5,18 @@
     {
       "name": "skywalking-banyandb-client-proto",
       "repo": "https://github.com/apache/skywalking-banyandb-client-proto.git",
-      "commit": "b1c87663e57796402736a5f52dd3b4ca8d981e89",
-      "pinned": "2025-12-21",
+      "commit": "8fb44091247ebd6d2c0c85d5f3371bd51e0e4afa",
+      "pinned": "2026-07-14",
       "license": "Apache-2.0",
-      "copy": [{ "from": "proto/banyandb/v1", "to": "banyandb/v1", "match": "\\.proto$" }],
-      "note": "Predates BanyanDB 0.11.0: carries replicas, sharding_key and mod_revision, but no SchemaBarrierService, no STATUS_SCHEMA_NOT_APPLIED and no created_at."
+      "copy": [
+        {
+          "from": "proto/banyandb/v1",
+          "to": "banyandb/v1",
+          "match": "\\.proto$"
+        }
+      ],
+      "note": "Pinned to a commit id on main, which is synced from the BanyanDB server. Carries the 0.11.0 surface: SchemaBarrierService, STATUS_SCHEMA_NOT_APPLIED, created_at, plus mod_revision, sharding_key and replicas. The Java client SDK is deprecated (frozen at BanyanDB 0.9.0) and upstream directs consumers to implement locally against these definitions, so this repo — not that SDK — is the contract's home.",
+      "track": "main — this commit id is main's tip as of the pinned date. Re-pin to the commit id of the BanyanDB 0.11 release when the repo publishes one; until then main is the only ref carrying the 0.11 contract."
     },
     {
       "name": "protoc-gen-validate",
@@ -17,7 +24,13 @@
       "commit": "32c2415389a3538082507ae537e7edd9578c64ed",
       "pinned": "v1.0.4",
       "license": "Apache-2.0",
-      "copy": [{ "from": "validate", "to": "validate", "match": "^validate\\.proto$" }],
+      "copy": [
+        {
+          "from": "validate",
+          "to": "validate",
+          "match": "^validate\\.proto$"
+        }
+      ],
       "note": "Every banyandb .proto does `import \"validate/validate.proto\"`, and the BanyanDB proto repo does not vendor it — without this the tree does not load at all. google/protobuf/* needs no entry: @grpc/proto-loader carries the well-known types."
     }
   ]

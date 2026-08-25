@@ -43,11 +43,40 @@ export namespace banyandb {
         default_stages?: string[];
         replicas?: number;
       }
+      export type PipelineEvent = 'PIPELINE_EVENT_UNSPECIFIED' | 'PIPELINE_EVENT_MERGE' | 'PIPELINE_EVENT_FINALIZE';
+      export interface SamplerPlugin {
+        path?: string;
+        symbol?: string;
+        abi_version?: number;
+        config?: Record<string, unknown>;
+      }
+      export interface Plugin {
+        name?: string;
+        sampler?: banyandb.common.v1.SamplerPlugin;
+        kind?: 'sampler';
+      }
+      export interface StageRule {
+        stage?: string;
+        plugins?: banyandb.common.v1.Plugin[];
+      }
+      export interface TracePipelineConfig {
+        enabled?: boolean;
+        plugins?: banyandb.common.v1.Plugin[];
+        merge_grace?: google.protobuf.Duration;
+        finalize_grace?: google.protobuf.Duration;
+        stages?: banyandb.common.v1.StageRule[];
+        schema_names?: string[];
+        schema_name_regex?: string;
+        enabled_events?: banyandb.common.v1.PipelineEvent[];
+      }
       export interface Group {
         metadata?: banyandb.common.v1.Metadata;
         catalog?: banyandb.common.v1.Catalog;
         resource_opts?: banyandb.common.v1.ResourceOpts;
         updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
+        pipeline?: banyandb.common.v1.TracePipelineConfig;
+        _pipeline?: 'pipeline';
       }
       export interface APIVersion {
         version?: string;
@@ -172,11 +201,32 @@ export namespace banyandb {
         begin?: google.protobuf.Timestamp;
         end?: google.protobuf.Timestamp;
       }
-      export type Status = 'STATUS_UNSPECIFIED' | 'STATUS_SUCCEED' | 'STATUS_INVALID_TIMESTAMP' | 'STATUS_NOT_FOUND' | 'STATUS_EXPIRED_SCHEMA' | 'STATUS_INTERNAL_ERROR' | 'STATUS_DISK_FULL' | 'STATUS_VERSION_UNSUPPORTED' | 'STATUS_VERSION_DEPRECATED' | 'STATUS_METADATA_REQUIRED';
+      export type Status = 'STATUS_UNSPECIFIED' | 'STATUS_SUCCEED' | 'STATUS_INVALID_TIMESTAMP' | 'STATUS_NOT_FOUND' | 'STATUS_EXPIRED_SCHEMA' | 'STATUS_INTERNAL_ERROR' | 'STATUS_DISK_FULL' | 'STATUS_VERSION_UNSUPPORTED' | 'STATUS_VERSION_DEPRECATED' | 'STATUS_METADATA_REQUIRED' | 'STATUS_SCHEMA_NOT_APPLIED';
     }
   }
   export namespace database {
     export namespace v1 {
+      export type Role = 'ROLE_UNSPECIFIED' | 'ROLE_META' | 'ROLE_DATA' | 'ROLE_LIAISON';
+      export interface Node {
+        metadata?: banyandb.common.v1.Metadata;
+        roles?: banyandb.database.v1.Role[];
+        grpc_address?: string;
+        http_address?: string;
+        created_at?: google.protobuf.Timestamp;
+        labels?: Partial<Record<string, string>>;
+        property_repair_gossip_grpc_address?: string;
+        property_schema_grpc_address?: string;
+        property_schema_gossip_grpc_address?: string;
+      }
+      export interface Shard {
+        id?: string;
+        metadata?: banyandb.common.v1.Metadata;
+        catalog?: banyandb.common.v1.Catalog;
+        node?: string;
+        total?: number;
+        updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
+      }
       export type TagType = 'TAG_TYPE_UNSPECIFIED' | 'TAG_TYPE_STRING' | 'TAG_TYPE_INT' | 'TAG_TYPE_STRING_ARRAY' | 'TAG_TYPE_INT_ARRAY' | 'TAG_TYPE_DATA_BINARY' | 'TAG_TYPE_TIMESTAMP';
       export interface TagFamilySpec {
         name?: string;
@@ -191,6 +241,7 @@ export namespace banyandb {
         tag_families?: banyandb.database.v1.TagFamilySpec[];
         entity?: banyandb.database.v1.Entity;
         updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface Entity {
         tag_names?: string[];
@@ -216,6 +267,7 @@ export namespace banyandb {
         updated_at?: google.protobuf.Timestamp;
         index_mode?: boolean;
         sharding_key?: banyandb.database.v1.ShardingKey;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface TopNAggregation {
         metadata?: banyandb.common.v1.Metadata;
@@ -227,6 +279,7 @@ export namespace banyandb {
         counters_number?: number;
         lru_size?: number;
         updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface IndexRule {
         metadata?: banyandb.common.v1.Metadata;
@@ -235,6 +288,7 @@ export namespace banyandb {
         updated_at?: google.protobuf.Timestamp;
         analyzer?: string;
         no_sort?: boolean;
+        created_at?: google.protobuf.Timestamp;
       }
       export namespace IndexRule {
         export type Type = 'TYPE_UNSPECIFIED' | 'TYPE_INVERTED' | 'TYPE_SKIPPING' | 'TYPE_TREE';
@@ -250,11 +304,13 @@ export namespace banyandb {
         begin_at?: google.protobuf.Timestamp;
         expire_at?: google.protobuf.Timestamp;
         updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface Property {
         metadata?: banyandb.common.v1.Metadata;
         tags?: banyandb.database.v1.TagSpec[];
         updated_at?: google.protobuf.Timestamp;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface TraceTagSpec {
         name?: string;
@@ -267,6 +323,7 @@ export namespace banyandb {
         timestamp_tag_name?: string;
         updated_at?: google.protobuf.Timestamp;
         span_id_tag_name?: string;
+        created_at?: google.protobuf.Timestamp;
       }
       export interface StreamRegistryServiceCreateRequest {
         stream?: banyandb.database.v1.Stream;
@@ -285,6 +342,8 @@ export namespace banyandb {
       }
       export interface StreamRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface StreamRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -309,17 +368,21 @@ export namespace banyandb {
         index_rule_binding?: banyandb.database.v1.IndexRuleBinding;
       }
       export interface IndexRuleBindingRegistryServiceCreateResponse {
+        mod_revision?: string;
       }
       export interface IndexRuleBindingRegistryServiceUpdateRequest {
         index_rule_binding?: banyandb.database.v1.IndexRuleBinding;
       }
       export interface IndexRuleBindingRegistryServiceUpdateResponse {
+        mod_revision?: string;
       }
       export interface IndexRuleBindingRegistryServiceDeleteRequest {
         metadata?: banyandb.common.v1.Metadata;
       }
       export interface IndexRuleBindingRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface IndexRuleBindingRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -344,17 +407,21 @@ export namespace banyandb {
         index_rule?: banyandb.database.v1.IndexRule;
       }
       export interface IndexRuleRegistryServiceCreateResponse {
+        mod_revision?: string;
       }
       export interface IndexRuleRegistryServiceUpdateRequest {
         index_rule?: banyandb.database.v1.IndexRule;
       }
       export interface IndexRuleRegistryServiceUpdateResponse {
+        mod_revision?: string;
       }
       export interface IndexRuleRegistryServiceDeleteRequest {
         metadata?: banyandb.common.v1.Metadata;
       }
       export interface IndexRuleRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface IndexRuleRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -392,6 +459,8 @@ export namespace banyandb {
       }
       export interface MeasureRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface MeasureRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -416,17 +485,43 @@ export namespace banyandb {
         group?: banyandb.common.v1.Group;
       }
       export interface GroupRegistryServiceCreateResponse {
+        mod_revision?: string;
       }
       export interface GroupRegistryServiceUpdateRequest {
         group?: banyandb.common.v1.Group;
       }
       export interface GroupRegistryServiceUpdateResponse {
+        mod_revision?: string;
       }
       export interface GroupRegistryServiceDeleteRequest {
         group?: string;
+        dry_run?: boolean;
+        force?: boolean;
+        data_only?: boolean;
       }
       export interface GroupRegistryServiceDeleteResponse {
-        deleted?: boolean;
+        schema_info?: banyandb.database.v1.SchemaInfo;
+        delete_time?: string;
+        mod_revision?: string;
+      }
+      export interface GroupDeletionTask {
+        current_phase?: banyandb.database.v1.GroupDeletionTask.Phase;
+        total_counts?: Partial<Record<string, number>>;
+        deleted_counts?: Partial<Record<string, number>>;
+        total_data_size_bytes?: string;
+        deleted_data_size_bytes?: string;
+        message?: string;
+        created_at?: google.protobuf.Timestamp;
+        updated_at?: google.protobuf.Timestamp;
+      }
+      export namespace GroupDeletionTask {
+        export type Phase = 'PHASE_UNSPECIFIED' | 'PHASE_PENDING' | 'PHASE_IN_PROGRESS' | 'PHASE_COMPLETED' | 'PHASE_FAILED';
+      }
+      export interface GroupRegistryServiceQueryRequest {
+        group?: string;
+      }
+      export interface GroupRegistryServiceQueryResponse {
+        task?: banyandb.database.v1.GroupDeletionTask;
       }
       export interface GroupRegistryServiceGetRequest {
         group?: string;
@@ -445,21 +540,84 @@ export namespace banyandb {
       export interface GroupRegistryServiceExistResponse {
         has_group?: boolean;
       }
+      export interface GroupRegistryServiceInspectRequest {
+        group?: string;
+      }
+      export interface GroupRegistryServiceInspectResponse {
+        group?: banyandb.common.v1.Group;
+        schema_info?: banyandb.database.v1.SchemaInfo;
+        data_info?: banyandb.database.v1.DataInfo[];
+        liaison_info?: banyandb.database.v1.LiaisonInfo[];
+      }
+      export interface SchemaInfo {
+        streams?: string[];
+        measures?: string[];
+        traces?: string[];
+        properties?: string[];
+        index_rules?: string[];
+        index_rule_bindings?: string[];
+        topn_aggregations?: string[];
+      }
+      export interface DataInfo {
+        node?: banyandb.database.v1.Node;
+        segment_info?: banyandb.database.v1.SegmentInfo[];
+        data_size_bytes?: string;
+      }
+      export interface SegmentInfo {
+        segment_id?: string;
+        time_range_start?: string;
+        time_range_end?: string;
+        shard_info?: banyandb.database.v1.ShardInfo[];
+        series_index_info?: banyandb.database.v1.SeriesIndexInfo;
+      }
+      export interface ShardInfo {
+        shard_id?: number;
+        data_count?: string;
+        data_size_bytes?: string;
+        part_count?: string;
+        inverted_index_info?: banyandb.database.v1.InvertedIndexInfo;
+        sidx_info?: banyandb.database.v1.SIDXInfo;
+        file_part_count?: string;
+      }
+      export interface SeriesIndexInfo {
+        data_count?: string;
+        data_size_bytes?: string;
+      }
+      export interface InvertedIndexInfo {
+        data_count?: string;
+        data_size_bytes?: string;
+      }
+      export interface SIDXInfo {
+        data_count?: string;
+        data_size_bytes?: string;
+        part_count?: string;
+      }
+      export interface LiaisonInfo {
+        pending_write_data_count?: string;
+        pending_sync_part_count?: string;
+        pending_sync_data_size_bytes?: string;
+        pending_handoff_part_count?: string;
+        pending_handoff_data_size_bytes?: string;
+      }
       export interface TopNAggregationRegistryServiceCreateRequest {
         top_n_aggregation?: banyandb.database.v1.TopNAggregation;
       }
       export interface TopNAggregationRegistryServiceCreateResponse {
+        mod_revision?: string;
       }
       export interface TopNAggregationRegistryServiceUpdateRequest {
         top_n_aggregation?: banyandb.database.v1.TopNAggregation;
       }
       export interface TopNAggregationRegistryServiceUpdateResponse {
+        mod_revision?: string;
       }
       export interface TopNAggregationRegistryServiceDeleteRequest {
         metadata?: banyandb.common.v1.Metadata;
       }
       export interface TopNAggregationRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface TopNAggregationRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -514,6 +672,8 @@ export namespace banyandb {
       }
       export interface PropertyRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface PropertyRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -551,6 +711,8 @@ export namespace banyandb {
       }
       export interface TraceRegistryServiceDeleteResponse {
         deleted?: boolean;
+        delete_time?: string;
+        mod_revision?: string;
       }
       export interface TraceRegistryServiceGetRequest {
         metadata?: banyandb.common.v1.Metadata;
@@ -571,6 +733,21 @@ export namespace banyandb {
       export interface TraceRegistryServiceListResponse {
         trace?: banyandb.database.v1.Trace[];
       }
+      export interface GetCurrentNodeRequest {
+      }
+      export interface GetCurrentNodeResponse {
+        node?: banyandb.database.v1.Node;
+      }
+      export interface GetClusterStateRequest {
+      }
+      export interface RouteTable {
+        registered?: banyandb.database.v1.Node[];
+        active?: string[];
+        evictable?: string[];
+      }
+      export interface GetClusterStateResponse {
+        route_tables?: Partial<Record<string, banyandb.database.v1.RouteTable>>;
+      }
     }
   }
   export namespace stream {
@@ -583,6 +760,7 @@ export namespace banyandb {
       export interface QueryResponse {
         elements?: banyandb.stream.v1.Element[];
         trace?: banyandb.common.v1.Trace;
+        group_statuses?: Partial<Record<string, banyandb.model.v1.Status>>;
       }
       export interface QueryRequest {
         groups?: string[];
@@ -595,6 +773,7 @@ export namespace banyandb {
         projection?: banyandb.model.v1.TagProjection;
         trace?: boolean;
         stages?: string[];
+        group_mod_revisions?: Partial<Record<string, string>>;
       }
       export interface TagFamilySpec {
         name?: string;
@@ -636,6 +815,20 @@ export namespace banyandb {
       export interface QueryResponse {
         data_points?: banyandb.measure.v1.DataPoint[];
         trace?: banyandb.common.v1.Trace;
+        group_statuses?: Partial<Record<string, banyandb.model.v1.Status>>;
+      }
+      export interface InternalDataPoint {
+        data_point?: banyandb.measure.v1.DataPoint;
+        shard_id?: number;
+      }
+      export interface InternalQueryRequest {
+        request?: banyandb.measure.v1.QueryRequest;
+        agg_return_partial?: boolean;
+      }
+      export interface InternalQueryResponse {
+        data_points?: banyandb.measure.v1.InternalDataPoint[];
+        trace?: banyandb.common.v1.Trace;
+        raw_frame_body?: Buffer;
       }
       export interface QueryRequest {
         groups?: string[];
@@ -653,6 +846,7 @@ export namespace banyandb {
         trace?: boolean;
         stages?: string[];
         rewrite_agg_top_n_result?: boolean;
+        group_mod_revisions?: Partial<Record<string, string>>;
       }
       export namespace QueryRequest {
         export interface FieldProjection {
@@ -680,6 +874,8 @@ export namespace banyandb {
         export interface Item {
           entity?: banyandb.model.v1.Tag[];
           value?: banyandb.model.v1.FieldValue;
+          version?: string;
+          timestamp?: google.protobuf.Timestamp;
         }
       }
       export interface TopNResponse {
@@ -727,6 +923,10 @@ export namespace banyandb {
 }
 export namespace google {
   export namespace protobuf {
+      export interface Duration {
+        seconds?: string;
+        nanos?: number;
+      }
       export type NullValue = 'NULL_VALUE';
       export interface Timestamp {
         seconds?: string;

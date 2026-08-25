@@ -51,6 +51,38 @@ message QueryResponse {
   repeated DataPoint data_points = 1;
   // trace contains the trace information of the query when trace is enabled
   common.v1.Trace trace = 2;
+  // group_statuses reports the per-group gate outcome. Populated even when the query
+  // short-circuits because any group failed the gate.
+  map<string, model.v1.Status> group_statuses = 50;
+}
+
+// InternalDataPoint wraps DataPoint with shard information for internal use.
+// Used in distributed query to distinguish data from different shards.
+message InternalDataPoint {
+  // The actual data point
+  DataPoint data_point = 1;
+  // The shard id where this data point comes from
+  uint32 shard_id = 2;
+}
+
+// InternalQueryRequest is the internal request for distributed query.
+// Wraps QueryRequest for extensibility.
+message InternalQueryRequest {
+  // The actual query request
+  QueryRequest request = 1;
+  // agg_return_partial when true asks data nodes to return aggregation partials (for reduce at liaison)
+  bool agg_return_partial = 2;
+}
+
+// InternalQueryResponse is the internal response for distributed query.
+// Contains shard information for proper deduplication.
+message InternalQueryResponse {
+  // data_points with shard information
+  repeated InternalDataPoint data_points = 1;
+  // trace contains the trace information of the query when trace is enabled
+  common.v1.Trace trace = 2;
+  // raw_frame_body contains the vectorized raw frame body when raw wire mode is enabled
+  bytes raw_frame_body = 3;
 }
 
 // QueryRequest is the request contract for query.
@@ -111,14 +143,20 @@ message QueryRequest {
   bool trace = 13;
   // stages is used to specify the stage of the data points in the lifecycle
   repeated string stages = 14;
-  // rewriteAggTopNResult will rewrite agg result to raw data
+  // rewrite_agg_top_n_result will rewrite agg result to raw data
   bool rewrite_agg_top_n_result = 15;
+  // group_mod_revisions gates the query per group. Keys match entries in `groups`;
+  // values are the client's known mod_revision for that group. Empty map or value 0
+  // means "don't gate". A group not listed in the map is not gated.
+  map<string, int64> group_mod_revisions = 50;
 }
 
 
 
 service MeasureService {
   rpc Query(QueryRequest) returns (QueryResponse);
+  rpc InternalQuery(InternalQueryRequest) returns (InternalQueryResponse);
+
   rpc Write(stream WriteRequest) returns (stream WriteResponse);
   rpc TopN(TopNRequest) returns (TopNResponse);
 }
@@ -130,6 +168,8 @@ message TopNList {
   message Item {
     repeated model.v1.Tag entity = 1;
     model.v1.FieldValue value = 2;
+    int64 version = 3;
+    google.protobuf.Timestamp timestamp = 4;
   }
   // items contains top-n items in a list
   repeated Item items = 2;
