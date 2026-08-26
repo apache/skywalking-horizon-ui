@@ -54,6 +54,7 @@ function labelFor(path: string): string {
     case 'trace': return t('Traces');
     case 'zipkin-trace': return t('OTel & Zipkin Traces');
     case 'logs': return t('Logs');
+    case 'evaluation-record': return t('View evaluation records');
     case 'browser-errors': return t('Browser Logs');
     case 'pod-logs': return t('Pod Logs');
     case 'trace-profiling': return t('Trace Profiling');

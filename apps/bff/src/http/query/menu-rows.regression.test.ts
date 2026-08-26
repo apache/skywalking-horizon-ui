@@ -59,6 +59,7 @@ function oracleSidebarRows(L: Legacy): string[] {
   if (L.caps.traces) rows.push('trace');
   if (L.caps.traces && L.traces?.source === 'both') rows.push('zipkin-trace');
   if (L.caps.logs) rows.push('logs');
+  if (L.caps.evaluationRecord) rows.push('evaluation-record');
   if (L.caps.browserErrors) rows.push('browser-errors');
   if (L.caps.podLogs) rows.push('pod-logs');
   if (L.caps.traceProfiling) rows.push('trace-profiling');
@@ -82,6 +83,7 @@ function oracleFirstTab(L: Legacy): string {
   if (L.caps.endpointDependency) return 'dependency';
   if (L.caps.traces) return 'trace';
   if (L.caps.logs) return 'logs';
+  if (L.caps.evaluationRecord) return 'evaluation-record';
   if (L.caps.browserErrors) return 'browser-errors';
   if (L.caps.podLogs) return 'pod-logs';
   if (L.caps.traceProfiling) return 'trace-profiling';
@@ -100,7 +102,7 @@ function oracleSingleFeature(L: Legacy): boolean {
   if (hasInstances || hasEndpoints) return false;
   if (L.caps.serviceMap || L.caps.instanceTopology || L.caps.processTopology) return false;
   const c = L.caps;
-  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
+  if (c.traces || c.logs || c.evaluationRecord || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
   if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
   return true;
 }
@@ -191,8 +193,8 @@ describe('default order vs. the component list', () => {
     return resolveLayerMenuRows({ caps, slots: {}, traces: t.traces }).map((r) => r.path);
   }
 
-  it('covers all 16 components', () => {
-    expect(COMPONENT_KEYS).toHaveLength(16);
+  it('covers all 17 components', () => {
+    expect(COMPONENT_KEYS).toHaveLength(17);
   });
 
   it('gives every component at least one row', () => {
@@ -206,7 +208,7 @@ describe('default order vs. the component list', () => {
   });
 
   it('is one row per component, plus the second trace row', () => {
-    // 16 components → 17 rows: `traces` is the only one that resolves to
+    // 17 components → 18 rows: `traces` is the only one that resolves to
     // two (native and Zipkin span formats get their own tabs).
     expect(DEFAULT_LAYER_ROW_ORDER).toHaveLength(COMPONENT_KEYS.length + 1);
     const multi = COMPONENT_KEYS.filter((k) => rowsForComponent(k).length > 1);
