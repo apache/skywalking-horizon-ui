@@ -48,6 +48,17 @@ It records the **sign-in**, and nothing about the systems around it: no OAP stat
 
 ## Turning it on
 
+Recording is off until you name a place to keep the records. There are two, and they store the same thing — the page, the filters and the summary are identical on either:
+
+| | when it fits |
+|---|---|
+| **PostgreSQL** | You already run one, or you want the audit log somewhere entirely separate from the observability data |
+| **BanyanDB** | You would rather not run a second database — SkyWalking already ships one, and Horizon can keep the records in it, in groups of its own |
+
+Whichever you pick, **the whole `audit` block takes effect at startup**: editing it in a live configuration file does not turn the feature on, off, or repoint it. Restart Horizon.
+
+### Storing the records in PostgreSQL
+
 ```yaml
 audit:
   enabled: true
@@ -65,8 +76,6 @@ The connection settings are a secret, so supply them through the environment var
 }
 ```
 
-**The whole `audit` block takes effect at startup.** Editing it in a live configuration file does not turn the feature on, off, or repoint it — restart Horizon.
-
 Horizon creates its own tables on first connection. If the account may not create tables, set `postgres.autoMigrate: false` and have a DBA create them first: start Horizon once with a privileged account against a scratch database and copy the `CREATE TABLE` / `CREATE INDEX` statements it applies, or grant `CREATE` on the schema for the first boot only.
 
 ### TLS is required away from loopback
@@ -81,12 +90,50 @@ If the database is reached over a network you control — a Postgres in the same
 
 It is off by default and has to be named, because `pg` will connect in cleartext without complaint and the records are worth protecting. Turning it on logs a warning naming the host at every start, so nobody inherits the setting without being told.
 
+### Storing the records in BanyanDB
+
+```yaml
+audit:
+  enabled: true
+  provider: banyandb
+  banyandb: ${HORIZON_AUDIT_BANYANDB:null}
+```
+
+```json
+{
+  "address": "banyandb.internal:17912",
+  "tls": true,
+  "caFile": "/etc/horizon/banyandb-ca.crt",
+  "retentionDays": 90
+}
+```
+
+`address` is the **gRPC** address of a liaison node — port 17912 by default, not the 17913 the HTTP interface uses.
+
+**Point it at whichever BanyanDB suits you, including the one SkyWalking already stores its telemetry in.** Horizon keeps the records in groups it owns, named `horizon_audit` and `horizon_audit_metrics`, so nothing it writes can collide with OAP's own data. If two Horizon deployments share one BanyanDB, give each a `namespace`: it prefixes both group names, and without it the two write into one audit log without either being told.
+
+Retention is the group's lifetime rather than a job Horizon runs, so nothing sweeps and there is no interval to tune. BanyanDB drops whole segments, which means a record lives at least `retentionDays` and can outlive it by up to a segment.
+
+**The groups are laid out for you, and the layout is not configurable.** They are created with a single shard, which is not a limitation worth tuning: a sign-in is a rare event — a fifty-person team writes on the order of a hundred rows a *day* — and one shard serves that without noticing. It is also the safe choice, because BanyanDB fixes a group's shard count when the group is created and does not move data if it later changes: raising it would route new records away from the ones already stored, and lowering it would strand whole shards of them. **Replication is yours to decide, and Horizon leaves it alone.** It does not set a replica count, so groups it creates take BanyanDB's own default of none — but if you want the audit log replicated, create the two groups yourself with the replica count you want before pointing Horizon at them, and it will keep them that way rather than flattening them on the next start. Shard count is the one thing it will not adopt: a group whose shard count differs is reported and left as it is, never rewritten.
+
+Horizon owns this schema and maintains it for you: at every start it checks all seven pieces — both groups with their retention, shards and replicas, the log stream, the two statistics, and the index that makes the Auth Channel filter work — and creates or updates whatever does not match. There is nothing to apply by hand and no switch to turn it off, because a half-applied schema is the one state that fails invisibly: records write successfully and then cannot be read back. The same check runs when Horizon recovers from losing the connection, so a group dropped underneath it is rebuilt rather than reported.
+
+### TLS away from loopback, here too
+
+The same rule as PostgreSQL, for the same reason: an address that is not this machine needs `tls: true`, and Horizon refuses to start the feature otherwise. Use `caFile` for a private certificate authority. To accept an unencrypted connection deliberately — a BanyanDB on a network you control, in the same Kubernetes namespace — say so:
+
+```json
+{ "address": "banyandb:17912", "allowCleartext": true }
+```
+
+That logs a warning naming the host at every start, so nobody inherits the setting without being told.
+
 ### Settings
 
 | | default | |
 |---|---|---|
 | `enabled` | `false` | |
-| `provider` | `none` | `none` or `postgres` |
+| `provider` | `none` | `none`, `postgres` or `banyandb` |
 | `maxRowsPerHour` | `1000` | Per Horizon process, per hour. A safety valve, not a throttle |
 | `eventBatchRows` | `50` | Sign-ins are written in batches; whichever trigger comes first |
 | `eventBatchSeconds` | `15` | |
@@ -98,6 +145,15 @@ It is off by default and has to be named, because `pg` will connect in cleartext
 | `postgres.autoMigrate` | `true` | Whether Horizon creates its own tables |
 | `postgres.connectionTimeoutMs` | `5000` | Never on a sign-in — the login path performs no database work at all |
 | `postgres.statementTimeoutMs` | `1000` | Never on a sign-in, but it does bound the audit page's own queries — raise it if a wide range times out |
+| `banyandb.address` | | `host:port` of a liaison's gRPC port |
+| `banyandb.namespace` | | Prefixes the group names. Required when two Horizon deployments share one BanyanDB |
+| `banyandb.retentionDays` | `90` | How long records are kept, as the groups' lifetime |
+| `banyandb.username` | | Sent as gRPC metadata, when the server requires a credential |
+| `banyandb.password` | | With `username`. Redacted from the logs |
+| `banyandb.tls` | `false` | Required for any address that is not loopback |
+| `banyandb.caFile` | | For a certificate from a private authority |
+| `banyandb.allowCleartext` | `false` | Accept an unencrypted connection to a non-loopback host |
+| `banyandb.deadlineMs` | `10000` | Bounds Horizon's own calls to BanyanDB. Never on a sign-in |
 
 **A database can never delay a sign-in.** Sign-ins are collected in memory and written in the background in batches, so the login path never waits on the database at all — an unreachable database is invisible to someone signing in. What is held is only what has arrived since the last write: at most `eventBatchRows` rows or `eventBatchSeconds` seconds, whichever comes first, and an abrupt crash loses that much.
 
@@ -121,7 +177,7 @@ One other count is kept but **not shown on the page**: writes whose outcome coul
 
 **Filters** are **Time range**, **Auth Channel** and **Login ID** — the same three the list is headed with. `Login ID` matches **exactly** — it names one principal, so a partial name finds nothing. There is deliberately nothing else: this page is read, not queried, and every extra predicate is an index to carry and another way to ask the database something slow. The other fields on a row are for reading once you have found it.
 
-The list pages 50 at a time and reports only whether there is more, never a total. Selecting a row expands the investigation fields.
+The list pages 50 at a time and reports only whether there is more, never a total — the same arrangement OAP uses for every list it serves, which returns no count either. Paging is bounded at 500 pages deep; if you are that far in, narrow the time range instead. Selecting a row expands the investigation fields.
 
 ### Token usage
 
@@ -188,7 +244,7 @@ What happens instead:
 - one `error` line when the connection is first lost, naming a sanitised cause, and one `info` line when it comes back, with how long it was down and how many records could not be confirmed as written. Not one line per sign-in — a long outage would bury the cause it is trying to surface;
 - the page renders an explicit "cannot be reached" state rather than an empty table, because an empty table would claim there is nothing to show when there is;
 - sign-ins during the outage are **not recorded**. Batches that cannot be written are dropped rather than held, so memory does not grow for the length of the outage and nothing is replayed when the database returns. How many went unrecorded is reported in the recovery log line, not on the page;
-- hourly statistics behave the same way: each row totals a closed interval that the next one supersedes, so a failed interval is dropped and the next is written normally. An hour of outage costs that hour's counts.
+- hourly statistics come back on their own. Unlike the sign-in list, each write carries a running total for the whole hour rather than what happened since the last one, so the first write after the database returns restores the counts the outage would otherwise have cost — as long as the hour is still open. An outage spanning a whole hour still loses that hour.
 
 ## Multiple Horizon replicas
 

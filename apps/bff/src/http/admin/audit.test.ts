@@ -18,10 +18,9 @@
 /**
  * What the audit routes accept, at the edge.
  *
- * The cursor cases exist because a validator can FAIL rather than reject: zod
- * runs every check in a chain, so a refine placed after a `.regex()` is still
- * handed the string the regex just rejected. `BigInt('def')` throws there, and
- * a throw out of `safeParse` is a 500 for what is plainly a bad request.
+ * The schemas are strict, so the interesting cases are the ones that must be
+ * REFUSED rather than quietly dropped — a parameter this route no longer takes
+ * has to fail, or whoever sent it goes on believing it worked.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -56,39 +55,41 @@ async function get(url: string) {
 }
 
 describe('the audit list cursor', () => {
-  it.each([
-    ['abc:def', 'a shape the regex rejects, whose id half is not a number'],
-    ['not-a-cursor', 'no separator at all'],
-    ['1:2:3', 'too many halves'],
-    ['', 'empty'],
-  ])('answers 400 rather than failing on %s (%s)', async (cursor) => {
-    const res = await get(`/api/admin/audit?cursor=${encodeURIComponent(cursor)}`);
-
-    // 400, never 500: the distinction is the whole point — a malformed
-    // parameter is the caller's fault and must not read as a server fault.
-    expect(res.statusCode).toBe(400);
-  });
-
-  it('refuses an id past what a signed bigint can hold', async () => {
-    const res = await get('/api/admin/audit?cursor=1700000000000:9999999999999999999');
-
-    expect(res.statusCode).toBe(400);
-  });
-
-  it('accepts an ordinary cursor', async () => {
+  /** The list is paged the way OAP pages every list it serves — by page
+   *  number — so a cursor is not merely unused, it must not be honoured. A
+   *  parameter that is silently ignored reads to a caller as one that worked. */
+  it('is refused, not ignored', async () => {
     const res = await get('/api/admin/audit?cursor=1700000000000:42');
 
+    // 400, because a parameter that is silently dropped reads to whoever sent
+    // it as one that was honoured — and a resume position that appears to work
+    // while doing nothing pages the same rows forever.
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('is gone from the reply as well as the request', async () => {
+    const res = await get('/api/admin/audit');
+
     expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).not.toHaveProperty('nextCursor');
   });
 });
 
 describe('the audit list page number', () => {
-  /** Keyset paging makes depth free, so the only rule is that it stays a
-   *  number the rest of the code can do arithmetic on. */
-  it('accepts a page far beyond any previous cap', async () => {
-    const res = await get('/api/admin/audit?pageNum=250000');
+  it('accepts a page within the depth bound', async () => {
+    const res = await get('/api/admin/audit?pageNum=500');
 
     expect(res.statusCode).toBe(200);
+  });
+
+  /** An offset is paid for by the backend — every skipped row is read and
+   *  discarded — so depth is bounded rather than free. Refused at the edge
+   *  rather than clamped: a clamp would answer page 1 to someone who asked
+   *  for page 250 000 and say nothing about it. */
+  it('refuses a page past the depth bound', async () => {
+    const res = await get('/api/admin/audit?pageNum=501');
+
+    expect(res.statusCode).toBe(400);
   });
 
   it.each(['0', '-1', 'abc', '1.5'])('refuses %s', async (pageNum) => {

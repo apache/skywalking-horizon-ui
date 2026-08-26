@@ -138,27 +138,16 @@ export interface AuditEntry extends AuditFields, StoreStamp {
   clientIp?: string;
 }
 
+/** A page of audit rows. Exactly `PageResult`, which every other paged screen
+ *  returns — the audit has nothing of its own to add to it. */
+export type AuditPageResult = PageResult<AuditEntry>;
+
 /**
  * Time range, how someone signed in, and who. Deliberately nothing else: a
  * filter set that mirrors every column turns a page an operator reads into a
  * query builder, and each extra predicate is an index to carry and a way to
  * ask the database something expensive.
  */
-/** A position in the `(at DESC, id DESC)` ordering. `id` is a bigint, carried
- *  as a string because it does not fit a JS number. */
-export interface AuditCursor {
-  at: number;
-  id: string;
-}
-
-/** A page of audit rows, plus where to resume. `PageResult` is shared with
- *  every other paged screen, so the cursor rides alongside rather than in it. */
-export interface AuditPageResult extends PageResult<AuditEntry> {
-  /** The position to pass as the next request's `cursor`. Absent on the last
-   *  page — its presence IS `hasNext`. */
-  nextCursor?: AuditCursor;
-}
-
 export interface AuditFilter {
   /** epoch ms; `from` inclusive, `to` exclusive. */
   from?: number;
@@ -178,17 +167,13 @@ export interface AuditFilter {
    */
   username?: string;
   /**
-   * Where the previous page stopped: `(at, id)` of its last row.
+   * 1-based. With `pageSize` it IS the position: a store skips
+   * `pageSize * (pageNum - 1)` rows of the newest-first ordering.
    *
-   * Keyset, not OFFSET. An audit table is append-heavy at exactly the end the
-   * page reads from, so an offset counts a moving target: rows written between
-   * two page requests shift everything down, and the reader sees a record
-   * twice or never. `(at, id)` names a POSITION, so what arrives after it
-   * changes nothing about where page two begins.
+   * The same arrangement OAP uses for every list it serves — traces, logs,
+   * alarms, events — down to the formula, so one page-shaped question is
+   * asked one way across the product regardless of which backend answers it.
    */
-  cursor?: AuditCursor;
-  /** 1-based, and display-only now that paging is keyset — it labels the page
-   *  and no longer computes an offset. */
   pageNum: number;
   pageSize: number;
 }
@@ -210,17 +195,19 @@ export interface AuditLoginCounts {
 }
 
 /**
- * One interval's DELTA, appended rather than upserted.
+ * One process's RUNNING TOTAL for an hour, keyed on `(hourBucket,
+ * horizonNode)` and replaced in place.
  *
- * Deliberately not keyed on `(hourBucket, horizonNode)`: `horizonNode` is
- * best-effort attribution, and when it degrades to a shared value — every pod
- * reporting the same host — a composite key makes two nodes collide and
- * silently overwrite each other's counts. Appending instead means a duplicate
- * node name costs attribution and never a count. The trade is that a retried
- * insert may double-count, which is acceptable: statistics here are
- * best-effort per node, and the sign-in table holds the rows themselves —
- * a stored record rather than a counter, aside from the duplicate a
- * commit-then-timeout retry can leave behind.
+ * Cumulative rather than a per-interval delta, and that is what makes a write
+ * idempotent: sending the same hour again means the same figure grown, so a
+ * flush repeated after an uncertain outcome leaves the same number instead of
+ * counting twice. It also self-heals — the first write after an outage carries
+ * the whole hour, so the intervals that could not be written are not lost.
+ *
+ * The hour's real total is the SUM across nodes. `horizonNode` carries a
+ * per-process id, so a restart counts under a new identity while its
+ * predecessor's figure stays where it is and still counts; two processes can
+ * never collide on one row.
  */
 export interface AuditStat {
   hourBucket: number;
@@ -253,7 +240,7 @@ export interface AuditStatResult {
 
 /** Sanitized, fixed vocabulary. NEVER the driver's string, which can carry
  *  the DSN — host, database, and depending on the failure the user. */
-export type StoreError = 'unreachable' | 'auth_failed' | 'timeout' | 'schema_error';
+export type StoreError = 'unreachable' | 'auth_failed' | 'timeout' | 'schema_error' | 'too_large';
 
 /**
  * What a store throws. Carries a code and nothing else — deliberately NOT the
@@ -346,7 +333,9 @@ export interface AuditStore {
    *  leaves the rows stored and counted as unconfirmed rather than duplicated
    *  by a retry. */
   writeEvents(rows: ReadonlyArray<AuditEvent & StoreStamp>): Promise<void>;
-  /** Appends one interval's delta. */
+  /** Stores one process's running total for an hour, replacing whatever it
+   *  had for `(hourBucket, horizonNode)`. Idempotent: writing the same figure
+   *  twice must leave the same row. */
   writeStat(stat: AuditStat): Promise<void>;
 
   query(filter: AuditFilter): Promise<AuditPageResult>;
@@ -362,7 +351,23 @@ export interface AuditStore {
    */
   sweep(): Promise<number>;
 
-  probe(): Promise<{ available: boolean; error?: StoreError }>;
+  /**
+   * Is the store usable — and, separately, does this probe PROVE a write
+   * would land?
+   *
+   * The two are not the same and the difference is load-bearing. Postgres can
+   * run the writer's own statement inside a transaction and roll it back, so
+   * a pass there genuinely vouches for the write path (`writable: true`).
+   * BanyanDB has no rollback, so the strongest thing it can check without
+   * recording a sign-in nobody made is that the schema a write needs is
+   * present and correct — reachability, not writability (`writable: false`).
+   *
+   * A caller must not clear a WRITE fault on a probe that does not claim
+   * `writable`: doing so reports a healthy store on the evidence that its
+   * registry answered, while the writes that actually failed are still
+   * failing.
+   */
+  probe(): Promise<{ available: boolean; writable: boolean; error?: StoreError }>;
 
   /** Idempotent — returns immediately if already open, because the service
    *  tick retries it while the store is unavailable. Owning no timer is what

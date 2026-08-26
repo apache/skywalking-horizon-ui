@@ -1,0 +1,69 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The login audit stored in BANYANDB rather than PostgreSQL.
+#
+# It earns its own stack under the rule in CLAUDE.md §5 — a case is a
+# DEPLOYMENT, and this one is a different audit backend, which no amount of
+# spec-writing on `core` can reach. The assertions are not its own: it runs the
+# very suite `core` runs against PostgreSQL, so a behaviour that differs
+# between the two backends fails here rather than passing as a variation.
+#
+# Run it:  e2e run -c test/e2e/cases/audit-banyandb/e2e.yaml
+# Images:  make -C test/e2e images   (must exist first; compose never pulls them)
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh audit-banyandb
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+# No traffic loop. This case is about a SIGN-IN reaching storage and being
+# readable again — nothing here depends on metrics windows staying warm, so
+# driving the demo services would only lengthen the run.
+trigger:
+  action: http
+  interval: 10s
+  times: 1
+  url: http://${horizon_host}:${horizon_8081}/api/health
+  method: GET
+
+verify:
+  retry:
+    count: 20
+    interval: 10s
+  cases:
+    # One project, and it is the same suite the `core` case runs against
+    # PostgreSQL. A difference between the two is a defect in one of them.
+    #
+    # No readiness check ahead of it: the row this case waits for is the one
+    # the suite's own sign-in produces, so there is nothing to poll for until
+    # the project has already started. The suite reloads until the buffered
+    # writer has flushed it.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh audit-banyandb
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

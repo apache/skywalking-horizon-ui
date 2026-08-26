@@ -45,9 +45,17 @@ export interface GroupDef {
   shardNum: number;
   segmentInterval: IntervalDef;
   ttl: IntervalDef;
-  /** Defaults to 0 on the server — no replica unless asked for. Always sent,
-   *  because an update is a full replace and omitting it resets it. */
-  replicas: number;
+  /**
+   * Copies beyond the original.
+   *
+   * `undefined` means this definition does not manage replication, exactly as
+   * with `stages` below: the server's default (0) applies at creation, and an
+   * existing group keeps whatever it was given. That is what lets an operator
+   * pre-create a replicated group and have it stay replicated — a definition
+   * that always sent a number would reset it on the next unrelated update,
+   * because an update REPLACES the whole group.
+   */
+  replicas?: number;
   /**
    * Lifecycle tiering. BanyanDB has no global setting for this: stages are a
    * property of each group, so a deployment wanting hot/warm/cold has to
@@ -173,7 +181,7 @@ export function toGroupProto(def: GroupDef): banyandb.common.v1.Group {
       shard_num: def.shardNum,
       segment_interval: { unit: def.segmentInterval.unit, num: def.segmentInterval.num },
       ttl: { unit: def.ttl.unit, num: def.ttl.num },
-      replicas: def.replicas,
+      ...(def.replicas !== undefined ? { replicas: def.replicas } : {}),
       // `undefined` means "this definition does not manage tiering", so the
       // live value is preserved; an explicit `[]` means hot-only and IS sent,
       // which is the only way to convert a tiered group back.

@@ -327,7 +327,7 @@ audit:
   # instead, to a 10,000-row ceiling, and that is what a crash can lose.
   eventBatchRows: ${HORIZON_AUDIT_EVENT_BATCH_ROWS:50}
   eventBatchSeconds: ${HORIZON_AUDIT_EVENT_BATCH_SECONDS:15}
-  provider: "${HORIZON_AUDIT_PROVIDER:none}"   # none | postgres
+  provider: "${HORIZON_AUDIT_PROVIDER:none}"   # none | postgres | banyandb
   # SECRET — supply as JSON via the env var, never commit a connection string.
   # A non-loopback url must ask for sslmode=verify-full (or verify-ca): the
   # records carry usernames, email addresses and source addresses. Set
@@ -335,6 +335,22 @@ audit:
   # on a network you control (an in-cluster Postgres) — it is refused
   # otherwise, and turning it on warns at every boot.
   postgres: ${HORIZON_AUDIT_POSTGRES:null}
+  # SECRET — same shape and the same reason: supply as JSON via the env var.
+  # BanyanDB expires whole segments itself, so retention here is the group's
+  # TTL in days and nothing sweeps. Two deployments sharing one BanyanDB must
+  # set different `namespace` values, or they share one audit log.
+  #
+  #   {"address":"banyandb:17912","tls":true,"caFile":"/etc/horizon/bdb-ca.crt",
+  #    "namespace":"prod","retentionDays":90}
+  #
+  # A non-loopback address without TLS is refused: the records carry usernames,
+  # email addresses and source addresses, and the credentials travel as plain
+  # gRPC metadata. Set "allowCleartext": true for a network you control.
+  #
+  # Connectivity, security, a namespace prefix and retention are the whole
+  # surface. The groups' layout is bundled — one shard, which a sign-in rate
+  # never outgrows, and which BanyanDB fixes at creation and does not reshard.
+  banyandb: ${HORIZON_AUDIT_BANYANDB:null}
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in

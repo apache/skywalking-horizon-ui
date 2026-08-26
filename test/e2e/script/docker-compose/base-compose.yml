@@ -138,7 +138,13 @@ services:
       # suite, not fall back to the disk bundle.
       HORIZON_TEMPLATES_MODE: live
       HORIZON_AUTH_BACKEND: local
-      HORIZON_AUTH_LOCAL_USERS: '[{"username":"${HORIZON_E2E_USER}","passwordHash":"${HORIZON_E2E_PASSWORD_HASH}","roles":["admin"]}]'
+      # Two principals, and the second exists only to be a token's identity.
+      # A token resolves to a `{username, roles}` the same way a login does, so
+      # a token wrongly recorded as a sign-in would appear on the audit's Login
+      # tab under ITS username — which has to be a name that never signs in, or
+      # the row is indistinguishable from the real session every case opens.
+      # Same hash: argon2 verifies a password, and is not bound to a username.
+      HORIZON_AUTH_LOCAL_USERS: '[{"username":"${HORIZON_E2E_USER}","passwordHash":"${HORIZON_E2E_PASSWORD_HASH}","roles":["admin"]},{"username":"${HORIZON_E2E_TOKEN_USER}","passwordHash":"${HORIZON_E2E_PASSWORD_HASH}","roles":["admin"]}]'
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/api/health"]
       interval: 5s

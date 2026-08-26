@@ -121,6 +121,7 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
 
   `CREATE INDEX IF NOT EXISTS horizon_audit_stat_hour_idx
      ON horizon_audit_stat (hour_bucket)`,
+
 ];
 
 /** The token-usage write's column list, beside the DDL that creates them. An

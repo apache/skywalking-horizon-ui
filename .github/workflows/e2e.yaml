@@ -89,6 +89,13 @@
 #             path, category, and the stack behind the expander
 #             components: LayerBrowserErrorsView
 #
+#   audit-banyandb  OAP + BanyanDB, and the audit stored there   ACTIVE
+#             The same four audit assertions `core` runs against PostgreSQL,
+#             against the OTHER backend — one suite, two deployments, so a
+#             behaviour that differs between them is a defect rather than a
+#             variation. No demo services and no traffic loop: nothing here
+#             depends on metrics windows staying warm.
+#
 #   admin     core, kept separate because it MUTATES OAP        ACTIVE
 #             tests: template push to OAP and the DSL write lifecycle, both
 #             on the wire — a browser cannot drive them without racing the
@@ -201,6 +208,8 @@ jobs:
             config: test/e2e/cases/browser/e2e.yaml
           - name: admin (isolated, mutating)
             config: test/e2e/cases/admin/e2e.yaml
+          - name: audit-banyandb (audit on BanyanDB)
+            config: test/e2e/cases/audit-banyandb/e2e.yaml
           # kind rather than compose, and the only case needing a Linux
           # kernel: rover attaches eBPF probes. Slowest by a wide margin — a
           # mesh install plus ALS analysis before the first assertion.

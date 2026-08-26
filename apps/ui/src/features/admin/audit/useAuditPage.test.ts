@@ -27,7 +27,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 type Page = {
   rows: Array<Record<string, unknown>>; pageNum: number; pageSize: number;
-  hasNext: boolean; nextCursor?: string;
+  hasNext: boolean;
 };
 const list = vi.fn(async (_query: Record<string, unknown>): Promise<Page> => ({
   rows: [], pageNum: 1, pageSize: 50, hasNext: false,
@@ -219,30 +219,27 @@ describe('a superseded response must not land', () => {
  * record twice or never. The window has the same problem: a rolling preset
  * resolved per page moved under the reader.
  */
-describe('paging resumes from a position', () => {
-  it('sends the previous page cursor rather than an offset', async () => {
+describe('paging asks for a page number', () => {
+  // The page number IS the position — the store skips `pageSize * (pageNum-1)`
+  // rows, which is the arrangement OAP uses for every list it serves. Nothing
+  // is carried between requests, so a page can be asked for on its own.
+  it('sends the page number and nothing else to resume from', async () => {
     const page = useAuditPage();
-    list.mockResolvedValueOnce({
-      rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true, nextCursor: '1700:9',
-    });
+    list.mockResolvedValueOnce({ rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true });
     await page.applyFilters();
-    expect(sent()).not.toHaveProperty('offset');
-    expect(sent().cursor).toBeUndefined();
+    expect(sent().pageNum).toBe(1);
+    expect(sent()).not.toHaveProperty('cursor');
 
-    list.mockResolvedValueOnce({
-      rows: [{ id: '4' }], pageNum: 2, pageSize: 50, hasNext: false,
-    });
+    list.mockResolvedValueOnce({ rows: [{ id: '4' }], pageNum: 2, pageSize: 50, hasNext: false });
     await page.go(1);
-    expect(sent().cursor).toBe('1700:9');
     expect(sent().pageNum).toBe(2);
+    expect(sent()).not.toHaveProperty('cursor');
   });
 
   it('freezes the rolling window so page two asks about the same span', async () => {
     const page = useAuditPage();
     page.setWindowMinutes(60);
-    list.mockResolvedValueOnce({
-      rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true, nextCursor: '1700:9',
-    });
+    list.mockResolvedValueOnce({ rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true });
     await page.applyFilters();
     const first = { from: sent().from, to: sent().to };
 
@@ -257,15 +254,15 @@ describe('paging resumes from a position', () => {
 
   it('starts over when the filters change', async () => {
     const page = useAuditPage();
-    list.mockResolvedValueOnce({
-      rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true, nextCursor: '1700:9',
-    });
+    list.mockResolvedValueOnce({ rows: [{ id: '9' }], pageNum: 1, pageSize: 50, hasNext: true });
     await page.applyFilters();
     await page.go(1);
-    expect(sent().cursor).toBe('1700:9');
+    expect(sent().pageNum).toBe(2);
+
+    // A new predicate means page one — page two of the OLD query names a
+    // different set of rows entirely.
     page.filters.value.username = 'alice';
     await page.applyFilters();
-    expect(sent().cursor).toBeUndefined();
     expect(sent().pageNum).toBe(1);
   });
 });
