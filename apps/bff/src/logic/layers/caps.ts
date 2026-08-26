@@ -52,6 +52,7 @@ export function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     processTopology: !!components.topology,
     traces: !!components.traces,
     logs: !!components.logs,
+    evaluationRecord: !!components.evaluationRecord,
     browserErrors: !!components.browserErrors,
     traceProfiling: !!components.traceProfiling,
     ebpfProfiling: !!components.ebpfProfiling,

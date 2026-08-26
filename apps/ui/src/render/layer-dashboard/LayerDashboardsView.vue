@@ -218,6 +218,7 @@ const {
   // pages, but nothing on this page may present it — a page that filters
   // it out shows `effectiveInstance`, and reading the shared value here is
   // how metrics for one instance got labelled with another's name.
+  selectedInstance,
   setSelectedInstance,
   lockedInstanceNames,
   toggleLockInstance,
@@ -235,6 +236,11 @@ const {
   service,
   layer,
   computed(() => pageId.value ?? null),
+);
+const effectiveInstanceId = computed<string | null>(() =>
+  effectiveInstance.value == null
+    ? null
+    : instanceList.value.find((instance) => instance.name === effectiveInstance.value)?.id ?? null,
 );
 const {
   selectedEndpoint,
@@ -598,6 +604,7 @@ function onDrillPoint(
     };
     return;
   }
+  if (!mode) return;
   const ms = Math.max(0, Math.round(p.value));
   const query: Record<string, string> = {
     dMode: mode,

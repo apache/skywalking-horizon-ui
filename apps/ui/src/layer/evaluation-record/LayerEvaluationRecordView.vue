@@ -73,7 +73,7 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = useLayerServiceName(layerKey, landing);
+const { name: serviceName, ref: service } = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const generalLayerKey = computed(() => 'general');
 const { services: callerServices, isFetching: callerServicesFetching } = useLayerServices(generalLayerKey);
@@ -99,7 +99,7 @@ watch(providerIdParam, (providerId) => {
 // ── Model picker. Evaluation records currently reuse the instance
 // selector plumbing, but the UI labels it by the GenAI domain concept.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
+const { instances: instanceList } = useLayerInstances(layerKey, service);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
 // narrowing by picking from the dropdown. Auto-selection is reserved
