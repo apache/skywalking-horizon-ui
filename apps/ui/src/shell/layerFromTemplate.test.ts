@@ -164,7 +164,7 @@ describe('componentsToCaps — parity with the menu route', () => {
       key: 'X',
       components: {
         service: true, instances: true, endpoints: true, topology: true, deployment: true,
-        endpointDependency: true, traces: true, logs: true, browserErrors: true, podLogs: true,
+        endpointDependency: true, traces: true, logs: true, evaluationRecord: true, browserErrors: true, podLogs: true,
         traceProfiling: true, ebpfProfiling: true, asyncProfiling: true, networkProfiling: true,
         pprofProfiling: true, continuousProfiling: true,
       },
