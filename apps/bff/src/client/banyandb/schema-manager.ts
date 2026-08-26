@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import type { banyandb } from './proto.pb.js';
+import type { banyandb, google } from './proto.pb.js';
 import type { BanyanDBChannel } from './channel.js';
 import { BanyanDBError } from './errors.js';
 import {
@@ -131,13 +131,23 @@ export function compareGroup(def: GroupDef, live: banyandb.common.v1.Group): Dri
   if (def.catalog !== live.catalog) {
     drift.push({ field: 'catalog', want: def.catalog, have: live.catalog, updatable: false });
   }
-  check('shardNum', def.shardNum, opts?.shard_num);
+  // Shard count is fixed when the group is created. BanyanDB accepts a new
+  // value and does NOT move the data that is already there: raising it changes
+  // where subsequent rows route without relocating the old ones, and lowering
+  // it strands every row in a shard id that is no longer loaded. So it is
+  // reported like `catalog` rather than applied — an operator who really means
+  // to change it is choosing a migration, not a config edit.
+  if (!same(def.shardNum, opts?.shard_num)) {
+    drift.push({ field: 'shardNum', want: def.shardNum, have: opts?.shard_num, updatable: false });
+  }
   check('segmentInterval', def.segmentInterval, {
     unit: opts?.segment_interval?.unit,
     num: opts?.segment_interval?.num,
   });
   check('ttl', def.ttl, { unit: opts?.ttl?.unit, num: opts?.ttl?.num });
-  check('replicas', def.replicas, opts?.replicas ?? 0);
+  // Only when the definition manages it — otherwise a pre-created replicated
+  // group would report drift and be flattened back to the server default.
+  if (def.replicas !== undefined) check('replicas', def.replicas, opts?.replicas ?? 0);
   // Tiering is a property of the group and of nothing else, so a change to it
   // is the ONLY signal that a lifecycle edit happened — unreported, the update
   // never runs and the configuration silently stays as it was.
@@ -466,7 +476,62 @@ async function applyIndexRuleBinding(
     live = await registry.get(def.group, def.name);
     if (!live) return { action: 'unchanged', modRevision, changed: [] };
   }
-  return { action: 'updated', modRevision: await registry.update(proto), changed: ['window', 'rules'] };
+  const drift = compareIndexRuleBinding(def, live);
+  // Compared like every other resource, rather than updated on sight. An
+  // unconditional update wrote an identical binding on every boot — and, since
+  // the audit store re-applies its schema when recovering a lost connection,
+  // on every recovery too — reporting `updated` each time and making callers
+  // wait on a schema barrier for a revision that had not moved.
+  if (drift.length === 0) {
+    return { action: 'unchanged', modRevision: live.metadata?.mod_revision ?? '0', changed: [] };
+  }
+  return {
+    action: 'updated',
+    modRevision: await registry.update(proto),
+    changed: drift.map((d) => d.field),
+  };
+}
+
+/**
+ * A binding differs when its rules, its subject, or its active window differ.
+ *
+ * The window is compared as an INSTANT, not as the shape it travels in: a
+ * definition holds `Date`s and the wire returns `{seconds, nanos}`, so
+ * comparing those directly finds a difference in every binding that ever
+ * existed.
+ */
+export function compareIndexRuleBinding(
+  def: IndexRuleBindingDef,
+  live: banyandb.database.v1.IndexRuleBinding,
+): Drift[] {
+  const drift: Drift[] = [];
+  if (!same([...def.rules].sort(), [...(live.rules ?? [])].sort())) {
+    drift.push({ field: 'rules', want: def.rules, have: live.rules, updatable: true });
+  }
+  if (
+    def.subject.name !== (live.subject?.name ?? '') ||
+    def.subject.catalog !== (live.subject?.catalog ?? '')
+  ) {
+    drift.push({ field: 'subject', want: def.subject, have: live.subject, updatable: true });
+  }
+  const window: [keyof IndexRuleBindingDef, google.protobuf.Timestamp | null | undefined][] = [
+    ['beginAt', live.begin_at],
+    ['expireAt', live.expire_at],
+  ];
+  for (const [field, have] of window) {
+    const want = (def[field] as Date).getTime();
+    if (want !== pbMillis(have)) {
+      drift.push({ field, want: new Date(want).toISOString(), have: pbMillis(have), updatable: true });
+    }
+  }
+  return drift;
+}
+
+/** A protobuf timestamp as epoch ms, or NaN when absent — which never equals
+ *  a wanted instant, so a missing window reads as a difference. */
+function pbMillis(t: google.protobuf.Timestamp | null | undefined): number {
+  if (!t) return Number.NaN;
+  return Number(t.seconds ?? 0) * 1000 + Math.round((t.nanos ?? 0) / 1e6);
 }
 
 /**

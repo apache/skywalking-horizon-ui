@@ -92,6 +92,9 @@ export interface CountersOptions {
 
 export class AuditCounters {
   private readonly stats = new Map<number, StatAccum>();
+  /** The newest hour evicted. At or below it an hour is closed: its stored
+   *  figure stands, and a late event must not replace it with a smaller one. */
+  private evictedThrough = 0;
 
   /** The hour the budget below applies to. */
   private budgetHour = 0;
@@ -202,9 +205,21 @@ export class AuditCounters {
     this.perPrincipal.clear();
   }
 
+  /**
+   * The accumulator for an hour, creating it if this is the first event in it.
+   *
+   * An hour already evicted is NOT resurrected. A write replaces the hour's
+   * figure rather than adding to it, so a fresh accumulator for a closed hour
+   * would report a handful of events over a stored total of hundreds and the
+   * hour would visibly collapse. Reaching one means an event arrived hours
+   * late — a clock stepped backwards — and the count is dropped rather than
+   * being allowed to destroy what is already recorded. The sign-in itself is
+   * unaffected: only the statistic declines it.
+   */
   private stat(hourBucket: number): StatAccum {
     const existing = this.stats.get(hourBucket);
     if (existing) return existing;
+    if (hourBucket <= this.evictedThrough) return emptyStat();
     this.evictStats(hourBucket);
     const fresh = emptyStat();
     this.stats.set(hourBucket, fresh);
@@ -246,9 +261,25 @@ export class AuditCounters {
     return true;
   }
 
-  /** Statistics deltas ready to append, and the accumulators are reset — stat
-   *  rows are per-interval deltas, not running totals (they are summed on
-   *  read, and a node's identity is not part of their key). */
+  /**
+   * This process's running totals for the hours it still holds.
+   *
+   * Cumulative, and the accumulators are NOT reset: writing the same hour
+   * again means the same figure grown, so a flush repeated after an uncertain
+   * outcome leaves the same number instead of counting twice.
+   *
+   * Every retained hour is handed over every time, including unchanged ones.
+   * Skipping those would mean deciding here that a figure has already been
+   * stored, and a flush can fail — the batch is dropped rather than retried,
+   * so an hour marked done would stay stale until another event happened to
+   * land in it. Rewriting the same figure costs a replace and cannot be wrong.
+   *
+   * Nothing is read back at startup, and nothing needs to be. `horizonNode`
+   * carries a per-process id, so a restart counts under a NEW identity while
+   * its predecessor's figure stays where it is and still counts — the hour's
+   * total is the sum across identities, and a process beginning at zero is
+   * exactly right rather than a gap to repair.
+   */
   takeStats(horizonNode: string): AuditStat[] {
     const out: AuditStat[] = [];
     for (const [hourBucket, s] of this.stats) {
@@ -260,11 +291,9 @@ export class AuditCounters {
         rejected: s.rejected,
         overBudget: s.overBudget,
       });
-      this.stats.set(hourBucket, emptyStat());
     }
     return out;
   }
-
 
   /** Records that some rows were not written. Kept as a process counter
    *  rather than a stat column: the table carries the counters that were
@@ -277,7 +306,11 @@ export class AuditCounters {
   private evictStats(incoming: number): void {
     const hours = [...this.stats.keys(), incoming].sort((a, b) => a - b);
     for (const h of hours.slice(0, Math.max(0, hours.length - MAX_HOUR_BUCKETS))) {
-      if (h !== incoming) this.stats.delete(h);
+      if (h === incoming) continue;
+      this.stats.delete(h);
+      // The newest hour let go of. Anything at or below it is closed, and its
+      // stored figure is the last word on it.
+      this.evictedThrough = Math.max(this.evictedThrough, h);
     }
   }
 }

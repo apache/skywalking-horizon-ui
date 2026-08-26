@@ -35,6 +35,16 @@ export const E2E_PASSWORD = process.env.HORIZON_E2E_PASSWORD ?? 'e2e-passw0rd';
  * assertion needs to know which id to look for.
  */
 export const E2E_TOKEN_ID = 'e2etok';
+/**
+ * The token's identity, and NOT `E2E_USER`.
+ *
+ * Presenting a token is not a sign-in, and the audit case proves that by
+ * asserting this name never reaches the Login tab. Sharing the sign-in account
+ * made that assertion unfalsifiable: a token wrongly recorded as a sign-in
+ * would land under `E2E_USER`, which already has a real row from the session
+ * every case opens with, so the check passed either way.
+ */
+export const E2E_TOKEN_USER = process.env.HORIZON_E2E_TOKEN_USER ?? 'e2e-token-bot';
 export const E2E_TOKEN = `hzn_${E2E_TOKEN_ID}_e2e-token-secret-do-not-reuse`;
 
 /** Service names the instrumented demo app reports to OAP. */

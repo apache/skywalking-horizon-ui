@@ -279,6 +279,56 @@ describe('index rule and binding', () => {
     expect(Number(liveBinding?.begin_at?.seconds)).toBeLessThan(Math.floor(now / 1000));
     expect(Number(liveBinding?.expire_at?.seconds)).toBeGreaterThan(Math.floor(now / 1000));
   });
+
+  /**
+   * A binding is compared like everything else, and the WINDOW is the part
+   * that makes it hard: a definition holds `Date`s, the wire returns
+   * `{seconds, nanos}`, and comparing those shapes directly finds a difference
+   * in every binding that has ever existed. That is what this asserts is not
+   * happening — an unconditional update rewrote an identical binding on every
+   * boot, and on every recovery from a lost connection, each time reporting
+   * `updated` and making the caller wait on a schema barrier for a revision
+   * that had not moved.
+   */
+  it('is a no-op the second time — an unchanged binding must not churn', async () => {
+    const def = {
+      group: streamGroup.name,
+      name: 'log_binding',
+      rules: ['kind_idx'],
+      subject: { name: 'log', catalog: 'CATALOG_STREAM' as const },
+      beginAt: new Date(now - 86_400_000),
+      expireAt: new Date('2099-01-01T00:00:00Z'),
+    };
+    await client.schema.indexRuleBinding(def);
+    const before = await client.indexRuleBindings.get(streamGroup.name, 'log_binding');
+
+    const again = await client.schema.indexRuleBinding(def);
+
+    expect(again.action).toBe('unchanged');
+    expect(again.changed).toEqual([]);
+    // The revision is the proof the server was not written to: an update that
+    // happened to store identical content would still move it.
+    expect(again.modRevision).toBe(before?.metadata?.mod_revision);
+  });
+
+  it('updates a binding whose window really did change', async () => {
+    const def = {
+      group: streamGroup.name,
+      name: 'log_binding',
+      rules: ['kind_idx'],
+      subject: { name: 'log', catalog: 'CATALOG_STREAM' as const },
+      beginAt: new Date(now - 86_400_000),
+      // Moved, so the comparison has something real to find — without this the
+      // no-op above would pass just as well against a compare that always
+      // returns "same".
+      expireAt: new Date('2098-01-01T00:00:00Z'),
+    };
+
+    const changed = await client.schema.indexRuleBinding(def);
+
+    expect(changed.action).toBe('updated');
+    expect(changed.changed).toContain('expireAt');
+  });
 });
 
 describe('the schema barrier', () => {

@@ -69,26 +69,43 @@ describe('statistics', () => {
     expect(s.rejected).toBe(1);
   });
 
-  it('emits deltas: taking resets, so the next interval starts from zero', () => {
+  it('reports a running total, so taking twice reports the same figure', () => {
     const c = counters();
     c.admitEvent('local', 1, T);
     expect(c.takeStats('node-1')[0].login.local).toBe(1);
-    expect(c.takeStats('node-1')).toEqual([]);
+    // Taking does not consume. A write replaces the hour rather than adding to
+    // it, so a flush repeated after an uncertain outcome must leave the same
+    // number instead of counting twice.
+    expect(c.takeStats('node-1')[0].login.local).toBe(1);
 
     c.admitEvent('local', 1, T);
-    expect(c.takeStats('node-1')[0].login.local).toBe(1);
+    expect(c.takeStats('node-1')[0].login.local).toBe(2);
   });
 
-  // A taken interval is gone whether or not its write landed. Statistics are
-  // totals for a closed interval, so a failed one is dropped rather than held:
-  // an outage costs the counts for its duration and nothing more, and nothing
-  // accumulates in memory waiting for a window that has already passed.
-  it('does not carry a taken interval into the next one', () => {
+  it('starts a restarted process at zero, which is what a fresh identity means', () => {
+    // Nothing is read back at boot and nothing needs to be: `horizonNode`
+    // carries a per-process id, so this counter's figures are only ever its
+    // own, and its predecessor's stay where they are and still count.
     const c = counters();
     c.admitEvent('local', 1, T);
-    c.takeStats('node-1');
-    c.admitEvent('local', 1, T);
     expect(c.takeStats('node-1')[0].login.local).toBe(1);
+    expect(counters().takeStats('node-2')).toEqual([]);
+  });
+
+  it('will not resurrect an hour it has already let go of', () => {
+    // A write replaces the hour rather than adding to it, so counting a late
+    // event into a closed hour would report a handful over a stored total and
+    // the hour would visibly collapse.
+    const c = counters();
+    const hour = (n: number): number => hourBucketOf(T + n * 3_600_000);
+    c.admitEvent('local', 1, T);
+    for (let i = 1; i <= MAX_HOUR_BUCKETS; i += 1) c.admitEvent('local', 1, T + i * 3_600_000);
+    c.takeStats('node-1');
+
+    // The first hour is gone. An event arriving for it now is admitted as a
+    // sign-in but must not reopen the statistic.
+    expect(c.admitEvent('local', 1, T)).toBe(true);
+    expect(c.takeStats('node-1').some((s) => s.hourBucket === hour(0))).toBe(false);
   });
 
   it('keeps a bucket per hour so a rollover does not discard the previous one', () => {

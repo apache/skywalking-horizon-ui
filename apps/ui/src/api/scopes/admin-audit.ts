@@ -45,11 +45,9 @@ export interface AuditEntry {
 
 export interface AuditPage {
   rows: AuditEntry[];
-  /** Opaque `<epochMs>:<id>` position to resume from. Absent on the last
-   *  page. Paging is keyset, not offset: the table is appended to at exactly
-   *  the end the page reads from, so an offset counts a moving target and a
-   *  row written between two requests is shown twice or skipped. */
-  nextCursor?: string;
+  /** 1-based, and it is the position: the page begins
+   *  `pageSize * (pageNum - 1)` rows into the newest-first ordering, the same
+   *  arrangement OAP uses for every list it serves. */
   pageNum: number;
   pageSize: number;
   /** The only paging fact this reports: there IS more, never how much more. */
@@ -138,11 +136,10 @@ export interface AuditQuery {
   from?: number;
   to?: number;
   kind?: AuditKind[];
-  /** Prefix match. */
+  /** EXACT match on the signed-in principal — not a prefix. */
   username?: string;
   pageNum?: number;
   pageSize?: number;
-  cursor?: string;
 }
 
 /** `bff.adminAudit` — the login audit page. Read-only: the log is append and

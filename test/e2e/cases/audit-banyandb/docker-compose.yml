@@ -1,0 +1,78 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# `core`'s stack with its audit database removed and its demo app left out:
+# OAP on BanyanDB, and Horizon writing the login audit to that same BanyanDB.
+#
+# No demo services and no traffic, because nothing here reads a metric — the
+# case signs in and reads the audit page back. Every service comes from the
+# shared base; this file adds only the ordering and the ports the verify cases
+# need to reach. `extends` does not carry depends_on, which is why the chain is
+# declared here rather than centrally.
+
+services:
+  banyandb:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: banyandb
+    ports:
+      - 17912
+
+  oap:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: oap
+    ports:
+      - 12800
+      - 17128
+    depends_on:
+      banyandb:
+        condition: service_healthy
+
+  horizon:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: horizon
+    ports:
+      - 8081
+    environment:
+      HORIZON_AUDIT_ENABLED: "true"
+      # The whole difference between this case and `core`. There is no audit
+      # database here: the records go to the BanyanDB the stack already runs
+      # for OAP, in groups of their own.
+      HORIZON_AUDIT_PROVIDER: banyandb
+      # `allowCleartext` because this BanyanDB is a container on an isolated
+      # compose network that lives for one run. A non-loopback address without
+      # TLS is otherwise refused at boot — the correct default, and the first
+      # thing this fixture would trip over.
+      HORIZON_AUDIT_BANYANDB: '{"address":"banyandb:17912","allowCleartext":true,"namespace":"e2e","retentionDays":1}'
+      # Compressed from the shipped 50 rows / 15s / 60s, for the same reason
+      # `core` compresses them: the point is that a sign-in REACHES storage,
+      # not that the timer works.
+      HORIZON_AUDIT_EVENT_BATCH_SECONDS: "2"
+      HORIZON_AUDIT_FLUSH_INTERVAL_SECONDS: "4"
+      HORIZON_AUTH_TOKENS_FILE: /horizon/tokens.json
+    volumes:
+      - ../../script/docker-compose/e2e-tokens.json:/horizon/tokens.json:ro
+    depends_on:
+      oap:
+        condition: service_healthy
+      banyandb:
+        condition: service_healthy
+
+networks:
+  e2e:
