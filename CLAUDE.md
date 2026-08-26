@@ -4,7 +4,9 @@ This file states the **principles** for working in this codebase. It is not a ho
 
 ## What this project is
 
-**Horizon UI** is the next-generation web UI for [Apache SkyWalking](https://github.com/apache/skywalking). The goal is **feature parity** with [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) on the **same OAP GraphQL query-protocol and MQE**, with a modernized, dense, dark-first design. This is a **greenfield rewrite**, not a fork. Backend APIs do not change.
+**Horizon UI** is the official web UI for [Apache SkyWalking](https://github.com/apache/skywalking): a dense, dark-first console over OAP's **GraphQL query-protocol and MQE**, with an integrated admin surface that owns auth and RBAC. Backend APIs do not change — Horizon adds no backend of its own beyond the BFF that serves it.
+
+What belongs in Horizon is decided by **what operators need and what the OAP protocol exposes**, not by what any previous UI did. The earlier generation (`skywalking-booster-ui`, removed from the OAP distribution in 11.0.0) is history, not a specification: it is worth reading for how a problem was once solved, and it settles nothing about how this one should be. Where a screen's behaviour is in question, the authorities are the OAP protocol (below), the operator's task, and this file.
 
 ## How to work (the only workflow that matters)
 
@@ -22,11 +24,11 @@ When you can't reproduce the user's symptom locally, say so. Don't invent a fix.
 
 ## Backend compatibility
 
-The UI talks to OAP through the **GraphQL query-protocol** (same as booster-ui) and through OAP's admin REST surface. Both contracts are **fixed** — owned by the skywalking repo, not this one.
+The UI talks to OAP through the **GraphQL query-protocol** and through OAP's admin REST surface. Both contracts are **fixed** — owned by the skywalking repo, not this one.
 
 - **Do not invent fields.** If a screen needs data the protocol doesn't expose, flag it. The right fix is a query-protocol change upstream, not a UI hack or a BFF-side fabrication.
 - **The schemas and Java implementations are the authoritative spec** — read them (`oap-server/server-query-plugin/.../query-protocol/*.graphqls` and `oap-server/server-core/.../query/`) before guessing at a wire shape. Stand up a local OAP (the SkyWalking repo ships a docker-compose) for smoke-testing wire changes.
-- **Booster-ui is the working reference.** When in doubt about how a query is shaped or paged, look at how booster-ui does it.
+- **When a wire shape is in doubt, read the protocol and ask OAP** — the schema, the Java implementation, then a live server. An older UI's source may show one working answer, but it is evidence about the past, not a decision about the present: it can be as old as the protocol it was written against, and it carries its own workarounds. Never cite it as the reason a thing must be a certain way.
 
 ### Metric entity-scope is load-bearing
 
