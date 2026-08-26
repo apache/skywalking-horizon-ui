@@ -330,6 +330,7 @@ registerTraceRoutes(app, {
 registerTraceTagRoutes(app, { ...authDeps });
 registerZipkinRoutes(app, { ...authDeps });
 registerLogRoute(app, { ...authDeps });
+registerEvaluationRecordRoute(app, { ...authDeps });
 registerBrowserErrorsRoute(app, { ...authDeps });
 registerEventsRoute(app, { ...authDeps });
 registerExploreRoutes(app, { ...authDeps });
