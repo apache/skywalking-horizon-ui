@@ -75,6 +75,13 @@ export const loggerOptions: LoggerOptions = {
       'audit.postgres.url',
       'config.audit.postgres.url',
       '*.postgres.url',
+      // The BanyanDB store's own credential. A sibling of the above and not
+      // covered by any wildcard either — `password` alone is not a path pino
+      // matches, and this one reaches the logger inside a config dump or an
+      // error wrapper carrying the connection options.
+      'audit.banyandb.password',
+      'config.audit.banyandb.password',
+      '*.banyandb.password',
       '*.connectionString',
     ],
     censor: '[redacted]',

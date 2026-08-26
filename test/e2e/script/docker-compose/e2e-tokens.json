@@ -1,8 +1,8 @@
 [
   {
     "id": "e2etok",
-    "username": "e2e",
+    "username": "e2e-token-bot",
     "hash": "sha256:c75950644c14d782233b31d014ce764ce5663cd871f966974b4eed2ef19e097b",
-    "label": "e2e fixture — token usage coverage"
+    "label": "e2e fixture \u2014 token usage coverage (never signs in)"
   }
 ]

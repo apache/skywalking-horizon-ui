@@ -104,11 +104,21 @@ class FakeStore implements AuditStore {
    * statistics fault must not be cleared by a probe.
    */
   probeWriteFails: (() => boolean) | null = null;
-  async probe(): Promise<{ available: boolean }> {
-    if (this.failWith || this.closed) return { available: false };
-    if (this.failAt === 'writeEvents') return { available: false };
-    if (this.probeWriteFails?.()) return { available: false };
-    return { available: true };
+  /** This fake models the POSTGRES probe, which executes the writer's own
+   *  statements and rolls them back — so a pass here vouches for writes. A
+   *  store whose probe cannot do that reports `writable: false`; the
+   *  BanyanDB-shaped case has its own test below. */
+  probeWritable = true;
+  /** A BanyanDB-shaped probe: it checks the schema, so it passes while the
+   *  writes behind it are failing — the Postgres probe cannot, because it
+   *  performs those writes. */
+  probeIgnoresWriteFailures = false;
+  async probe(): Promise<{ available: boolean; writable: boolean }> {
+    if (this.failWith || this.closed) return { available: false, writable: false };
+    if (this.probeIgnoresWriteFailures) return { available: true, writable: this.probeWritable };
+    if (this.failAt === 'writeEvents') return { available: false, writable: false };
+    if (this.probeWriteFails?.()) return { available: false, writable: false };
+    return { available: true, writable: this.probeWritable };
   }
   // Counted BEFORE the throw: an attempt that fails is still an attempt, and
   // the retry tests measure attempts.
@@ -943,6 +953,60 @@ describe('token usage on the service', () => {
     await svc.queryTokenUsage({ from: T - 3_600_000, to: T });
 
     expect((await svc.health()).available, 'a successful read cleared a live write fault').toBe(false);
+  });
+
+  /**
+   * A read refused as TOO LARGE must not take the store down with it.
+   *
+   * The window being bigger than one read may return says nothing about
+   * whether the store is up, and `available` gates the row-threshold flush —
+   * so treating it as evidence about the store lets someone opening a wide
+   * report stop sign-ins from being recorded. The same reasoning as a timeout,
+   * and it reaches here the same way: the store's own error passes through
+   * `fail()` unchanged rather than being reclassified as `unreachable`.
+   */
+  it('stays available when a read is refused as too large', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    signIn(svc, T);
+    await ticksFor(svc, 4);
+    expect((await svc.health()).available).toBe(true);
+
+    tokenStore.failWith = new AuditStoreError('too_large');
+    await expect(svc.queryTokenUsage({ from: T - 3_600_000, to: T })).rejects.toMatchObject({
+      code: 'too_large',
+    });
+
+    expect(
+      (await svc.health()).available,
+      'a too-large read marked the whole store unavailable',
+    ).toBe(true);
+  });
+
+  /**
+   * A probe that cannot prove a write would land must not clear a write fault.
+   *
+   * Postgres executes the writer's own statements and rolls them back, so its
+   * probe genuinely vouches and reports `writable`. BanyanDB has no rollback —
+   * proving a write would mean recording a sign-in nobody made — so its probe
+   * checks the schema instead and reports `writable: false`. Clearing the
+   * fault on that evidence paints the audit log healthy because the registry
+   * answered, while the sign-ins it is dropping go on being dropped.
+   */
+  it('keeps a write fault through a probe that does not vouch for writes', async () => {
+    const svc = service({ flushIntervalSeconds: 60, eventBatchSeconds: 15 });
+    // A store shaped like the BanyanDB one: the schema check passes while the
+    // writes behind it keep failing, and the probe says it cannot vouch.
+    store.probeIgnoresWriteFailures = true;
+    store.probeWritable = false;
+    store.failAt = 'writeEvents';
+    signIn(svc, T);
+
+    // Enough ticks for the probe to run repeatedly against the live fault.
+    await ticksFor(svc, 8);
+
+    const health = await svc.health();
+    expect(health.available, 'a schema-only probe cleared a real write fault').toBe(false);
+    expect(health.error).toBe('timeout');
   });
 
   /**

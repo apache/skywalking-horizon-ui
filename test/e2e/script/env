@@ -104,6 +104,11 @@ HORIZON_E2E_IMAGE=horizon-ui:e2e
 # would expand the `$argon2id` / `$v` / `$m` segments to nothing. Read
 # individual keys instead (see script/prepare/build-images.sh).
 HORIZON_E2E_USER=e2e
+# The API token's identity, and deliberately NOT the account any case signs in
+# with. Presenting a token is not a sign-in, and the audit case proves it by
+# asserting this name never appears on the Login tab — which only means
+# anything while nothing else can put it there.
+HORIZON_E2E_TOKEN_USER=e2e-token-bot
 HORIZON_E2E_PASSWORD=e2e-passw0rd
 HORIZON_E2E_PASSWORD_HASH=$argon2id$v=19$m=65536,t=3,p=4$K/f0dJqlI/c1I6RPxNhTPg$sZ2NcLuSPL/o4bqNrARetaLVp4MDmV0xzxdwyYUKh+U
 

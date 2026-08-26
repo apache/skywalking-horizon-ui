@@ -16,13 +16,15 @@
  */
 
 /**
- * The login audit on the deployment this case runs: PostgreSQL.
+ * The same login audit, on BanyanDB.
  *
- * The assertions are shared with the BanyanDB case — see the suite — because
- * the feature is one feature and a difference between the two backends is a
- * defect rather than a variation.
+ * Nothing here is BanyanDB-specific on purpose: the storage differs, the
+ * feature does not, so this runs the identical assertions the PostgreSQL case
+ * runs. What differs is the deployment — see this case's compose file, which
+ * has no audit database at all and points the audit at the BanyanDB the stack
+ * already runs for OAP.
  */
 
 import { auditSuite } from '../support/audit-suite.js';
 
-auditSuite('postgres');
+auditSuite('banyandb');

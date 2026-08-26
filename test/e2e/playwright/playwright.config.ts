@@ -143,6 +143,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
     },
     {
+      // The same audit assertions the `ui` project runs, against a deployment
+      // whose audit is stored in BanyanDB instead of PostgreSQL.
+      name: 'audit-banyandb',
+      testMatch: '**/specs/audit-banyandb/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
       name: 'ui',
       testMatch: '**/specs/ui/*.spec.ts',
       dependencies: ['auth'],

@@ -404,14 +404,18 @@ export class BufferedAuditService implements AuditService {
       return out;
     } catch (err) {
       const code = codeOf(err);
-      // A read that TIMED OUT says something about the query, not about the
-      // store: a deep page or a wide range can exceed `statementTimeoutMs`
-      // against a database that is answering everything else perfectly.
-      // Marking the shared service unavailable on it let a reader stop
+      // Two codes say something about the QUERY rather than about the store,
+      // and must not be treated as evidence about it. A read that TIMED OUT
+      // can be a deep page or a wide range exceeding `statementTimeoutMs`
+      // against a database answering everything else perfectly; a read
+      // refused as TOO LARGE is the window being bigger than one read may
+      // return, which says nothing about whether the store is up.
+      //
+      // Marking the shared service unavailable on either let a READER stop
       // sign-ins being recorded — `available` also gates the row-threshold
       // flush — which is a reader taking down the writer. Reads still report
       // every other fault, because those ARE evidence about the store.
-      if (code === 'timeout') throw err;
+      if (code === 'timeout' || code === 'too_large') throw err;
       this.markUnavailable(code);
       throw err;
     }
@@ -459,8 +463,9 @@ export class BufferedAuditService implements AuditService {
       // A channel stays red until one of ITS writes succeeds, and a quiet
       // system has nothing to write — so without this a single dropped batch
       // reported red until the next sign-in, however healthy the store was.
-      // The probe writes a rolled-back row, so it genuinely vouches for the
-      // channels it clears.
+      // A probe vouches for the write path rather than for the server being
+      // up: Postgres runs the writer's own statement and rolls it back,
+      // BanyanDB checks the schema those writes need is there and unchanged.
       if (this.writeFaults.size > 0) await this.tryOpen();
     }
     // Re-checked rather than hoisted: the sweep is the longest store call in
@@ -472,7 +477,7 @@ export class BufferedAuditService implements AuditService {
     try {
       await this.store.open();
       const probe = await this.store.probe();
-      if (probe.available) this.markProbeOk();
+      if (probe.available) this.markProbeOk(probe.writable);
       else this.markUnavailable(probe.error ?? 'unreachable');
     } catch (err) {
       this.markUnavailable(codeOf(err));
@@ -743,18 +748,26 @@ export class BufferedAuditService implements AuditService {
   }
 
   /**
-   * The probe succeeded. Clears only the channels it actually exercises.
+   * A passing probe. Clears only the channels it actually exercises.
    *
-   * The probe writes a rolled-back row into the event and token tables, so it
-   * genuinely vouches for those two. It only SELECTs from the statistics table,
-   * so it says nothing about whether a statistic can be written — and clearing
-   * that fault here reported the service healthy while every statistics write
-   * was still failing.
+   * Postgres's probe writes a rolled-back row into the event and token tables,
+   * so it genuinely vouches for those two. It only SELECTs from the statistics
+   * table, so it says nothing about whether a statistic can be written — and
+   * clearing that fault here reported the service healthy while every
+   * statistics write was still failing.
+   *
+   * `writable` decides whether the WRITE faults may be cleared with it. A
+   * probe that only proves the store answers has said nothing about the
+   * writes that failed, and clearing them on it reports a healthy audit log
+   * while sign-ins are still being dropped. Those stores clear a fault the
+   * only way that is honest: when one of their own writes next succeeds.
    */
-  private markProbeOk(): void {
+  private markProbeOk(writable: boolean): void {
     this.reachable = true;
-    this.writeFaults.delete('events');
-    this.writeFaults.delete('tokens');
+    if (writable) {
+      this.writeFaults.delete('events');
+      this.writeFaults.delete('tokens');
+    }
     const remaining = this.writeFaults.values().next();
     if (!remaining.done) {
       this.lastError = remaining.value;

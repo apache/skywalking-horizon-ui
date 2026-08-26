@@ -32,7 +32,7 @@ import type { TokenUsageStore } from '../token-usage.js';
 import { logger } from '../../../logger.js';
 import { classify, fail } from './errors.js';
 import { timed, withClient, type TimedDb } from './deadline.js';
-import { overFetchSize, takeOverFetched } from '../../../logic/paging/read-page.js';
+import { overFetchSize, pageOffset, takeOverFetched } from '../../../logic/paging/read-page.js';
 import { hourBucketOf } from '../counters.js';
 import {
   AuditStoreError,
@@ -288,7 +288,7 @@ export class PostgresAuditStore implements AuditStore {
    * when every write is failing. Asking for the thing the writes need is the
    * only probe that can tell those apart.
    */
-  async probe(): Promise<{ available: boolean; error?: StoreError }> {
+  async probe(): Promise<{ available: boolean; writable: boolean; error?: StoreError }> {
     try {
       // Every column a write names, not just `id`: a table that exists with
       // the wrong shape answers `SELECT id` perfectly while every insert
@@ -335,9 +335,15 @@ export class PostgresAuditStore implements AuditStore {
           await client.query('ROLLBACK').catch(() => undefined);
         }
       });
-      return { available: true };
+      // `writable`, and earned: every statement above is the writer's own,
+      // executed and then rolled back.
+      return { available: true, writable: true };
     } catch (err) {
-      return { available: false, error: err instanceof AuditStoreError ? err.code : classify(err) };
+      return {
+        available: false,
+        writable: false,
+        error: err instanceof AuditStoreError ? err.code : classify(err),
+      };
     }
   }
 
@@ -370,8 +376,31 @@ export class PostgresAuditStore implements AuditStore {
   }
 
 
+  /**
+   * One row per hour per node, holding that node's running total.
+   *
+   * Updated in place rather than appended, and by hand rather than by
+   * `ON CONFLICT`: there is no unique key to conflict on, and adding one would
+   * mean rewriting rows already stored. Nothing races for a row — a node only
+   * ever writes its own, and its flushes are one timer.
+   *
+   * Rows written before the counter became cumulative are per-interval deltas,
+   * several per hour and node. They are left alone and still read correctly,
+   * because the reader sums an hour and a node's deltas add up to its total.
+   */
   async writeStat(stat: AuditStat): Promise<void> {
     try {
+      const updated = await this.db.query(
+        `UPDATE horizon_audit_stat
+            SET login_local = $3, login_ldap = $4, login_oidc = $5,
+                login_oauth = $6, rejected = $7, over_budget = $8
+          WHERE hour_bucket = $1 AND horizon_node = $2`,
+        [
+          stat.hourBucket, stat.horizonNode, stat.login.local, stat.login.ldap,
+          stat.login.oidc, stat.login.oauth, stat.rejected, stat.overBudget,
+        ],
+      );
+      if ((updated.rowCount ?? 0) > 0) return;
       await this.db.query(
         `INSERT INTO horizon_audit_stat
            (hour_bucket, horizon_node, login_local, login_ldap,
@@ -379,8 +408,7 @@ export class PostgresAuditStore implements AuditStore {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [
           stat.hourBucket, stat.horizonNode, stat.login.local, stat.login.ldap,
-          stat.login.oidc, stat.login.oauth,
-          stat.rejected, stat.overBudget,
+          stat.login.oidc, stat.login.oauth, stat.rejected, stat.overBudget,
         ],
       );
     } catch (err) {
@@ -415,17 +443,9 @@ export class PostgresAuditStore implements AuditStore {
     // would have made the same control mean two different things.
     if (filter.username) where.push(`username = ${bind(filter.username)}`);
 
-    // Keyset: resume strictly AFTER the previous page's last row in the
-    // `(at DESC, id DESC)` ordering. A row-value comparison is what makes the
-    // composite index usable; comparing the two columns separately would not.
-    if (filter.cursor) {
-      where.push(
-        `(at, id) < (${bind(new Date(filter.cursor.at))}::timestamptz, ${bind(filter.cursor.id)}::bigint)`,
-      );
-    }
-
     const size = Math.max(1, filter.pageSize);
     const limit = overFetchSize(size);
+    const offset = pageOffset(filter.pageNum, size);
 
     try {
       // `(at DESC, id DESC)`, never `id` alone: identity values are handed out
@@ -434,18 +454,11 @@ export class PostgresAuditStore implements AuditStore {
       const res = await this.db.query<RawAuditRow>(
         `SELECT ${SELECT_COLUMNS} FROM horizon_audit
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-         ORDER BY at DESC, id DESC LIMIT ${bind(limit)}`,
+         ORDER BY at DESC, id DESC LIMIT ${bind(limit)} OFFSET ${bind(offset)}`,
         params,
       );
       const { rows, hasNext } = takeOverFetched(res.rows.map(toEntry), size);
-      const last = rows[rows.length - 1];
-      return {
-        rows,
-        pageNum: filter.pageNum,
-        pageSize: size,
-        hasNext,
-        ...(hasNext && last ? { nextCursor: { at: last.at, id: last.id } } : {}),
-      };
+      return { rows, pageNum: filter.pageNum, pageSize: size, hasNext };
     } catch (err) {
       return fail(err);
     }
@@ -461,6 +474,8 @@ export class PostgresAuditStore implements AuditStore {
     const bindStat = (v: unknown): string => `$${params.push(v)}`;
     try {
       const res = await this.db.query<Record<string, unknown>>(
+        // One row per hour per node, each holding that node's running total,
+        // so an hour is simply their sum.
         `SELECT hour_bucket,
                 SUM(login_local)       AS login_local,
                 SUM(login_ldap)        AS login_ldap,
