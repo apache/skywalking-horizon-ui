@@ -101,12 +101,6 @@ export function useAuditPage() {
    * when the filters are applied and reused until they change.
    */
   const appliedRange = ref<{ from?: number; to?: number }>({});
-  /**
-   * One cursor per page boundary — `cursors[n]` is where page `n + 2` starts.
-   * Kept as a stack so Previous is a position we already held rather than a
-   * backwards offset.
-   */
-  const cursors = ref<string[]>([]);
   /** Set when the typed range cannot be read, so the form can say so instead
    *  of firing a query the operator did not describe. */
   const rangeError = ref<string | null>(null);
@@ -186,14 +180,12 @@ export function useAuditPage() {
     loadingList.value = true;
     const f = use ?? { ...filters.value };
     applied.value = f;
-    const cursor = pageNum.value > 1 ? cursors.value[pageNum.value - 2] : undefined;
     const query: AuditQuery = {
       pageNum: pageNum.value,
       pageSize: PAGE_SIZE,
       ...(f.username ? { username: f.username } : {}),
       ...(f.kind ? { kind: [f.kind] } : {}),
       ...appliedRange.value,
-      ...(cursor ? { cursor } : {}),
     };
     try {
       const page = await bff.adminAudit.list(query);
@@ -202,8 +194,6 @@ export function useAuditPage() {
       if (generation !== listGeneration) return;
       rows.value = page.rows;
       hasNext.value = page.hasNext;
-      // Record where this page ended so the next one can resume from it.
-      if (page.nextCursor) cursors.value[pageNum.value - 1] = page.nextCursor;
     } catch (err) {
       if (generation !== listGeneration) return;
       listError.value = err instanceof Error ? err.message : String(err);
@@ -246,7 +236,6 @@ export function useAuditPage() {
     // set was fetched with changes together, or not at all.
     appliedRange.value = range;
     pageNum.value = 1;
-    cursors.value = [];
     await loadList(f);
   }
 

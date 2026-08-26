@@ -52,9 +52,11 @@ export interface AuditRouteDeps extends AuthDeps {
  *  database. */
 const MAX_PAGE_SIZE = 200;
 
-/** The largest value a signed `bigint` column can hold — what the audit's `id`
- *  is, and therefore the ceiling a cursor may name. */
-const PG_BIGINT_MAX = 9_223_372_036_854_775_807n;
+/** How deep a reader may page. An offset is not free on either backend —
+ *  Postgres walks the skipped rows, and BanyanDB asks every data node for
+ *  `offset + limit` and discards the difference — so the depth is bounded and
+ *  a reader who has gone this far wants a narrower time range, not page 501. */
+const MAX_PAGE_NUM = 500;
 
 /**
  * Bounds a caller's timestamps to what the COLUMN can hold, not to what a JS
@@ -93,45 +95,32 @@ const listQuerySchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : Array.isArray(v) ? v : v.split(','))),
   username: text(256),
-  // Display-only: paging is keyset, so this labels the page rather than
-  // computing an offset. Depth costs nothing — page 1 000 is one index seek
-  // like page 2 — so the only requirement is that it stays a number the rest
-  // of the code can do arithmetic on. A cap here could only make `hasNext`
-  // promise a page the route would then refuse.
-  pageNum: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER).default(1),
+  // 1-based, and it IS the position: the store skips `pageSize * (pageNum-1)`
+  // rows, which is OAP's own formula. Capped because an offset is paid for by
+  // the backend — every row skipped is a row read and discarded — so a page
+  // number far past the data is a cost with no reader behind it.
+  pageNum: z.coerce.number().int().positive().max(MAX_PAGE_NUM).default(1),
   pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(50),
-  // Where the previous page ended, as `<epochMs>:<id>`. One parameter rather
-  // than two, because the halves are meaningless apart.
-  //
-  // The id half is checked against what the COLUMN can hold, not against a
-  // digit count: `horizon_audit.id` is a signed bigint, and 19 digits reaches
-  // well past its maximum. A value above it is not a row that has not been
-  // written yet — it is a value the comparison cannot bind, so Postgres
-  // answers 22003 and the read fails as a store fault instead of a bad
-  // request.
-  cursor: z
-    .string()
-    .regex(/^\d{1,15}:\d{1,19}$/, 'cursor must be "<epochMs>:<id>"')
-    // Shape-checked again rather than trusting the regex above it: zod runs
-    // every check in the chain, so a failed `.regex()` does NOT stop this one
-    // being handed the same bad string — and `BigInt('def')` THROWS, turning a
-    // malformed query parameter into a 500 instead of the 400 it earned.
-    // Malformed input returns true here and keeps the regex's own message.
-    .refine((v) => {
-      const id = v.split(':')[1];
-      return id === undefined || !/^\d+$/.test(id) || BigInt(id) <= PG_BIGINT_MAX;
-    }, { message: 'cursor id is larger than the column can hold' })
-    .optional(),
-});
+})
+  // Strict, so a parameter this route does not understand is a 400 rather
+  // than something quietly dropped. A stripped parameter reads to whoever
+  // sent it as one that was honoured — which is exactly how a filter, or a
+  // resume position that no longer exists, appears to work while doing
+  // nothing at all.
+  .strict();
 
-const tokenQuerySchema = z.object({
-  from: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
-  to: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
-});
+const tokenQuerySchema = z
+  .object({
+    from: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
+    to: z.coerce.number().int().min(EPOCH_MIN).max(EPOCH_MAX).optional(),
+  })
+  .strict();
 
-const statQuerySchema = z.object({
-  window: z.coerce.number().int().optional(),
-});
+const statQuerySchema = z
+  .object({
+    window: z.coerce.number().int().optional(),
+  })
+  .strict();
 
 export function registerAuditRoutes(app: FastifyInstance, deps: AuditRouteDeps): void {
   app.get('/api/admin/audit', async (req) => {
@@ -148,16 +137,7 @@ export function registerAuditRoutes(app: FastifyInstance, deps: AuditRouteDeps):
     if (q.kind !== undefined && kind?.length === 0) {
       return { rows: [], pageNum: q.pageNum, pageSize: q.pageSize, hasNext: false };
     }
-    // Destructured out: the wire carries one string, the store takes a pair.
-    const { cursor: raw, ...rest } = q;
-    const cursor = raw
-      ? { at: Number(raw.slice(0, raw.indexOf(':'))), id: raw.slice(raw.indexOf(':') + 1) }
-      : undefined;
-    const page = await deps.audit.query({ ...rest, kind, ...(cursor ? { cursor } : {}) });
-    // Hand the cursor back as one opaque string, so the page never assembles
-    // a position out of two fields it might mismatch.
-    const { nextCursor, ...body } = page;
-    return { ...body, ...(nextCursor ? { nextCursor: `${nextCursor.at}:${nextCursor.id}` } : {}) };
+    return deps.audit.query({ ...q, kind });
   });
 
   /**

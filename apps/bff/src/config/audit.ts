@@ -87,6 +87,48 @@ export const auditPostgresSchema = z
   .strict()
   .default({});
 
+/**
+ * Where BanyanDB is, and who this Horizon is when it talks to it.
+ *
+ * A SECRET, like the Postgres block: the credentials travel as plain gRPC
+ * metadata, so a deployment reaching anything but loopback wants TLS for the
+ * same reason the database URL does — the records carry usernames, verified
+ * email addresses and client addresses.
+ *
+ * There is no retention here. BanyanDB expires whole segments itself, declared
+ * as the group's TTL when the schema is applied, so nothing sweeps and no
+ * interval is read.
+ */
+const auditBanyanDBSchema = z
+  .object({
+    /** `host:port` of the liaison's gRPC port. */
+    address: z.string().default(''),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    tls: z.boolean().default(false),
+    caFile: z.string().optional(),
+    /** Refuse a non-loopback target without TLS unless this says otherwise,
+     *  and warn at every boot when it does. */
+    allowCleartext: z.boolean().default(false),
+    /** Prefixes every group this feature owns. Two deployments sharing one
+     *  BanyanDB MUST set different values, or they share one audit log. */
+    namespace: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+    /**
+     * How long BanyanDB keeps a row, as the group's TTL. Whole days, because
+     * that is what a segment boundary is — a row lives at least this long and
+     * at most one segment longer.
+     *
+     * Bounded at ten years, which is past any retention policy anyone writes
+     * and far below the uint32 the TTL travels in: a larger number wraps on
+     * the wire and reaches BanyanDB as something else entirely, so it is
+     * refused at boot where it can still be read as a typo.
+     */
+    retentionDays: z.number().int().positive().max(3650).default(90),
+    deadlineMs: z.number().int().positive().max(60_000).default(10_000),
+  })
+  .strict()
+  .default({});
+
 export const auditSchema = z
   .object({
     enabled: z.boolean().default(process.env.HORIZON_AUDIT_ENABLED === 'true'),
@@ -115,8 +157,9 @@ export const auditSchema = z
      *  one timer into a tight database loop — the opposite of what was asked
      *  for, with no error anywhere. */
     eventBatchSeconds: z.number().int().positive().max(3600).default(15),
-    provider: z.enum(['none', 'postgres']).default('none'),
+    provider: z.enum(['none', 'postgres', 'banyandb']).default('none'),
     postgres: auditPostgresSchema,
+    banyandb: auditBanyanDBSchema,
   })
   .strict()
   .default({});
@@ -253,6 +296,32 @@ export function isLoopbackHost(host: string): boolean {
 
 export function auditConfigProblem(audit: AuditConfig): string | null {
   if (!audit.enabled) return null;
+  if (audit.provider === 'banyandb') {
+    const b = audit.banyandb;
+    if (!b.address) {
+      return 'audit.provider is "banyandb" but audit.banyandb.address is empty — set HORIZON_AUDIT_BANYANDB';
+    }
+    const addr = /^(\[[0-9A-Fa-f:.]+\]|[^\s:[\]]+):(\d{1,5})$/.exec(b.address);
+    const port = addr ? Number(addr[2]) : 0;
+    if (!addr || port < 1 || port > 65_535) {
+      return `audit.banyandb.address is not host:port (${b.address}) — an IPv6 host is bracketed, as [::1]:17912`;
+    }
+    if (b.caFile && !b.tls) {
+      return 'audit.banyandb.caFile is set but tls is false — the authority would be read and then ignored';
+    }
+    // The same test the Postgres branch applies, rather than a second
+    // hand-written one: three string literals refused `LOCALHOST`, the rest of
+    // `127/8`, and `::ffff:127.0.0.1` — all genuinely loopback, and all
+    // accepted one field away in the same file.
+    if (!isLoopbackHostname(addr[1] ?? '') && !b.tls && !b.allowCleartext) {
+      return (
+        'audit.banyandb.address is not loopback and tls is off — the records carry usernames, ' +
+        'email addresses and source addresses, and the store credentials travel as plain metadata. ' +
+        'Turn tls on, or set banyandb.allowCleartext: true for a network you control'
+      );
+    }
+    return null;
+  }
   if (audit.provider === 'none') {
     return 'audit.enabled is true but audit.provider is "none" — no backend selected, so nothing will be recorded';
   }

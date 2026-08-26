@@ -54,6 +54,18 @@ export interface PageResult<Row> {
   hasNext: boolean;
 }
 
+/**
+ * Rows to SKIP for a 1-based page — `pageSize * (pageNum - 1)`.
+ *
+ * OAP's own formula (`PaginationUtils.exchange`), so a store Horizon owns and
+ * a query OAP answers page identically. `pageNum` below 1 is treated as 1,
+ * matching OAP, rather than producing a negative offset that reaches a
+ * backend.
+ */
+export function pageOffset(pageNum: number, pageSize: number): number {
+  return Math.max(0, (Math.max(1, Math.trunc(pageNum)) - 1) * pageSize);
+}
+
 /** Rows to ask a backend for when `size` are to be rendered. The +1 is a
  *  fetch-side detail and is allowed to exceed a display cap by exactly one —
  *  clamping it back would lose the signal at the top of the range, which is
