@@ -153,9 +153,10 @@ const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
+const traceTypeRef = computed<'SKYWALKING_NATIVE' | 'OTLP' | null>(() => 'SKYWALKING_NATIVE');
 const serviceId = ref('');
-const providerIdRef = computed<string | null>(() => providerIdParam.value ?? selectedId.value);
-const modelIdRef = computed<string | null>(() => modelIdParam.value ?? selectedInstanceObj.value?.id ?? null);
+const providerIdRef = computed<string | null>(() => selectedId.value);
+const modelIdRef = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
 const keywordsRef = computed<string[]>(() => []);
 
 function changeValueType(): void {
@@ -248,7 +249,7 @@ function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined')
   page.value = 1;
 }
 
-const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = useLayerEvaluationRecord(layerKey, {
+const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, isFetching, refetch } = useLayerEvaluationRecord(layerKey, {
   service: computed(() => null),
   serviceId: computed(() => serviceId.value.trim() || null),
   providerId: providerIdRef,
@@ -263,6 +264,7 @@ const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = u
   sortField,
   sortOrder,
   traceId: traceIdRef,
+  traceType: traceTypeRef,
   keywords: keywordsRef,
   page,
   pageSize,
@@ -271,7 +273,7 @@ const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = u
   endTime: endTimeRef,
 });
 
-const { facets } = useLayerEvaluationRecordFacets(layerKey, {
+const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerKey, {
   service: computed(() => null),
   providerId: providerIdRef,
   modelId: modelIdRef,
@@ -289,6 +291,7 @@ const { facets } = useLayerEvaluationRecordFacets(layerKey, {
 function runQuery(): void {
   page.value = 1;
   void refetch();
+  void refetchFacets();
 }
 
 // ── Density histogram (60 bins). Loki/Datadog style: stacked bars
@@ -528,8 +531,8 @@ function jumpToTrace(traceId: string, ts?: number): void {
       </div>
     </header>
 
-    <div v-if="error" class="banner err">
-      <strong>Evaluation records feed failed.</strong> {{ String(error) }}
+    <div v-if="!reachable" class="banner err">
+      <strong>Evaluation records feed failed.</strong> {{ queryError || 'Backend unreachable.' }}
     </div>
 
     <!-- Histogram + main stream -->
@@ -638,7 +641,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
             <button
                 class="sw-btn small"
                 type="button"
-                :disabled="genAIEvaluationRecordStreamRows.length < pageSize"
+                :disabled="!hasNext || isFetching"
                 @click="page++"
             >Next</button>
           </div>

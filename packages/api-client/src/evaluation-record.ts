@@ -40,7 +40,7 @@ export interface EvaluationRecordQueryRequest {
   sortField?: 'EVALUATION_TIME' | 'SCORE_VALUE' | null;
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
-  tags?: Array<{ key: string; value: string }>;
+  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
   page?: number;
   pageSize?: number;
   windowMinutes?: number;
@@ -49,6 +49,7 @@ export interface EvaluationRecordQueryRequest {
 }
 
 export interface EvaluationRecordRow {
+  traceRef: { type: 'SKYWALKING_NATIVE' | 'OTLP'; traceId: string; segmentId: string | null; spanIndex: number | null; spanId: string | null } | null;
   traceId: string | null;
   serviceId: string | null;
   serviceName: string | null;
@@ -58,12 +59,10 @@ export interface EvaluationRecordRow {
   modelName: string | null;
   operationName: string | null;
   scoreValue: number | null;
-  segmentId: string | null;
-  spanId: string | null;
-  spanType: string | null;
+  booleanValue: boolean | null;
+  stringValue: string | null;
   taskName: string | null;
   valueType: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
-  value: string | null;
   evaluationLevel: string | null;
   reason: string | null;
   judgeModel: string | null;
@@ -76,6 +75,7 @@ export interface EvaluationRecordsResponse {
   total: number;
   records: EvaluationRecordRow[];
   reachable: boolean;
+  hasNext?: boolean;
   error?: string;
 }
 

@@ -72,6 +72,7 @@ export interface EvaluationRecordParams {
   sortField?: Ref<'EVALUATION_TIME' | 'SCORE_VALUE'>;
   sortOrder?: Ref<'ASC' | 'DES'>;
   traceId?: Ref<string | null>;
+  traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
   keywords?: Ref<string[]>;
   page: Ref<number>;
   pageSize: Ref<number>;
@@ -99,7 +100,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       params.sortField ?? computed(() => 'EVALUATION_TIME'),
       params.sortOrder ?? computed(() => 'DES'),
       params.traceId ?? computed(() => null),
-      params.keywords ?? computed(() => []),
+      params.traceType ?? computed(() => null),
       params.page,
       params.pageSize,
       params.windowMinutes ?? computed(() => 0),
@@ -121,6 +122,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
         ...(params.sortField?.value ? { sortField: params.sortField.value } : {}),
         ...(params.sortOrder?.value ? { sortOrder: params.sortOrder.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
+        ...(params.traceType?.value ? { traceType: params.traceType.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }
@@ -138,21 +140,18 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       return row.scoreValue == null ? '' : String(row.scoreValue);
     }
     if (row.valueType === 'BOOLEAN') {
-      if (row.scoreValue == null) {
-        return '';
-      }
-      return row.scoreValue === 0 ? 'false' : 'true';
+      return row.booleanValue == null ? '' : String(row.booleanValue);
     }
-    return row.value ?? '';
+    return row.stringValue ?? '';
   }
 
   function toGenAIEvaluationRecordStreamRow(
     row: EvaluationRecordRow,
   ): GenAIEvaluationRecordStreamRow {
     const rawTags: Array<{ key: string; value: string | null }> = [
-      { key: 'segment_id', value: row.segmentId },
-      { key: 'span_id', value: row.spanId },
-      { key: 'span_type', value: row.spanType },
+      { key: 'segment_id', value: row.traceRef?.segmentId ?? null },
+      { key: 'span_id', value: row.traceRef?.spanId ?? null },
+      { key: 'trace_type', value: row.traceRef?.type ?? null },
       { key: 'task_name', value: row.taskName },
       { key: 'evaluation_level', value: row.evaluationLevel },
       { key: 'value_type', value: row.valueType },
@@ -189,7 +188,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
   function toGenAIEvaluationRecordSummary(row: EvaluationRecordRow): GenAIEvaluationRecordSummary {
     return {
       name: row.taskName ?? row.valueType ?? '-',
-      id: row.traceId ?? row.segmentId ?? row.spanId ?? '-',
+      id: row.traceId ?? row.traceRef?.segmentId ?? row.traceRef?.spanId ?? '-',
       value: displayValue(row),
       refId: row.traceId,
     };
@@ -215,6 +214,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     isFetching: q.isFetching,
     error: q.error,
     refetch: q.refetch,
+    hasNext: computed(() => q.data.value?.hasNext ?? false),
   };
 }
 
@@ -261,5 +261,6 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
     facets: computed(() => q.data.value ?? null),
     isFetching: q.isFetching,
     error: q.error,
+    refetch: q.refetch,
   };
 }

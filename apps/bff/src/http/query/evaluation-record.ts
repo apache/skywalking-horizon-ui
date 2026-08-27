@@ -36,7 +36,6 @@ import type {
   EvaluationRecordRow,
   EvaluationRecordsResponse,
   FetchLike,
-  LogTagFilter,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -110,7 +109,7 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
   query QueryGenAIEvaluationRecords($evaluationRecordCondition: GenAIEvaluationRecordQueryCondition) {
     data: queryGenAIEvaluationRecord(condition: $evaluationRecordCondition) {
       genAIEvaluationRecordList {
-        traceId
+        traceRef { type traceId segmentId spanIndex spanId }
         serviceId
         serviceName
         providerId
@@ -119,12 +118,10 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
         modelName
         operationName
         scoreValue
-        segmentId
-        spanId
-        spanType
         taskName
         valueType
-        value
+        booleanValue
+        stringValue
         evaluationLevel
         reason
         judgeModel
@@ -140,7 +137,7 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
 // hint, which is what booster-ui does now.
 
 interface OapEvaluationRecordRow {
-  traceId?: string | null;
+  traceRef?: { type?: 'SKYWALKING_NATIVE' | 'OTLP'; traceId?: string | null; segmentId?: string | null; spanIndex?: number | null; spanId?: string | null } | null;
   serviceId?: string | null;
   serviceName?: string | null;
   providerId?: string | null;
@@ -149,12 +146,10 @@ interface OapEvaluationRecordRow {
   modelName?: string | null;
   operationName?: string | null;
   scoreValue?: number | null;
-  segmentId?: string | null;
-  spanId?: string | null;
-  spanType?: string | null;
+  booleanValue?: boolean | null;
+  stringValue?: string | null;
   taskName?: string | null;
   valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
-  value?: string | null;
   evaluationLevel?: string | null;
   reason?: string | null;
   judgeModel?: string | null;
@@ -162,8 +157,16 @@ interface OapEvaluationRecordRow {
 }
 
 function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow {
+  const traceRef = r.traceRef ? {
+    type: r.traceRef.type ?? 'SKYWALKING_NATIVE',
+    traceId: r.traceRef.traceId ?? '',
+    segmentId: r.traceRef.segmentId ?? null,
+    spanIndex: r.traceRef.spanIndex ?? null,
+    spanId: r.traceRef.spanId ?? null,
+  } : null;
   return {
-    traceId: r.traceId ?? null,
+    traceRef,
+    traceId: traceRef?.traceId ?? null,
     serviceId: r.serviceId ?? null,
     serviceName: r.serviceName ?? null,
     providerId: r.providerId ?? null,
@@ -172,12 +175,10 @@ function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow 
     modelName: r.modelName ?? null,
     operationName: r.operationName ?? null,
     scoreValue: r.scoreValue == null ? null : r.scoreValue / SCORE_SCALE,
-    segmentId: r.segmentId ?? null,
-    spanId: r.spanId ?? null,
-    spanType: r.spanType ?? null,
+    booleanValue: r.booleanValue ?? null,
+    stringValue: r.stringValue ?? null,
     taskName: r.taskName ?? null,
     valueType: r.valueType ?? null,
-    value: r.value ?? null,
     evaluationLevel: r.evaluationLevel ?? null,
     reason: r.reason ?? null,
     judgeModel: r.judgeModel ?? null,
@@ -203,7 +204,7 @@ export interface EvaluationRecordFetchScope {
   sortField?: string | null;
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
-  tags?: LogTagFilter[];
+  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
 }
 
 /** Run OAP's `queryGenAIEvaluationRecord(GenAIEvaluationRecordQueryCondition)` for a pre-resolved scope +
@@ -236,15 +237,14 @@ export async function fetchEvaluationRecords(
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
     ...(scope.sortField ? { sortBy: scope.sortField } : {}),
     ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
-    ...(scope.traceId ? { relatedTrace: { traceId: scope.traceId } } : {}),
-    ...(scope.tags && scope.tags.length > 0 ? { tags: scope.tags } : {}),
+    ...(scope.traceId ? { relatedTrace: { type: scope.traceType ?? 'SKYWALKING_NATIVE', traceId: scope.traceId } } : {}),
     queryDuration: {
       start: window.start,
       end: window.end,
       step: 'SECOND',
       ...(coldStage ? { coldStage: true } : {}),
     },
-    paging,
+    paging: { ...paging, pageSize: paging.pageSize + 1 },
   };
   try {
     const env = await graphqlPost<{
@@ -252,13 +252,15 @@ export async function fetchEvaluationRecords(
         genAIEvaluationRecordList: OapEvaluationRecordRow[];
       } | null;
     }>(opts, QUERY_EVALUATION_RECORDS, { evaluationRecordCondition });
-    const records = (env.data?.genAIEvaluationRecordList ?? []).map(mapEvaluationRecordRow);
+    const raw = env.data?.genAIEvaluationRecordList ?? [];
+    const records = raw.slice(0, paging.pageSize).map(mapEvaluationRecordRow);
     return {
       generatedAt: Date.now(),
       query: {},
       total: records.length,
       records,
       reachable: true,
+      hasNext: raw.length > paging.pageSize,
     };
   } catch (err) {
     return {
@@ -283,6 +285,7 @@ export async function fetchEvaluationRecords(
  */
 interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
   service?: string;
+  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
 }
 
 export function registerEvaluationRecordRoute(app: FastifyInstance, deps: EvaluationRecordRouteDeps): void {
@@ -321,7 +324,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
               sortField: body.sortField,
               sortOrder: body.sortOrder,
               traceId: body.traceId,
-              tags: body.tags,
+              traceType: body.traceType,
             },
             window,
             {
@@ -365,7 +368,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
           ...(body.valueType ? { valueType: body.valueType } : {}),
-          ...(body.traceId ? { relatedTrace: { traceId: body.traceId } } : {}),
+          ...(body.traceId ? { relatedTrace: { type: body.traceType ?? 'SKYWALKING_NATIVE', traceId: body.traceId } } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a
           // level from the breakdown.
