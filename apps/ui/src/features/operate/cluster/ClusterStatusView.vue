@@ -143,6 +143,73 @@ function refreshAll(): void {
   void refetchInfo();
   void refetchPreflight();
 }
+
+/**
+ * The template store's own state, as distinct from the `ui-management` module
+ * row above. That row says whether the ENDPOINT answers; this says what came
+ * back from it, when, and what the last failure said — three questions an
+ * operator asks in that order, and which "unreachable" alone answers none of.
+ */
+const store = computed(() => preflight.value?.templateStore ?? null);
+const storeBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
+  const s = store.value;
+  if (!s) return 'unknown';
+  if (s.mode === 'readonly') return 'ok';
+  // Unreachable but still rendering is a warning; unreachable with nothing to
+  // render is an outage. Collapsing the two is what made a blip look fatal.
+  if (s.servingRetained) return 'warn';
+  if (s.unreachable) return 'err';
+  return 'ok';
+});
+const storeBadgeLabel = computed<string>(() => {
+  const s = store.value;
+  if (!s) return t('unknown');
+  if (s.mode === 'readonly') return t('readonly · bundled');
+  if (s.servingRetained) return t('stale · store unreachable');
+  if (s.unreachable) return t('unreachable');
+  return t('loaded');
+});
+/** The clock time of the last read — `07:43:33`, not the full date. The date
+ *  is only ever today's on a page an operator is watching. */
+const storeLastSyncClock = computed<string>(() => {
+  const at = store.value?.lastSuccessfulSyncAt ?? null;
+  return at === null ? '' : new Date(at).toLocaleTimeString();
+});
+/** "4m ago" — the figure an operator scans for; the exact time sits underneath
+ *  it as the card's label. */
+/** The figures, as one list — so the card reads as a single answer rather than
+ *  as several unrelated ones. Zero is worth showing; a kind nobody publishes
+ *  is not, so translations only appear when there are some. */
+const storeCounts = computed<Array<{ value: number; label: string }>>(() => {
+  const s = store.value;
+  if (!s) return [];
+  // Pluralised the way the rest of the app does it — "1 alert pages" is the
+  // kind of thing that makes a status page look unfinished.
+  const label = (key: string, n: number): string => t(key, n, { named: { n } });
+  const out = [
+    { value: s.counts.layer ?? 0, label: label('layer template | layer templates', s.counts.layer ?? 0) },
+    { value: s.counts.overview ?? 0, label: label('overview | overviews', s.counts.overview ?? 0) },
+    { value: s.counts.alert ?? 0, label: label('alert page | alert pages', s.counts.alert ?? 0) },
+  ];
+  if (s.translations > 0) {
+    out.push({
+      value: s.translations,
+      label: label('translation overlay | translation overlays', s.translations),
+    });
+  }
+  return out;
+});
+const storeLastSyncShort = computed<string>(() => {
+  const at = store.value?.lastSuccessfulSyncAt ?? null;
+  if (at === null) return t('never');
+  // Off the page's own ticker, so it ages on screen rather than freezing at
+  // whatever it said when the pane rendered.
+  const sec = Math.max(1, Math.floor((now.value - at) / 1000));
+  if (sec < 60) return t('{n}s ago', { n: sec });
+  const min = Math.floor(sec / 60);
+  if (min < 60) return t('{n}m ago', { n: min });
+  return t('{n}h ago', { n: Math.floor(min / 60) });
+});
 </script>
 
 <template>
@@ -262,6 +329,54 @@ function refreshAll(): void {
           </tr>
         </tbody>
       </table>
+    </section>
+
+
+    <!-- ── Pane B2 · Dashboard templates ─────────────────────────── -->
+    <section v-if="store" class="pane">
+      <header class="pane-head">
+        <h2>{{ t('Dashboard templates') }}</h2>
+        <span class="sw-badge" :class="`is-${storeBadgeState}`">
+          <span class="state-dot" />{{ storeBadgeLabel }}
+        </span>
+      </header>
+
+      <p class="pane-lede">
+        {{ t('What Horizon has loaded from OAP\'s template store, and when. The module row above says whether the endpoint answers; this says what came back from it.') }}
+      </p>
+
+      <!-- ONE card, figures inline. Four cards each carrying a single number
+           gave a count the same weight as a whole pane, and read as four
+           unrelated facts rather than one answer to "what is loaded". -->
+      <div class="sw-card ts-card">
+        <div class="ts-counts">
+          <div v-for="c in storeCounts" :key="c.label" class="ts-count">
+            <span class="ts-num mono">{{ c.value }}</span>
+            <span class="ts-label">{{ c.label }}</span>
+          </div>
+        </div>
+        <!-- Relative figure plus the clock time it happened at. No countdown
+             to the next read: that is the browser's own timer, and rendering
+             it live would mean re-rendering this page every second to age a
+             label nobody is waiting on. -->
+        <div class="ts-read">
+          {{ t('Loaded') }} <strong>{{ storeLastSyncShort }}</strong>
+          <span v-if="storeLastSyncClock" class="mono">· {{ storeLastSyncClock }}</span>
+        </div>
+      </div>
+
+      <div v-if="store.servingRetained" class="last-error">
+        <strong>{{ t('Serving an earlier read') }}</strong>
+        <span>{{ t('The store cannot be read right now, so these are the templates that loaded last. They are yours, not the bundled defaults — only out of date.') }}</span>
+      </div>
+      <div v-else-if="store.unreachable" class="last-error">
+        <strong>{{ t('Nothing loaded') }}</strong>
+        <span>{{ t('The store has never been read successfully, so dashboards, overviews and maps stay empty until it answers.') }}</span>
+      </div>
+      <div v-if="store.lastError" class="last-error">
+        <strong>{{ t('Last error') }}</strong>
+        <code>{{ store.lastError.message }}</code>
+      </div>
     </section>
 
     <!-- ── Pane C · Zipkin / OTLP trace endpoint ─────────────────── -->
@@ -390,6 +505,44 @@ function refreshAll(): void {
   margin: 0 0 12px;
   line-height: var(--sw-lh-relaxed);
   max-width: 720px;
+}
+
+.ts-card {
+  padding: 12px 14px;
+}
+.ts-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 26px;
+  align-items: baseline;
+}
+.ts-count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ts-num {
+  font-size: var(--sw-fs-lg);
+  font-weight: var(--sw-fw-semibold);
+  color: var(--sw-fg-1);
+  font-variant-numeric: tabular-nums;
+}
+.ts-label {
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-3);
+}
+.ts-read {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sw-line);
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-3);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ts-read strong {
+  color: var(--sw-fg-1);
 }
 
 .grid {

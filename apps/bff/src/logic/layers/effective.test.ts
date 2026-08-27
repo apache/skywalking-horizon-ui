@@ -30,7 +30,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UITemplateClient, UITemplateRow } from '@skywalking-horizon-ui/api-client';
-import { invalidateSyncCache } from '../templates/sync.js';
+import { invalidateSyncCache, resetTemplateSyncState, templateStoreStatus } from '../templates/sync.js';
 import { iterateBundledTemplates } from '../templates/aggregator.js';
 import { buildEnvelope, serializeEnvelope } from '../templates/names.js';
 import { logger } from '../../logger.js';
@@ -78,11 +78,11 @@ function bundledLayerContent(key: string): unknown {
 }
 
 beforeEach(() => {
-  invalidateSyncCache();
+  resetTemplateSyncState();
   vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
 });
 afterEach(() => {
-  invalidateSyncCache();
+  resetTemplateSyncState();
   vi.restoreAllMocks();
 });
 
@@ -183,5 +183,176 @@ describe('resolveEffectiveLayer — no template client wired', () => {
       blocked: false,
       reason: 'no-remote-row',
     });
+  });
+});
+
+/**
+ * A store that CAN'T be read is not the same as a store that never could.
+ *
+ * Blocking exists so an operator whose published dashboards cannot be read is
+ * not shown the shipped defaults dressed up as their configuration. That
+ * reasoning is about the DISK BUNDLE, and it does not reach the rows Horizon
+ * read from OAP a minute ago — those are the operator's own work, merely stale.
+ * Throwing them away turned a transient admin-port blip into every dashboard,
+ * overview and map going blank at once.
+ */
+describe('resolveEffectiveLayer — a store that was readable before', () => {
+  /** A client whose store can change between calls, so a test can take the
+   *  admin port away after a successful read. */
+  function flippingClient(store: { current: Store }): () => UITemplateClient {
+    return () =>
+      ({
+        list: async (): Promise<UITemplateRow[]> => {
+          if (store.current === 'unreachable') {
+            throw new Error('HTTP 404 on /ui-management/templates');
+          }
+          return store.current.map((r) => ({ ...r }));
+        },
+        create: () => Promise.reject(new Error('must not write')),
+        update: () => Promise.reject(new Error('must not write')),
+        disable: () => Promise.reject(new Error('must not write')),
+      }) as unknown as UITemplateClient;
+  }
+
+  const published = { key: 'GENERAL', alias: 'Edited by the operator' };
+
+  it('keeps serving the last read rows when the store goes away', async () => {
+    const store: { current: Store } = { current: [layerRow('GENERAL', published)] };
+    const client = flippingClient(store);
+    expect(await resolveEffectiveLayer(client, 'GENERAL')).toMatchObject({ reason: 'ok' });
+
+    store.current = 'unreachable';
+    invalidateSyncCache(); // only the 30s window; retention must survive it
+    const after = await resolveEffectiveLayer(client, 'GENERAL');
+
+    expect(after.blocked, 'a readable-before store blanked every dashboard').toBe(false);
+    expect(after.template, 'the operator’s own published template was discarded').toMatchObject({
+      alias: published.alias,
+    });
+  });
+
+  it('still refuses the DISK BUNDLE — retention is remote rows, not defaults', async () => {
+    // GENERAL is bundled, and the bundled copy differs from what is published.
+    expect(bundledLayerContent('GENERAL')).toBeTruthy();
+    const store: { current: Store } = { current: [layerRow('GENERAL', published)] };
+    const client = flippingClient(store);
+    await resolveEffectiveLayer(client, 'GENERAL');
+
+    store.current = 'unreachable';
+    invalidateSyncCache();
+    const after = await resolveEffectiveLayer(client, 'GENERAL');
+
+    expect(after.template).toMatchObject({ alias: published.alias });
+    expect(
+      JSON.stringify(after.template),
+      'the bundled copy was served as though it were the live config',
+    ).not.toBe(JSON.stringify(bundledLayerContent('GENERAL')));
+  });
+
+  it('blocks a layer it never read, even while retaining another', async () => {
+    const store: { current: Store } = { current: [layerRow('GENERAL', published)] };
+    const client = flippingClient(store);
+    await resolveEffectiveLayer(client, 'GENERAL');
+
+    store.current = 'unreachable';
+    invalidateSyncCache();
+
+    expect(await resolveEffectiveLayer(client, 'NOT_A_BUNDLED_LAYER')).toEqual({
+      template: null,
+      blocked: true,
+      reason: 'store-unreachable',
+    });
+  });
+
+  it('keeps a layer DISABLED while unreachable — that decision is an answer', async () => {
+    const store: { current: Store } = { current: [layerRow('GENERAL', published, true)] };
+    const client = flippingClient(store);
+    expect(await resolveEffectiveLayer(client, 'GENERAL')).toMatchObject({
+      blocked: true,
+      reason: 'layer-disabled',
+    });
+
+    store.current = 'unreachable';
+    invalidateSyncCache();
+
+    expect(
+      await resolveEffectiveLayer(client, 'GENERAL'),
+      'an administrator’s decision stopped applying because the store blipped',
+    ).toMatchObject({ blocked: true, reason: 'layer-disabled' });
+  });
+});
+
+/**
+ * What the Cluster Status page is told.
+ *
+ * A pure read of what the sync module already knows — it must never probe OAP,
+ * or a status page would add load every time it rendered. And it has to say
+ * more than "unreachable": that one word covers a 404 from a module nobody
+ * enabled, a 401 from wrong credentials, and a timeout from a slow admin port
+ * — three different things to go and fix.
+ */
+describe('templateStoreStatus — what the operator is shown', () => {
+  function flipping(store: { current: Store }): () => UITemplateClient {
+    return () =>
+      ({
+        list: async (): Promise<UITemplateRow[]> => {
+          if (store.current === 'unreachable') throw new Error('HTTP 401 on /ui-management/templates');
+          return store.current.map((r) => ({ ...r }));
+        },
+        create: () => Promise.reject(new Error('must not write')),
+        update: () => Promise.reject(new Error('must not write')),
+        disable: () => Promise.reject(new Error('must not write')),
+      }) as unknown as UITemplateClient;
+  }
+
+  it('reports nothing loaded before the first read', () => {
+    const s = templateStoreStatus();
+    expect(s.lastSuccessfulSyncAt).toBeNull();
+    expect(s.counts.layer).toBe(0);
+    expect(s.servingRetained).toBe(false);
+  });
+
+  it('counts what is being served from OAP, and when it was read', async () => {
+    const store: { current: Store } = {
+      current: [layerRow('GENERAL', { key: 'GENERAL' }), layerRow('MESH', { key: 'MESH' })],
+    };
+    await resolveEffectiveLayer(flipping(store), 'GENERAL');
+
+    const s = templateStoreStatus();
+    expect(s.counts.layer, 'the count is not what OAP actually served').toBe(2);
+    expect(s.lastSuccessfulSyncAt).not.toBeNull();
+    expect(s.unreachable).toBe(false);
+    expect(s.lastError).toBeNull();
+  });
+
+  it('keeps the failure’s own words, and says it is still serving', async () => {
+    const store: { current: Store } = { current: [layerRow('GENERAL', { key: 'GENERAL' })] };
+    const client = flipping(store);
+    await resolveEffectiveLayer(client, 'GENERAL');
+
+    store.current = 'unreachable';
+    invalidateSyncCache();
+    await resolveEffectiveLayer(client, 'GENERAL');
+
+    const s = templateStoreStatus();
+    expect(s.unreachable).toBe(true);
+    expect(s.servingRetained, 'the page cannot tell a warning from an outage').toBe(true);
+    expect(s.lastError?.message, 'only "unreachable" reached the page').toContain('401');
+    expect(s.counts.layer, 'the counts stopped describing what is on screen').toBe(1);
+  });
+
+  it('forgets the error once a read succeeds again', async () => {
+    const store: { current: Store } = { current: 'unreachable' };
+    const client = flipping(store);
+    await resolveEffectiveLayer(client, 'GENERAL');
+    expect(templateStoreStatus().lastError).not.toBeNull();
+
+    store.current = [layerRow('GENERAL', { key: 'GENERAL' })];
+    invalidateSyncCache();
+    await resolveEffectiveLayer(client, 'GENERAL');
+
+    const s = templateStoreStatus();
+    expect(s.lastError, 'an old failure was still being reported as current').toBeNull();
+    expect(s.unreachable).toBe(false);
   });
 });

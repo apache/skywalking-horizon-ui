@@ -37,6 +37,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
@@ -106,8 +107,9 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       const limit = Math.max(20, Math.min(50, Number(q.limit) || 20));
 
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
       try {

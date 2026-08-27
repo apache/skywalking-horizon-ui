@@ -44,6 +44,11 @@ export function useAdminFeatures() {
     queryKey: ['oap-preflight'],
     queryFn: () => bffClient.menu.preflight(),
     staleTime: 30_000,
+    // Runs on its own clock, deliberately — it is chrome, not page data, and
+    // the operator approved these four keeping their own poll. Flagged so the
+    // refresh coordinator does not mistake that poll for the page being busy:
+    // a 30s poller against a 30s cadence would postpone every round for ever.
+    meta: { independentPoll: true },
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });

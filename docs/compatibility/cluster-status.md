@@ -82,6 +82,22 @@ The pane header and each row carry a **checked … ago** stamp — when the disp
 - Refetch interval: 60 s
 - Probe rounds are shared across viewers for up to 30 s; **refresh both** bypasses the sharing
 
+## Pane B2 — Dashboard templates
+
+Pane B says whether the `ui-management` **endpoint answers**. This pane says what actually came back from it: how many of your templates Horizon is serving, when it last read them, and — if a read failed — what the failure said.
+
+- **The counts** — how many layer templates, overviews, alert pages and translation overlays are being served **from OAP**. These are the templates you published, so the figures are checkable against what you pushed.
+- **Loaded / next in** — how long ago Horizon last reached the store, and how many seconds until it looks again, so it is clear the cycle is still running.
+- **Last error** — the message from the most recent failed read, kept only while it is still the current trouble and cleared as soon as a read succeeds. "Unreachable" alone covers a 404 from a module nobody enabled, a 401 from wrong credentials and a timeout from a slow admin port; the message tells you which.
+
+The badge distinguishes two situations that look alike and are not:
+
+- **stale · store unreachable** — the store cannot be read right now, but Horizon is still rendering the templates from its last successful read. Your dashboards are up; they are simply not current. A warning, not an outage.
+- **unreachable** — the store cannot be read and Horizon has never read it, so there is nothing of yours to show and the template-backed pages stay empty.
+- **readonly · bundled** — `templates.mode: readonly`; the store is deliberately never called, so nothing here is a fault.
+
+See [Layer templates](../customization/layer-templates.md) for what renders in each case and why the bundled templates are never substituted.
+
 ## Pane C — Zipkin / OTLP traces
 
 A third pane probes OAP's Zipkin v2 REST endpoint and reports reachability. It feeds only the Zipkin/OTLP trace menu — a red dot here is **not** a cluster-wide outage; the rest of the UI keeps working and only Zipkin/OTLP trace views are affected.

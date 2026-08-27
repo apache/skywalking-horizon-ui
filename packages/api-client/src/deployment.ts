@@ -266,6 +266,15 @@ export interface DeploymentResponse {
   nodes: DeploymentNode[];
   calls: DeploymentCall[];
   reachable: boolean;
+  /**
+   * WHY the response carries nothing, when it is not a failure to reach OAP.
+   *
+   * `reachable: false` alone leaves an operator with one sentence for two
+   * situations that need opposite responses: a store they should go and fix,
+   * and a template an administrator turned off on purpose. Absent means the
+   * usual case — the read itself failed.
+   */
+  blocked?: 'store-unreachable' | 'layer-disabled';
   error?: string;
   metricsPartial?: { failedChunks: number; totalChunks: number };
 }

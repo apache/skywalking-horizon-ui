@@ -30,7 +30,9 @@ import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
 import AiChatLauncher from '@/ai/AiChatLauncher.vue';
 import AiChatPanel from '@/ai/AiChatPanel.vue';
 import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
-import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
+import ErrorToastHost from '@/controls/ErrorToastHost.vue';
+import { reportCappedRounds } from '@/controls/errorCenter';
+import { ensureConfigBundle, startConfigBundleSync, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
 import { useLayers } from '@/shell/useLayers';
 import { useDebugPanel } from '@/controls/debugPanel';
@@ -73,6 +75,12 @@ watch(
 // synchronously — no per-page spinner for static template content.
 onMounted(() => {
   void ensureConfigBundle();
+  // Templates can change from outside this browser — another Horizon, swctl,
+  // any tool writing the same OAP store — and a store that was unreachable can
+  // come back. Neither used to reach a running UI at all.
+  startConfigBundleSync();
+  // A round abandoned at its cap is otherwise silent.
+  reportCappedRounds();
   void themeStore.loadOrgDefault();
   void timeDefaultsStore.loadOrgDefault();
 });
@@ -171,6 +179,10 @@ function startSidebarResize(e: PointerEvent): void {
          instance events without leaving the page. -->
     <EventsPopout />
     <TemplateConflictPrompt />
+    <!-- Failures the operator caused, answered where they are looking. The
+         timer's own failures do NOT come here — they wait in the refresh
+         panel, because nobody asked for that round. -->
+    <ErrorToastHost />
     <!-- Always mounted (even when hidden) so the Admin "Debug events"
          toggle responds without a re-mount race. -->
     <DebugEventPanel />

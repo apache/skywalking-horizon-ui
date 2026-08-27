@@ -30,6 +30,8 @@
 import { computed, ref, type Ref } from 'vue';
 import { keepPreviousData, useQueries, useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
+import { fetchDrawable, useTimeIdentity } from '@/layer/graphQuery';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
 import { bffClient } from '@/api/client';
 import {
   ensureConfigBundle,
@@ -87,19 +89,26 @@ export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<strin
   // (e.g. a layer added since the cached bundle was written, or a page
   // the cached bundle predates). Keeps the page rendering even when
   // localStorage is stale.
+  /** Lifted so the query and its round membership share one gate — a page the
+   *  preview already knows is gone needs no request to confirm it. */
+  const configEnabled = computed(
+    () => layerKey.value.length > 0 && loaded.value && bundled.value === null && !previewMissing.value,
+  );
   const q = useQuery({
     queryKey: ['dashboard-config', layerKey, scope ?? computed(() => 'service'), pageId],
     queryFn: () => bffClient.layer.dashboardConfig(layerKey.value, scope?.value, pageId.value),
     // A page the preview already knows is gone needs no request to
     // confirm it — asking would fetch the PUBLISHED copy.
-    enabled: computed(
-      () => layerKey.value.length > 0 && loaded.value && bundled.value === null && !previewMissing.value,
-    ),
+    enabled: configEnabled,
     staleTime: 5 * 60_000,
     // A 404 is the answer, not a failure to reach one.
     retry: false,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
+  // Deliberately NOT in the refresh round. This is the template — what the
+  // widgets ARE, not what they say — and it changes only when an admin pushes
+  // one. Refetching it every cycle spent a request per page per round to
+  // re-read an unchanged document, and put a config failure in the refresh
+  // history where it read as a data problem.
 
   return {
     config: computed(() => bundled.value ?? q.data.value ?? null),
@@ -209,21 +218,36 @@ export function useLayerDashboard(
    * different widget sets and must not share a cache entry.
    */
   const requestPage = computed<string | undefined>(() => (previewMode.value ? undefined : page?.value));
-  const refetchIntervalRef = computed(() => {
+  /**
+   * Lifted out of the query so the refresh round uses the SAME gate. A manual
+   * `refetch()` bypasses `enabled`, so a guard that re-derived this condition
+   * could drift from it and fetch where the query itself would not.
+   *
+   * Gating rules:
+   *   - layer-wide scopes (topology / dependency / logs / trace / *-profiling)
+   *     only need `layerKey`.
+   *   - service scope needs service; instance needs service + instance;
+   *     endpoint needs service + endpoint.
+   */
+  const metricsEnabled = computed(() => {
+    if (layerKey.value.length === 0) return false;
+    // Wait for the config bundle so widgets are resolved before the metrics
+    // fire (no empty-list → BFF-default → refetch round-trip).
+    if (configReady && !configReady.value) return false;
     const s = scope?.value ?? 'service';
-    return METRIC_SCOPES.has(s) ? 30_000 : false;
+    if (s === 'service') return Boolean(service.value);
+    if (s === 'instance') return Boolean(service.value && entityRefs.instance?.value);
+    if (s === 'endpoint') return Boolean(service.value && entityRefs.endpoint?.value);
+    return true;
   });
   const rangeRef = range ?? computed<DashboardRange | null>(() => null);
-  // Bucket the range into a stable key fragment — millisecond
-  // precision in the key would invalidate the cache on every paint
-  // for rolling presets. Step + 60s buckets are precise enough for
-  // dashboard refreshes and keep the cache useful across closely-
-  // spaced operator interactions.
-  const rangeKey = computed(() => {
-    const r = rangeRef.value;
-    if (!r) return null;
-    return `${r.step}:${Math.floor(r.startMs / 60_000)}:${Math.floor(r.endMs / 60_000)}`;
-  });
+  // The IDENTITY of the window, not its bounds. Minute-bucketing them was a
+  // half-measure: it slowed the re-keying from every tick to every minute, so
+  // the widget grid emptied every other refresh instead of every one. What
+  // belongs in a key is the question — "the last hour" — while the bounds
+  // travel as the request argument and are re-read when the request is made.
+  const timeIdentity = useTimeIdentity();
+  const rangeKey = computed(() => (rangeRef.value ? timeIdentity.value : null));
   // Widget count for the "N metrics loading" hint. Chunking is NOT done here:
   // `LayerApi.dashboard` splits an oversized widget set into parallel requests,
   // and the BFF bulk-chunks the OAP trips per batch (http/query/dashboard.ts).
@@ -271,7 +295,14 @@ export function useLayerDashboard(
         ...(widgetsList?.value.length ? { widgets: widgetsList.value } : {}),
       };
       const opts = mockTop?.value ? { mockTop: mockTop.value } : {};
-      const resp = await bffClient.layer.dashboard(layerKey.value, baseBody, opts);
+      // Refused if it could not be read. The route answers 200 with
+      // `reachable: false` when OAP is unreachable, and taken as success that
+      // replaced every widget's value with nothing — the same "a failure is not
+      // an answer" rule the maps and the roster follow. Thrown, the previous
+      // widgets stay and the failure reaches the refresh history.
+      const resp = await fetchDrawable(() =>
+        bffClient.layer.dashboard(layerKey.value, baseBody, opts),
+      );
       progress.value = { arrived: resp.widgets?.length ?? total, total };
       return resp;
     },
@@ -291,21 +322,14 @@ export function useLayerDashboard(
     //   - service scope                          needs service.
     //   - instance scope needs service + instance.
     //   - endpoint scope needs service + endpoint.
-    enabled: computed(() => {
-      if (layerKey.value.length === 0) return false;
-      // Wait for the config bundle so widgets are resolved before the
-      // metrics fire (no empty-list → BFF-default → refetch round-trip).
-      if (configReady && !configReady.value) return false;
-      const s = scope?.value ?? 'service';
-      if (s === 'service') return Boolean(service.value);
-      if (s === 'instance') return Boolean(service.value && entityRefs.instance?.value);
-      if (s === 'endpoint') return Boolean(service.value && entityRefs.endpoint?.value);
-      return true;
-    }),
-    staleTime: 25_000,
-    refetchInterval: refetchIntervalRef,
-    refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),
-    retry: 1,
+    enabled: metricsEnabled,
+    // The round owns when this fetches. A 25-second freshness window let a
+    // predicate the operator had just visited come back with no request at
+    // all, and a window-focus refetch fired outside every round — neither is
+    // counted by the countdown, and both can land on top of a round already
+    // out.
+    staleTime: 0,
+    refetchOnWindowFocus: false,
     // A tab switch changes the queryKey (only the active tab's widgets are in
     // the batch — lazy), which would otherwise drop `data` to undefined while
     // the new panel fetches and blank EVERY sibling widget on the page. Keep
@@ -362,6 +386,35 @@ export function useLayerDashboard(
   );
 
   const limit = createLimiter(ENTITY_FANOUT_CONCURRENCY);
+  /**
+   * The fan-out's keys, derived from the same inputs the queries are.
+   *
+   * A capped round cancels by key, and the cohort is one participant holding
+   * many queries — so the round needs all of them, not just the primary batch.
+   * Built from the same list and helper the queries use, so the two cannot
+   * describe different sets.
+   */
+  const entityQueryKeys = computed<Array<Array<string | number | null>>>(() => {
+    if (!compareActive.value) return [];
+    const raw = scope?.value ?? 'service';
+    if (raw !== 'service' && raw !== 'instance' && raw !== 'endpoint') return [];
+    const s: FanoutScope = raw;
+    return fanoutList.value.map((entity) => {
+      const { service: svc, name } =
+        s === 'service' ? { service: entity, name: '' } : splitCompound(entity);
+      return entityDashboardKey(
+        layerKey.value,
+        s,
+        svc,
+        name,
+        mockTop?.value ?? 0,
+        rangeKey.value,
+        widgetsJson.value,
+        page?.value,
+      );
+    });
+  });
+
   const entityQueries = useQueries({
     queries: () => {
       // Only fan out once there's an actual comparison (>=2 in the set);
@@ -372,6 +425,11 @@ export function useLayerDashboard(
       if (raw !== 'service' && raw !== 'instance' && raw !== 'endpoint') return [];
       const s: FanoutScope = raw;
       const opts = mockTop?.value ? { mockTop: mockTop.value } : {};
+      // The window this ROUND of the fan-out asks about, captured once for the
+      // whole list. The limiter queues these, so a callback reading the live
+      // window later could ask about a window the key does not name — and file
+      // one entity's newer answer beside its siblings' older ones.
+      const askWindow = rangeRef.value;
       return fanoutList.value.map((entity) => {
         // Decode the cross-service compound key (instance/endpoint) into
         // its own service + name; at service scope the entity IS the svc.
@@ -388,18 +446,25 @@ export function useLayerDashboard(
             widgetsJson.value,
             page?.value,
           ),
+          // Refused if it could not be read, like the primary batch — without
+          // this one compared entity lost its last-good widgets to a soft OAP
+          // failure while its siblings kept theirs.
           queryFn: (): Promise<DashboardResponse> =>
             limit(() =>
-              bffClient.layer.dashboard(
-                layerKey.value,
-                entityDashboardBody(s, svc, name, rangeRef.value, widgetsList?.value ?? null, requestPage.value),
-                opts,
+              fetchDrawable(() =>
+                bffClient.layer.dashboard(
+                  layerKey.value,
+                  entityDashboardBody(s, svc, name, askWindow, widgetsList?.value ?? null, requestPage.value),
+                  opts,
+                ),
               ),
             ),
-          staleTime: 25_000,
-          refetchInterval: refetchIntervalRef,
+          // Zero, like the primary read it fans out beside. A freshness
+          // window here would have half a compare cohort re-read while the
+          // other half answered from cache — the entities would then be
+          // showing different windows in the same row.
+          staleTime: 0,
           refetchOnWindowFocus: false,
-          retry: 1,
           // A tab switch changes this entity's queryKey (widgetsJson) too — keep
           // the prior response so compare siblings hold their values, same as the
           // primary query above. Without it, switching a tab blanks every locked
@@ -463,6 +528,68 @@ export function useLayerDashboard(
     if (r.isError) return 'error';
     return r.data !== undefined ? 'ready' : 'loading';
   }
+
+  /**
+   * ONE timer for the whole page.
+   *
+   * The metric reads used to own a second `refetchInterval` of their own, so a
+   * layer dashboard ran two 30s clocks that drifted apart: the header and the
+   * roster refreshed on the round while the widgets refreshed on their own
+   * phase, and the page redrew in waves. Worse, the countdown described only
+   * the round — it could restart while every widget was still loading.
+   *
+   * They join the round instead. The bulked primary read and the per-entity
+   * fan-out are refetched together and awaited together, so the next interval
+   * starts when the LAST widget has landed and the page moves as one.
+   *
+   * The concurrency limiter is untouched and stays where it is: it decides how
+   * many of these may be in flight, which is a different question from when
+   * they start.
+   */
+  // Silent otherwise: the coordinator swallows participant rejections by
+  // design, so a participant that does not report is not reported at all.
+  useRefreshErrorReport({ owner: 'Dashboard', action: 'reading the dashboard metrics', error: q.error });
+  // The compare cohort too. Its entities are separate queries, so a failure
+  // that hit only one of them was reported nowhere — the tile showed no data
+  // and the history stayed empty, which reads as "this entity has none".
+  useRefreshErrorReport({
+    owner: 'Dashboard',
+    action: 'reading a compared entity’s metrics',
+    error: computed(() => entityQueries.value.find((eq) => eq.error)?.error ?? null),
+  });
+  useAutoRefreshSubscribe(
+    () =>
+      Promise.all([
+        q.refetch({ cancelRefetch: false }),
+        ...entityQueries.value.map((eq) => eq.refetch({ cancelRefetch: false })),
+      ]),
+
+    // Metric scopes only. The rule used to live on `refetchOnWindowFocus`,
+    // which is now off for every round-managed query — so it says here what it
+    // has always meant: an explore-style page (trace, log, profiling) answers
+    // a question the operator asked, and swapping its results out from under
+    // them on a timer is not a refresh, it is a loss of their place.
+    computed(() => metricsEnabled.value && METRIC_SCOPES.has(scope?.value ?? 'service')),
+    // Named so a capped round can CANCEL this page rather than only stop
+    // waiting on it — the primary batch and every compare entity, because the
+    // fan-out is one participant holding many queries and cancelling the first
+    // would leave the rest running past the cap.
+    () => [
+      [
+        'dashboard',
+        layerKey.value,
+        service.value,
+        scope?.value ?? 'service',
+        page?.value,
+        mockTop?.value ?? 0,
+        entityRefs.instance?.value ?? null,
+        entityRefs.endpoint?.value ?? null,
+        rangeKey.value,
+        widgetsList?.value ? JSON.stringify(widgetsList.value) : null,
+      ],
+      ...entityQueryKeys.value,
+    ],
+  );
 
   return {
     data: computed(() => q.data.value ?? null),

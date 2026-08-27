@@ -27,6 +27,20 @@ export interface GraphqlOptions {
   /** Optional basic-auth credentials for outbound OAP calls. When
    *  set, the client adds an `Authorization: Basic <b64>` header. */
   auth?: { username: string; password: string };
+  /**
+   * The CALLER's cancellation — the browser going away, or a refresh round
+   * hitting its cap.
+   *
+   * Without it the BFF finished a read nobody was listening to any more: a
+   * refresh that gave up after a minute cancelled the browser's socket while
+   * the query it triggered carried on against OAP, and a page abandoned
+   * mid-load left its fan-out running to completion. On a cluster fan-out that
+   * is one abandoned request multiplied by the node count.
+   *
+   * Combined with — never replacing — this client's own timeout, so a slow OAP
+   * is still cut off at `timeoutMs` whether or not the caller supplied one.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -37,12 +51,16 @@ export interface GraphqlOptions {
 export function buildOapOpts(
   cfg: HorizonConfig,
   fetch?: FetchLike,
+  /** The caller's cancellation. READ routes pass the client's; background
+   *  timers and anything that mutates pass nothing — see `GraphqlOptions`. */
+  signal?: AbortSignal,
 ): GraphqlOptions {
   return {
     queryUrl: cfg.oap.queryUrl,
     timeoutMs: cfg.oap.timeoutMs,
     auth: cfg.oap.auth,
     fetch,
+    ...(signal ? { signal } : {}),
   };
 }
 
@@ -85,6 +103,12 @@ export async function graphqlPost<T>(
   const url = opts.queryUrl.replace(/\/$/, '') + '/graphql';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  // EITHER ends the request: this client's own timeout, or the caller giving
+  // up. Combined rather than chosen between — a caller's signal must not
+  // remove the timeout that protects against a slow OAP.
+  const signal = opts.signal
+    ? AbortSignal.any([controller.signal, opts.signal])
+    : controller.signal;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.auth) {
     headers.authorization = basicAuthHeader(opts.auth.username, opts.auth.password);
@@ -95,7 +119,7 @@ export async function graphqlPost<T>(
       method: 'POST',
       headers,
       body: JSON.stringify({ query, variables: variables ?? {} }),
-      signal: controller.signal,
+      signal,
     });
   } finally {
     clearTimeout(timer);

@@ -26,8 +26,22 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import type { DeploymentResponse } from '@skywalking-horizon-ui/api-client';
-import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
+import type { DeploymentCall, DeploymentNode, DeploymentResponse } from '@skywalking-horizon-ui/api-client';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
+import {
+  useRoundWindow,
+  anchorForMount,
+  predicateKey,
+  predicateService,
+  fetchDrawable,
+  useGraphState,
+  useTimeIdentity,
+  useTriggeredRefetch,
+  type GraphPredicate,
+} from '@/layer/graphQuery';
+import { useColdStageStore } from '@/controls/coldStage';
+import { stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 import type { ServiceRef } from '@/utils/serviceRef';
@@ -45,55 +59,125 @@ export function useDeployment(
   replayData?: Ref<DeploymentResponse | null>,
 ) {
   const replay = computed(() => !!replayData?.value);
-  const ownsWindow = (windowMinutes?.value ?? 0) > 0;
-  const timeRange = useTimeRangeStore();
+  // A COMPUTED, not a one-time read. It decides which clock the whole query
+  // follows — a frozen local window or the global picker — and the caller
+  // supplies it as a ref that can change (an embedded block derives it from
+  // its own props). Snapshotting it at setup left the query following
+  // whichever source happened to be true on the first render.
+  const ownsWindow = computed(() => (windowMinutes?.value ?? 0) > 0);
+  const cold = useColdStageStore();
   // Preview-only: the draft top-level `deployment` block, so
   // the tab previews the operator's unpublished config.
   const previewCfg = usePreviewLayerBlock(layerKey, 'deployment');
+  const roundWindow = useRoundWindow();
   const rangeKey = computed(() => {
-    if (ownsWindow) {
+    if (ownsWindow.value) {
       const min = windowMinutes!.value ?? 0;
       const endMs = Date.now();
       return { step: stepForMinutes(min), startMs: endMs - min * 60_000, endMs };
     }
-    return {
-      step: timeRange.step,
-      startMs: timeRange.range.startMs,
-      endMs: timeRange.range.endMs,
-    };
+    // The ROUND's window while a round is out, so every screen in one round
+    // asks about the same one; the topbar's own otherwise.
+    return roundWindow.value;
   });
   const isEnabled = computed(
     () => enabled.value && layerKey.value.length > 0 && !!service.value && !replay.value,
   );
+  /** One name for the gate, so the query and the ticker guard cannot drift. */
+  const queryEnabled = isEnabled;
+  const timeIdentity = useTimeIdentity(ownsWindow, rangeKey);
+  const predicate = computed<GraphPredicate>(() => ({
+    layer: layerKey.value,
+    service: predicateService(service.value),
+    time: timeIdentity.value,
+    preview: previewCfg.value ?? null,
+    cold: cold.enabled,
+  }));
+  const predicateKeyRef = computed(() => predicateKey(predicate.value));
+  // BEFORE the query below: it fetches on mount, reading the window as it
+  // stands then. Anchoring afterwards would leave that first request asking
+  // about whenever the window was last moved.
+  anchorForMount(ownsWindow);
   const q = useQuery({
-    queryKey: ['layer-deployment', layerKey, service, rangeKey, previewCfg],
-    queryFn: () =>
-      bffClient.layer.deployment(
-        layerKey.value,
-        service.value!,
-        rangeKey.value,
-        previewCfg.value,
+    queryKey: ['layer-deployment', predicateKeyRef],
+    queryFn: ({ signal }) =>
+      fetchDrawable(() =>
+        bffClient.layer.deployment(
+          layerKey.value,
+          service.value!,
+          rangeKey.value,
+          previewCfg.value,
+          signal,
+        ),
       ),
     enabled: isEnabled,
-    staleTime: 30_000,
+    staleTime: 0,
+    // The ROUND decides when this fetches. Refetching on window focus as well
+    // would fire outside any round: unattributed, uncounted by the countdown,
+    // and capable of landing on top of a round already out.
+    refetchOnWindowFocus: false,
+    // Stated rather than inherited: a remount must ask again, whatever the
+    // freshness rule above happens to be. The window it asks about is the one
+    // `triggeredRefetch` re-anchors on the way in, not the one this cache
+    // entry was built with.
+    refetchOnMount: 'always',
   });
-  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
-  // preset's window advances with the ticker, so each tick already re-keys the
-  // query and vue-query fetches the new window. Subscribing as well would fire
-  // two requests per tick for the same data. A frozen window (embedded/replay,
-  // or a pinned custom range) does not re-key — and must not refetch anyway.
+  // The ticker is now the refresh mechanism: the key no longer moves. Guarded,
+  // because `refetch()` bypasses `enabled` — an unguarded subscription would
+  // make replay blocks and frozen captures contact OAP.
+  const triggeredRefetch = useTriggeredRefetch(() => q.refetch({ cancelRefetch: false }), ownsWindow);
+  // Only what the TIMER could not read reaches the history — a first load
+  // that fails already says so on the canvas.
+  useRefreshErrorReport({ owner: 'Deployment', action: 'reading the deployment graph', error: q.error });
+  // The component's own field: this screen takes part only when its query
+  // would, and never when it owns a frozen window. The promise is RETURNED so
+  // the round counts its next interval from when this settles.
+  useAutoRefreshSubscribe(
+    () => triggeredRefetch(),
+    computed(() => queryEnabled.value && !ownsWindow.value),
+    // Named so a capped round can cancel this query rather than only stop
+    // waiting on it. Resolved on demand, because the key moves with the
+    // predicate and the round cancels the one that is actually out.
+    () => ['layer-deployment', predicateKeyRef.value],
+  );
 
   // Replay renders straight from the captured payload — NOT through the shared
-  // query cache. Seeding initialData under the live query key would let a chat
-  // snapshot serve a live view during staleTime (and vice-versa).
-  const data = computed(() => (replay.value ? (replayData?.value ?? null) : (q.data.value ?? null)));
+  // query cache. Seeding initialData under the live query key would put a
+  // frozen capture into the entry a live view reads from, so the two would
+  // answer for each other — a snapshot shown as current, or a capture quietly
+  // replaced by data taken after it.
+  // The last GOOD response comes from the query cache, so it survives both a
+  // failed round and a remount; `latestAttempt` is whatever came back last and
+  // drives the banners. `phase` is derived from both so a view cannot read half
+  // its picture from one and half from the other.
+  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration } =
+    useGraphState<DeploymentResponse>({
+      data: q.data,
+      error: q.error,
+      isFetching: q.isFetching,
+      // How the gate below tells a fresh answer from one the cache
+      // still had for a predicate visited earlier.
+      dataUpdatedAt: q.dataUpdatedAt,
+      predicateKey: predicateKeyRef,
+      enabled: queryEnabled,
+      replay,
+      ...(replayData ? { replayData } : {}),
+    });
   return {
-    data,
-    nodes: computed(() => data.value?.nodes ?? []),
-    calls: computed(() => data.value?.calls ?? []),
+    data: latestAttempt,
+    latestAttempt,
+    phase,
+    drawable: acceptedSnapshot,
+    acceptedSnapshot,
+    predicateGeneration,
+    predicate,
+    predicateKey: predicateKeyRef,
+    nodes: computed<DeploymentNode[]>(() => acceptedSnapshot.value?.nodes ?? []),
+    calls: computed<DeploymentCall[]>(() => acceptedSnapshot.value?.calls ?? []),
+    initialPending: computed(() => phase.value === 'loading'),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,
-    refetch: q.refetch,
+    refetch: triggeredRefetch,
   };
 }

@@ -31,6 +31,7 @@ import type { FetchLike, DeploymentConfig, UITemplateClient } from '@skywalking-
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import {
   defaultMinuteWindow,
   getServerOffsetMinutes,
@@ -39,7 +40,7 @@ import {
   type Window,
 } from '../../util/window.js';
 import { deploymentConfigFor } from '../../logic/layers/loader.js';
-import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { blockedReason, resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewDeployment } from '../../logic/layers/preview.js';
 import { buildDeployment, emptyDeploymentResponse } from '../../logic/oap/deployment.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -98,9 +99,10 @@ export function registerDeploymentRoute(
           // — block (like the service-topology route) instead of a
           // misleading "not supported" 404. The SPA's connectivity banner
           // explains the empty state.
-          return reply.send(
-            emptyDeploymentResponse(layerKey, serviceId, { nodeMetrics: [] }, false),
-          );
+          return reply.send({
+            ...emptyDeploymentResponse(layerKey, serviceId, { nodeMetrics: [] }, false),
+            ...blockedReason(eff.reason),
+          });
         }
         cfg = deploymentConfigFor(eff.template);
       }
@@ -109,8 +111,9 @@ export function registerDeploymentRoute(
       }
 
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's topbar picker triplet; else fall back to the
       // last-hour MINUTE window (dashboards family — minute precision).
       const stepArg = (q.step ?? '').toUpperCase() as TimeStep;

@@ -80,6 +80,7 @@ import TopologyFocusPicker from '@/layer/service-map/TopologyFocusPicker.vue';
 import TopologyNodeFilter from '@/layer/service-map/TopologyNodeFilter.vue';
 import TopologyDetailPanels from '@/layer/service-map/TopologyDetailPanels.vue';
 import { useTopologyCanvas } from '@/layer/service-map/useTopologyCanvas';
+import { useAutoRefreshStore } from '@/controls/autoRefresh';
 import {
   clusterBuckets as buildClusterBuckets,
   clusterRects as buildClusterRects,
@@ -132,6 +133,7 @@ const layerKey = computed(() =>
 const embedded = computed(() => Boolean(props.embedded));
 
 const { layers } = useLayers();
+const auto = useAutoRefreshStore();
 const layer = computed<LayerDef | null>(
   // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
   // arrive lowercased (e.g. the AI chat block passes spec.layer.toLowerCase()).
@@ -199,7 +201,8 @@ function truncateLabel(s: string, n: number): string {
 const depth = ref<number>(props.focusDepth ?? 2);
 const focusWindowMinutes = computed<number | null>(() => props.focusWindowMinutes ?? null);
 const replayDataRef = computed<TopologyResponse | null>(() => props.replayData ?? null);
-const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
+const { nodes, calls, isFetching, data, acceptedSnapshot, refetch, phase, predicateKey } =
+  useLayerTopology(
   layerKey,
   focusServices,
   depth,
@@ -207,9 +210,23 @@ const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
   replayDataRef,
 );
 const reachable = computed(() => data.value?.reachable !== false);
+/**
+ * WHY it is empty, when the answer is not "OAP could not be read".
+ *
+ * A disabled template and an unreachable store both arrive as an unreachable
+ * response, and telling an operator to check OAP when an administrator turned
+ * the layer off sends them to the wrong place entirely.
+ */
+const blocked = computed(() => data.value?.blocked ?? null);
 const errorText = computed(() => data.value?.error ?? null);
-const tooLarge = computed(() => data.value?.tooLarge ?? null);
-const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
+// Fields that DESCRIBE THE DRAWN GRAPH come from the snapshot; only the fields
+// that describe the latest ATTEMPT (reachable / blocked / error) come from
+// `data`. Reading them all from `data` mixed the two: after a failed round the
+// nodes were still the snapshot's while the config, size warning and partial-
+// metric notice came from the empty failure — so a drawn graph lost its metric
+// definitions and its warnings the moment a refresh could not be read.
+const tooLarge = computed(() => acceptedSnapshot.value?.tooLarge ?? null);
+const metricsPartial = computed(() => acceptedSnapshot.value?.metricsPartial ?? null);
 
 // ── Node visibility filter. Buckets store EXCLUSIONS (a node is hidden
 // when its layer is in the set), so a freshly-appearing layer defaults
@@ -242,7 +259,7 @@ function resetFilter(): void {
 // ── Config from response (operator-edited layer JSON). Falls back to an
 // empty config when the BFF hasn't responded yet — the renderer degrades
 // gracefully to neutral colours / no number.
-const cfg = computed(() => data.value?.config ?? {
+const cfg = computed(() => acceptedSnapshot.value?.config ?? {
   nodeMetrics: [] as TopologyMetricDef[],
   linkServerMetrics: [] as TopologyMetricDef[],
   linkClientMetrics: [] as TopologyMetricDef[],
@@ -380,16 +397,40 @@ const layoutNodes = computed<LayoutNode[]>(() => {
 });
 
 // Drag overrides — populated by d3.drag on each node. Once a user drops a
-// node anywhere on the canvas, its (cx, cy) is pinned here and the layout
-// uses the override instead of the column layout. The map is keyed by
-// service id so it survives layer re-render as long as the same services
-// come back. Cleared whenever the underlying node set changes
-// meaningfully (different layer / refresh blowing away the topology).
+// node anywhere on the canvas, its (cx, cy) is pinned here and the layout uses
+// the override instead of the column layout. Keyed by service id.
+//
+// TWO rules decide a pin's life, and neither is "the node set changed":
+//
+//  1. A different PREDICATE is a different graph — another layer, another
+//     service, another window — so every pin goes. This is the cascade-clear.
+//  2. A node that has LEFT the graph loses its pin. Pruned here rather than
+//     merely ignored at read time: an ignored override is retained forever and
+//     RESURRECTS if that service ever comes back, dropping it wherever it sat
+//     in a graph the operator may no longer remember.
+//
+// What must NOT clear them is a refresh. The previous rule watched the sorted
+// node-id signature, which emptied on every tick while the round was out, so
+// every pin was lost about twice a minute.
 const dragOverrides = ref<Map<string, Pos>>(new Map());
+// Placements go on a predicate change; the selection goes with them, in the
+// consolidated watcher below — it has to sit after the selection refs are
+// declared.
+watch(predicateKey, () => { dragOverrides.value = new Map(); });
 watch(
-  () => layoutNodes.value.map((n) => n.id).sort().join('|'),
-  (curr, prev) => {
-    if (prev !== undefined && curr !== prev) dragOverrides.value = new Map();
+  // The RAW graph, not the laid-out/filtered nodes: hiding a node behind a
+  // display filter must not throw away where the operator put it.
+  () => nodes.value.map((n) => n.id),
+  (ids) => {
+    if (dragOverrides.value.size === 0) return;
+    const live = new Set(ids);
+    let dropped = false;
+    const kept = new Map<string, Pos>();
+    for (const [id, pos] of dragOverrides.value) {
+      if (live.has(id)) kept.set(id, pos);
+      else dropped = true;
+    }
+    if (dropped) dragOverrides.value = kept;
   },
 );
 
@@ -585,6 +626,20 @@ function edgeMidpoint(c: TopologyCall): { x: number; y: number } | null {
 // right sidebar (see TopologyDetailPanels).
 const selectedNodeId = ref<string | null>(null);
 const selectedCallId = ref<string | null>(null);
+/**
+ * A different question means a different graph, so nothing chosen against the
+ * old one survives it.
+ *
+ * The ids do not throw an error when they no longer resolve — they simply stop
+ * matching, so the detail panel blanks and then REAPPEARS if the new graph
+ * happens to contain the same node id, which a depth or time-range change
+ * normally does. That reads as the operator's selection being carried over,
+ * when it is the previous question's selection landing on a different answer.
+ */
+watch(predicateKey, () => {
+  selectedNodeId.value = null;
+  selectedCallId.value = null;
+});
 function selectNode(id: string | null): void {
   // The overview widget (embedded, not replay) renders a static map with no
   // detail sidebar — click is a no-op. A chat REPLAY (embedded WITH replay)
@@ -737,14 +792,21 @@ function jumpToEndpointDependency(): void {
 const svgEl = ref<SVGSVGElement | null>(null);
 const zoomLayerEl = ref<SVGGElement | null>(null);
 const containerEl = ref<HTMLDivElement | null>(null);
-const nodeCount = computed(() => layoutNodes.value.length);
+// Sorted ids, not a count: a same-count replacement still needs rebinding.
+const nodeIds = computed(() => layoutNodes.value.map((n) => n.id).sort());
+// What the map is being drawn FOR — the focused services, or the layer when
+// nothing is focused.
+const loadingTarget = computed(() =>
+  focusServiceNames.value.length > 0 ? focusServiceNames.value.join(', ') : layerKey.value,
+);
 const { zoomT, fitToScreen, zoomBy } = useTopologyCanvas({
   svgEl,
   zoomLayerEl,
   containerEl,
   W,
   H,
-  nodeCount,
+  nodeIds,
+  predicateKey,
   nodePos,
   dragOverrides,
   maxFitScale: props.fitScale,
@@ -828,13 +890,32 @@ onBeforeUnmount(() => {
             <option :value="3">{{ t('3 hops') }}</option>
           </select>
         </label>
-        <button class="sw-btn small" type="button" @click="() => refetch()">{{ t('Refresh') }}</button>
+        <!-- The same rule as the topbar's: while a round is out this could
+             only ask for what is already being fetched, so it refuses rather
+             than looking like a button that does nothing. -->
+        <button
+          class="sw-btn small"
+          type="button"
+          :disabled="auto.roundRunning"
+          :aria-busy="auto.roundRunning ? 'true' : 'false'"
+          @click="() => refetch()"
+        >{{ t('Refresh') }}</button>
       </div>
     </header>
 
     <div v-if="!reachable" class="banner err">
-      <strong>{{ t('OAP unreachable.') }}</strong>
-      {{ errorText ?? t('Topology feed failed — check the BFF and OAP.') }}
+      <template v-if="blocked === 'layer-disabled'">
+        <strong>{{ t('This layer’s template is disabled.') }}</strong>
+        {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+      </template>
+      <template v-else-if="blocked === 'store-unreachable'">
+        <strong>{{ t('The template store could not be read.') }}</strong>
+        {{ t('Horizon renders what OAP holds, so it is serving nothing rather than defaults.') }}
+      </template>
+      <template v-else>
+        <strong>{{ t('OAP unreachable.') }}</strong>
+        {{ errorText ?? t('Topology feed failed — check the BFF and OAP.') }}
+      </template>
     </div>
     <div v-if="tooLarge" class="banner warn">
       <strong>{{ t('Topology too large to render') }}</strong> — {{ t('{nodes} services · {edges} calls.', { nodes: tooLarge.nodes.toLocaleString(), edges: tooLarge.edges.toLocaleString() }) }}
@@ -1218,7 +1299,26 @@ onBeforeUnmount(() => {
             </g>
           </g>
         </svg>
-        <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
+        <!-- The PHASE, not `isLoading`: the latter is true whenever no data is
+             cached for the key, which meant the canvas swapped to this line on
+             every tick. And it names the target, so an operator who just
+             changed focus sees which map is coming. -->
+        <div v-else-if="phase === 'loading'" class="loader">
+          {{ t('Loading topology for “{target}”…', { target: loadingTarget }) }}
+        </div>
+        <!-- A failed FIRST read is its own state; left as loading it showed the
+             waiting line for ever with nothing coming. -->
+        <!-- A DISABLED layer is an administrator's answer, not a failure to
+             reach one: Retry would invite the operator to keep asking for
+             something that cannot change until someone re-enables it. -->
+        <div v-else-if="phase === 'failed' && blocked === 'layer-disabled'" class="loader">
+          {{ t('This layer’s template is disabled.') }}
+          {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+        </div>
+        <div v-else-if="phase === 'failed'" class="loader">
+          {{ t('Could not load the topology.') }}
+          <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
+        </div>
         <div v-else-if="filterActive && nodes.length > 0" class="loader">
           {{ t('All nodes are hidden by the current filter.') }}
           <button class="sw-btn small" type="button" @click="resetFilter">{{ t('Reset filter') }}</button>
