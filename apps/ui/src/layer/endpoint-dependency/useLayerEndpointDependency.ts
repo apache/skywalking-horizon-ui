@@ -27,7 +27,6 @@ import type { EndpointDependencyCall, EndpointDependencyNode, EndpointDependency
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useRefreshErrorReport } from '@/controls/errorCenter';
 import {
-  windowOf,
   useRoundWindow,
   anchorForMount,
   predicateKey,
@@ -38,7 +37,6 @@ import {
   useTriggeredRefetch,
   type GraphPredicate,
 } from '@/layer/graphQuery';
-import { useColdStageStore } from '@/controls/coldStage';
 import { stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -65,7 +63,6 @@ export function useLayerEndpointDependency(
   const ownsWindow = computed(() => (windowMinutes?.value ?? 0) > 0);
   // Preview-only: forward the draft `endpointDependency` block.
   const previewCfg = usePreviewLayerBlock(layerKey, 'endpointDependency');
-  const cold = useColdStageStore();
   const roundWindow = useRoundWindow();
   const rangeKey = computed(() => {
     if (ownsWindow.value) {
@@ -98,7 +95,6 @@ export function useLayerEndpointDependency(
     endpoint: endpoint.value ?? null,
     time: timeIdentity.value,
     preview: previewCfg.value ?? null,
-    cold: cold.enabled,
   }));
   const predicateKeyRef = computed(() => predicateKey(predicate.value));
   // BEFORE the query below: it fetches on mount, reading the window as it
@@ -107,19 +103,34 @@ export function useLayerEndpointDependency(
   anchorForMount(ownsWindow);
   const q = useQuery({
     queryKey: ['layer-endpoint-dependency', predicateKeyRef],
-    queryFn: ({ signal }) =>
-      fetchDrawable(
-        () =>
-          bffClient.layer.endpointDependency(
-            layerKey.value,
-            service.value!,
-            endpoint.value ?? '',
-            rangeKey.value,
-            previewCfg.value,
-            signal,
-          ),
-        rangeKey.value,
+    // The cache entry carries the window the response was read WITH.
+    //
+    // It used to live in a side table keyed by the response object, which does
+    // not survive the trip: vue-query hands back a reactive PROXY of the value
+    // it cached, and structural sharing rebuilds the object besides — so the
+    // lookup missed and the expansion silently fell back to the live window.
+    // After a failed round that means expanding a retained 09:30–10:00 graph
+    // merged 09:35–10:05 data into it, with nothing on screen to say so.
+    // Inside the cached value there is nothing to lose track of.
+    queryFn: async ({ signal }) => {
+      // Before the await, for the same reason as the dashboard: read after it,
+      // this is the window at LANDING time, and a slow answer gets the label of
+      // the round that replaced it.
+      const askedFor = rangeKey.value;
+      return {
+      response: await fetchDrawable(() =>
+        bffClient.layer.endpointDependency(
+          layerKey.value,
+          service.value!,
+          endpoint.value ?? '',
+          rangeKey.value,
+          previewCfg.value,
+          signal,
+        ),
       ),
+      requestWindow: askedFor,
+      };
+    },
     // The focus endpoint's own metrics are name-scoped MQE, so this read needs
     // the roster row's normal flag as well as the pair — it waits for the row
     // rather than sending a request the BFF must refuse.
@@ -165,7 +176,7 @@ export function useLayerEndpointDependency(
   // its picture from one and half from the other.
   const { acceptedSnapshot, latestAttempt, phase, predicateGeneration } =
     useGraphState<EndpointDependencyResponse>({
-      data: q.data,
+      data: computed(() => q.data.value?.response),
       error: q.error,
       isFetching: q.isFetching,
       // How the gate below tells a fresh answer from one the cache
@@ -189,12 +200,10 @@ export function useLayerEndpointDependency(
    * recorded, which is the first paint before any read has landed.
    */
   const acceptedWindow = computed(() => {
-    const remembered = windowOf(acceptedSnapshot.value);
-    return (remembered ?? rangeKey.value) as {
-      step: 'MINUTE' | 'HOUR' | 'DAY';
-      startMs: number;
-      endMs: number;
-    };
+    // Only when the snapshot on screen IS this entry's response — a refused
+    // snapshot must not lend its window to the graph that replaced it.
+    const remembered = acceptedSnapshot.value ? q.data.value?.requestWindow : null;
+    return remembered ?? rangeKey.value;
   });
 
   return {

@@ -724,7 +724,7 @@ export function useLayerTemplateStore() {
     const key = selectedKey.value;
     if (!key || !editName.value) return;
     confirmTitle.value = 'Reactivate layer?';
-    confirmMessage.value = `Reactivate the “${key}” layer? This re-enables it on OAP from the bundled default — it reappears in the sidebar for everyone.`;
+    confirmMessage.value = `Reactivate the “${key}” layer? It comes back with the configuration it had, and reappears in the sidebar for everyone.`;
     confirmLabel.value = 'Reactivate';
     confirmIsDanger.value = false;
     confirmFn = doReactivateLayer;
@@ -759,8 +759,15 @@ export function useLayerTemplateStore() {
     const key = selectedKey.value;
     const name = editName.value;
     if (!key || !name) return;
-    // Re-push the bundled default; the BFF update clears OAP's disabled flag.
-    const content = bundledContent();
+    // Restore what this layer HAD. OAP keeps a disabled row's configuration —
+    // `disabled` is only a flag on it — so re-pushing the bundled default
+    // instead would silently discard every edit the layer carried before it
+    // was disabled, and reactivating is not the moment to be asked to accept
+    // that. Resetting to the shipped default is its own control.
+    //
+    // Bundled is the fallback for the one case with nothing to restore: a
+    // built-in layer disabled while it had never diverged from the bundle.
+    const content = sourceContent('remote') ?? bundledContent();
     if (!content) return;
     isSaving.value = true;
     saveMsg.value = null;

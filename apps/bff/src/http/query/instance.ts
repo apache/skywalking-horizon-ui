@@ -36,7 +36,6 @@ import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { clientGone } from '../client-gone.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
-import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface InstanceRouteDeps extends AuthDeps {
@@ -111,7 +110,7 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {
           serviceId,
-          duration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
+          duration: { start: window.start, end: window.end, step: 'MINUTE' as const },
         });
         const rows: InstanceRow[] = (data.instances ?? []).map((i) => ({
           id: i.id,

@@ -217,7 +217,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           timeIdentity.value,
           JSON.stringify(g.reqs),
         ],
-        queryFn: () => {
+        queryFn: ({ signal }: { signal: AbortSignal }) => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
            * a synthetic MQE upstream. They still ride in `reqs` so
@@ -252,7 +252,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           // FAILURE, not a page of zeroes. Without this a failed read rendered
           // every KPI as 0 and every service count as none — indistinguishable
           // on screen from a system that genuinely had nothing.
-          return fetchDrawable(() => bffClient.layer.landing(g.layer, cfg, range)).then((res) => ({
+          return fetchDrawable(() => bffClient.layer.landing(g.layer, cfg, range, signal)).then((res) => ({
             layer: g.layer,
             reqs: g.reqs,
             mqeReqs,

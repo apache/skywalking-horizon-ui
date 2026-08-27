@@ -40,7 +40,6 @@ import {
   useTriggeredRefetch,
   type GraphPredicate,
 } from '@/layer/graphQuery';
-import { useColdStageStore } from '@/controls/coldStage';
 import { stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -65,7 +64,6 @@ export function useDeployment(
   // its own props). Snapshotting it at setup left the query following
   // whichever source happened to be true on the first render.
   const ownsWindow = computed(() => (windowMinutes?.value ?? 0) > 0);
-  const cold = useColdStageStore();
   // Preview-only: the draft top-level `deployment` block, so
   // the tab previews the operator's unpublished config.
   const previewCfg = usePreviewLayerBlock(layerKey, 'deployment');
@@ -91,7 +89,6 @@ export function useDeployment(
     service: predicateService(service.value),
     time: timeIdentity.value,
     preview: previewCfg.value ?? null,
-    cold: cold.enabled,
   }));
   const predicateKeyRef = computed(() => predicateKey(predicate.value));
   // BEFORE the query below: it fetches on mount, reading the window as it

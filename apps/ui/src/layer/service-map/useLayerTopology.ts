@@ -30,7 +30,6 @@ import { useQuery } from '@tanstack/vue-query';
 import type { TopologyCall, TopologyNode, TopologyResponse } from '@skywalking-horizon-ui/api-client';
 import { stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
-import { useColdStageStore } from '@/controls/coldStage';
 import { bffClient } from '@/api/client';
 import type { ServiceRef } from '@/utils/serviceRef';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
@@ -70,7 +69,6 @@ export function useLayerTopology(
   // its own props). Snapshotting it at setup left the query following
   // whichever source happened to be true on the first render.
   const ownsWindow = computed(() => (windowMinutes?.value ?? 0) > 0);
-  const cold = useColdStageStore();
   // In `?mode=preview` only: forward the operator's draft `topology` block
   // so the map renders the unpublished edit. Empty otherwise — a normal
   // (absent-remote) read never carries a draft, keeping the two paths
@@ -103,7 +101,6 @@ export function useLayerTopology(
     depth: depth.value,
     time: timeIdentity.value,
     preview: previewCfg.value ?? null,
-    cold: cold.enabled,
   }));
   const predicateKeyRef = computed(() => predicateKey(predicate.value));
   const enabled = computed(() => layerKey.value.length > 0 && !replay.value);

@@ -56,6 +56,22 @@ export interface LandingAggregates {
 }
 
 export interface LandingResponse {
+  /**
+   * Part of the metric fan-out could not be read.
+   *
+   * `reachable` is still true — a partial metric read is a drawable answer,
+   * and the graph layer's acceptance rule depends on that. What this says is
+   * narrower and easy to miss without it: the ROWS were ranked on incomplete
+   * data. A caller presenting a "busiest service" or picking a default from
+   * `rows[0]` is choosing on a measurement that did not fully happen.
+   *
+   * Services whose metric a failed chunk left unread are ranked ABOVE the
+   * genuinely-absent, so a timeout cannot silently evict the busiest service
+   * from the top-N.
+   *
+   * Same shape as the topology responses' field, deliberately.
+   */
+  metricsPartial?: { failedChunks: number; totalChunks: number };
   layer: string;
   topN: number;
   orderBy: string;

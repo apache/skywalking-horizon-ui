@@ -30,6 +30,7 @@ import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import { findWidgetById } from '@skywalking-horizon-ui/api-client';
 import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { useEntityPalette } from '@/utils/useEntityPalette';
+import type { DashboardRange } from './useLayerDashboard';
 import { serviceBaseName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 import {
   type CompareScope,
@@ -55,6 +56,13 @@ export interface CohortChip {
    *  on the chip so a failed entity is visible (not silently blank). */
   state: 'loading' | 'ready' | 'error';
 }
+/** Bucket width per step, for positioning a retained series on the axis. */
+const STEP_MS: Record<'MINUTE' | 'HOUR' | 'DAY', number> = {
+  MINUTE: 60_000,
+  HOUR: 3_600_000,
+  DAY: 86_400_000,
+};
+
 export interface CompareSeries {
   label: string;
   data: Array<number | null>;
@@ -72,6 +80,47 @@ interface TopGroup {
   items: TopItem[];
 }
 
+/**
+ * Place a series at the buckets it was actually read for.
+ *
+ * A member whose round failed keeps its previous answer, so the cohort can
+ * hold two windows at once. Drawn as a bare array, the older one is spread
+ * across the CURRENT axis and reads as current — a ten-minute-old p99 line
+ * running to the right-hand edge beside its siblings. Positioned by its own
+ * timestamps it starts and stops where its data really does, and the buckets
+ * it never covered stay EMPTY. The gap is the honest part: it is what says
+ * "this one did not refresh".
+ *
+ * No assumption about WHICH side it hangs off. With a preset the retained
+ * window trails the axis, but a custom range can put it anywhere — ahead,
+ * behind, straddling either edge, or with no overlap at all, in which case
+ * every point lands outside and the series is drawn as nothing. Whatever
+ * falls outside is dropped rather than squeezed in.
+ *
+ * A different STEP is not alignable at all: the buckets mean different spans,
+ * so there is no offset that makes them comparable. Empty is the only honest
+ * answer — drawing it would be the very lie this exists to remove.
+ */
+export function alignToAxis(
+  data: Array<number | null>,
+  from: DashboardRange | null | undefined,
+  axis: DashboardRange | null,
+  axisLen: number,
+): Array<number | null> {
+  // Nothing to compare against yet — first paint, before any window is known.
+  if (!from || !axis) return data;
+  if (from.step !== axis.step) return new Array(axisLen).fill(null);
+  const stepMs = STEP_MS[axis.step];
+  const offset = Math.round((from.startMs - axis.startMs) / stepMs);
+  if (offset === 0 && data.length === axisLen) return data;
+  const out: Array<number | null> = new Array(axisLen).fill(null);
+  for (let i = 0; i < data.length; i++) {
+    const at = i + offset;
+    if (at >= 0 && at < axisLen) out[at] = data[i] ?? null;
+  }
+  return out;
+}
+
 export function useCompareEngine(opts: {
   compareScope: ComputedRef<CompareScope | null>;
   compareEntities: DashboardApi['compareEntities'];
@@ -80,6 +129,7 @@ export function useCompareEngine(opts: {
   landingRows: ComputedRef<Array<{ serviceId: string; serviceName: string }>>;
   serviceRoster: ComputedRef<Array<{ id: string; name: string }>>;
   resultByEntity: DashboardApi['resultByEntity'];
+  windowByEntity: DashboardApi['windowByEntity'];
   entityState: DashboardApi['entityState'];
   compareMode: ComputedRef<boolean>;
   compareLoading: ComputedRef<boolean>;
@@ -95,6 +145,7 @@ export function useCompareEngine(opts: {
     landingRows,
     serviceRoster,
     resultByEntity,
+    windowByEntity,
     entityState,
     compareMode,
     activeSet,
@@ -238,17 +289,36 @@ export function useCompareEngine(opts: {
     }
     return fmtMetricAs(v, w.format);
   }
+
   function buildLineSeries(wid: string): CompareSeries[] {
     const out: CompareSeries[] = [];
+    // The axis is the NEWEST window any member answered for — the one the
+    // operator asked for. Older members are positioned within it.
+    let axis: DashboardRange | null = null;
+    let axisLen = 0;
+    for (const e of compareEntities.value) {
+      const w = windowByEntity.value.get(e) ?? null;
+      if (!w) continue;
+      if (!axis || w.endMs > axis.endMs) {
+        axis = w;
+        axisLen = resultFor(wid, e)?.series?.[0]?.data.length ?? 0;
+      }
+    }
+    if (axisLen === 0) {
+      for (const e of compareEntities.value) {
+        axisLen = Math.max(axisLen, resultFor(wid, e)?.series?.[0]?.data.length ?? 0);
+      }
+    }
     for (const e of compareEntities.value) {
       const series = resultFor(wid, e)?.series ?? [];
+      const from = windowByEntity.value.get(e) ?? null;
       const multi = series.length > 1;
       for (const s of series) {
         out.push({
           // Label FIRST, then entity: the per-series tag must survive truncation;
           // a long entity name can ellipsize.
           label: multi ? `${s.label} · ${entityLabel(e)}` : entityLabel(e),
-          data: s.data,
+          data: alignToAxis(s.data, from, axis, axisLen),
           ...(s.yAxisIndex !== undefined ? { yAxisIndex: s.yAxisIndex } : {}),
           ...(s.unit ? { unit: s.unit } : {}),
           color: compareHue(e),

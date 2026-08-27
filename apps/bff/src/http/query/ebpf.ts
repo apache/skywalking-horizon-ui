@@ -54,7 +54,6 @@ import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { withColdStage } from '../../util/duration.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
@@ -575,11 +574,12 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
           topology: { nodes: ProcessTopologyResponse['nodes']; calls: ProcessTopologyResponse['calls'] };
         }>(opts, GET_PROCESS_TOPOLOGY, {
           serviceInstanceId: instance,
-          duration: withColdStage(req, {
+          // Profiling is outside the cold scope — see apps/bff/CLAUDE.md.
+          duration: {
             start: fmtMinute(startMs, offset),
             end: fmtMinute(endMs, offset),
             step: 'MINUTE',
-          }),
+          },
         });
         payload.nodes = data.topology?.nodes ?? [];
         payload.calls = data.topology?.calls ?? [];
@@ -775,7 +775,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         list.forEach((m, i) => {
           const alias = `${side}_${i}`;
           aliasMap.set(alias, { side, metric: m });
-          fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, !!req.coldStage));
+          fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, false));
         });
       };
       push('client', cfg.edgeClientMetrics);

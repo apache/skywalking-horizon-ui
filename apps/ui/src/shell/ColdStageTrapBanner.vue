@@ -54,23 +54,52 @@ const timeRange = useTimeRangeStore();
 const { backend } = useOapInfo();
 const { data: ttl } = useTtl();
 
-/** Smallest hot+warm window (in days) across the data classes the
- *  dashboard/landing/topology routes actually query — picking the min
- *  means we warn whenever ANY class would return empty for the
- *  current window. */
-const hotPlusWarmDays = computed<number | null>(() => {
+/** The classes the dashboard / landing / topology routes actually read, paired
+ *  with whether each has a cold tier at all. */
+const classes = computed<Array<{ hot: number; hasCold: boolean }>>(() => {
   const hot = ttl.value?.stages?.hot;
-  if (!hot) return null;
-  const cands: number[] = [
-    hot.metrics.minute,
-    hot.metrics.hour,
-    hot.metrics.day,
-    hot.records.normal,
-    hot.records.trace,
-    hot.records.log,
-  ].filter((n) => typeof n === 'number' && Number.isFinite(n) && n > 0);
-  if (cands.length === 0) return null;
-  return Math.min(...cands);
+  if (!hot) return [];
+  const cold = ttl.value?.stages?.cold ?? null;
+  const pick = (h: number | undefined, c: number | undefined): { hot: number; hasCold: boolean } | null =>
+    typeof h === 'number' && Number.isFinite(h) && h > 0
+      ? { hot: h, hasCold: typeof c === 'number' && c >= 0 }
+      : null;
+  return [
+    pick(hot.metrics.minute, cold?.metrics.minute),
+    pick(hot.metrics.hour, cold?.metrics.hour),
+    pick(hot.metrics.day, cold?.metrics.day),
+    pick(hot.records.normal, cold?.records.normal),
+    pick(hot.records.trace, cold?.records.trace),
+    pick(hot.records.log, cold?.records.log),
+  ].filter((c): c is { hot: number; hasCold: boolean } => c !== null);
+});
+
+/** Does this deployment have a cold stage on ANY class the pages read?
+ *  `false` is the DEFAULT BanyanDB configuration — every `enableColdStage`
+ *  ships off — and it changes what the banner can honestly advise. */
+const hasAnyCold = computed<boolean>(() => classes.value.some((c) => c.hasCold));
+
+/** Smallest hot+warm window, in days — the WARNING trigger. Min, because we
+ *  warn as soon as ANY class would come back empty for the current window. */
+const hotPlusWarmDays = computed<number | null>(() => {
+  const all = classes.value;
+  if (all.length === 0) return null;
+  return Math.min(...all.map((c) => c.hot));
+});
+
+/** The window that actually clears every boundary — the REMEDY, and a
+ *  different number from the trigger.
+ *
+ *  Taking the min for both was wrong in the same breath it was right: min is
+ *  correct for "something here is empty", but as advice it clears only the
+ *  shallowest class. Records default to 3 days while `metrics.minute` holds 7,
+ *  so "older than 3 days ago" brought traces back and left every metric widget
+ *  exactly as empty as before. Only classes that HAVE a cold tier count —
+ *  moving past a class that has none buys nothing. */
+const remedyDays = computed<number | null>(() => {
+  const withCold = classes.value.filter((c) => c.hasCold);
+  if (withCold.length === 0) return null;
+  return Math.max(...withCold.map((c) => c.hot));
 });
 
 /** True when the current time-range END is newer than the hot+warm
@@ -85,12 +114,15 @@ const rangeOverlapsHotWarm = computed<boolean>(() => {
   return timeRange.range.endMs > cutoffMs;
 });
 
-const visible = computed<boolean>(
-  () =>
-    backend.value === 'banyandb' &&
-    cold.enabled &&
-    rangeOverlapsHotWarm.value,
-);
+const visible = computed<boolean>(() => {
+  if (backend.value !== 'banyandb' || !cold.enabled) return false;
+  // With no cold stage anywhere, NO window returns anything — so the warning
+  // cannot be conditioned on the range. Left conditioned, following the old
+  // advice ("pick an older window") moved the range out of hot+warm and took
+  // the banner with it: a blank page and the one sentence explaining it gone.
+  if (!hasAnyCold.value) return true;
+  return rangeOverlapsHotWarm.value;
+});
 
 function turnColdOff(): void {
   cold.set(false);
@@ -104,10 +136,14 @@ function turnColdOff(): void {
         <path d="M12 3v18M3 12h18M5 5l14 14M19 5L5 19" />
       </svg>
     </span>
-    <span class="cs-trap__text">
+    <span v-if="!hasAnyCold" class="cs-trap__text">
+      <strong>{{ t('Cold-only read is active') }}</strong> —
+      {{ t('this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.') }}
+    </span>
+    <span v-else class="cs-trap__text">
       <strong>{{ t('Cold-only read is active') }}</strong> — {{ t('your time range is within the last') }}
       <b>{{ hotPlusWarmDays }} d</b> {{ t('(hot + warm), where the cold stage returns nothing.') }}
-      {{ t('Pick a window older than') }} <b>{{ hotPlusWarmDays }} {{ t('days') }}</b> {{ t('ago, or turn the Cold pill off.') }}
+      {{ t('Pick a window older than') }} <b>{{ remedyDays }} {{ t('days') }}</b> {{ t('ago, or turn the Cold pill off.') }}
     </span>
     <button type="button" class="cs-trap__action" @click="turnColdOff">{{ t('Turn Cold off') }}</button>
   </div>

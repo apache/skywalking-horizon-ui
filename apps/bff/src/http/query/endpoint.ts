@@ -40,7 +40,6 @@ import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { clientGone } from '../client-gone.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
-import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface EndpointRouteDeps extends AuthDeps {
@@ -117,7 +116,7 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
           serviceId,
           keyword,
           limit: overFetchSize(limit),
-          duration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
+          duration: { start: window.start, end: window.end, step: 'MINUTE' as const },
         });
         const { rows, hasNext } = takeOverFetched(data.endpoints ?? [], limit);
         return reply.send({

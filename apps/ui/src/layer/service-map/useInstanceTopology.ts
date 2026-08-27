@@ -40,7 +40,6 @@ import {
   useTriggeredRefetch,
   type GraphPredicate,
 } from '@/layer/graphQuery';
-import { useColdStageStore } from '@/controls/coldStage';
 import { stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -65,7 +64,6 @@ export function useInstanceTopology(
   // its own props). Snapshotting it at setup left the query following
   // whichever source happened to be true on the first render.
   const ownsWindow = computed(() => (windowMinutes?.value ?? 0) > 0);
-  const cold = useColdStageStore();
   // Preview-only: the draft `topology` block (the BFF reads its nested
   // `instanceTopology`), so the instance map previews the draft too.
   const previewCfg = usePreviewLayerBlock(layerKey, 'topology');
@@ -97,7 +95,6 @@ export function useInstanceTopology(
     serverServiceId: serverServiceId.value,
     time: timeIdentity.value,
     preview: previewCfg.value ?? null,
-    cold: cold.enabled,
   }));
   const predicateKeyRef = computed(() => predicateKey(predicate.value));
   // BEFORE the query below: it fetches on mount, reading the window as it

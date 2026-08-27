@@ -97,7 +97,6 @@
   "AI request failed ({status}).": "AI 요청이 실패했습니다({status}).",
   "alert page | alert pages": "알림 페이지",
   "An ACTIVE rule must be inactivated first.": "ACTIVE 규칙은 먼저 비활성화해야 합니다.",
-  "An administrator turned it off — re-enable it under Operate → Templates.": "관리자가 비활성화했습니다. Operate → Templates에서 다시 활성화할 수 있습니다.",
   "API dependency": "API 의존성",
   "API dependency chain": "API 의존성 체인",
   "API dependency config": "API 의존성 설정",
@@ -1681,7 +1680,6 @@
   "Theme: {name} (your override) — click to change": "테마: {name} (개인 설정) — 클릭해 변경",
   "Theme: {name} — click to change": "테마: {name} — 클릭해 변경",
   "These layers' templates provide a service map, so their cubes render as a call graph (and seed the cross-layer hierarchy). Read-only — it's a layer-template property, not a 3D-map setting.": "이 레이어들의 템플릿은 서비스 맵을 제공하므로, 해당 큐브는 호출 그래프로 렌더링되고 레이어 간 계층 구조의 기반이 됩니다. 읽기 전용입니다 — 이는 레이어 템플릿의 속성이며 3D-map 설정이 아닙니다.",
-  "This layer’s template is disabled.": "이 layer의 템플릿이 비활성화되어 있습니다.",
   "This OAP serves traces via": "이 OAP는 다음을 통해 트레이스를 제공합니다:",
   "This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.": "이 OAP 버전은 키워드 + 태그 필터만 지원합니다. 레이어 + 엔터티 필터를 사용하려면 업그레이드하세요.",
   "This rule has no bundled version on disk — deleting it removes the only copy, and Horizon cannot restore it.": "이 규칙은 디스크에 번들 버전이 없습니다. 삭제하면 유일한 사본이 사라지며 Horizon은 복원할 수 없습니다.",
@@ -2873,5 +2871,7 @@
   "Hour metrics": "시간 단위 메트릭",
   "Day metrics": "일 단위 메트릭",
   "ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.": "ⓘ 이는 OAP `application.yml` 설정입니다. 이 백엔드는 레코드 전체에 하나, 메트릭 전체에 하나의 보존 기간을 적용하므로 위 수치는 실제 값이지만 개별로 조정할 수 없습니다. 데이터 클래스별 보존 기간은 BanyanDB에서만 지원합니다.",
-  "One bydb.yml group per row · widths proportional to total retention": "한 행이 bydb.yml 그룹 하나 · 너비는 총 보존 기간에 비례"
+  "One bydb.yml group per row · widths proportional to total retention": "한 행이 bydb.yml 그룹 하나 · 너비는 총 보존 기간에 비례",
+  "This page is not available.": "이 페이지는 사용할 수 없습니다.",
+  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "이 OAP 에는 콜드 스테이지가 구성되어 있지 않아 어떤 시간 범위를 선택해도 결과가 비어 있습니다. Cold 를 끄십시오."
 }

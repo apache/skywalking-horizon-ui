@@ -84,9 +84,9 @@ export function useLayerLanding(
     // count of zero — a statement about the operator's system, made from a
     // failure to read it. Thrown, the previous roster survives in the cache and
     // the failure reaches the refresh history.
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchDrawable(() =>
-        bffClient.layer.landing(layerKey.value, cfg.value, rangeRef.value ?? undefined),
+        bffClient.layer.landing(layerKey.value, cfg.value, rangeRef.value ?? undefined, signal),
       ),
     enabled: isEnabled,
     staleTime: Infinity,

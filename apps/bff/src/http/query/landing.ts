@@ -382,11 +382,24 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         }));
       const resolved = allResolved.filter((r) => r.column.selfAggregate !== true);
 
+      // How much of the metric fan-out could not be read.
+      //
+      // A batch failure used to be entirely silent: its cells stayed empty,
+      // empty sorted as absent, and the response still said it succeeded. So a
+      // single timeout could push the busiest services out of the top-N and
+      // rename the layer's default service, with nothing on the wire to say the
+      // ranking had been decided on partial information.
+      let totalBatches = 0;
+      let failedBatches = 0;
+      /** Services whose metrics a failed batch left unread — NOT services with
+       *  no traffic. The distinction is the whole point: absent means zero,
+       *  unread means we do not know. */
+      const unread = new Set<string>();
+
       // Probe `cols` for every service in `svcList`, chunked into
       // per-request batches and drained through the bounded pool. Keyed by
       // `${serviceId}#${colIdx}` so the row assembly reads back by id, not
-      // by a fragile global index. Per-batch failures are local — those
-      // cells just stay empty.
+      // by a fragile global index.
       const probeColumns = async (
         svcList: typeof services,
         cols: typeof resolved,
@@ -397,6 +410,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         for (let i = 0; i < svcList.length; i += maxServicesPerBatch) {
           chunks.push(svcList.slice(i, i + maxServicesPerBatch));
         }
+        totalBatches += chunks.length;
         await mapPool(chunks, batchConcurrency, async (batch) => {
           const fragments: string[] = [];
           const back: { a: string; key: string }[] = [];
@@ -425,7 +439,11 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
               if (data[a] !== undefined) out.set(key, data[a]);
             }
           } catch {
-            /* batch-local failure → leave those cells empty */
+            // Batch-local failure. Those cells stay empty — but remember WHICH
+            // services they were, because an unread metric is not a low one and
+            // must not be ranked as though it were. See `unread` below.
+            failedBatches++;
+            for (const svc of batch) unread.add(svc.id);
           }
         });
         return out;
@@ -490,12 +508,23 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         };
       });
 
+      // A service whose metric we could not READ is not a service with no
+      // traffic, and must not be ranked as one — sorting it last is a claim
+      // about the operator's system made from a failure to measure it. Unread
+      // services rank ABOVE the genuinely-absent, so a timeout cannot silently
+      // evict the busiest service from the top-N; the response says the ranking
+      // was partial so the reason is visible rather than inferred from a gap.
+      const rank = (r: (typeof rows)[number]): 0 | 1 | 2 => {
+        if (r.metrics[cfg.orderBy] != null) return 0;
+        return unread.has(r.serviceId) ? 1 : 2;
+      };
       rows.sort((a, b) => {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
         const av = a.metrics[cfg.orderBy];
         const bv = b.metrics[cfg.orderBy];
-        if (av == null && bv == null) return a.serviceName.localeCompare(b.serviceName);
-        if (av == null) return 1;
-        if (bv == null) return -1;
+        if (av == null || bv == null) return a.serviceName.localeCompare(b.serviceName);
         return bv - av;
       });
       const topRows = rows.slice(0, cfg.topN);
@@ -547,6 +576,13 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         }
       }
 
+      // Say it on the wire. `reachable` stays true — a partial metric read is
+      // still a drawable answer, and the graph layer's acceptance rule depends
+      // on that — but the ranking was decided on incomplete data and a caller
+      // that shows a "busiest service" is entitled to know.
+      const metricsPartial =
+        failedBatches > 0 ? { failedChunks: failedBatches, totalChunks: totalBatches } : undefined;
+
       const body: LandingResponse = {
         layer: layerKey,
         topN: cfg.topN,
@@ -555,6 +591,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         step: window.step,
         durationStart: window.start,
         durationEnd: window.end,
+        ...(metricsPartial ? { metricsPartial } : {}),
         rows: topRows,
         // `rows` is already sorted desc by orderBy and sliced to topN;
         // `sampledRows` is the full set the BFF probed (post-sort), so

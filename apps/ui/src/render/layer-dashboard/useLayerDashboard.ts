@@ -270,7 +270,12 @@ export function useLayerDashboard(
       // stale (wrong-expression) data from cache.
       computed(() => (widgetsList?.value ? JSON.stringify(widgetsList.value) : null)),
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      // Snapshotted BEFORE the request goes out. Read after the await it would
+      // be whatever the clock says when the answer LANDS, so a slow W1 response
+      // arriving into a re-anchored W2 would be stamped W2 — the very mislabel
+      // the stamp exists to prevent.
+      const askedFor = rangeRef.value ?? null;
       const total = widgetsList?.value.length ?? 0;
       progress.value = { arrived: 0, total };
       const baseBody = {
@@ -301,10 +306,14 @@ export function useLayerDashboard(
       // an answer" rule the maps and the roster follow. Thrown, the previous
       // widgets stay and the failure reaches the refresh history.
       const resp = await fetchDrawable(() =>
-        bffClient.layer.dashboard(layerKey.value, baseBody, opts),
+        bffClient.layer.dashboard(layerKey.value, baseBody, opts, signal),
       );
       progress.value = { arrived: resp.widgets?.length ?? total, total };
-      return resp;
+      // The window travels WITH the response. A retained last-good answer
+      // outlives the window that produced it — that is the point of keeping it
+      // — so anything drawing it has to ask what it was read with rather than
+      // what the clock says now. Captured at firing time, where it is exact.
+      return { response: resp, requestWindow: askedFor };
     },
     // Trailing-control principle: the widget batch is the deepest
     // control in the chain and must wait for everything upstream
@@ -449,16 +458,22 @@ export function useLayerDashboard(
           // Refused if it could not be read, like the primary batch — without
           // this one compared entity lost its last-good widgets to a soft OAP
           // failure while its siblings kept theirs.
-          queryFn: (): Promise<DashboardResponse> =>
-            limit(() =>
+          // `askWindow` is read before the fan-out is built, so it is already
+          // the dispatch-time window; naming it here keeps that visible next to
+          // the primary query, which had to capture its own.
+          queryFn: async ({ signal }: { signal: AbortSignal }) => ({
+            response: await limit(() =>
               fetchDrawable(() =>
                 bffClient.layer.dashboard(
                   layerKey.value,
                   entityDashboardBody(s, svc, name, askWindow, widgetsList?.value ?? null, requestPage.value),
                   opts,
+                  signal,
                 ),
               ),
             ),
+            requestWindow: askWindow ?? null,
+          }),
           // Zero, like the primary read it fans out beside. A freshness
           // window here would have half a compare cohort re-read while the
           // other half answered from cache — the entities would then be
@@ -487,12 +502,14 @@ export function useLayerDashboard(
   const resultByEntity = computed<Map<string, Map<string, DashboardWidgetResult>>>(() => {
     const out = new Map<string, Map<string, DashboardWidgetResult>>();
     const p = primaryEntity.value;
-    const pData = q.data.value;
+    const pData = q.data.value?.response;
     if (p && pData?.widgets) out.set(p, indexById(pData.widgets));
     const results = entityQueries.value;
     fanoutList.value.forEach((entity, i) => {
-      const data = results[i]?.data as DashboardResponse | undefined;
-      if (data?.widgets) out.set(entity, indexById(data.widgets));
+      const env = results[i]?.data as
+        | { response: DashboardResponse; requestWindow: DashboardRange | null }
+        | undefined;
+      if (env?.response?.widgets) out.set(entity, indexById(env.response.widgets));
     });
     return out;
   });
@@ -592,7 +609,28 @@ export function useLayerDashboard(
   );
 
   return {
-    data: computed(() => q.data.value ?? null),
+    data: computed(() => q.data.value?.response ?? null),
+    /**
+     * The window each entity's widgets were actually READ with.
+     *
+     * A member whose round failed keeps its previous answer — that is the
+     * design — so the cohort can legitimately hold widgets from two windows at
+     * once. Anything plotting them needs to know which, or the older series
+     * gets drawn against the newer axis and reads as current.
+     */
+    windowByEntity: computed(() => {
+      const out = new Map<string, DashboardRange | null>();
+      const p = primaryEntity.value;
+      if (p && q.data.value) out.set(p, q.data.value.requestWindow);
+      const results = entityQueries.value;
+      fanoutList.value.forEach((entity, i) => {
+        const env = results[i]?.data as
+          | { response: DashboardResponse; requestWindow: DashboardRange | null }
+          | undefined;
+        if (env) out.set(entity, env.requestWindow);
+      });
+      return out;
+    }),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,
