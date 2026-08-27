@@ -108,29 +108,38 @@ export async function resolveEffectiveLayer(
       bundled: () => iterateBundledTemplates(),
       logger,
     });
-    // Store unreachable → block. NOT a degrade to disk: the bundle can differ
-    // from what the operator published, and rendering it as though it were the
-    // live config is worse than an empty page behind the connectivity banner.
-    // An OAP that never serves the template store (10.x) runs
-    // `templates.mode: readonly`, where `unreachable` is always false.
-    if (sync.unreachable) return { template: null, blocked: true, reason: 'store-unreachable' };
     const name = formatName('layer', canonicalLayerKey(layerKey));
     const row = sync.rows.find(
       (r) => r.name === name && r.kind === 'layer' && r.locale === undefined,
     );
-    // No remote row → reachable but unknown/unsynced layer → in-code defaults.
-    if (!row) return { template: null, blocked: false, reason: 'no-remote-row' };
     // Admin disabled the layer's template → block (the sidebar also hides it).
-    if (row.status === 'disabled') return { template: null, blocked: true, reason: 'layer-disabled' };
-    // The row's own name got us here, but the name alone is not the identity:
-    // `effective` is what the shared identity rule leaves behind, so a row
-    // carrying another layer's template never renders as this one.
-    if (row.effective === 'remote' && row.remote) {
+    // Checked BEFORE the unreachable branch: a disabled layer is an
+    // administrator's decision and stays decided whether or not the store can
+    // be read right now.
+    if (row?.status === 'disabled') return { template: null, blocked: true, reason: 'layer-disabled' };
+    // A REMOTE row renders — including one retained from the last successful
+    // read while the store is unreachable. That is the operator's own
+    // published configuration, not the disk bundle: `sync` marks bundled rows
+    // `bundled-fallback`, never `remote`, so this gate cannot admit them and
+    // the live-mode rule is untouched.
+    if (row?.effective === 'remote' && row.remote) {
+      // The row's own name got us here, but the name alone is not the
+      // identity: `effective` is what the shared identity rule leaves behind,
+      // so a row carrying another layer's template never renders as this one.
       const env = parseEnvelope(row.remote.configuration);
       if (env?.content && typeof env.content === 'object' && 'key' in env.content) {
         return { template: env.content as LayerTemplate, blocked: false, reason: 'ok' };
       }
     }
+    // Nothing retained for this layer and the store cannot be read → block.
+    // NOT a degrade to disk: the bundle can differ from what the operator
+    // published, and rendering it as though it were the live config is worse
+    // than an empty page behind the connectivity banner. An OAP that never
+    // serves the template store (10.x) runs `templates.mode: readonly`, where
+    // `unreachable` is always false.
+    if (sync.unreachable) return { template: null, blocked: true, reason: 'store-unreachable' };
+    // No remote row → reachable but unknown/unsynced layer → in-code defaults.
+    if (!row) return { template: null, blocked: false, reason: 'no-remote-row' };
     // Bundled-fallback (seed didn't land), identity-invalid, or unparseable
     // remote → we do NOT resurrect bundled at render time; in-code defaults.
     return { template: null, blocked: false, reason: 'no-remote-row' };
@@ -151,4 +160,19 @@ export async function resolveEffectiveLayerTemplate(
   layerKey: string,
 ): Promise<LayerTemplate | null> {
   return (await resolveEffectiveLayer(uiTemplateClient, layerKey)).template;
+}
+
+/**
+ * The blocked reason as the graph routes report it.
+ *
+ * Only two of the resolver's reasons BLOCK, and only those two are worth
+ * naming on the wire: a store that could not be read, and a template an
+ * administrator disabled. Anything else is not a block, so it contributes
+ * nothing and the field stays absent.
+ */
+export function blockedReason(
+  reason: EffectiveLayerReason,
+): { blocked?: 'store-unreachable' | 'layer-disabled' } {
+  if (reason === 'store-unreachable' || reason === 'layer-disabled') return { blocked: reason };
+  return {};
 }

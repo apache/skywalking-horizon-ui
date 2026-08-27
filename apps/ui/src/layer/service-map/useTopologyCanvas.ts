@@ -45,8 +45,18 @@ interface TopologyCanvasOptions {
   /** Graph bounding-box width / height (drive fit-to-screen). */
   W: Ref<number>;
   H: Ref<number>;
-  /** Flat node id list — re-fit + re-bind drag when its shape changes. */
-  nodeCount: Ref<number>;
+  /**
+   * The drawn node ids, sorted. REBINDING watches this, not a count: Vue can
+   * replace node A with node B while the total stays the same, and B would
+   * then carry no drag handler.
+   */
+  nodeIds: Ref<string[]>;
+  /**
+   * Identity of the QUESTION on screen. The viewport refits when this changes
+   * and at no other time — a refresh, or a service appearing, must not throw
+   * away the operator's pan and zoom.
+   */
+  predicateKey: Ref<string>;
   /** Live (cx, cy) lookup — already folds in drag overrides. */
   nodePos: Ref<Map<string, Pos>>;
   /** Drag override map; the composable writes the dropped position here. */
@@ -59,7 +69,7 @@ interface TopologyCanvasOptions {
 }
 
 export function useTopologyCanvas(opts: TopologyCanvasOptions) {
-  const { svgEl, zoomLayerEl, containerEl, W, H, nodeCount, nodePos, dragOverrides } = opts;
+  const { svgEl, zoomLayerEl, containerEl, W, H, nodeIds, predicateKey, nodePos, dragOverrides } = opts;
   const maxFitScale = opts.maxFitScale ?? 0.79;
   let zoomBehaviour: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   const zoomT = ref<{ k: number; x: number; y: number }>({ k: 1, x: 0, y: 0 });
@@ -179,19 +189,80 @@ export function useTopologyCanvas(opts: TopologyCanvasOptions) {
     if (svgEl.value) d3.select(svgEl.value).on('.zoom', null).on('dblclick', null);
     zoomBehaviour = null;
   });
-  // Re-fit when the graph's shape changes substantially (depth toggle,
-  // data refresh that adds/removes nodes). Layout-dependent dims (W/H)
-  // are the cheapest signal that something visible changed.
+  // Three jobs that used to share one watcher, split because they answer to
+  // different things. Fitting on a membership change is what reset the
+  // operator's viewport on every refresh.
+
+  // 1. REBIND on any membership change. `selectAll('g.sm-node')` binds to the
+  //    DOM nodes that existed when it ran, so anything Vue replaced is left
+  //    without a handler — including a same-count swap, which a count cannot
+  //    see.
   watch(
-    () => `${W.value}x${H.value}x${nodeCount.value}`,
-    () => {
-      // If the SVG remounts (v-if), we need to re-install zoom. Defer.
-      // Also re-bind drag — `selectAll('g.sm-node')` is bound to the
-      // current DOM nodes, so a remount drops the handlers.
-      void nextTick(() => {
-        installNodeDrag();
-        if (!zoomBehaviour) installZoom();
+    () => nodeIds.value.join('|'),
+    () => { void nextTick(() => { installNodeDrag(); }); },
+  );
+
+  // 2. REINSTALL zoom when the SVG ELEMENT itself changes. The old guard was
+  //    `if (!zoomBehaviour)`, and `zoomBehaviour` is only nulled on unmount —
+  //    so when a `v-if` swapped the element without unmounting the composable,
+  //    the behaviour stayed bound to the element that had gone and the new
+  //    canvas had no zoom at all.
+  //    It also carries the FIRST fit. The <svg> is behind a `v-if`, so it does
+  //    not exist yet at `onMounted` — the old shape-watcher was what framed it
+  //    on arrival, and removing that left a graph that never fitted at all.
+  let fittedForPredicate = false;
+  /**
+   * Put the operator's framing back on a REPLACEMENT canvas.
+   *
+   * The transform lives on the `<svg>` element, so a `v-if` that swaps it
+   * takes the pan and zoom with it — hide every node with the filter and press
+   * Reset, and the graph comes back at identity having lost the region the
+   * operator had framed. `zoomT` outlives the element, so it can be re-applied.
+   */
+  function restoreTransform(): void {
+    if (!svgEl.value || !zoomBehaviour) return;
+    const t = zoomT.value;
+    d3.select(svgEl.value).call(
+      zoomBehaviour.transform,
+      d3.zoomIdentity.translate(t.x, t.y).scale(t.k),
+    );
+  }
+  watch(svgEl, (el, prev) => {
+    if (!el || el === prev) return;
+    void nextTick(() => {
+      installZoom();
+      installNodeDrag();
+      if (!fittedForPredicate) {
+        // Only LATCH a fit that had something to fit. Fitting an empty canvas
+        // measures a graph with no extent, and latching it meant the real
+        // graph — when nodes finally arrived — was never framed and could sit
+        // clipped.
         fitToScreen(false);
+        if (nodeIds.value.length > 0) fittedForPredicate = true;
+        return;
+      }
+      restoreTransform();
+    });
+  });
+
+  // 3. REFIT only when the question changed. Not on a refresh, and not when a
+  //    service appears — an operator who framed a region keeps it.
+  // A different question deserves a fresh frame — taken when its graph is on
+  // screen, not when the question changed. The canvas is behind a `v-if` and
+  // unmounts while the new read is out, so fitting immediately could find
+  // nothing to fit while the latch recorded it as done, leaving the new graph
+  // framed for the old one.
+  watch(predicateKey, () => {
+    fittedForPredicate = false;
+  });
+  watch(
+    () => nodeIds.value.join('|'),
+    () => {
+      if (fittedForPredicate) return;
+      void nextTick(() => {
+        if (!svgEl.value) return;
+        fitToScreen(false);
+        if (nodeIds.value.length > 0) fittedForPredicate = true;
       });
     },
   );

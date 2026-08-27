@@ -62,6 +62,7 @@ import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { readPageWith, type OapPaging } from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
@@ -338,10 +339,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         ? buildEntity(q, { name: q.service, normal: q.normal })
         : null;
 
-    const opts = buildOapOpts(deps.config.current, deps.fetch);
+    const signal = clientGone(reply);
+    const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
     const [offset, caps, catalog] = await Promise.all([
-      getServerOffsetMinutes(deps.config, deps.fetch),
-      getOapCapabilities(deps.config.current, deps.fetch),
+      getServerOffsetMinutes(deps.config, deps.fetch, signal),
+      getOapCapabilities(deps.config.current, deps.fetch, signal),
       serviceLayer.get(),
     ]);
     const start = fmtSecond(q.startTime, offset);
@@ -420,10 +422,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
       }
 
-      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
       const [offset, caps] = await Promise.all([
-        getServerOffsetMinutes(deps.config, deps.fetch),
-        getOapCapabilities(deps.config.current, deps.fetch),
+        getServerOffsetMinutes(deps.config, deps.fetch, signal),
+        getOapCapabilities(deps.config.current, deps.fetch, signal),
       ]);
       const start = fmtSecond(q.startTime, offset);
       const end = fmtSecond(q.endTime, offset);
@@ -502,7 +505,8 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       if (!layer || typeof layer !== 'string') {
         return reply.code(400).send({ error: 'missing_layer' });
       }
-      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
       try {
         const got = await graphqlPost<ListServicesRaw>(opts, LIST_SERVICES_QUERY, { layer });
         const services = (got.listServices ?? [])

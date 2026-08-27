@@ -66,7 +66,10 @@ export function registerLayerServicesRoute(
         const all = snap.byLayer.get(layerUpper) ?? [];
         const rows = group === undefined ? all : all.filter((r) => r.group === group);
         return reply.send({
-          reachable: true,
+          // Honest about the read that produced this. An empty roster from a
+          // failed catalog read is not a layer with no services, and saying it
+          // was let the picker empty itself during an outage.
+          reachable: snap.unreachable !== true,
           layer: layerUpper,
           // `group` is OAP's `Service.group` — the `<group>::` prefix, empty
           // when the service has none. Callers use it to section a long roster.

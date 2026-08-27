@@ -41,6 +41,7 @@ import type {
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
@@ -153,11 +154,12 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       let serviceId = '';
       let normal = true;
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
       // Probe OAP's timezone so the Duration strings we emit match
       // OAP-server local time (not UTC, not browser-local). Cached 60s
       // inside getServerOffsetMinutes; ~one OAP round-trip per minute.
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's time picker (step + start/end). Falls back to
       // the last-hour MINUTE default when the caller omits the range.
       const window =

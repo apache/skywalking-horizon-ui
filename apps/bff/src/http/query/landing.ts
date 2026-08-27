@@ -45,6 +45,7 @@ import type {
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
 import {
   defaultMinuteWindow,
@@ -288,8 +289,9 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       const cfgCurrent = deps.config.current;
       const { bulkSize: maxServicesPerBatch, concurrency: batchConcurrency } =
         cfgCurrent.performance.bulk.landing;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's topbar time picker when all three triplet fields
       // are present; otherwise fall back to the last-hour MINUTE window
       // (legacy callers + the BFF's own service-count probes).

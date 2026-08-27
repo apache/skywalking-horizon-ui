@@ -35,6 +35,7 @@ import type { FetchLike, TopologyConfig, UITemplateClient } from '@skywalking-ho
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import {
   defaultMinuteWindow,
   getServerOffsetMinutes,
@@ -43,7 +44,7 @@ import {
   type Window,
 } from '../../util/window.js';
 import { topologyConfigFor } from '../../logic/layers/loader.js';
-import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { blockedReason, resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
 import { buildServiceTopology, emptyTopologyResponse } from '../../logic/oap/service-topology.js';
@@ -101,19 +102,31 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
         if (eff.blocked) {
           // Template store unreachable or this layer's template disabled —
-          // block: serve no map and no in-code default config. The SPA's
-          // connectivity banner explains the empty state (unreachable); a
-          // disabled layer is hidden from the sidebar so it isn't reached.
-          return reply.send(
-            emptyTopologyResponse(layerKey, serviceArg, depth, { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] }, true),
-          );
+          // block: serve no map and no in-code default config. A disabled
+          // layer is hidden from the sidebar so it isn't reached.
+          //
+          // `reachable: false`, like every other graph route: the empty body
+          // is a FAILURE to read, not a map that happens to have no nodes,
+          // and a client that cannot tell those apart will replace a good
+          // graph with this one. The four routes disagreed here — two sent
+          // `true` for this exact condition — which made the flag unusable
+          // as the signal for "is this response worth drawing".
+          return reply.send({
+            ...emptyTopologyResponse(layerKey, serviceArg, depth, { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] }, false),
+            // WHICH block, so the page can say something an operator can act
+            // on. A store to go and fix and a template an administrator
+            // switched off need opposite responses, and one sentence for both
+            // sends people looking in the wrong place.
+            ...blockedReason(eff.reason),
+          });
         }
         topoCfg = topologyConfigFor(eff.template);
       }
 
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's topbar time picker when all three triplet
       // query-params are present; otherwise fall back to the last-hour
       // MINUTE window. The Overview "topology" widget + per-layer

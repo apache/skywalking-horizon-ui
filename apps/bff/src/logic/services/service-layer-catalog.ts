@@ -61,6 +61,17 @@ export interface ServiceCatalog {
   layers: string[];
   byLayer: Map<string, ServiceRow[]>;
   byName: Map<string, string>;
+  /**
+   * The read that produced this failed.
+   *
+   * An empty catalog is indistinguishable from a catalog OAP could not be
+   * read for — and the second one, served as though it were the first, told
+   * the operator their layer has no services. After the cache TTL expired
+   * that is what an ordinary refresh during an outage did: it replaced the
+   * service picker with an empty list, and nothing downstream could tell,
+   * because the answer looked successful.
+   */
+  unreachable?: boolean;
 }
 
 export interface ServiceLayerCatalogDeps {
@@ -120,7 +131,7 @@ export class ServiceLayerCatalog {
       layers = Array.isArray(got.layers) ? got.layers : [];
     } catch (err) {
       logger.warn({ err }, 'service-layer-catalog: listLayers failed');
-      return { layers: [], byLayer: new Map(), byName: new Map() };
+      return { layers: [], byLayer: new Map(), byName: new Map(), unreachable: true };
     }
     if (layers.length === 0) {
       return { layers, byLayer: new Map(), byName: new Map() };
@@ -150,7 +161,7 @@ export class ServiceLayerCatalog {
       return { layers, byLayer, byName };
     } catch (err) {
       logger.warn({ err }, 'service-layer-catalog: listServices fan-out failed');
-      return { layers, byLayer: new Map(), byName: new Map() };
+      return { layers, byLayer: new Map(), byName: new Map(), unreachable: true };
     }
   }
 }

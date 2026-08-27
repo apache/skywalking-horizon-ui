@@ -19,9 +19,11 @@ import { computed, type Ref } from 'vue';
 import { useQueries, useQuery } from '@tanstack/vue-query';
 import type { LandingConfig, OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
-import { useTimeRangeStore } from '@/controls/timeRange';
 import { getPreviewContentFor } from '@/controls/configBundle';
 import { overviewEditName } from '@/controls/localTemplateEdits';
+import { fetchDrawable, useTimeIdentity, useRoundWindow } from '@/layer/graphQuery';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
 
 /**
  * Resolved value for one overview widget. The renderer reads
@@ -172,17 +174,31 @@ export function useOverviewDashboard(idRef: Ref<string>) {
   const widgets = computed<OverviewWidget[]>(() => dashboard.value?.widgets ?? []);
   const layerGroups = computed(() => groupRequests(widgets.value));
 
-  // The topbar time picker is part of every overview query so flipping
-  // the time / cold pills refires the per-layer landing calls instead
-  // of serving the previous window's cached aggregates. We forward the
-  // raw step+startMs+endMs to the BFF and also stamp them into the
-  // queryKey for cache scoping.
-  const timeRange = useTimeRangeStore();
-  const rangeKey = computed(() => ({
-    step: timeRange.step,
-    startMs: timeRange.range.startMs,
-    endMs: timeRange.range.endMs,
-  }));
+  // The topbar's window travels with every overview query, but it is the
+  // request ARGUMENT, not part of the key. Keying on the raw bounds made every
+  // tick a cache miss, and a cache miss here empties the whole widget grid
+  // while the new answers are out — the operator's dashboard blanks on a
+  // refresh that was supposed to be invisible. The IDENTITY of the window
+  // ("the last hour") keys it instead; the bounds are re-read when the
+  // request is made.
+  const timeIdentity = useTimeIdentity();
+  // The ROUND's window while a round is out, so every group in one round asks
+  // about the same one and the grid cannot be assembled from two windows.
+  const rangeKey = useRoundWindow();
+
+  /** The groups' keys, built from the same inputs the queries are — the round
+   *  cancels by key, and this page is one participant holding several. */
+  const groupQueryKeys = computed(() =>
+    layerGroups.value.map((g) => [
+      'overview-dashboard-data',
+      idRef.value,
+      g.layer,
+      g.limit,
+      JSON.stringify(g.rank ?? null),
+      timeIdentity.value,
+      JSON.stringify(g.reqs),
+    ]),
+  );
 
   // One landing call per (layer, page-limit) group — usually 1–3 total.
   const layerQueries = useQueries({
@@ -192,7 +208,15 @@ export function useOverviewDashboard(idRef: Ref<string>) {
         // Key on the MQE column set (`reqs`) + the group's limit, not just
         // the overview id: a remote sync or preview edit that keeps the id
         // but changes a widget's MQE / limit must refire.
-        queryKey: ['overview-dashboard-data', idRef.value, g.layer, g.limit, JSON.stringify(g.rank ?? null), range, JSON.stringify(g.reqs)],
+        queryKey: [
+          'overview-dashboard-data',
+          idRef.value,
+          g.layer,
+          g.limit,
+          JSON.stringify(g.rank ?? null),
+          timeIdentity.value,
+          JSON.stringify(g.reqs),
+        ],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
@@ -224,18 +248,46 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           // priority is required by the LandingConfig type but ignored by
           // the BFF route (it forwards only topN/orderBy/columns).
           const cfg: LandingConfig = { priority: 0, topN: g.limit, orderBy, columns };
-          return bffClient.layer.landing(g.layer, cfg, range).then((res) => ({
+          // Same rule as the graphs and the roster: an unreadable answer is a
+          // FAILURE, not a page of zeroes. Without this a failed read rendered
+          // every KPI as 0 and every service count as none — indistinguishable
+          // on screen from a system that genuinely had nothing.
+          return fetchDrawable(() => bffClient.layer.landing(g.layer, cfg, range)).then((res) => ({
             layer: g.layer,
             reqs: g.reqs,
             mqeReqs,
             aggregates: res.aggregates,
           }));
         },
-        staleTime: 30_000,
-        refetchOnWindowFocus: true,
+        // The round decides when this fetches; nothing else may. Holding an
+        // answer fresh for 30 seconds would serve a window the heading no
+        // longer describes, and a window-focus refetch would fire outside any
+        // round — unattributed, and able to land on top of one already out.
+        staleTime: 0,
+        refetchOnWindowFocus: false,
+        refetchOnMount: 'always' as const,
       }));
     }),
   });
+
+  // The round is the only thing that refreshes this page, now that the key no
+  // longer moves with the clock. Every group refetches together and the round
+  // waits for all of them, so the countdown describes work that has actually
+  // finished — and the grid is replaced in one go rather than group by group.
+  // The LIVE reads, not the static template query — a failed round here is a
+  // failure to read metrics, and it was reported nowhere.
+  useRefreshErrorReport({
+    owner: 'Overview',
+    action: 'reading the overview metrics',
+    error: computed(() => layerQueries.value.find((q) => q.error)?.error ?? null),
+  });
+  useAutoRefreshSubscribe(
+    () => Promise.all(layerQueries.value.map((q) => q.refetch({ cancelRefetch: false }))),
+    computed(() => Boolean(idRef.value) && layerGroups.value.length > 0),
+    // Every group, so a capped round cancels the whole grid rather than its
+    // first query.
+    () => groupQueryKeys.value,
+  );
 
   const values = computed<OverviewWidgetValues>(() => {
     const out: OverviewWidgetValues = { values: {}, kpiValues: {} };

@@ -212,16 +212,53 @@ const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
 const replayDataRef = computed<EndpointDependencyResponse | null>(() => props.replayData ?? null);
-const { nodes: baseNodes, calls: baseCalls, isLoading, isFetching, data } = useLayerEndpointDependency(
+const {
+  nodes: baseNodes,
+  calls: baseCalls,
+  isFetching,
+  phase,
+  data,
+  refetch,
+  acceptedSnapshot,
+  predicateGeneration,
+  previewConfig,
+  baseWindow,
+} = useLayerEndpointDependency(
   layerKey,
   service,
   selectedEndpoint,
   focusWindowMinutes,
   replayDataRef,
 );
+/**
+ * Advances every time a NEW base graph is committed.
+ *
+ * The identity of the snapshot object is the signal: a successful round
+ * replaces it, a failed one leaves the same object in place. So this counts
+ * bases that actually reached the screen, which is exactly what the expansions
+ * hanging off them need to watch.
+ */
+const baseSnapshotVersion = ref(0);
+watch(acceptedSnapshot, () => {
+  baseSnapshotVersion.value += 1;
+});
 const reachable = computed(() => data.value?.reachable !== false);
+/**
+ * WHY it is empty, when the answer is not "OAP could not be read".
+ *
+ * A disabled template and an unreachable store both arrive as an unreachable
+ * response, and telling an operator to check OAP when an administrator turned
+ * the layer off sends them to the wrong place entirely.
+ */
+const blocked = computed(() => data.value?.blocked ?? null);
 const errorText = computed(() => data.value?.error ?? null);
-const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
+// Fields that DESCRIBE THE DRAWN GRAPH come from the snapshot; only the fields
+// that describe the latest ATTEMPT (reachable / blocked / error) come from
+// `data`. Reading them all from `data` mixed the two: after a failed round the
+// nodes were still the snapshot's while the config, size warning and partial-
+// metric notice came from the empty failure — so a drawn graph lost its metric
+// definitions and its warnings the moment a refresh could not be read.
+const metricsPartial = computed(() => acceptedSnapshot.value?.metricsPartial ?? null);
 
 // ── Interactive expansion + merged graph. The expansion engine owns the
 // per-node fetch lifecycle (one `getEndpointDependencies` call returns a
@@ -237,22 +274,63 @@ const {
   hasExpansion,
   isExhausted,
   isLoadingExpansion,
+  expanding,
   expandNode,
 } = useEndpointDependencyExpansion({
   layerKey,
   baseNodes,
   baseCalls,
   selectedEndpoint,
+  predicateGeneration,
+  previewConfig,
+  baseWindow,
+  baseSnapshotVersion,
   onFocusReset: () => {
-    dragOffsets.value = new Map();
+    dragAnchors.value = new Map();
     selectedNodeId.value = null;
     selectedCallId.value = null;
   },
 });
 
+/**
+ * The focus endpoint is only part of the question.
+ *
+ * `onFocusReset` above fires on the endpoint alone, so a time-range switch, a
+ * preview edit or a Hot→Cold flip left the nodes sitting where the operator
+ * had dragged them under the previous read, and the detail panel open on a
+ * selection made against it.
+ */
+watch(predicateGeneration, () => {
+  dragAnchors.value = new Map();
+  selectedNodeId.value = null;
+  selectedCallId.value = null;
+});
+
+/**
+ * A placement whose node is gone goes with it.
+ *
+ * Pruned against the RAW graph, not the laid-out or filtered set: a node hidden
+ * behind a display filter, or pushed out of a column by the per-column cap, is
+ * still in the graph and the operator's placement for it must survive. Without
+ * this the anchor was kept for ever and re-applied if that id ever came back —
+ * a node jumping to a position chosen for a graph nobody remembers.
+ */
+watch(
+  // The MERGED graph — base plus every expansion — because an expanded node is
+  // as draggable as a base one and its placement is as much the operator's.
+  () => nodes.value.map((n) => n.id),
+  (ids) => {
+    if (dragAnchors.value.size === 0) return;
+    const live = new Set(ids);
+    const kept = new Map<string, { x: number; y: number }>();
+    for (const [id, at] of dragAnchors.value) if (live.has(id)) kept.set(id, at);
+    if (kept.size !== dragAnchors.value.size) dragAnchors.value = kept;
+  },
+);
+
 // Config (operator-edited layer JSON): a role → metric def lookup drives
 // every visual channel, same binding as the service-map view.
-const cfg = computed(() => data.value?.config ?? {
+const cfg = computed(() => acceptedSnapshot.value?.config ?? {
   nodeMetrics: [] as TopologyMetricDef[],
   linkMetrics: [] as TopologyMetricDef[],
 });
@@ -307,10 +385,13 @@ function edgeVal(c: EndpointDependencyCall, def: TopologyMetricDef | null): numb
 // ── Focused endpoint id (resolved by BFF; we surface the same id
 // that came back so highlighting stays consistent even if the BFF
 // picked the closest fuzzy match).
-const focusedId = computed<string | null>(() => data.value?.endpointId ?? null);
+// From the SNAPSHOT. Off the latest attempt it went null the moment a refresh
+// failed — which dropped the focus highlight and, through the watcher below,
+// refit the viewport. A failed round is not allowed to move the camera.
+const focusedId = computed<string | null>(() => acceptedSnapshot.value?.endpointId ?? null);
 
 // Drag offset layers on the BFS layout so edges (which read displayPos) follow.
-const dragOffsets = ref<Map<string, { dx: number; dy: number }>>(new Map());
+const dragAnchors = ref<Map<string, { x: number; y: number }>>(new Map());
 
 const {
   layoutNodes,
@@ -329,7 +410,7 @@ const {
   focusedId,
   centerDef,
   nodeVal,
-  dragOffsets,
+  dragAnchors,
   t,
 });
 // Embedded (chat) mode caps the graph card to a bounded stage; the SVG fits +
@@ -473,13 +554,16 @@ const selectedNodeId = ref<string | null>(null);
 // via the view scale. Under the 3px threshold it's a click → toggle
 // selection (the box has no @click any more).
 const nodeDragId = ref<string | null>(null);
-let nodeDragStart = { x: 0, y: 0, baseDx: 0, baseDy: 0, moved: false };
+let nodeDragStart = { x: 0, y: 0, baseX: 0, baseY: 0, moved: false };
 function onNodePointerDown(e: PointerEvent, id: string): void {
   if (e.button !== 0) return;
   e.stopPropagation(); // don't also start a background pan
-  const off = dragOffsets.value.get(id) ?? { dx: 0, dy: 0 };
+  // Start from where the node IS — its placement if it has one, otherwise the
+  // position the column layout gave it.
+  const at = dragAnchors.value.get(id) ?? nodePos.value.get(id);
+  if (!at) return;
   nodeDragId.value = id;
-  nodeDragStart = { x: e.clientX, y: e.clientY, baseDx: off.dx, baseDy: off.dy, moved: false };
+  nodeDragStart = { x: e.clientX, y: e.clientY, baseX: at.x, baseY: at.y, moved: false };
   (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
 }
 function onNodePointerMove(e: PointerEvent): void {
@@ -489,9 +573,12 @@ function onNodePointerMove(e: PointerEvent): void {
   if (!nodeDragStart.moved && Math.hypot(dxs, dys) > 3) nodeDragStart.moved = true;
   if (!nodeDragStart.moved) return;
   const { scale } = viewMetrics();
-  const next = new Map(dragOffsets.value);
-  next.set(nodeDragId.value, { dx: nodeDragStart.baseDx + dxs / scale, dy: nodeDragStart.baseDy + dys / scale });
-  dragOffsets.value = next;
+  const next = new Map(dragAnchors.value);
+  next.set(nodeDragId.value, {
+    x: nodeDragStart.baseX + dxs / scale,
+    y: nodeDragStart.baseY + dys / scale,
+  });
+  dragAnchors.value = next;
 }
 function onNodePointerUp(e: PointerEvent, id: string): void {
   const el = e.currentTarget as Element;
@@ -698,7 +785,16 @@ function edgeRowCrosshair(rowId: string): number | null {
             class="ep-row"
             :class="{ on: selectedEndpoint === e.name }"
           >
-            <button class="ep-pick" type="button" @click="setSelectedEndpoint(e.name)">
+            <!-- Disabled while an expansion is in flight: a focus change here
+                 is exactly the race the epoch guard exists to catch, and not
+                 offering it is better than catching it. -->
+            <button
+              class="ep-pick"
+              type="button"
+              :disabled="expanding"
+              :title="expanding ? t('Loading…') : undefined"
+              @click="setSelectedEndpoint(e.name)"
+            >
               {{ e.name }}
             </button>
           </li>
@@ -710,8 +806,18 @@ function edgeRowCrosshair(rowId: string): number | null {
     </section>
 
     <div v-if="!reachable" class="banner err">
-      <strong>{{ t('OAP unreachable.') }}</strong>
-      {{ errorText ?? t('API dependency feed failed — check the BFF and OAP.') }}
+      <template v-if="blocked === 'layer-disabled'">
+        <strong>{{ t('This layer’s template is disabled.') }}</strong>
+        {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+      </template>
+      <template v-else-if="blocked === 'store-unreachable'">
+        <strong>{{ t('The template store could not be read.') }}</strong>
+        {{ t('Horizon renders what OAP holds, so it is serving nothing rather than defaults.') }}
+      </template>
+      <template v-else>
+        <strong>{{ t('OAP unreachable.') }}</strong>
+        {{ errorText ?? t('API dependency feed failed — check the BFF and OAP.') }}
+      </template>
     </div>
     <div v-if="metricsPartial" class="banner warn">
       {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
@@ -1004,15 +1110,15 @@ function edgeRowCrosshair(rowId: string): number | null {
             <g
               v-if="selectedNodeId === n.id && n.id !== focusedId && !embedded"
               class="ep-expand"
-              :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n) }"
+              :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n), blocked: expanding && !isLoadingExpansion(n) }"
               :transform="`translate(${NW - 9}, -9)`"
               role="button"
               tabindex="0"
               :aria-label="t('Expand {name} — show its callers and callees', { name: n.name })"
               @pointerdown.stop
-              @click.stop="expandNode(n)"
-              @keydown.enter.prevent="expandNode(n)"
-              @keydown.space.prevent="expandNode(n)"
+              @click.stop="!expanding && expandNode(n)"
+              @keydown.enter.prevent="!expanding && expandNode(n)"
+              @keydown.space.prevent="!expanding && expandNode(n)"
             >
               <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) || isLoadingExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
               <circle
@@ -1042,7 +1148,20 @@ function edgeRowCrosshair(rowId: string): number | null {
           </g>
         </svg>
 
-          <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
+          <div v-else-if="phase === 'loading'" class="loader">
+            {{ t('Loading dependencies for “{target}”…', { target: selectedEndpoint ?? '' }) }}
+          </div>
+          <!-- A DISABLED layer is an answer, not a failure to reach one:
+               Retry would invite the operator to keep asking for something
+               that cannot change until someone re-enables it. -->
+          <div v-else-if="phase === 'failed' && blocked === 'layer-disabled'" class="loader">
+            {{ t('This layer’s template is disabled.') }}
+            {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+          </div>
+          <div v-else-if="phase === 'failed'" class="loader">
+            {{ t('Could not load the dependency graph.') }}
+            <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
+          </div>
           <div v-else class="loader">
             {{ t('No dependency graph available for this endpoint in the selected time range.') }}
           </div>
@@ -1315,6 +1434,14 @@ function edgeRowCrosshair(rowId: string): number | null {
 }
 .ep-row:last-child { border-bottom: none; }
 .ep-row.on { background: var(--sw-accent-soft); }
+.ep-expand.blocked {
+  opacity: 0.35;
+  cursor: default;
+}
+.ep-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .ep-pick {
   display: block;
   width: 100%;

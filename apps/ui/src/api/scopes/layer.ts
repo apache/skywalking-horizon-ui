@@ -213,6 +213,8 @@ export class LayerApi {
     /** Admin preview: the operator's draft `topology` block (JSON string).
      *  Renders the draft against live OAP instead of the remote template. */
     previewConfig?: string,
+    /** Cancels the request when the refresh round it belongs to is capped. */
+    signal?: AbortSignal,
   ): Promise<TopologyResponse> {
     const qs = new URLSearchParams();
     if (services && services.length > 0) {
@@ -229,6 +231,9 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/topology?${qs.toString()}`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 
@@ -245,6 +250,7 @@ export class LayerApi {
     /** Admin preview: the operator's draft `topology` block (JSON string);
      *  the BFF reads its nested `instanceTopology`. */
     previewConfig?: string,
+    signal?: AbortSignal,
   ): Promise<InstanceTopologyResponse> {
     const qs = new URLSearchParams({ client: clientServiceId, server: serverServiceId });
     if (range) {
@@ -256,6 +262,9 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/instance-topology?${qs.toString()}`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 
@@ -269,6 +278,7 @@ export class LayerApi {
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `deployment` block. */
     previewConfig?: string,
+    signal?: AbortSignal,
   ): Promise<DeploymentResponse> {
     const qs = new URLSearchParams(serviceRefFields(service));
     if (range) {
@@ -280,6 +290,9 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/deployment?${qs.toString()}`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 
@@ -290,6 +303,7 @@ export class LayerApi {
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `endpointDependency` block. */
     previewConfig?: string,
+    signal?: AbortSignal,
   ): Promise<EndpointDependencyResponse> {
     const qs = new URLSearchParams({ ...serviceRefFields(service), endpoint });
     if (range) {
@@ -301,6 +315,9 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/endpoint-dependency?${qs.toString()}`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 
@@ -324,7 +341,11 @@ export class LayerApi {
    *  uses this to validate a URL-pinned `?service=<id>` against the
    *  layer's real catalog — independent of landing's top-N rollup
    *  which can miss low-traffic services. */
-  services(layerKey: string): Promise<{
+  services(
+    layerKey: string,
+    /** Cancels the request when the refresh round it belongs to is capped. */
+    signal?: AbortSignal,
+  ): Promise<{
     reachable: boolean;
     layer: string;
     services: Array<{ id: string; name: string; normal: boolean | null; group: string }>;
@@ -333,6 +354,9 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/services`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 

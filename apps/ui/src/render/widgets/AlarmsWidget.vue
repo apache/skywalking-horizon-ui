@@ -31,6 +31,8 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
 import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
@@ -103,18 +105,20 @@ const windowLabel = computed<string>(() => {
   return t('last {n}d', { n: Math.round(h / 24) });
 });
 
+/** Lifted so the round can name this query when it needs to cancel it. */
+const alarmsKey = computed(() => [
+  'overview-alarms',
+  hasQueryAlarms.value,
+  hasQueryAlarms.value ? props.layer ?? '' : 'all',
+  fetchLimit.value,
+  windowMs.value,
+]);
 const alarmsQuery = useQuery({
   /* Layer is keyed only in new-API mode — legacy mode ignores it
    * and re-uses a single all-layers cache across every overview.
    * `fetchLimit` is in the key so a config change re-fetches with
    * the new cap on the next render tick. */
-  queryKey: computed(() => [
-    'overview-alarms',
-    hasQueryAlarms.value,
-    hasQueryAlarms.value ? props.layer ?? '' : 'all',
-    fetchLimit.value,
-    windowMs.value,
-  ]),
+  queryKey: alarmsKey,
   queryFn: () => {
     const end = Date.now();
     const start = end - windowMs.value;
@@ -125,10 +129,31 @@ const alarmsQuery = useQuery({
       pageSize: fetchLimit.value,
     });
   },
-  staleTime: 30_000,
-  refetchInterval: 60_000,
+  // The round decides when this reads. Holding it fresh for 30 seconds meant
+  // a round at a shorter cadence redrew every other widget on the dashboard
+  // while this card answered from cache — an alarm list quietly older than
+  // the metrics beside it.
+  staleTime: 0,
   refetchOnWindowFocus: false,
 });
+// One global timer. This is a WIDGET on a dashboard, so it refreshes when the
+// page does — its own 60s interval put it on a clock of its own, drifting
+// against the round and redrawing this card while its neighbours held still.
+// No component field: this card is mounted only where it should be reading,
+// and its query carries no `enabled` of its own to mirror. Stated rather than
+// omitted, so the absence reads as a decision.
+  // A round that could not read this says so in the refresh history. Without
+// it a failed round on this screen was silent everywhere: the coordinator
+// swallows participant rejections by design, so a participant that does not
+// report is not reported at all.
+useRefreshErrorReport({ owner: 'Alarms', action: 'reading the alarm list', error: alarmsQuery.error });
+useAutoRefreshSubscribe(
+  () => alarmsQuery.refetch({ cancelRefetch: false }),
+  undefined,
+  // Named so a capped round can cancel this card's read rather than only stop
+  // waiting on it.
+  () => alarmsKey.value,
+);
 
 const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []);
 const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);

@@ -89,6 +89,10 @@ export function _resetCapabilitiesCache(): void {
 export async function getOapCapabilities(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
+  /** The caller's cancellation, on a read route. See `getServerOffsetMinutes`:
+   *  the same reasoning applies, and the conservative result this caches on
+   *  failure lasts a minute rather than expiring with the request. */
+  signal?: AbortSignal,
 ): Promise<OapCapabilities> {
   const key = config.oap.queryUrl;
   const now = Date.now();
@@ -97,8 +101,15 @@ export async function getOapCapabilities(
 
   let raw: IntrospectionRaw;
   try {
-    raw = await graphqlPost<IntrospectionRaw>(buildOapOpts(config, fetchImpl), INTROSPECTION_QUERY);
-  } catch {
+    raw = await graphqlPost<IntrospectionRaw>(
+      buildOapOpts(config, fetchImpl, signal),
+      INTROSPECTION_QUERY,
+    );
+  } catch (err) {
+    // Cancelled by the caller, so it measured nothing. Caching the conservative
+    // answer here would hide alarm queries and content search from every LATER
+    // request for a minute, on the strength of a probe that was never made.
+    if (signal?.aborted) throw err;
     const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false };
     cache.set(key, { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS });
     return conservative;
@@ -115,11 +126,12 @@ export async function getOapCapabilities(
   if (fieldSet.has('supportQueryLogsByKeywords')) {
     try {
       const env = await graphqlPost<LogKeywordsRaw>(
-        buildOapOpts(config, fetchImpl),
+        buildOapOpts(config, fetchImpl, signal),
         LOG_KEYWORDS_QUERY,
       );
       logKeywords = env.supportQueryLogsByKeywords === true;
-    } catch {
+    } catch (err) {
+      if (signal?.aborted) throw err;
       logKeywords = false;
       probeFailed = true;
     }

@@ -43,6 +43,7 @@ import { useCompareEngine } from '@/render/layer-dashboard/useCompareEngine';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore } from '@/controls/timeRange';
+import { GraphUnavailableError, useRoundWindow, useTimeIdentity } from '@/layer/graphQuery';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
@@ -103,10 +104,10 @@ const safeCfg = computed(() => {
 // listens to its upstream picker the same way it listens to
 // service/instance/endpoint changes.
 const timeRange = useTimeRangeStore();
-const rangeRef = computed(() => {
-  const r = timeRange.range;
-  return { step: timeRange.step, startMs: r.startMs, endMs: r.endMs };
-});
+// The ROUND's window while a round is out — the widget batch, the compare
+// fan-out and the header must all describe the same one, or a page assembled
+// during a round shows values from two different windows side by side.
+const rangeRef = useRoundWindow();
 
 // Time-axis labels for line widgets. The BFF returns bucket VALUES only
 // (no per-bucket timestamp), so we reconstruct evenly-spaced labels from
@@ -445,9 +446,16 @@ useLayerPageOrchestrator({
 // query resolves, the data ref updates and we mark fresh again.
 // This is what makes the page visibly reset on click rather than
 // looking frozen on the prior widgets.
+// The window's IDENTITY, not its bounds — the same rule the query key follows.
+// Raw bounds move on every re-anchor, so a rolling preset made this key change
+// on every round: the page marked itself stale and showed "Reading data…" over
+// widgets that were about to be replaced by the same numbers. That is the
+// blanking this work exists to remove, and it survived the query-key fix
+// because this is a second, separate gate.
+const timeIdentity = useTimeIdentity();
 const fetchKey = computed(
   () =>
-    `${layerKey.value}|${scope.value}|${pageId.value ?? ''}|${serviceName.value ?? ''}|${effectiveInstance.value ?? ''}|${selectedEndpoint.value ?? ''}|${timeRange.range.startMs}|${timeRange.range.endMs}|${timeRange.step}`,
+    `${layerKey.value}|${scope.value}|${pageId.value ?? ''}|${serviceName.value ?? ''}|${effectiveInstance.value ?? ''}|${selectedEndpoint.value ?? ''}|${timeIdentity.value}`,
 );
 const lastFreshKey = ref<string | null>(null);
 // `immediate` marks a warm-cache remount fresh, else the "Reading data…" gate hangs.
@@ -470,13 +478,20 @@ const resultsById = computed(() => {
   return out;
 });
 const reachable = computed(() => {
+  // The banner describes the latest ATTEMPT, which is now a thrown failure
+  // rather than an empty 200 — `data` holds the widgets still on screen, so it
+  // can no longer report the failure by itself.
+  if (error.value instanceof GraphUnavailableError) return false;
   const primaryOk = data.value?.reachable !== false;
   if (!compareMode.value || primaryOk) return primaryOk;
   // Compare: a failed primary must not flag "unreachable" over a cohort grid
   // still rendering pinned-entity data (or still arriving).
   return compareLoading.value || compareEntities.value.some((e) => resultByEntity.value.get(e) !== undefined);
 });
-const errorText = computed(() => data.value?.error ?? (error.value ? String(error.value) : null));
+const errorText = computed(() => {
+  const failed = error.value instanceof GraphUnavailableError ? (error.value.response as { error?: string }) : null;
+  return failed?.error ?? data.value?.error ?? (error.value ? String(error.value) : null);
+});
 
 /** Map a widget's grid footprint into the new 12-col flow grid. Honors
  *  `span` / `rowSpan` first; falls back to legacy `w` / `h` (24-col
