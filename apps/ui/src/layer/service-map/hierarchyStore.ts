@@ -72,7 +72,7 @@ export const useHierarchyOverlayStore = defineStore('service-hierarchy-overlay',
     // Freeze every refetch path on the page (topology, KPIs, dependency
     // graph, etc.) — operators expect the background to stay still
     // while they pan through the hierarchy.
-    useAutoRefreshStore().suspend();
+    useAutoRefreshStore().suspend('hierarchy-overlay');
   }
 
   function close(): void {
@@ -84,7 +84,7 @@ export const useHierarchyOverlayStore = defineStore('service-hierarchy-overlay',
     // resume() fires one immediate tick — the topology snaps back to
     // live data the moment the overlay shuts. Operators reading
     // "closed" expect the numbers to refresh, not stay stale.
-    useAutoRefreshStore().resume();
+    useAutoRefreshStore().resume('hierarchy-overlay');
   }
 
   /** Replace the captured zoom — called by the topology view when the

@@ -154,6 +154,10 @@ const TIME_INFO_QUERY = /* GraphQL */ `
 export async function getServerOffsetMinutes(
   config: ConfigSource,
   fetchImpl?: FetchLike,
+  /** The caller's cancellation, on a read route. Without it this probe ran to
+   *  completion against OAP for a browser that had already gone — and every
+   *  read route makes it, so an abandoned page cost one of these per request. */
+  signal?: AbortSignal,
 ): Promise<number> {
   const now = Date.now();
   const queryUrl = config.current.oap.queryUrl;
@@ -162,7 +166,7 @@ export async function getServerOffsetMinutes(
   }
   try {
     const env = await graphqlPost<{ time?: { timezone?: string | null } | null }>(
-      buildOapOpts(config.current, fetchImpl),
+      buildOapOpts(config.current, fetchImpl, signal),
       TIME_INFO_QUERY,
     );
     const raw = env.time?.timezone ?? '+0000';
@@ -175,7 +179,11 @@ export async function getServerOffsetMinutes(
       tzCache = { offsetMinutes: offset, fetchedAt: now, queryUrl };
       return offset;
     }
-  } catch {
+  } catch (err) {
+    // A probe WE cancelled says nothing about the server's offset. Caching the
+    // UTC fallback from it would make one abandoned request answer every other
+    // request for the next minute with a timezone nobody measured.
+    if (signal?.aborted) throw err;
     /* fall through to 0 */
   }
   tzCache = { offsetMinutes: 0, fetchedAt: now, queryUrl };

@@ -42,6 +42,7 @@ import type {
   PreflightModule,
   PreflightResult,
 } from '@skywalking-horizon-ui/api-client';
+import { templateStoreStatus } from '../templates/sync.js';
 import type { HorizonConfig } from '../../config/schema.js';
 
 export type { PreflightModule, PreflightResult };
@@ -115,6 +116,10 @@ export async function runPreflight(
       adminReachable: false,
       adminError: dump.error,
       templatesMode,
+      // Reported even here: when the admin host is down the store is
+      // unreachable BY DEFINITION, and what an operator needs to know is
+      // whether Horizon is still rendering what it read before.
+      templateStore: templateStoreStatus(),
       modules: REQUIRED_MODULES.map((m) => ({
         name: m.name,
         envVar: m.envVar,
@@ -160,6 +165,7 @@ export async function runPreflight(
     adminUrl,
     adminReachable: true,
     templatesMode,
+    templateStore: templateStoreStatus(),
     modules,
     dumpKeyCount: Object.keys(dump.body).length,
     generatedAt,

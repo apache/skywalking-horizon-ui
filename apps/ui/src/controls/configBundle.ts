@@ -231,6 +231,45 @@ export async function refreshConfigBundle(opts: { force?: boolean } = {}): Promi
   }
 }
 
+/**
+ * How often the bundle is re-read while the app is open.
+ *
+ * Sixty seconds, which is the upper bound on how long a template pushed
+ * somewhere else — another Horizon, swctl, any tool writing to the same OAP —
+ * takes to appear in a running UI. It is also what lets an unreachable store
+ * clear itself once it recovers.
+ *
+ * Cheap by construction: the request carries `If-None-Match`, so an unchanged
+ * store answers 304, and the BFF's own thirty-second cache bounds how often
+ * this reaches OAP at all.
+ */
+const SYNC_PERIOD_MS = 60_000;
+let syncTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start the periodic re-read. Called once, by the shell.
+ *
+ * Deliberately NOT part of the refresh round: this is static configuration,
+ * not page data — putting it in the round would spend a request per page per
+ * cycle re-reading an unchanged document, and would put a config failure in
+ * the round's failure history where it reads as a data problem. It does not go
+ * through the query cache either, so it cannot hold the coordinated timer the
+ * way an independent poller otherwise would.
+ */
+export function startConfigBundleSync(): void {
+  if (syncTimer !== null) return;
+  syncTimer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    void refreshConfigBundle();
+  }, SYNC_PERIOD_MS);
+}
+
+export function stopConfigBundleSync(): void {
+  if (syncTimer === null) return;
+  clearInterval(syncTimer);
+  syncTimer = null;
+}
+
 /** Set the global local-vs-remote render preference and re-pull the
  *  bundle so every dashboard re-renders from the chosen source. */
 export async function setTemplateRenderMode(mode: 'local' | 'remote'): Promise<void> {

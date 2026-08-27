@@ -19,6 +19,9 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { LandingConfig, LandingResponse, LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { fetchDrawable, GraphUnavailableError, useTimeIdentity } from '@/layer/graphQuery';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
 
 /**
  * Live top-N service rollup for one Overview landing card. Polls every
@@ -57,11 +60,12 @@ export function useLayerLanding(
     columns: cfg.value.columns,
   }));
   const rangeRef = range ?? computed<LandingRange | null>(() => null);
-  const rangeKey = computed(() => {
-    const r = rangeRef.value;
-    if (!r) return null;
-    return `${r.step}:${Math.floor(r.startMs / 60_000)}:${Math.floor(r.endMs / 60_000)}`;
-  });
+  // The IDENTITY of the window, not its bounds. Minute-bucketing them made the
+  // clock re-key the query, which is a refresh by accident: it fired outside
+  // any round, was uncounted by the countdown, and emptied the roster while the
+  // replacement was out. The bounds still travel as the request argument.
+  const timeIdentity = useTimeIdentity();
+  const rangeKey = computed(() => (rangeRef.value ? timeIdentity.value : null));
 
   // Service list is the layer's in-memory snapshot — cache it
   // aggressively (staleTime: Infinity, no window-focus refetch).
@@ -74,28 +78,56 @@ export function useLayerLanding(
   const isEnabled = computed(() => !(replay?.value ?? false));
   const q = useQuery({
     queryKey: ['layer-landing', layerKey, cfgHash, rangeKey],
+    // Wrapped for the same reason the graphs are: the route answers HTTP 200
+    // with `reachable: false` and an EMPTY roster when it could not read OAP.
+    // Taken as success, that empties the service list and reports a service
+    // count of zero — a statement about the operator's system, made from a
+    // failure to read it. Thrown, the previous roster survives in the cache and
+    // the failure reaches the refresh history.
     queryFn: () =>
-      bffClient.layer.landing(
-        layerKey.value,
-        cfg.value,
-        rangeRef.value ?? undefined,
+      fetchDrawable(() =>
+        bffClient.layer.landing(layerKey.value, cfg.value, rangeRef.value ?? undefined),
       ),
     enabled: isEnabled,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
-    retry: 1,
   });
 
-  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
-  // preset's window advances with the ticker, so each tick already re-keys the
-  // query and vue-query fetches the new window. Subscribing as well would fire
-  // two requests per tick for the same data. A frozen window (embedded/replay,
-  // or a pinned custom range) does not re-key — and must not refetch anyway.
+  // The ROUND refreshes this, now that the key no longer moves with the clock.
+  // `refetch` bypasses `staleTime: Infinity` above, which is what keeps the
+  // roster still between operator actions while still letting a round refresh
+  // it. A replay block is gated out: it must fire no queries at all.
+  // A round that could not read this says so in the refresh history. Without
+  // it a failed round on this screen was silent everywhere: the coordinator
+  // swallows participant rejections by design, so a participant that does not
+  // report is not reported at all.
+  useRefreshErrorReport({ owner: 'Layer landing', action: 'reading the layer landing metrics', error: q.error });
+  useAutoRefreshSubscribe(() => q.refetch({ cancelRefetch: false }), isEnabled, () => [
+    'layer-landing',
+    layerKey.value,
+    cfgHash.value,
+    rangeKey.value,
+  ]);
 
+  // `data` is the last roster worth showing — an unreadable answer never
+  // becomes it, so a failed read leaves the previous services on screen.
   const data = computed<LandingResponse | null>(() => q.data.value ?? null);
   const rows = computed(() => data.value?.rows ?? []);
-  const reachable = computed(() => data.value?.reachable ?? false);
-  const error = computed(() => data.value?.error ?? (q.error.value ? String(q.error.value) : undefined));
+  /**
+   * Reachable describes the LATEST ATTEMPT, not the rows above.
+   *
+   * They are deliberately different sources: the rows are the last good answer,
+   * this is whether the most recent read got one. A page that took both from
+   * the same object either claimed a stale roster was current, or threw the
+   * roster away to report the failure.
+   */
+  const failed = computed(() =>
+    q.error.value instanceof GraphUnavailableError ? (q.error.value.response as LandingResponse) : null,
+  );
+  const reachable = computed(() => (failed.value ? false : (data.value?.reachable ?? false)));
+  const error = computed(
+    () => failed.value?.error ?? data.value?.error ?? (q.error.value ? String(q.error.value) : undefined),
+  );
 
   return {
     isLoading: q.isLoading,

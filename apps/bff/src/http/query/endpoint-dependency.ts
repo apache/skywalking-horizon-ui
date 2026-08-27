@@ -33,6 +33,7 @@ import type { EndpointDependencyConfig, FetchLike, UITemplateClient } from '@sky
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import {
   defaultMinuteWindow,
   getServerOffsetMinutes,
@@ -41,7 +42,7 @@ import {
   type Window,
 } from '../../util/window.js';
 import { endpointDependencyConfigFor } from '../../logic/layers/loader.js';
-import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { blockedReason, resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewEndpointDep } from '../../logic/layers/preview.js';
 import { buildEndpointDependency, emptyEndpointDependencyResponse } from '../../logic/oap/endpoint-dependency.js';
 import { serviceNormalOf, serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -109,14 +110,21 @@ export function registerEndpointDependencyRoute(
         const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
         if (eff.blocked) {
           // Template store unreachable / layer disabled — block, no defaults.
-          return reply.send(emptyEndpointDependencyResponse(layerKey, service.name, endpointArg, null, { nodeMetrics: [] }, true));
+          // `reachable: false` for the same reason as the service-topology
+          // route: an empty body here is a failure to read, and a caller must
+          // be able to tell it from a graph that is legitimately empty.
+          return reply.send({
+            ...emptyEndpointDependencyResponse(layerKey, service.name, endpointArg, null, { nodeMetrics: [] }, false),
+            ...blockedReason(eff.reason),
+          });
         }
         epCfg = endpointDependencyConfigFor(eff.template);
       }
 
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's topbar picker triplet; else fall back to the
       // last-hour MINUTE window (dashboards family — minute precision).
       const stepArg = (q.step ?? '').toUpperCase() as TimeStep;

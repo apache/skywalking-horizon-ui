@@ -214,7 +214,8 @@ function pick(which: 'client' | 'server', val: string): void {
 
 const enabled = computed(() => !!clientId.value && !!serverId.value);
 const replayDataRef = computed<InstanceTopologyResponse | null>(() => props.replayData ?? null);
-const { data, nodes, calls, isFetching } = useInstanceTopology(
+const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch } =
+  useInstanceTopology(
   layerKey,
   clientId,
   serverId,
@@ -222,17 +223,33 @@ const { data, nodes, calls, isFetching } = useInstanceTopology(
   focusWindowMinutes,
   replayDataRef,
 );
-const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
+// Fields that DESCRIBE THE DRAWN GRAPH come from the snapshot; only the fields
+// that describe the latest ATTEMPT (reachable / blocked / error) come from
+// `data`. Reading them all from `data` mixed the two: after a failed round the
+// nodes were still the snapshot's while the config, size warning and partial-
+// metric notice came from the empty failure — so a drawn graph lost its metric
+// definitions and its warnings the moment a refresh could not be read.
+/** WHY it is empty, when the answer is not "OAP could not be read". Read from
+ *  the latest ATTEMPT — it describes the failure, not the drawn graph. */
+const blocked = computed(() => data.value?.blocked ?? null);
+const metricsPartial = computed(() => acceptedSnapshot.value?.metricsPartial ?? null);
 
 // Resolve both names through the SAME layer naming rule the service map
 // uses (`resolveServiceIdentity` → `display`), so the `<group>::` prefix
 // is stripped here exactly as it is on the service-topology nodes — an
 // edge between `agent::app` and `agent::gateway` shows `app` / `gateway`
 // in both maps, not raw on one and stripped on the other.
-const clientName = computed(() => displayName(data.value?.clientServiceName) || nameOf(clientId.value));
-const serverName = computed(() => displayName(data.value?.serverServiceName) || nameOf(serverId.value));
+// From the SNAPSHOT: these NAME the graph on screen. Off the latest attempt
+// they fell back to raw ids the moment a refresh failed — the map still drawn,
+// its two ends suddenly unnamed.
+const clientName = computed(
+  () => displayName(acceptedSnapshot.value?.clientServiceName) || nameOf(clientId.value),
+);
+const serverName = computed(
+  () => displayName(acceptedSnapshot.value?.serverServiceName) || nameOf(serverId.value),
+);
 
-const cfg = computed(() => data.value?.config ?? { nodeMetrics: [] as TopologyMetricDef[] });
+const cfg = computed(() => acceptedSnapshot.value?.config ?? { nodeMetrics: [] as TopologyMetricDef[] });
 function pickByRole(defs: TopologyMetricDef[], role: TopologyMetricDef['role']): TopologyMetricDef | null {
   return defs.find((d) => d.role === role) ?? null;
 }
@@ -439,11 +456,32 @@ function installZoom(): void {
   sel.on('dblclick.zoom', null);
   sel.on('dblclick', () => fitToScreen(true));
 }
+/** Whether the last fit had a graph to measure. A fit taken while the canvas
+ *  was empty framed nothing, so it must not stand once nodes arrive. */
+let fittedWithContent = false;
 function installZoomAndFit(): void {
   if (!svgEl.value || !zoomLayerEl.value) return;
   installZoom();
-  void nextTick(() => fitToScreen(false));
+  void nextTick(() => {
+    fitToScreen(false);
+    fittedWithContent = nodes.value.length > 0;
+  });
 }
+// A graph that arrives INTO a canvas fitted while it was empty is framed for
+// an extent that did not exist — commonly a quiet window, where the accepted
+// empty result renders first and the instances appear on a later round. The
+// element does not change, so the mount watcher never runs again and a larger
+// graph sits clipped.
+watch(
+  () => nodes.value.length,
+  (n) => {
+    if (n === 0 || fittedWithContent || !svgEl.value || !zoomBehaviour) return;
+    void nextTick(() => {
+      fitToScreen(false);
+      fittedWithContent = true;
+    });
+  },
+);
 // The <svg> lives behind a v-else and unmounts whenever a new pair's data
 // is in flight (the query key changes → data drops → "Reading data…"),
 // then remounts when it lands. d3.zoom listeners bind to the specific
@@ -451,16 +489,31 @@ function installZoomAndFit(): void {
 // leave drag-pan / wheel-zoom / dblclick-fit dead after the first pair
 // switch (the +/−/Fit buttons would still work, masking the bug).
 watch(svgEl, (el) => { if (el && zoomLayerEl.value) installZoomAndFit(); }, { flush: 'post' });
-// Re-fit when the graph shape changes while the element persists (e.g.
-// auto-refresh keeps the SVG mounted but the instance set shifts).
-watch(
-  () => `${nodes.value.length}|${visibleCalls.value.length}`,
-  () => { if (svgEl.value && zoomBehaviour) void nextTick(() => fitToScreen(false)); },
-);
+// Re-fit only when the PAIR changes — a different client/server pair is a
+// different graph. The previous rule refitted whenever the instance set
+// shifted, which the comment described as an auto-refresh case and which is
+// exactly the one that must not re-frame: an operator who zoomed into an edge
+// lost it every time an instance came or went.
+watch(predicateKey, () => {
+  fittedWithContent = false;
+  if (svgEl.value && zoomBehaviour) {
+    void nextTick(() => {
+      fitToScreen(false);
+      fittedWithContent = nodes.value.length > 0;
+    });
+  }
+});
 
 // ── Selection (edge → sidebar, node → popover). Reset on pair change.
 const selectedCallId = ref<string | null>(null);
 const popoverNodeId = ref<string | null>(null);
+// A predicate change is a different graph — the time range and the cold stage
+// are part of it, not just the instance pair — so a selection made against the
+// previous one does not carry over.
+watch(predicateKey, () => {
+  selectedCallId.value = null;
+  popoverNodeId.value = null;
+});
 function selectEdge(id: string): void {
   popoverNodeId.value = null;
   selectedCallId.value = selectedCallId.value === id ? null : id;
@@ -578,7 +631,17 @@ function diffText(d: number | null): string {
 }
 
 const showPickPrompt = computed(() => !enabled.value);
-const showLoading = computed(() => enabled.value && isFetching.value && nodes.value.length === 0);
+// "Reading data…" means there is nothing to draw for the CURRENT predicate —
+// not "a request is in flight". Gating on `isFetching && nodes.length === 0`
+// blanked the canvas on every refresh, because the node list emptied while the
+// round was out. `initialPending` is false as soon as a drawable graph exists,
+// so a refresh redraws over the previous picture instead of erasing it.
+const showLoading = computed(() => phase.value === 'loading');
+const showFailed = computed(() => phase.value === 'failed');
+// Names the pair being read, so a switch shows which relationship is coming.
+// From the picker's own ids, NOT from `data` — during a load there is no data
+// yet, and naming the pair is the whole point of saying it here.
+const loadingTarget = computed(() => `${nameOf(clientId.value)} → ${nameOf(serverId.value)}`);
 const isEmpty = computed(() => enabled.value && !isFetching.value && nodes.value.length === 0);
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -640,7 +703,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
     <div class="imv-body" :class="{ 'no-selection': !selectedCall }">
       <div ref="containerEl" class="imv-canvas">
         <div v-if="showPickPrompt" class="imv-state">{{ t('Pick a client and server service to see their instance topology.') }}</div>
-        <div v-else-if="showLoading" class="imv-state">{{ t('Reading data…') }}</div>
+        <div v-else-if="showLoading" class="imv-state">{{ t('Loading relationship for “{target}”…', { target: loadingTarget }) }}</div>
+        <!-- A DISABLED layer is an administrator's answer, not a failure to
+             reach anything: offering Retry would invite the operator to keep
+             asking for something that will not change until someone re-enables
+             it. -->
+        <div v-else-if="blocked === 'layer-disabled'" class="imv-state">
+          {{ t('This layer’s template is disabled.') }}
+          {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+        </div>
+        <div v-else-if="showFailed" class="imv-state">
+          {{ t('Could not load the instance relationship.') }}
+          <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
+        </div>
         <div v-else-if="isEmpty" class="imv-state">{{ t('No instance topology in this window.') }}</div>
         <template v-else>
           <svg ref="svgEl" class="imv-svg" width="100%" height="100%">

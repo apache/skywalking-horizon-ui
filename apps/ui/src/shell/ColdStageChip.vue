@@ -16,7 +16,6 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useQueryClient } from '@tanstack/vue-query';
 import Icon from '@/components/icons/Icon.vue';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useColdStageStore } from '@/controls/coldStage';
@@ -32,15 +31,11 @@ import { useColdStageStore } from '@/controls/coldStage';
 // on when the operator is asking for data older than the hot+warm
 // TTL boundary (Operate → Time To Live shows the values per class).
 //
-// Flipping invalidates every tanstack-query cache so subscribers
-// refetch with the new header instead of serving stale data from
-// the previous stage.
 const { backend } = useOapInfo();
 const cold = useColdStageStore();
-const queryClient = useQueryClient();
 const showColdChip = computed<boolean>(() => backend.value === 'banyandb');
 function toggleCold(): void {
-  cold.toggle(queryClient);
+  cold.toggle();
 }
 const coldChipTooltip = computed<string>(() =>
   cold.enabled

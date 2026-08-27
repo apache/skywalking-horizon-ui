@@ -45,6 +45,7 @@ import {
   isOverlayName,
   parseEnvelope,
   serializeEnvelope,
+  TEMPLATE_KINDS,
   type TemplateKind,
 } from './names.js';
 import { iterateBundledOverlays } from './aggregator.js';
@@ -186,6 +187,32 @@ interface CacheEntry {
 let cache: CacheEntry | null = null;
 let inFlight: Promise<SyncStatus> | null = null;
 let lastSuccessfulSyncAt: number | null = null;
+/**
+ * The rows from the last read that SUCCEEDED.
+ *
+ * Kept so a store that becomes unreachable does not blank every dashboard,
+ * overview and map behind it. What renders is then still the operator's own
+ * published configuration — read minutes ago rather than seconds — which is a
+ * different thing entirely from substituting the disk bundle, and the reason
+ * that substitution is forbidden does not apply to it: nothing here is
+ * presented as theirs that is not.
+ *
+ * `unreachable` stays true regardless, so the banner still says the store
+ * cannot be read and how stale this is, and the admin surface stays read-only.
+ * Null until the first success — a Horizon that has never read the store has
+ * nothing legitimate to show and blocks, as before.
+ */
+let lastGoodRows: TemplateRow[] | null = null;
+/**
+ * What the last failed read said, and when.
+ *
+ * Kept because the failure is otherwise only a log line: the Cluster Status
+ * page can say the store is unreachable, but not WHY, and "unreachable" covers
+ * a 404 from a missing module, a 401 from wrong credentials and a timeout from
+ * a slow admin port — three different things to go and fix. Cleared on the next
+ * success, so it always describes the current trouble rather than an old one.
+ */
+let lastError: { message: string; at: number } | null = null;
 
 /** Boot-time template mode (`config.templates.mode`). In `readonly` the
  *  orchestrator never touches the ui_template client — `runOnce` short-circuits
@@ -196,16 +223,85 @@ export function setTemplateReadOnly(on: boolean): void {
   readOnlyMode = on;
   // A mode flip must not serve a stale cross-mode status: drop the cache AND
   // orphan any in-flight probe (it still resolves its awaiters, but won't
-  // backfill the cache with a result computed under the old mode).
+  // backfill the cache with a result computed under the old mode). The
+  // retained rows go too — rows read under the other mode are not this mode's.
   cache = null;
   inFlight = null;
+  lastGoodRows = null;
 }
 export function isTemplateReadOnly(): boolean {
   return readOnlyMode;
 }
 
+/** Force the next caller to re-list OAP. Expires the 30s window ONLY — the
+ *  last good rows survive, because this is what an admin write calls and a
+ *  failed read straight after a push must not blank the page. */
 export function invalidateSyncCache(): void {
   cache = null;
+}
+
+/** Drop everything, including the retained rows. For a mode flip and for tests
+ *  that need the never-read state, where retention would be a false premise. */
+export function resetTemplateSyncState(): void {
+  cache = null;
+  inFlight = null;
+  lastGoodRows = null;
+  lastSuccessfulSyncAt = null;
+  lastError = null;
+}
+
+/**
+ * What the template store is doing, for the Cluster Status page.
+ *
+ * A pure read of module state — it never probes OAP, so the page can render it
+ * as often as it likes without adding load. Counting only `effective: 'remote'`
+ * rows is the point: that is how many templates are actually being SERVED from
+ * OAP, which is the number an operator can check against what they published.
+ */
+export interface TemplateStoreStatus {
+  mode: 'live' | 'readonly';
+  /** True while the last read failed. Rendering may still be fine — see
+   *  `servingRetained`. */
+  unreachable: boolean;
+  /** Epoch ms of the last read that reached OAP; null if none ever has. */
+  lastSuccessfulSyncAt: number | null;
+  /** Rendering from a previous read because the current one failed. The
+   *  distinction the page needs: unreachable AND still serving is a warning,
+   *  unreachable with nothing retained is an outage. */
+  servingRetained: boolean;
+  /** Templates being served from OAP, per kind. Keyed by the kind union so a
+   *  kind added later cannot be silently miscounted into another's bucket. */
+  counts: Record<TemplateKind, number>;
+  /** Per-locale translation overlays being served, across all kinds. */
+  translations: number;
+  /** The last failure, while it is still the current one. */
+  lastError: { message: string; at: number } | null;
+}
+
+export function templateStoreStatus(): TemplateStoreStatus {
+  const rows = lastGoodRows ?? [];
+  const counts = Object.fromEntries(TEMPLATE_KINDS.map((k: TemplateKind) => [k, 0])) as Record<
+    TemplateKind,
+    number
+  >;
+  let translations = 0;
+  for (const row of rows) {
+    if (row.effective !== 'remote') continue;
+    if (row.locale !== undefined) {
+      translations += 1;
+      continue;
+    }
+    counts[row.kind] += 1;
+  }
+  return {
+    mode: readOnlyMode ? 'readonly' : 'live',
+    unreachable: lastError !== null,
+    lastSuccessfulSyncAt,
+    servingRetained: lastError !== null && lastGoodRows !== null,
+    counts,
+    translations,
+    lastError,
+  };
 }
 
 /** On-demand sync. Honors the 30s cache + single-flight. Never writes. */
@@ -350,12 +446,17 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       { err: errMsg(err), action: opts.write ? 'boot-seed' : 'runtime-sync' },
       'OAP UI-template list failed — rendering bundled, admin read-only',
     );
+    lastError = { message: errMsg(err), at: now };
     return {
       mode: 'live',
       unreachable: true,
       lastSuccessfulSyncAt,
       generatedAt: now,
-      rows: bundledOnlyRows(bundledRows, 'bundled-fallback'),
+      // The last good rows when we have them; the bundled-only view only when
+      // we have never read the store. Those bundled rows are marked
+      // `bundled-fallback`, never `remote`, so every render consumer skips
+      // them and the layer blocks — the live-mode rule is unchanged.
+      rows: lastGoodRows ?? bundledOnlyRows(bundledRows, 'bundled-fallback'),
       conflicts: [],
       unreadable: [],
     };
@@ -395,6 +496,10 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
   }
 
   const rows = mergeRows(bundledRows, parsedRemote.byName);
+  // What a later failed read falls back to. Stamped only here, on a read that
+  // actually reached OAP.
+  lastGoodRows = rows;
+  lastError = null;
   return {
     mode: 'live',
     unreachable: false,

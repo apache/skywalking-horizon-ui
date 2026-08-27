@@ -34,6 +34,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
@@ -103,8 +104,9 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       // The handle the caller sent, echoed back on every reply below.
       const serviceArg = scope.service.name || serviceId;
       const cfgCurrent = deps.config.current;
-      const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {

@@ -127,12 +127,24 @@ const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
 const replayDataRef = computed<DeploymentResponse | null>(() => props.replayData ?? null);
-const { data, nodes, calls, isFetching } = useDeployment(layerKey, service, enabled, focusWindowMinutes, replayDataRef);
-const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
-const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
+const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch } =
+  useDeployment(layerKey, service, enabled, focusWindowMinutes, replayDataRef);
+// The drawn graph's service, not the failed attempt's — a failed round emptied
+// the heading above a map that was still showing that service's pods.
+const serviceName = computed(() => displayServiceName(acceptedSnapshot.value?.serviceName) || '');
+// Fields that DESCRIBE THE DRAWN GRAPH come from the snapshot; only the fields
+// that describe the latest ATTEMPT (reachable / blocked / error) come from
+// `data`. Reading them all from `data` mixed the two: after a failed round the
+// nodes were still the snapshot's while the config, size warning and partial-
+// metric notice came from the empty failure — so a drawn graph lost its metric
+// definitions and its warnings the moment a refresh could not be read.
+/** WHY it is empty, when the answer is not "OAP could not be read". Read from
+ *  the latest ATTEMPT — it describes the failure, not the drawn graph. */
+const blocked = computed(() => data.value?.blocked ?? null);
+const metricsPartial = computed(() => acceptedSnapshot.value?.metricsPartial ?? null);
 
 const cfg = computed<DeploymentConfig>(
-  () => data.value?.config ?? { nodeMetrics: [] },
+  () => acceptedSnapshot.value?.config ?? { nodeMetrics: [] },
 );
 function pickByRole(defs: DeploymentMetricDef[], role: DeploymentMetricDef['role']): DeploymentMetricDef | null {
   return defs.find((d) => d.role === role) ?? null;
@@ -322,17 +334,58 @@ const layout = computed<Layout>(() =>
 );
 const basePos = computed(() => layout.value.pos);
 const nodeToPod = computed(() => layout.value.nodeToPod);
-// Per-pod drag offsets (move a whole pod — main + its siblings — as a unit).
-// Keyed by podId; reset when the selected service changes.
-const podDelta = ref<Map<string, { dx: number; dy: number }>>(new Map());
+/** Where the packing put each pod — its nodes' centroid. The anchor below is
+ *  measured against this, so it needs the same reference point the drag did. */
+const podBase = computed<Map<string, { cx: number; cy: number }>>(() => {
+  const sums = new Map<string, { x: number; y: number; n: number }>();
+  for (const [id, p] of basePos.value) {
+    const pid = nodeToPod.value.get(id);
+    if (!pid) continue;
+    const acc = sums.get(pid) ?? { x: 0, y: 0, n: 0 };
+    acc.x += p.cx;
+    acc.y += p.cy;
+    acc.n += 1;
+    sums.set(pid, acc);
+  }
+  const out = new Map<string, { cx: number; cy: number }>();
+  for (const [pid, acc] of sums) out.set(pid, { cx: acc.x / acc.n, cy: acc.y / acc.n });
+  return out;
+});
+/**
+ * Where the operator PUT each pod, in absolute canvas coordinates.
+ *
+ * An offset from the packed position was the obvious shape and the wrong one:
+ * when a refresh adds a pod the packing shifts everything, and re-applying the
+ * same delta to a moved base carries the operator's pod along with the shift —
+ * so a pod they had set aside slides across the canvas on a refresh that had
+ * nothing to do with it. An absolute anchor stays put; only pods that were
+ * never touched follow the packing.
+ */
+const podAnchor = ref<Map<string, { cx: number; cy: number }>>(new Map());
 const pos = computed<Map<string, Pos>>(() => {
-  if (podDelta.value.size === 0) return basePos.value;
+  if (podAnchor.value.size === 0) return basePos.value;
   const m = new Map<string, Pos>();
   for (const [id, p] of basePos.value) {
-    const d = podDelta.value.get(nodeToPod.value.get(id) ?? '');
-    m.set(id, d ? { cx: p.cx + d.dx, cy: p.cy + d.dy, r: p.r } : p);
+    const pid = nodeToPod.value.get(id) ?? '';
+    const anchor = podAnchor.value.get(pid);
+    const base = podBase.value.get(pid);
+    if (!anchor || !base) {
+      m.set(id, p);
+      continue;
+    }
+    m.set(id, { cx: p.cx + (anchor.cx - base.cx), cy: p.cy + (anchor.cy - base.cy), r: p.r });
   }
   return m;
+});
+// Pods that are gone take their anchor with them; a pod that comes BACK under
+// the same id is deliberately put back where the operator left it. Pruned from
+// the drawn layout, which a failed round leaves untouched — so a refresh that
+// could not be read never discards a placement.
+watch(podBase, (bases) => {
+  if (podAnchor.value.size === 0) return;
+  const kept = new Map<string, { cx: number; cy: number }>();
+  for (const [pid, a] of podAnchor.value) if (bases.has(pid)) kept.set(pid, a);
+  if (kept.size !== podAnchor.value.size) podAnchor.value = kept;
 });
 const W = computed(() => layout.value.w);
 const H = computed(() => layout.value.h);
@@ -459,14 +512,17 @@ function edgePathD(c: DeploymentCall): string {
 }
 
 // ── Pan + zoom (same lifecycle as the instance map) — owned by the composable.
-// The dataset-identity signal folds in selectedId so a service switch that
-// lands on cached data with identical counts still re-keys every v-for node
-// element (which kills the per-element d3 drag listeners) → rebind + refit.
+// The rebinding signal is the IDENTITY of what is drawn, not how much of it.
+// Counts were the old signal, and a refresh that dropped one instance and
+// gained another kept every count identical — so the `<g>` elements were
+// re-keyed while the signal said nothing had changed, and dragging silently
+// stopped working until the next time a count happened to move.
 const svgEl = ref<SVGSVGElement | null>(null);
 const zoomLayerEl = ref<SVGGElement | null>(null);
 const containerEl = ref<HTMLDivElement | null>(null);
 const datasetKey = computed(
-  () => `${selectedId.value}|${nodes.value.length}|${visibleCalls.value.length}|${clusters.value.length}`,
+  () =>
+    `${selectedId.value}|${[...nodes.value.map((n) => n.id)].sort().join(',')}|${clusters.value.length}`,
 );
 const { zoomT, fitToScreen, zoomBy } = useDeploymentPanZoom({
   svgEl,
@@ -475,8 +531,10 @@ const { zoomT, fitToScreen, zoomBy } = useDeploymentPanZoom({
   W,
   H,
   nodeToPod,
-  podDelta,
+  podAnchor,
+  podBase,
   datasetKey,
+  predicateKey,
 });
 
 // ── Selection (edge → sidebar, node → popover). Reset on service change.
@@ -490,7 +548,15 @@ function selectNode(id: string): void {
   selectedCallId.value = null;
   popoverNodeId.value = popoverNodeId.value === id ? null : id;
 }
-watch(selectedId, () => { selectedCallId.value = null; popoverNodeId.value = null; podDelta.value = new Map(); mapTab.value = 'topology'; });
+watch(selectedId, () => { selectedCallId.value = null; popoverNodeId.value = null; podAnchor.value = new Map(); mapTab.value = 'topology'; });
+// The service is only part of the question. A time-range switch or a Hot→Cold
+// flip is a different read of a different window, so the pods the operator
+// placed and whatever they had selected belong to the picture being replaced.
+watch(predicateKey, () => {
+  selectedCallId.value = null;
+  popoverNodeId.value = null;
+  podAnchor.value = new Map();
+});
 const selectedCall = computed<DeploymentCall | null>(
   () => calls.value.find((c) => c.id === selectedCallId.value) ?? null,
 );
@@ -740,8 +806,16 @@ function selectEdgeFromFlows(id: string): void {
 }
 
 const showPickPrompt = computed(() => !enabled.value);
-const showLoading = computed(() => enabled.value && isFetching.value && nodes.value.length === 0);
-const isEmpty = computed(() => enabled.value && !isFetching.value && nodes.value.length === 0);
+// Loading means "nothing to draw for the CURRENT predicate", not "a request is
+// in flight" — gating on the latter blanked the canvas on every refresh. And it
+// NAMES what it is loading, so an operator who just switched service can see
+// which one they are waiting for rather than a bare "Reading data…".
+const showLoading = computed(() => phase.value === 'loading');
+const showFailed = computed(() => phase.value === 'failed');
+const loadingTarget = computed(() => service.value?.name ?? '');
+const isEmpty = computed(
+  () => (phase.value === 'ready' || phase.value === 'refreshing') && nodes.value.length === 0,
+);
 
 function onKeyDown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return;
@@ -776,7 +850,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
     <div class="sit-body" :class="{ 'no-selection': !selectedCall || mapTab === 'flows' }">
       <div v-show="mapTab === 'topology'" ref="containerEl" class="sit-canvas" :style="{ height: canvasHeightPx + 'px' }">
         <div v-if="showPickPrompt" class="sit-state">{{ t('Pick a service to see its deployment topology.') }}</div>
-        <div v-else-if="showLoading" class="sit-state">{{ t('Reading data…') }}</div>
+        <div v-else-if="showLoading" class="sit-state">{{ t('Loading deployment for “{target}”…', { target: loadingTarget }) }}</div>
+        <!-- A failed FIRST read is its own state. Left as "loading" it showed
+             the waiting line for ever, with nothing coming. -->
+        <!-- A DISABLED layer is an administrator's answer, not a failure to
+             reach anything: offering Retry would invite the operator to keep
+             asking for something that will not change until someone re-enables
+             it. -->
+        <div v-else-if="blocked === 'layer-disabled'" class="sit-state">
+          {{ t('This layer’s template is disabled.') }}
+          {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+        </div>
+        <div v-else-if="showFailed" class="sit-state">
+          {{ t('Could not load the deployment topology.') }}
+          <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
+        </div>
         <div v-else-if="isEmpty" class="sit-state">{{ t('No deployment topology in this window.') }}</div>
         <template v-else>
           <svg ref="svgEl" class="sit-svg" width="100%" height="100%">

@@ -412,11 +412,29 @@ export interface AdminLayerTemplate {
 export class BffApiError extends Error {
   readonly status: number;
   readonly body: unknown;
-  constructor(status: number, message: string, body: unknown) {
+  /** The request that failed. Carried so a failure can be SHOWN as one —
+   *  a message without its request cannot be acted on. Redact the path
+   *  before displaying it; it may carry query parameters. */
+  readonly method?: string;
+  readonly path?: string;
+  /** WE stopped this request — a capped round, a navigation. Not a failure to
+   *  reach anything, and nothing reports it as one. */
+  readonly cancelled?: boolean;
+  constructor(
+    status: number,
+    message: string,
+    body: unknown,
+    method?: string,
+    path?: string,
+    cancelled?: boolean,
+  ) {
     super(message);
     this.name = 'BffApiError';
     this.status = status;
     this.body = body;
+    this.method = method;
+    this.path = path;
+    this.cancelled = cancelled;
   }
 }
 
@@ -813,6 +831,15 @@ export class BffClient {
     path: string,
     body?: unknown,
     headers?: Record<string, string>,
+    /**
+     * Cancels the request in flight.
+     *
+     * The refresh round caps how long it will hold the scheduler; without a
+     * signal reaching `fetch`, hitting that cap released the TIMER while the
+     * requests carried on and could still land afterwards. Passing one makes
+     * the cap a cancellation rather than a shrug.
+     */
+    signal?: AbortSignal,
   ): Promise<T> {
     // Cold-stage flag is per-request not per-call-site, so the
     // interceptor reads the persisted toggle here rather than every
@@ -820,6 +847,7 @@ export class BffClient {
     const init: RequestInit = {
       method,
       credentials: 'include',
+      ...(signal ? { signal } : {}),
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(readColdStageHeader() ? { [COLD_STAGE_HEADER]: '1' } : {}),
@@ -855,6 +883,14 @@ export class BffClient {
       // fetch() doesn't throw on HTTP-level errors (4xx/5xx) — only on
       // these. They're the "blocked" symptom operators see when the
       // BFF or its upstream is unreachable.
+      // A cancellation is not a failure to reach anything: the round hit its
+      // cap, or the operator navigated away, and WE stopped the request. Logging
+      // it as "the BFF is unreachable" put an outage in the diagnostics for
+      // something the app did deliberately.
+      if (err instanceof Error && err.name === 'AbortError') {
+        pushEvent('api', 'info', `${method} ${path} · cancelled`);
+        throw new BffApiError(0, 'request cancelled', null, method, path, true);
+      }
       const detail = err instanceof Error ? err.message : String(err);
       pushEvent('api', 'err', `${method} ${path} · network ${detail}`);
       // Wrap into a clear, actionable message — the raw "Failed to fetch" /
@@ -864,6 +900,8 @@ export class BffClient {
         0,
         `Cannot reach the server — the BFF is unreachable (${detail}).`,
         null,
+        method,
+        path,
       );
     }
     if (res.status === 401) {
@@ -874,7 +912,7 @@ export class BffClient {
       // explains why everything else in the ticker just vanished.
       this.on401?.();
       pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
-      throw new BffApiError(401, 'unauthenticated', null);
+      throw new BffApiError(401, 'unauthenticated', null, method, path);
     }
     if (!res.ok) {
       // Read the body ONCE as text, then try to parse it as JSON. Calling
@@ -903,7 +941,7 @@ export class BffClient {
         extra = ` · ${parsed}`;
       }
       pushEvent('api', 'err', `${method} ${path} · ${res.status}${extra}`);
-      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed);
+      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed, method, path);
     }
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get('content-type') ?? '';
@@ -930,6 +968,14 @@ export class BffClient {
     try {
       res = await fetch(url, init);
     } catch (err) {
+      // A cancellation is not a failure to reach anything: the round hit its
+      // cap, or the operator navigated away, and WE stopped the request. Logging
+      // it as "the BFF is unreachable" put an outage in the diagnostics for
+      // something the app did deliberately.
+      if (err instanceof Error && err.name === 'AbortError') {
+        pushEvent('api', 'info', `${method} ${path} · cancelled`);
+        throw new BffApiError(0, 'request cancelled', null, method, path, true);
+      }
       const detail = err instanceof Error ? err.message : String(err);
       pushEvent('api', 'err', `${method} ${path} · network ${detail}`);
       throw new BffApiError(0, `Cannot reach the server — the BFF is unreachable (${detail}).`, null);
@@ -938,7 +984,7 @@ export class BffClient {
       // Hook first, then log — see request(): the hook clears the event log.
       this.on401?.();
       pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
-      throw new BffApiError(401, 'unauthenticated', null);
+      throw new BffApiError(401, 'unauthenticated', null, method, path);
     }
     if (!res.ok) {
       const raw = await res.text().catch(() => '');
@@ -951,7 +997,7 @@ export class BffClient {
         }
       }
       pushEvent('api', 'err', `${method} ${path} · ${res.status}`);
-      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed);
+      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed, method, path);
     }
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get('content-type') ?? '';
