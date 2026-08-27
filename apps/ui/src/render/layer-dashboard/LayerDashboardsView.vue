@@ -597,6 +597,7 @@ function onDrillPoint(
         modelId: effectiveInstanceId.value!,
         startTime: toLocalInput(win.fromMs),
         endTime: toLocalInput(win.toMs),
+        ...(p.seriesName ? { taskName: p.seriesName } : {}),
       },
       title: w.title,
       meta: t('around {t}', { t: bucketTimeLabel(timeRange.step, win.labelMs) }),

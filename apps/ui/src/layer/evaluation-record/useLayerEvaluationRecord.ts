@@ -62,7 +62,7 @@ export interface EvaluationRecordParams {
   serviceId?: Ref<string | null>;
   providerId?: Ref<string | null>;
   modelId?: Ref<string | null>;
-  valueType?: Ref<'SCORE' | 'BOOLEAN'>;
+  valueType?: Ref<'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null>;
   minScore?: Ref<number | null>;
   maxScore?: Ref<number | null>;
   booleanValue?: Ref<boolean | null>;

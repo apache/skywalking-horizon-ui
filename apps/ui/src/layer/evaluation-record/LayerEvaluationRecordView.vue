@@ -42,6 +42,7 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
 
@@ -140,7 +141,7 @@ const traceIdInput = ref('');
 // the UI exposes ??service / instance / endpoint / traceID / tags ??// are all indexed dimensions and cover the booster-ui condition set.
 const page = ref(1);
 const pageSize = ref(50);
-const valueType = ref<'SCORE' | 'BOOLEAN'>('SCORE');
+const valueType = ref<'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null>('SCORE');
 const minScore = ref<number | null>(null);
 const maxScore = ref<number | null>(null);
 const booleanValue = ref<boolean | null>(null);
@@ -163,6 +164,7 @@ function changeValueType(): void {
   minScore.value = null;
   maxScore.value = null;
   booleanValue.value = null;
+  if (valueType.value !== 'SCORE') sortField.value = 'EVALUATION_TIME';
   page.value = 1;
 }
 
@@ -283,6 +285,7 @@ const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerK
   startTime: startTimeRef,
   endTime: endTimeRef,
 });
+useAutoRefreshSubscribe(() => refetchFacets());
 
 // Run-query handler mirrors the trace tab: refetch both the log
 // stream + the facet sample on demand. With most filters already
@@ -440,8 +443,11 @@ function jumpToTrace(traceId: string, ts?: number): void {
         <label class="cf">
           <span>Value type</span>
           <select v-model="valueType" class="cf-input" @change="changeValueType">
+            <option :value="null">All</option>
             <option value="SCORE">Score</option>
             <option value="BOOLEAN">Boolean</option>
+            <option value="STRING">String</option>
+            <option value="JSON">JSON</option>
           </select>
         </label>
         <label v-if="valueType === 'SCORE'" class="cf">
@@ -481,7 +487,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <span>Sort by</span>
           <select v-model="sortField" class="cf-input" @change="page = 1">
             <option value="EVALUATION_TIME">Evaluation time</option>
-            <option value="SCORE_VALUE">Score</option>
+            <option v-if="valueType === 'SCORE'" value="SCORE_VALUE">Score</option>
           </select>
         </label>
         <label class="cf">
