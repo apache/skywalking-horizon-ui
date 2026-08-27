@@ -93,8 +93,6 @@ const visible = computed<boolean>(
 );
 
 function turnColdOff(): void {
-  // Match the toggle path the topbar uses — invalidates queries so
-  // subscribers refetch in hot+warm mode immediately.
   cold.set(false);
 }
 </script>

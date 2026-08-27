@@ -80,14 +80,23 @@ interface LayoutOptions {
   centerDef: Ref<TopologyMetricDef | null>;
   /** Resolve a node's value for a metric def (null when absent). */
   nodeVal: (n: EndpointDependencyNode, def: TopologyMetricDef | null) => number | null;
-  /** Manual drag offsets layered on the BFS positions. */
-  dragOffsets: Ref<Map<string, { dx: number; dy: number }>>;
+  /**
+   * Where the operator PUT each node, in absolute layout coordinates.
+   *
+   * Absolute rather than an offset from the column position, because the
+   * column positions move: a node arriving or leaving re-packs the rows, and
+   * re-applying the same offset to a moved base carries a placed node along
+   * with the re-pack — so a node set aside drifts on a refresh that had
+   * nothing to do with it. What the operator chose is a POSITION, and that is
+   * what is stored.
+   */
+  dragAnchors: Ref<Map<string, { x: number; y: number }>>;
   /** i18n translator — column labels (`L-1 · Callers`, …). */
   t: (key: string, named?: Record<string, unknown>) => string;
 }
 
 export function useEndpointDependencyLayout(opts: LayoutOptions) {
-  const { nodes, calls, focusedId, centerDef, nodeVal, dragOffsets, t } = opts;
+  const { nodes, calls, focusedId, centerDef, nodeVal, dragAnchors, t } = opts;
 
   const layoutNodes = computed<LayoutNode[]>(() => {
     const all = nodes.value;
@@ -144,12 +153,29 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
     return all.map((n) => ({ ...n, layerIdx: layerOf.get(n.id)! }));
   });
 
+  /**
+   * Which ROW each endpoint has been given, per column.
+   *
+   * The column is SELECTED by the centre metric and always has been — the
+   * busiest endpoints are the ones worth a row. But it was also ORDERED by
+   * that metric, and the metric moves on every refresh, so the rows reshuffled
+   * every cycle: an operator tracking one endpoint had to find it again after
+   * each tick, and any position they had set was attached to a row that had
+   * moved under it.
+   *
+   * So selection stays live and placement does not. A node that keeps its
+   * place in the visible set keeps its row; a node that arrives takes the
+   * lowest free one. Nothing about which nodes are shown changes.
+   */
+  const rowOf = new Map<number, string[]>();
+
   const layerColumns = computed<LayerColumn[]>(() => {
     const byLayer = new Map<number, LayoutNode[]>();
     for (const n of layoutNodes.value) {
       if (!byLayer.has(n.layerIdx)) byLayer.set(n.layerIdx, []);
       byLayer.get(n.layerIdx)!.push(n);
     }
+    for (const stale of [...rowOf.keys()]) if (!byLayer.has(stale)) rowOf.delete(stale);
     const indices = [...byLayer.keys()].sort((a, b) => a - b);
     return indices.map((i) => {
       // Sort by the operator-configured `center` metric (typically RPM).
@@ -160,8 +186,14 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
         const vb = nodeVal(b, centerDef.value) ?? b.cpm ?? 0;
         return vb - va;
       });
-      const visible = list.slice(0, NODES_PER_LAYER);
-      const hidden = list.length - visible.length;
+      const selected = list.slice(0, NODES_PER_LAYER);
+      const hidden = list.length - selected.length;
+      const held = (rowOf.get(i) ?? []).filter((id) => selected.some((n) => n.id === id));
+      const visible = [
+        ...held.map((id) => selected.find((n) => n.id === id)!),
+        ...selected.filter((n) => !held.includes(n.id)),
+      ];
+      rowOf.set(i, visible.map((n) => n.id));
       let label: string;
       // Focus = L0; layers to the LEFT (negative index) are the focus's
       // callers, to the RIGHT (positive) its callees. Labelled `Callers`
@@ -197,13 +229,14 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
     return map;
   });
 
-  // Drag offsets layer on the BFS positions so edges (which read displayPos) follow.
+  // Placements override the column position; edges read `displayPos`, so they
+  // follow.
   const displayPos = computed<Map<string, Pos>>(() => {
-    if (dragOffsets.value.size === 0) return nodePos.value;
+    if (dragAnchors.value.size === 0) return nodePos.value;
     const out = new Map<string, Pos>();
     for (const [id, p] of nodePos.value) {
-      const off = dragOffsets.value.get(id);
-      out.set(id, off ? { ...p, x: p.x + off.dx, y: p.y + off.dy } : p);
+      const at = dragAnchors.value.get(id);
+      out.set(id, at ? { ...p, x: at.x, y: at.y } : p);
     }
     return out;
   });

@@ -118,10 +118,24 @@ const downForLabel = computed<string>(() => {
   return `${hr}h ${min % 60}m ago`;
 });
 
+// Hoisted above the retry poller below: its watcher runs `immediate`, so a
+// declaration further down the file would be read in the temporal dead zone
+// and abort setup with a blank page and no console trace.
+const { bundle } = useConfigBundle();
+const templateStoreDown = computed<boolean>(
+  () => !unreachable.value && bundle.value?.syncStatus?.unreachable === true,
+);
+
 /** Retry-while-down poller. Separate from `useOapInfo`'s 30s loop so
  *  flipping the dropdown to `off` keeps the standard 30s cadence
  *  running underneath. Cleared whenever the connection recovers, the
- *  cadence changes, or the banner unmounts. */
+ *  cadence changes, or the banner unmounts.
+ *
+ *  It polls BOTH failures. It used to arm only for the query port, so a
+ *  template store that recovered was never noticed: the bundle kept the
+ *  status captured during the outage and the banner stayed up — reporting a
+ *  backend as unreachable minutes after it came back, which is worse than not
+ *  reporting it at all. */
 let retryId: ReturnType<typeof setInterval> | null = null;
 function clearRetry(): void {
   if (retryId) {
@@ -131,14 +145,16 @@ function clearRetry(): void {
 }
 function startRetry(): void {
   clearRetry();
-  if (!unreachable.value) return;
+  if (!unreachable.value && !templateStoreDown.value) return;
   if (retryChoice.value === 'off') return;
   const ms = Number(retryChoice.value) * 1000;
   retryId = setInterval(() => {
-    void refetch();
+    // Whichever is down gets re-asked. Both, when both are.
+    if (unreachable.value) void refetch();
+    if (templateStoreDown.value) void refreshConfigBundle({ force: true }).catch(() => {});
   }, ms);
 }
-watch([unreachable, retryChoice], () => startRetry(), { immediate: true });
+watch([unreachable, templateStoreDown, retryChoice], () => startRetry(), { immediate: true });
 onBeforeUnmount(() => clearRetry());
 
 const errorText = computed<string>(() => info.value?.error ?? 'no response');
@@ -153,10 +169,6 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
 // render time), so the operator must see the surface is BLOCKED. The
 // query-port strip wins when both are down — they share one OAP, so a
 // full outage shows the more fundamental message only.
-const { bundle } = useConfigBundle();
-const templateStoreDown = computed<boolean>(
-  () => !unreachable.value && bundle.value?.syncStatus?.unreachable === true,
-);
 const lastSyncLabel = computed<string>(() => {
   const at = bundle.value?.syncStatus?.lastSuccessfulSyncAt;
   if (!at) return t('never');

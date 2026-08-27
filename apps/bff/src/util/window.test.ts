@@ -534,6 +534,24 @@ describe('getServerOffsetMinutes — probing the OAP timezone', () => {
     });
   });
 
+  it('does NOT cache a UTC fallback derived from a probe the caller cancelled', async () => {
+    const url = 'http://oap-cancelled-probe:12800';
+    const ac = new AbortController();
+    // What a real fetch does once the caller's signal fires.
+    const aborting: FetchLike = async () => {
+      ac.abort();
+      const err = new Error('This operation was aborted');
+      err.name = 'AbortError';
+      throw err;
+    };
+    // The probe measured nothing. Swallowing the abort and caching 0 would let
+    // one abandoned request answer every OTHER request for the next minute
+    // with a timezone nobody read.
+    await expect(getServerOffsetMinutes(configFor(url), aborting, ac.signal)).rejects.toThrow();
+    // Cache untouched, so the next live read still gets the truth.
+    expect(await getServerOffsetMinutes(configFor(url), fakeOap(() => '+0800').fetch)).toBe(480);
+  });
+
   it('caches for 60s — a second call inside the window does not re-probe OAP', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-17T00:00:00Z'));

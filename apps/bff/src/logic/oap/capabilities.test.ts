@@ -86,6 +86,26 @@ describe('OAP capability probe', () => {
     });
   });
 
+  it('does NOT cache the conservative answer from a probe the caller cancelled', async () => {
+    const ac = new AbortController();
+    // What a real fetch does once the caller's signal fires.
+    const aborting: FetchLike = async () => {
+      ac.abort();
+      const err = new Error('This operation was aborted');
+      err.name = 'AbortError';
+      throw err;
+    };
+    // Nothing was measured, so nothing may be concluded. Caching all-false here
+    // would hide alarm queries and content search from every LATER request for
+    // a minute, on the strength of a probe that was never made.
+    await expect(getOapCapabilities(config, aborting, ac.signal)).rejects.toThrow();
+    const oap = fakeOap(['queryAlarms', 'supportQueryLogsByKeywords'], true);
+    await expect(getOapCapabilities(config, oap.fetch)).resolves.toEqual({
+      queryAlarms: true,
+      logKeywords: true,
+    });
+  });
+
   it('re-probes soon after a FAILED keyword read, not in five minutes', async () => {
     // A false that came from a timeout must not hide content search for the
     // whole success TTL — one slow reply would cost an ElasticSearch operator

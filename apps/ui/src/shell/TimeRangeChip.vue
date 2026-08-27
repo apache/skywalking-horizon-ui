@@ -83,7 +83,7 @@ function pickTimePreset(id: string): void {
   timeMenuOpen.value = false;
   // Fire one auto-refresh tick so subscribers re-query with the new
   // window immediately rather than waiting for the next interval.
-  if (!ownsTimeRange.value) auto.refreshNow();
+  if (!ownsTimeRange.value) auto.refreshNow('time-change');
 }
 function onTimeMenuClickClose(ev: MouseEvent): void {
   if (!timeMenuOpen.value) return;
@@ -235,7 +235,7 @@ function submitCustom(step: TimeStep): void {
   timeRange.selectCustom(startMs, endMs, step);
   timeMenuOpen.value = false;
   customOpenStep.value = null;
-  if (!ownsTimeRange.value) auto.refreshNow();
+  if (!ownsTimeRange.value) auto.refreshNow('time-change');
 }
 function humanDuration(ms: number): string {
   const h = Math.floor(ms / 3_600_000);

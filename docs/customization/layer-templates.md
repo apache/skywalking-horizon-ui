@@ -597,6 +597,21 @@ Read the bundled JSON for the closest layer to yours before authoring a new temp
 
 Template changes made in the admin editor take effect on the next menu or dashboard refresh. Bundled file changes made outside Horizon require a BFF restart.
 
+A change published **elsewhere** — from another Horizon, from `swctl`, from anything writing the same OAP store — reaches an open browser within about a minute. Horizon re-reads the template store on a slow cycle of its own, separate from the topbar refresh, so a dashboard someone else pushed appears without anyone reloading the page.
+
+## When the template store cannot be read
+
+In live mode the OAP-stored template is the only thing Horizon renders, so a store it cannot reach is worth saying plainly: the topbar shows **Dashboard template store unreachable**, along with how long ago the last successful read was, and the template admin pages become read-only until it recovers.
+
+What stays on screen depends on whether Horizon has ever read the store:
+
+- **It has read it before** — the dashboards, overviews and maps keep rendering the templates from that last successful read. Those are your published templates, only stale, so a brief outage of the admin port does not empty the console. The banner is what tells you they are not current.
+- **It has never read it** — there is nothing of yours to show, so those pages are blocked and stay empty behind the banner.
+
+In neither case does Horizon fall back to the templates bundled in the release. Showing shipped defaults in place of your own configuration would misrepresent what the console is displaying; an honest empty state is better. If you want the bundled templates rendered deliberately, that is what `templates.mode: readonly` is for.
+
+Recovery needs no action: Horizon keeps re-reading, and the banner clears on its own once the store answers again.
+
 ## Common patterns
 
 ### Borrow from another layer

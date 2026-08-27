@@ -66,6 +66,11 @@ export function useAlarmCount() {
       const start = end - windowMs.value;
       return bff.alarms.count(start, end);
     },
+    // Runs on its own clock, deliberately — it is chrome, not page data, and
+    // the operator approved these four keeping their own poll. Flagged so the
+    // refresh coordinator does not mistake that poll for the page being busy:
+    // a 30s poller against a 30s cadence would postpone every round for ever.
+    meta: { independentPoll: true },
     refetchInterval: POLL_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

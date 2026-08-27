@@ -240,6 +240,15 @@ export interface TopologyResponse {
   nodes: TopologyNode[];
   calls: TopologyCall[];
   reachable: boolean;
+  /**
+   * WHY the response carries nothing, when it is not a failure to reach OAP.
+   *
+   * `reachable: false` alone leaves an operator with one sentence for two
+   * situations that need opposite responses: a store they should go and fix,
+   * and a template an administrator turned off on purpose. Absent means the
+   * usual case — the read itself failed.
+   */
+  blocked?: 'store-unreachable' | 'layer-disabled';
   error?: string;
   /** Graph exceeded the render cap — nodes/calls empty, UI shows a narrow-scope hint. */
   tooLarge?: { nodes: number; edges: number };
@@ -288,6 +297,15 @@ export interface InstanceTopologyResponse {
   nodes: InstanceTopologyNode[];
   calls: InstanceTopologyCall[];
   reachable: boolean;
+  /**
+   * WHY the response carries nothing, when it is not a failure to reach OAP.
+   *
+   * `reachable: false` alone leaves an operator with one sentence for two
+   * situations that need opposite responses: a store they should go and fix,
+   * and a template an administrator turned off on purpose. Absent means the
+   * usual case — the read itself failed.
+   */
+  blocked?: 'store-unreachable' | 'layer-disabled';
   error?: string;
   metricsPartial?: { failedChunks: number; totalChunks: number };
 }
@@ -336,6 +354,15 @@ export interface EndpointDependencyResponse {
   nodes: EndpointDependencyNode[];
   calls: EndpointDependencyCall[];
   reachable: boolean;
+  /**
+   * WHY the response carries nothing, when it is not a failure to reach OAP.
+   *
+   * `reachable: false` alone leaves an operator with one sentence for two
+   * situations that need opposite responses: a store they should go and fix,
+   * and a template an administrator turned off on purpose. Absent means the
+   * usual case — the read itself failed.
+   */
+  blocked?: 'store-unreachable' | 'layer-disabled';
   error?: string;
   metricsPartial?: { failedChunks: number; totalChunks: number };
 }

@@ -28,6 +28,8 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useRefreshErrorReport } from '@/controls/errorCenter';
+import { fetchDrawable } from '@/layer/graphQuery';
 import { bffClient } from '@/api/client';
 
 export interface LayerServiceRow {
@@ -64,14 +66,35 @@ export function useLayerServices(
   const isEnabled = computed(() => !(opts.replay?.value ?? false) && layerKey.value.length > 0);
   const q = useQuery({
     queryKey: ['layer-services', layerKey],
-    queryFn: () => bffClient.layer.services(layerKey.value),
+    // Refused if the roster could not be READ. The route answers 200 with an
+    // empty list when OAP is unreachable, and taken as success that emptied the
+    // service picker mid-outage — a statement that the layer has no services.
+    queryFn: ({ signal }) =>
+      fetchDrawable(() => bffClient.layer.services(layerKey.value, signal)),
     enabled: isEnabled,
+    // A roster is near-static, so a minute of cache is worth having when an
+    // operator navigates away and back.
     staleTime: 60_000,
+    // But the ROUND is what refreshes it, including the one fired on returning
+    // to the tab — so a window-focus refetch would only add traffic no
+    // countdown accounts for.
+    refetchOnWindowFocus: false,
   });
   if (opts.rideTicker !== false) {
-    useAutoRefreshSubscribe(() => {
-      if (isEnabled.value) void q.refetch();
-    });
+    // The promise is RETURNED so the round counts its next interval from when
+    // this settles, and the roster's own gate is the component field.
+  // A round that could not read this says so in the refresh history. Without
+  // it a failed round on this screen was silent everywhere: the coordinator
+  // swallows participant rejections by design, so a participant that does not
+  // report is not reported at all.
+  useRefreshErrorReport({ owner: 'Service list', action: 'reading the service list', error: q.error });
+    // Named so a capped round can CANCEL this read. Without a key the cap could
+    // only stop waiting: a wedged roster went on holding the page busy, which
+    // kept the next timer from arming at all.
+    useAutoRefreshSubscribe(() => q.refetch({ cancelRefetch: false }), isEnabled, () => [
+      'layer-services',
+      layerKey.value,
+    ]);
   }
   return {
     data: computed(() => q.data.value ?? null),

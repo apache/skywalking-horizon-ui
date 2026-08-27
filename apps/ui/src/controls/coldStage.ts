@@ -42,18 +42,40 @@
  *
  * The setting is sticky per browser (localStorage) so an operator
  * deep in a cold investigation doesn't lose context on reload.
- * Flipping the toggle invalidates every cached query so subscribers
- * refetch with the new header instead of serving the previous stage's
- * data.
+ *
+ * Flipping it is ATOMIC and goes through a round. Two things had to be true
+ * for that to be safe, and neither was:
+ *
+ * - The header and the cache key must flip TOGETHER. The key is built from
+ *   this store while the header is read from localStorage when the request
+ *   goes out, so persisting on a watcher left a window in which a Cold answer
+ *   could be filed under the Hot key. The write is synchronous with the flip
+ *   now, in the same tick.
+ * - The refetch must be a ROUND, not a scattergun. Invalidating every cached
+ *   query fired a page-wide storm outside any round: uncounted by the
+ *   countdown, able to land on top of a round already out, and arriving screen
+ *   by screen so the page showed Hot and Cold answers side by side while it
+ *   settled. Everything is marked stale WITHOUT refetching, then one round
+ *   re-reads what is on screen, together.
  */
 
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
-import type { QueryClient } from '@tanstack/vue-query';
+import { ref } from 'vue';
+import { queryClient } from '@/api/queryClient';
+import { useAutoRefreshStore } from '@/controls/autoRefresh';
 
 export const COLD_STAGE_HEADER = 'X-Horizon-Cold-Stage';
 
 const STORAGE_KEY = 'horizon:coldStage:v1';
+
+/**
+ * The stage, cached in memory.
+ *
+ * Read on every request AND on every cache-key hash, so it must not be a
+ * localStorage round-trip each time. Written by `persist` in the same tick as
+ * the flag, which is what keeps the header and the key describing one stage.
+ */
+let currentStage: boolean | null = null;
 
 function detectInitial(): boolean {
   if (typeof localStorage !== 'undefined') {
@@ -66,30 +88,77 @@ function detectInitial(): boolean {
 export const useColdStageStore = defineStore('cold-stage', () => {
   const enabled = ref<boolean>(detectInitial());
 
-  // Persist on every change so the next page-load picks up where we
-  // left off. localStorage may be unavailable (private mode) — fall
-  // back to in-memory and let it reset on reload.
-  watch(enabled, (on) => {
+  /** Written in the same tick as the flag — see the header. localStorage may
+   *  be unavailable (private mode); fall back to in-memory and let it reset on
+   *  reload. */
+  function persist(on: boolean): void {
+    currentStage = on;
     if (typeof localStorage === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, on ? '1' : '0');
     } catch {
       /* private mode / quota — degrade silently */
     }
-  });
-
-  /** Flip the flag. When `client` is passed (which the topbar does on
-   *  every toggle), every cached query is invalidated so subscribers
-   *  refetch with the new header — otherwise the cache would serve the
-   *  previous warm-only payload until the next time-range change. */
-  function toggle(client?: QueryClient): void {
-    enabled.value = !enabled.value;
-    client?.invalidateQueries();
   }
-  function set(on: boolean, client?: QueryClient): void {
+
+  /**
+   * Flip the stage.
+   *
+   * The client is the store's own, not the caller's. Passing it was a
+   * requirement every call site had to remember, and the trap banner's
+   * "turn it off" did not — so the banner cleared the flag while every screen
+   * kept rendering the cold answers it had already cached.
+   */
+  function set(on: boolean): void {
     if (enabled.value === on) return;
+    const flippedAt = Date.now();
     enabled.value = on;
-    client?.invalidateQueries();
+    persist(on);
+    // CANCEL what is in flight first, and this is the ONLY thing keeping a
+    // read from straddling the flip.
+    //
+    // The stage rides on every request as a header read when the request goes
+    // out, so anything already queued behind the concurrency limiter would
+    // otherwise leave carrying the NEW stage while belonging to the round that
+    // asked under the old one, and land its answer in the other stage's entry.
+    //
+    // Scoping the cache by stage was tried instead and is WRONG: a query's hash
+    // is computed when it is created, and existing observers do not rebind when
+    // a global flips — so a response could be stored under the old hash while
+    // every lookup used the new one, which breaks isolation, deduplication and
+    // exact cancellation at once. Cancelling has none of that ambiguity.
+    void queryClient.cancelQueries();
+    // Marked stale WITHOUT refetching, so nothing starts before the round
+    // does. A query whose key already carries the stage has moved to a
+    // different cache entry anyway.
+    void queryClient.invalidateQueries({ refetchType: 'none' });
+    const auto = useAutoRefreshStore();
+    // Named for what it IS. Reported as 'manual' the failure history said the
+    // operator had asked for a refresh, when what they did was change the
+    // stage — two different things to be looking at when a round fails.
+    void auto.refreshNow('cold-stage');
+    // Whatever the round did not cover — an explore page with its own controls,
+    // which subscribes to no round — is still showing the other stage's
+    // answers, so it is re-read once the page has settled.
+    //
+    // Selected by WHEN the data was fetched, not by staleness. Round-managed
+    // queries hold no freshness window, so they are stale the instant they
+    // land and `stale: true` selected every one of them — turning the sweep
+    // into the second storm it exists to avoid. Anything answered after the
+    // flip already reflects the new stage and is left alone.
+    //
+    // `whenIdle`, not the round's own promise: flipping the stage while a round
+    // was already out coalesces into a trailing round, and awaiting the call
+    // would have resolved before that successor had even started.
+    void auto.whenIdle().then(() =>
+      queryClient.refetchQueries({
+        type: 'active',
+        predicate: (q) => q.state.dataUpdatedAt < flippedAt,
+      }),
+    );
+  }
+  function toggle(): void {
+    set(!enabled.value);
   }
 
   return { enabled, toggle, set };
@@ -100,9 +169,11 @@ export const useColdStageStore = defineStore('cold-stage', () => {
  *  Reads localStorage directly so the value is fresh even when the
  *  Pinia store hasn't been instantiated yet (early bootstrap). */
 export function readColdStageHeader(): boolean {
+  if (currentStage !== null) return currentStage;
   if (typeof localStorage === 'undefined') return false;
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1';
+    currentStage = localStorage.getItem(STORAGE_KEY) === '1';
+    return currentStage;
   } catch {
     return false;
   }

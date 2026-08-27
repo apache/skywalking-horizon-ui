@@ -59,25 +59,40 @@ const coldStage = computed<TtlStageBreakdown | null>(() => stages.value?.cold ??
 interface Row {
   label: string;
   days: number | undefined;
+  /** The setting that governs this figure, verbatim, so the operator can go
+   *  and change it without first working out which knob reaches this class. */
+  source: string;
 }
 
-function recordsRows(s: TtlStageBreakdown): Row[] {
+const CORE_RECORD_TTL = 'core.recordDataTTL';
+const CORE_METRICS_TTL = 'core.metricsDataTTL';
+
+/* What a NON-BanyanDB backend actually has, named the way an operator asks for
+ * it. BanyanDB is the only storage plugin implementing OAP's TTL query, reading
+ * a retention per group; ElasticSearch and JDBC both register the same default
+ * implementation, which repeats `core.recordDataTTL` across every record class
+ * and `core.metricsDataTTL` across every metric one.
+ *
+ * So the wire's nine numbers are two, and reproducing its shape here was noise
+ * three ways over: a Records / Metrics split that mirrors OAP's internals rather
+ * than any decision an operator makes, a Minute / Hour / Day trio that cannot
+ * differ, and a "Normal" class named after the wire field instead of its
+ * contents. The `records` group is alarms, events, sampled traces, top-N and the
+ * profiling records together, so `Others` is the honest name for it — singling
+ * out alarms would imply the rest are kept some other length.
+ *
+ * Ordered longest-lived first, which on the defaults is also metadata → metrics
+ * → records, so the list reads as a retention gradient rather than a wire dump. */
+function flatRows(s: TtlStageBreakdown): Row[] {
   return [
-    { label: t('Normal'),            days: s.records.normal },
-    { label: t('Trace'),             days: s.records.trace },
-    { label: t('Zipkin trace'),      days: s.records.zipkinTrace },
-    { label: t('Log'),               days: s.records.log },
-    { label: t('Browser error log'), days: s.records.browserErrorLog },
+    { label: t('Metadata'), days: s.metrics.metadata ?? s.metrics.minute, source: CORE_METRICS_TTL },
+    { label: t('Metrics'),  days: s.metrics.minute, source: CORE_METRICS_TTL },
+    { label: t('Logs'),     days: s.records.log,    source: CORE_RECORD_TTL },
+    { label: t('Traces'),   days: s.records.trace,  source: CORE_RECORD_TTL },
+    { label: t('Others'),   days: s.records.normal, source: CORE_RECORD_TTL },
   ];
 }
-function metricsRows(s: TtlStageBreakdown): Row[] {
-  return [
-    ...(s.metrics.metadata !== undefined ? [{ label: t('Metadata'), days: s.metrics.metadata }] : []),
-    { label: t('Minute'), days: s.metrics.minute },
-    { label: t('Hour'),   days: s.metrics.hour },
-    { label: t('Day'),    days: s.metrics.day },
-  ];
-}
+
 function fmtDays(n: number | undefined): string {
   if (n === undefined) return '—';
   if (n < 0) return '—';
@@ -129,6 +144,9 @@ const backendPillLabel = computed(() => {
  *  surfaces this so the operator isn't misled. */
 interface LifecycleRow {
   label: string;
+  /** The `bydb.yml` group this class is read from, shown only where the label
+   *  does not already give it away. */
+  source: string;
   hotDays: number;
   /** 0 when this class has no cold stage (any non-BanyanDB backend,
    *  or BanyanDB without a cold lifecycle stage configured). */
@@ -142,11 +160,20 @@ const lifecycleRecords = computed<LifecycleRow[]>(() => {
   const c = coldStage.value;
   const coldOr0 = (v: number | undefined): number => (v != null && v >= 0 ? v : 0);
   const rows: LifecycleRow[] = [
-    { label: t('Normal'),          hotDays: h.records.normal,          coldDays: coldOr0(c?.records.normal),          totalDays: 0 },
-    { label: t('Trace'),           hotDays: h.records.trace,           coldDays: coldOr0(c?.records.trace),           totalDays: 0 },
-    { label: t('Zipkin trace'),    hotDays: h.records.zipkinTrace,     coldDays: coldOr0(c?.records.zipkinTrace),     totalDays: 0 },
-    { label: t('Log'),             hotDays: h.records.log,             coldDays: coldOr0(c?.records.log),             totalDays: 0 },
-    { label: t('Browser err log'), hotDays: h.records.browserErrorLog, coldDays: coldOr0(c?.records.browserErrorLog), totalDays: 0 },
+    // Same catalog, same order as the flat backends, so the page reads the same
+    // wherever you land — the only difference is that these are separate groups
+    // in `bydb.yml` and can genuinely be tuned apart.
+    //
+    // `source` carries the group name only where the label does not already
+    // give it away: printing `metadata` under "Metadata" nine times over is
+    // noise, while `records` under "Others" is the one mapping nobody can guess.
+    // The group holds alarms, events, sampled traces, top-N and the profiling
+    // records together, which is why it is not named after any one of them.
+    { label: t('Logs'),               source: '',        hotDays: h.records.log,             coldDays: coldOr0(c?.records.log),             totalDays: 0 },
+    { label: t('Traces'),             source: '',        hotDays: h.records.trace,           coldDays: coldOr0(c?.records.trace),           totalDays: 0 },
+    { label: t('Zipkin traces'),      source: '',        hotDays: h.records.zipkinTrace,     coldDays: coldOr0(c?.records.zipkinTrace),     totalDays: 0 },
+    { label: t('Browser error logs'), source: '',        hotDays: h.records.browserErrorLog, coldDays: coldOr0(c?.records.browserErrorLog), totalDays: 0 },
+    { label: t('Others'),             source: 'records', hotDays: h.records.normal,          coldDays: coldOr0(c?.records.normal),          totalDays: 0 },
   ];
   return rows
     .filter((r) => Number.isFinite(r.hotDays) && r.hotDays > 0)
@@ -164,54 +191,40 @@ const lifecycleMetrics = computed<LifecycleRow[]>(() => {
     // section avoids a tiny zero-cold row dropped between two larger
     // ones with cold.
     ...(h.metrics.metadata !== undefined
-      ? [{ label: t('Metadata'), hotDays: h.metrics.metadata, coldDays: 0, totalDays: h.metrics.metadata }]
+      ? [{ label: t('Metadata'), source: '', hotDays: h.metrics.metadata, coldDays: 0, totalDays: h.metrics.metadata }]
       : []),
-    { label: t('Minute metric'), hotDays: h.metrics.minute, coldDays: coldOr0(c?.metrics.minute), totalDays: 0 },
-    { label: t('Hour metric'),   hotDays: h.metrics.hour,   coldDays: coldOr0(c?.metrics.hour),   totalDays: 0 },
-    { label: t('Day metric'),    hotDays: h.metrics.day,    coldDays: coldOr0(c?.metrics.day),    totalDays: 0 },
+    // Metrics break down here and only here: BanyanDB keeps a group per
+    // granularity, so the three are genuinely tunable apart.
+    { label: t('Minute metrics'), source: '', hotDays: h.metrics.minute, coldDays: coldOr0(c?.metrics.minute), totalDays: 0 },
+    { label: t('Hour metrics'),   source: '', hotDays: h.metrics.hour,   coldDays: coldOr0(c?.metrics.hour),   totalDays: 0 },
+    { label: t('Day metrics'),    source: '', hotDays: h.metrics.day,    coldDays: coldOr0(c?.metrics.day),    totalDays: 0 },
   ];
   return rows
     .filter((r) => Number.isFinite(r.hotDays) && r.hotDays > 0)
     .map((r) => ({ ...r, totalDays: r.totalDays || r.hotDays + r.coldDays }));
 });
 
-/** Collapse a per-class list into one row labelled "All <category>"
- *  when every class shares the exact same (hotDays, coldDays) pair.
- *  Non-BanyanDB always falls into this branch — OAP's default impl
- *  returns uniform values per category — so the operator sees a
- *  single honest summary instead of N identical bars. BanyanDB
- *  deployments with uniform per-class config get the same treatment
- *  naturally. When TTLs diverge, returns the per-class rows
- *  unchanged. */
-function collapseUniform(rows: LifecycleRow[], categoryLabel: string): LifecycleRow[] {
-  if (rows.length <= 1) return rows;
-  const first = rows[0];
-  const allMatch = rows.every((r) => r.hotDays === first.hotDays && r.coldDays === first.coldDays);
-  if (!allMatch) return rows;
-  return [
-    {
-      label: t('All {category} ({n})', { category: categoryLabel, n: rows.length }),
-      hotDays: first.hotDays,
-      coldDays: first.coldDays,
-      totalDays: first.totalDays,
-    },
-  ];
-}
-const lifecycleRecordsForRender = computed<LifecycleRow[]>(() =>
-  collapseUniform(lifecycleRecords.value, t('records')),
-);
-const lifecycleMetricsForRender = computed<LifecycleRow[]>(() =>
-  collapseUniform(lifecycleMetrics.value, t('metrics')),
-);
+/**
+ * One ordered list, in the same catalogue and the same order the flat backends
+ * use, so the page reads the same wherever you land.
+ *
+ * Rows that happen to share a TTL are NOT merged. Equal values were once
+ * collapsed into a single "All records" bar, which reads as a fact about the
+ * backend when it is only a fact about today's config: these are separate
+ * groups in `bydb.yml` and can be tuned apart at any time, and a page that
+ * hides four of them until someone does is a page you cannot plan from.
+ */
+const lifecycleForRender = computed<LifecycleRow[]>(() => [
+  ...lifecycleMetrics.value,
+  ...lifecycleRecords.value,
+]);
 
-/** Anchor for proportional row widths — single max across BOTH
- *  records and metrics so the visual comparison stays honest across
- *  sections (a 60-d metadata row should still tower over a 38-d
+/** Anchor for proportional row widths — one max across every row so the visual
+ *  comparison stays honest (a 60-d metadata row should still tower over a 38-d
  *  trace row). At least 1 to avoid div-by-0 during initial load. */
-const lifecycleMaxTotal = computed<number>(() => {
-  const all = [...lifecycleRecordsForRender.value, ...lifecycleMetricsForRender.value];
-  return Math.max(1, ...all.map((r) => r.totalDays));
-});
+const lifecycleMaxTotal = computed<number>(() =>
+  Math.max(1, ...lifecycleForRender.value.map((r) => r.totalDays)),
+);
 
 </script>
 
@@ -290,24 +303,23 @@ const lifecycleMaxTotal = computed<number>(() => {
           <h2>{{ t('Retention') }}</h2>
           <span class="pane-sub">{{ t('read-only · change on the OAP side') }}</span>
         </header>
+        <!-- One flat grid: the Records / Metrics split is OAP's internal
+             taxonomy, not a choice the operator makes, and every card here
+             already names the setting that governs it. -->
         <div class="sub-pane">
-          <h3>{{ t('Records') }}</h3>
           <div class="grid">
-            <div v-for="row in recordsRows(hot)" :key="`flat-r-${row.label}`" class="sw-card kpi">
+            <div v-for="row in flatRows(hot)" :key="`flat-${row.label}`" class="sw-card kpi">
               <div class="sw-card-head"><h4>{{ row.label }}</h4></div>
-              <div class="kpi-body"><div class="kpi-value">{{ fmtDays(row.days) }}</div></div>
+              <div class="kpi-body">
+                <div class="kpi-value">{{ fmtDays(row.days) }}</div>
+                <div class="kpi-source">{{ t('set by') }} <code>{{ row.source }}</code></div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="sub-pane">
-          <h3>{{ t('Metrics') }}</h3>
-          <div class="grid">
-            <div v-for="row in metricsRows(hot)" :key="`flat-m-${row.label}`" class="sw-card kpi">
-              <div class="sw-card-head"><h4>{{ row.label }}</h4></div>
-              <div class="kpi-body"><div class="kpi-value">{{ fmtDays(row.days) }}</div></div>
-            </div>
-          </div>
-        </div>
+        <p class="flat-note">
+          {{ t('ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.') }}
+        </p>
         <p class="flat-note">
           {{ t('ⓘ Property data is omitted (forever-retained, no TTL reported).') }}
         </p>
@@ -323,46 +335,23 @@ const lifecycleMaxTotal = computed<number>(() => {
       <!-- Per-data-class lifecycle. One bar per class so divergent
            TTLs are visible at a glance; widths are proportional to
            total retention across BOTH sections so a 60-d metadata
-           row visibly towers over a 38-d trace row. Records and
-           metrics are split into two sub-sections that mirror the
-           cards below. -->
+           row visibly towers over a 38-d trace row. One ordered list
+           in the same catalogue the flat backends use. -->
       <section
-        v-if="lifecycleRecordsForRender.length > 0 || lifecycleMetricsForRender.length > 0"
+        v-if="lifecycleForRender.length > 0"
         class="lifecycle"
       >
         <header class="lifecycle__head">
           <h2>{{ t('Data lifecycle') }}</h2>
-          <span class="lifecycle__sub">{{ t('Per-data-class · widths proportional to total retention') }}</span>
+          <span class="lifecycle__sub">{{ t('One bydb.yml group per row · widths proportional to total retention') }}</span>
         </header>
 
-        <div v-if="lifecycleRecordsForRender.length > 0" class="lifecycle__group">
-          <h3 class="lifecycle__group-h">{{ t('Records') }}</h3>
-          <div v-for="r in lifecycleRecordsForRender" :key="`lc-rec-${r.label}`" class="lc-row">
-            <div class="lc-row__label">{{ r.label }}</div>
-            <div
-              class="lc-row__bar"
-              :style="{ width: `${(r.totalDays / lifecycleMaxTotal) * 100}%` }"
-              :aria-label="r.coldDays > 0
-                ? t('Hot + Warm {hot} days, Cold {cold} days', { hot: r.hotDays, cold: r.coldDays })
-                : t('Hot + Warm {hot} days', { hot: r.hotDays })"
-            >
-              <div class="lc-seg lc-seg--hot" :style="{ flex: r.hotDays }">
-                <span class="lc-seg__name">{{ t('Hot + Warm') }}</span>
-                <span class="lc-seg__days">{{ t('{n} d', { n: r.hotDays }) }}</span>
-              </div>
-              <div v-if="r.coldDays > 0" class="lc-seg lc-seg--cold" :style="{ flex: r.coldDays }">
-                <span class="lc-seg__name">{{ t('Cold') }}</span>
-                <span class="lc-seg__days">{{ t('{n} d', { n: r.coldDays }) }}</span>
-              </div>
+        <div v-if="lifecycleForRender.length > 0" class="lifecycle__group">
+          <div v-for="r in lifecycleForRender" :key="`lc-${r.label}`" class="lc-row">
+            <div class="lc-row__label">
+              {{ r.label }}
+              <span v-if="r.source" class="lc-row__source">{{ r.source }}</span>
             </div>
-            <div class="lc-row__total mono">{{ t('{n} d total', { n: r.totalDays }) }}</div>
-          </div>
-        </div>
-
-        <div v-if="lifecycleMetricsForRender.length > 0" class="lifecycle__group">
-          <h3 class="lifecycle__group-h">{{ t('Metrics') }}</h3>
-          <div v-for="r in lifecycleMetricsForRender" :key="`lc-met-${r.label}`" class="lc-row">
-            <div class="lc-row__label">{{ r.label }}</div>
             <div
               class="lc-row__bar"
               :style="{ width: `${(r.totalDays / lifecycleMaxTotal) * 100}%` }"
@@ -680,6 +669,21 @@ const lifecycleMaxTotal = computed<number>(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
+}
+.kpi-source {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--sw-text-dim);
+}
+.kpi-source code {
+  font-family: var(--sw-font-mono);
+  color: var(--sw-text-muted);
+}
+.lc-row__source {
+  display: block;
+  font-family: var(--sw-font-mono);
+  font-size: 10px;
+  color: var(--sw-text-dim);
 }
 .kpi .sw-card-head {
   display: flex;

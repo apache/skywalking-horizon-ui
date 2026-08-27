@@ -38,15 +38,24 @@ interface DeploymentPanZoomOptions {
   H: Ref<number>;
   /** node id → podId, so a dragged hex moves its whole pod. */
   nodeToPod: Ref<Map<string, string>>;
-  /** Per-pod drag offsets; the composable writes the accumulated delta here. */
-  podDelta: Ref<Map<string, { dx: number; dy: number }>>;
-  /** Dataset-identity signal — re-bind drag + re-fit whenever it changes (a
-   *  service switch that re-keys the v-for nodes drops the d3 drag listeners). */
+  /** Where the operator put each pod, in absolute canvas coordinates — the
+   *  composable writes here on every drag. Absolute rather than an offset so a
+   *  repack does not carry a placed pod along with it. */
+  podAnchor: Ref<Map<string, { cx: number; cy: number }>>;
+  /** Where the PACKING put each pod. The first drag of a pod starts from here. */
+  podBase: Ref<Map<string, { cx: number; cy: number }>>;
+  /** Rebinding signal — the IDENTITY of what is drawn, sorted. Vue re-keys the
+   *  node `<g>` elements whenever that changes, which drops the per-element d3
+   *  drag listeners, so they are re-attached on it. Never a count: a refresh
+   *  that swaps one node for another leaves every count where it was. */
   datasetKey: Ref<string>;
+  /** Identity of the QUESTION. The viewport refits on this alone. */
+  predicateKey: Ref<string>;
 }
 
 export function useDeploymentPanZoom(opts: DeploymentPanZoomOptions) {
-  const { svgEl, zoomLayerEl, containerEl, W, H, nodeToPod, podDelta, datasetKey } = opts;
+  const { svgEl, zoomLayerEl, containerEl, W, H, nodeToPod, podAnchor, podBase, datasetKey, predicateKey } =
+    opts;
   let zoomBehaviour: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   const zoomT = ref<{ k: number; x: number; y: number }>({ k: 1, x: 0, y: 0 });
 
@@ -115,29 +124,81 @@ export function useDeploymentPanZoom(opts: DeploymentPanZoomOptions) {
           if (!id) return;
           const pid = nodeToPod.value.get(id);
           if (!pid) return;
-          const cur = podDelta.value.get(pid) ?? { dx: 0, dy: 0 };
-          const m = new Map(podDelta.value);
-          m.set(pid, { dx: cur.dx + event.dx, dy: cur.dy + event.dy });
-          podDelta.value = m;
+          // Untouched pods start from where the packing put them; touched ones
+          // continue from where they were left.
+          const cur = podAnchor.value.get(pid) ?? podBase.value.get(pid);
+          if (!cur) return;
+          const m = new Map(podAnchor.value);
+          m.set(pid, { cx: cur.cx + event.dx, cy: cur.cy + event.dy });
+          podAnchor.value = m;
         }),
+    );
+  }
+  /**
+   * Put the operator's framing back on a REPLACEMENT canvas.
+   *
+   * The transform lives on the `<svg>`, which is behind a `v-if` — a valid
+   * empty result followed by nodes returning destroys and recreates it, and
+   * without this the graph comes back at identity having lost the framing.
+   */
+  function restoreTransform(): void {
+    if (!svgEl.value || !zoomBehaviour) return;
+    const t = zoomT.value;
+    d3.select(svgEl.value).call(
+      zoomBehaviour.transform,
+      d3.zoomIdentity.translate(t.x, t.y).scale(t.k),
     );
   }
   function installZoomAndFit(): void {
     if (!svgEl.value || !zoomLayerEl.value) return;
     installZoom();
-    void nextTick(() => { installNodeDrag(); fitToScreen(false); });
+    // Fits on FIRST mount only. Once a canvas is on screen its framing is the
+    // operator's; see the predicate watcher below.
+    void nextTick(() => {
+      installNodeDrag();
+      if (!svgEl.value) return;
+      if (fittedOnce) {
+        restoreTransform();
+        return;
+      }
+      // Only LATCH a fit that had something to fit: fitting an empty canvas
+      // measures nothing, and latching it left the real graph unframed when
+      // nodes finally arrived.
+      fitToScreen(false);
+      if (W.value > 0 && H.value > 0) fittedOnce = true;
+    });
   }
+  let fittedOnce = false;
   // The <svg> lives behind a v-else and unmounts whenever a new service's
   // data is in flight, then remounts when it lands — so re-bind zoom on every
   // (re)mount (a one-shot latch would leave pan/zoom dead after the first
   // service switch).
   watch(svgEl, (el) => { if (el && zoomLayerEl.value) installZoomAndFit(); }, { flush: 'post' });
-  // datasetKey folds in selectedId: a service switch that lands on cached data
-  // with identical counts still re-keys every v-for node element, which kills
-  // the per-element d3 drag listeners — rebind + refit on dataset identity,
-  // not just shape.
+  // REBIND on dataset identity. A service switch that lands on cached data
+  // with identical counts still re-keys every v-for element, killing the
+  // per-element d3 drag listeners — so this watches identity, not shape. It
+  // no longer refits: a refresh that adds a pod must not re-frame the canvas.
   watch(datasetKey, () => {
-    if (svgEl.value && zoomBehaviour) void nextTick(() => { installNodeDrag(); fitToScreen(false); });
+    if (svgEl.value && zoomBehaviour) {
+      void nextTick(() => {
+        installNodeDrag();
+        // The FIRST drawn graph after a question change is what gets framed.
+        // Fitting at the moment the question changed was too early and
+        // sometimes impossible: the canvas is behind a `v-if` and unmounts
+        // while the new read is out, so the fit silently did nothing while the
+        // latch still recorded it as done — and the new graph arrived
+        // unframed, at whatever zoom belonged to the previous one.
+        if (!fittedOnce && svgEl.value) {
+          fitToScreen(false);
+          if (W.value > 0 && H.value > 0) fittedOnce = true;
+        }
+      });
+    }
+  });
+  // A different question deserves a fresh frame — but taken when its graph is
+  // actually on screen, which is the watcher above.
+  watch(predicateKey, () => {
+    fittedOnce = false;
   });
   onBeforeUnmount(() => {
     if (svgEl.value) d3.select(svgEl.value).on('.zoom', null).on('dblclick', null);

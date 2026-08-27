@@ -60,6 +60,25 @@ export interface PreflightModule {
   affects: string;
 }
 
+/** @see PreflightResult.templateStore */
+export interface TemplateStoreInfo {
+  mode: 'live' | 'readonly';
+  /** The last read failed. Rendering may still be fine — see `servingRetained`. */
+  unreachable: boolean;
+  /** Epoch ms of the last read that reached OAP; null if none ever has. */
+  lastSuccessfulSyncAt: number | null;
+  /** Rendering templates from an earlier read because the current one failed.
+   *  Unreachable AND serving is a warning; unreachable with nothing retained
+   *  is an outage. */
+  servingRetained: boolean;
+  /** Templates being served from OAP, per kind. */
+  counts: Record<string, number>;
+  /** Per-locale translation overlays being served. */
+  translations: number;
+  /** The last failure, while it is still the current one. */
+  lastError: { message: string; at: number } | null;
+}
+
 export interface PreflightResult {
   adminUrl: string;
   /** True iff `/debugging/config/dump` responded 2xx (admin port up). */
@@ -71,6 +90,16 @@ export interface PreflightResult {
    * probed (Horizon serves bundled templates) and its row reads "readonly · bundled".
    */
   templatesMode: 'live' | 'readonly';
+  /**
+   * What the dashboard-template store is doing.
+   *
+   * Separate from the `ui-management` module row above, which says whether the
+   * ENDPOINT answers. This says what Horizon has actually loaded from it, when,
+   * and — when a read failed — what it said. The two can disagree in the way
+   * that matters most: a store that has gone unreachable while Horizon keeps
+   * rendering what it read earlier.
+   */
+  templateStore?: TemplateStoreInfo;
   modules: PreflightModule[];
   /** Total keys in the dump. Diagnostic only. */
   dumpKeyCount: number;
