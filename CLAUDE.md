@@ -24,30 +24,9 @@ When you can't reproduce the user's symptom locally, say so. Don't invent a fix.
 
 ## Backend compatibility
 
-The UI talks to OAP through the **GraphQL query-protocol** and through OAP's admin REST surface. Both contracts are **fixed** — owned by the skywalking repo, not this one.
+The UI talks to OAP through the **GraphQL query-protocol** and through OAP's admin REST surface. Both contracts are **fixed** — owned by the skywalking repo, not this one. **Do not invent fields**: if a screen needs data the protocol doesn't expose, flag it, because the right fix is a query-protocol change upstream rather than a BFF-side fabrication.
 
-- **Do not invent fields.** If a screen needs data the protocol doesn't expose, flag it. The right fix is a query-protocol change upstream, not a UI hack or a BFF-side fabrication.
-- **The schemas and Java implementations are the authoritative spec** — read them (`oap-server/server-query-plugin/.../query-protocol/*.graphqls` and `oap-server/server-core/.../query/`) before guessing at a wire shape. Stand up a local OAP (the SkyWalking repo ships a docker-compose) for smoke-testing wire changes.
-- **When a wire shape is in doubt, read the protocol and ask OAP** — the schema, the Java implementation, then a live server. An older UI's source may show one working answer, but it is evidence about the past, not a decision about the present: it can be as old as the protocol it was written against, and it carries its own workarounds. Never cite it as the reason a thing must be a certain way.
-
-### Metric entity-scope is load-bearing
-
-Every OAP metric lives under exactly one entity scope (Service / ServiceInstance / Endpoint / relations / Process / All). OAP does not auto-rollup between scopes — querying at the wrong scope returns empty results regardless of MQE wrapping. Before adding or moving a metric, verify its scope against the OAP catalog and confirm it matches the page that will render it. Never invent a BFF-side rollup to bridge a scope mismatch — move the metric or leave the slot empty.
-
-### Time, step, and timezone
-
-- **Step precision is page-family-specific.** Dashboards / overviews / landing scale step with the rolling window (MINUTE / HOUR / DAY). Alarms / traces / logs / live debugger use SECOND because they query event-style data anchored at second precision — MINUTE rounding chops off the most recent (most interesting) events. MQE traffic backdrops use MINUTE because metrics are aggregated at minute granularity.
-- **String format is determined by step.** Mixing them throws `verifyDateTimeString` on OAP. Read `DurationUtils.java` in the skywalking repo for the canonical mapping.
-- **OAP has a per-request bucket cap.** Long windows must be chunked. Storage backends impose stricter caps that vary by backend — probe, don't assume.
-- **All time strings are OAP-server local.** Not UTC, not browser-local. The server's offset is exposed via `getTimeInfo`. The BFF owns this conversion; the UI displays in browser-local (echarts handles ms → local natively).
-- **Per-page vs. global time.** The topbar time picker applies only to layer dashboards + overviews. Triage / investigation pages (alarms, traces, logs, profilings, live debugger) own their own time range — do not subscribe them to the global ticker.
-- **Picker wiring is a two-sided contract.** The time range only reaches OAP when the UI composable forwards it AND the BFF route accepts it. Verify the actual request, not the intent.
-
-### Other OAP sharp edges
-
-- **Storage backends have undocumented limits.** Page sizes, nested selections, and per-record sub-queries fail at backend-specific thresholds. Degrade list queries to the cheapest selection that satisfies the screen; probe before defaulting.
-- **OAP IDs are not always per-record unique.** Some wire `id` fields key on the alarmed/related entity, not the firing instance. Disambiguate composite keys with timestamp before using `id` as a row key.
-- **Widget type follows MQE shape.** A widget whose MQE collapses to a single scalar must be `type: "card"`, not `type: "line"`. The tell-tale is the outermost call: `latest(...)`, `max(...)`, `min(...)`, `avg(<plain-metric>)`, `sum(<plain-metric>)` all reduce the window to one number — line-charting a single point is wasteful and misleads operators into thinking the metric is time-varying. Series-shaped wrappers (`relabels(...)`, `top_n(...)`, `histogram*(...)`, `aggregate_labels(...)` without an outer scalar collapse, `rate(...)`, `increase(...)`) stay `line`. When adding or porting a widget, look at the outermost function first.
+**The wire details live with the code that speaks it — see [`apps/bff/CLAUDE.md`](apps/bff/CLAUDE.md).** That file is the reference for the four OAP endpoints and what each carries, cancellation, time/step/timezone, cold stage, metric entity-scope, TTL's per-backend shape, and the rest of the sharp edges. Read it before changing anything that reaches OAP.
 
 ### Template source: `live` means REMOTE, never bundled
 
