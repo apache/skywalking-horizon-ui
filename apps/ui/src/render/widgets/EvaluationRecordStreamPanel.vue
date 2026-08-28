@@ -17,11 +17,13 @@
 <script setup lang="ts">
 import { logRowKey } from '@/utils/logRow';
 import type { GenAIEvaluationRecordStreamRow } from '@/layer/evaluation-record/useLayerEvaluationRecord';
+import { useAuthStore } from '@/state/auth';
 
 defineProps<{
   rows: GenAIEvaluationRecordStreamRow[];
   selectedKey?: string | null;
 }>();
+const auth = useAuthStore();
 const emit = defineEmits<{
   (e: 'select', payload: { row: GenAIEvaluationRecordStreamRow; key: string }): void;
   (e: 'jump-trace', payload: { traceId: string; ts: number }): void;
@@ -86,7 +88,7 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
       <span class="lg-task mono dim" :title="r.taskName ?? '-'">{{ r.taskName ?? '-' }}</span>
       <span class="lg-lvl" :style="{ color: LEVEL_COLOR[levelOf(r)] }">{{ levelOf(r) }}</span>
       <span
-        v-if="r.traceId"
+        v-if="r.traceId && auth.hasVerb('traces:read')"
         class="lg-trace mono"
         @click.stop="emit('jump-trace', { traceId: r.traceId, ts: r.timestamp })"
       >trace</span>

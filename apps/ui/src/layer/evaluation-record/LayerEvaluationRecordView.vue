@@ -127,7 +127,7 @@ watch([modelIdParam, instanceList], ([modelId, instances]) => {
 // explicit input on the conditions bar. The URL takes precedence so
 // shared / bookmarked URLs always restore the same view.
 const traceIdParam = computed(() => {
-  const v = route.query.traceId;
+  const v = route.query.evaluationTraceId;
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
 // Trace ID ??bound directly to the input. Each keystroke updates the
