@@ -30,7 +30,7 @@ import { sha256Hex } from '@/features/operate/dsl/contentHash';
 import Btn from '@/components/primitives/Btn.vue';
 import Pill from '@/components/primitives/Pill.vue';
 import MonacoYaml from '@/features/operate/_shared/MonacoYaml.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import DestructiveConfirm from '@/features/operate/_shared/DestructiveConfirm.vue';
 import ApplyProgress from '@/features/operate/dsl/ApplyProgress.vue';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';

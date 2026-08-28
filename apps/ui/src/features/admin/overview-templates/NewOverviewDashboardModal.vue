@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import { vAutosize } from '@/utils/autosize';
 
 const { t } = useI18n({ useScope: 'global' });

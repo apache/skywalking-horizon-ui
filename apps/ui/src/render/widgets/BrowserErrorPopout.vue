@@ -22,7 +22,7 @@
   the per-layer Browser Logs tab; the host owns the maps list (so it can also
   render the SourceMapManager), this popout owns the per-row resolve call.
 
-  Built on `_shared/Modal.vue` (backdrop + Escape + close).
+  Built on `components/primitives/Modal.vue` (backdrop + Escape + close).
 
   Props:
     row     — the BrowserErrorRow to show; `null` keeps the popout closed.
@@ -36,7 +36,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BrowserErrorRow, ResolveResponse, SourceMapDescriptor } from '@/api/client';
 import { bffClient, describeApiError } from '@/api/client';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 
 const { t } = useI18n();
 

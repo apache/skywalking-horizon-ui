@@ -27,9 +27,9 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import MonacoView from '@/features/operate/_shared/MonacoView.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import Icon from '@/components/icons/Icon.vue';
 

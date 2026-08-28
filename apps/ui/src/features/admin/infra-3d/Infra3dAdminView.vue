@@ -57,8 +57,8 @@ import { useInfra3dLevels, type ResolvedLevel } from './useInfra3dLevels';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
 import Infra3dLayerRow, { type LayerRow } from './Infra3dLayerRow.vue';
-import Modal from '@/features/operate/_shared/Modal.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import Modal from '@/components/primitives/Modal.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 
 // We hydrate the Layers section from the catalog union'd with config
 // keys, so an OAP layer the admin hasn't classified yet shows up here
