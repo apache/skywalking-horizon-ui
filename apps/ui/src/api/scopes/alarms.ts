@@ -31,7 +31,10 @@ import { normalizeAlarmsConfig, type AlarmsConfig } from '../alarmsConfig';
 export class AlarmsApi {
   constructor(private readonly bff: BffClient) {}
 
-  list(q: AlarmsQuery): Promise<AlarmsResponse> {
+  /** `signal` cancels the read. The alarms card refreshes with the rest of the
+   *  page, and a round that gives up — or a tab the operator left — must stop
+   *  the query too, not merely stop waiting for it. */
+  list(q: AlarmsQuery, signal?: AbortSignal): Promise<AlarmsResponse> {
     const p = new URLSearchParams({
       startTime: String(q.startTime),
       endTime: String(q.endTime),
@@ -45,7 +48,7 @@ export class AlarmsApi {
     if (q.normal !== undefined) p.set('normal', String(q.normal));
     if (q.instance) p.set('instance', q.instance);
     if (q.endpoint) p.set('endpoint', q.endpoint);
-    return this.bff.request<AlarmsResponse>('GET', `/api/alarms?${p.toString()}`);
+    return this.bff.request<AlarmsResponse>('GET', `/api/alarms?${p.toString()}`, undefined, undefined, signal);
   }
 
   /** Lightweight count probe for the topbar badge — bounded selection

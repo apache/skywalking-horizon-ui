@@ -27,7 +27,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import { useLayers } from '@/shell/useLayers';
 import { useConfigBundle } from '@/controls/configBundle';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';

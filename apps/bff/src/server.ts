@@ -303,7 +303,10 @@ registerMenuRoute(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
   serviceCatalog: serviceLayer,
 });
-registerLandingRoute(app, { ...authDeps });
+registerLandingRoute(app, {
+  ...authDeps,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerInstanceRoute(app, { ...authDeps });
 registerEndpointRoute(app, { ...authDeps });
 registerTopologyRoute(app, {

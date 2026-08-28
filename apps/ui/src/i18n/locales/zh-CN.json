@@ -97,7 +97,6 @@
   "AI request failed ({status}).": "AI 请求失败（{status}）。",
   "alert page | alert pages": "告警页面",
   "An ACTIVE rule must be inactivated first.": "ACTIVE 规则必须先停用。",
-  "An administrator turned it off — re-enable it under Operate → Templates.": "管理员关闭了它 — 可在 Operate → Templates 中重新启用。",
   "API dependency": "API 依赖",
   "API dependency chain": "API 依赖链",
   "API dependency config": "API 依赖配置",
@@ -1681,7 +1680,6 @@
   "Theme: {name} (your override) — click to change": "主题：{name}（你的自定义设置）—— 点击更换",
   "Theme: {name} — click to change": "主题：{name} —— 点击更换",
   "These layers' templates provide a service map, so their cubes render as a call graph (and seed the cross-layer hierarchy). Read-only — it's a layer-template property, not a 3D-map setting.": "这些 layer 的模板提供服务地图，因此其方块会渲染为调用关系图（并作为跨 layer 层级关系的起点）。只读 —— 这是 layer 模板的属性，而非 3D-map 的设置。",
-  "This layer’s template is disabled.": "该 layer 的模板已被禁用。",
   "This OAP serves traces via": "此 OAP 通过以下方式提供 trace 数据：",
   "This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.": "此 OAP 版本仅支持关键词 + 标签过滤。升级后可使用 layer + 实体过滤。",
   "This rule has no bundled version on disk — deleting it removes the only copy, and Horizon cannot restore it.": "该规则在磁盘上没有内置版本 — 删除后将不存在任何副本，Horizon 无法恢复。",
@@ -2874,5 +2872,12 @@
   "Hour metrics": "小时指标",
   "Day metrics": "天指标",
   "ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.": "ⓘ 这些是 OAP `application.yml` 中的配置项。该后端对记录类数据统一使用一个保留期，对指标类数据统一使用另一个，因此上面的数值是真实的，但无法分别调整。按数据类别分别设置保留期仅 BanyanDB 支持。",
-  "One bydb.yml group per row · widths proportional to total retention": "每行对应一个 bydb.yml group · 条宽与总保留期成比例"
+  "One bydb.yml group per row · widths proportional to total retention": "每行对应一个 bydb.yml group · 条宽与总保留期成比例",
+  "This page is not available.": "此页面不可用。",
+  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "此 OAP 未配置冷阶段，因此无论选择哪个时间窗口都不会有数据。请关闭 Cold 开关。",
+  "These metrics are read once per hour, not per refresh.": "这些指标每小时读取一次，而非每次刷新。",
+  "metrics for {range}": "{range} 的指标",
+  "metrics for {range} — a newer hour is still loading": "{range} 的指标 —— 更新的一小时仍在加载",
+  "metrics for the hour so far": "本小时至今的指标",
+  "Reading the last completed hour…": "正在读取上一个完整小时…"
 }

@@ -326,6 +326,11 @@ export function useRefreshErrorReport(opts: {
       // A cancellation is something the app DID — a capped round, a navigation.
       // Reporting it would put our own decision in the operator's outage list.
       if (isCancellation(err)) return;
+      // A DISABLED layer is not an outage either. An administrator removed the
+      // page; the screen says it is unavailable and the sidebar drops it on the
+      // next menu read. Filing it here would blame OAP for an administrative
+      // decision, and send whoever reads the history to check a healthy server.
+      if (err instanceof GraphUnavailableError && err.response.blocked === 'layer-disabled') return;
       const round = auto.currentRound;
       if (!round) return;
       const operatorAsked = OPERATOR_TRIGGERS.has(round.trigger);

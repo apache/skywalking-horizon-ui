@@ -41,7 +41,7 @@ import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const dashId = computed(() => String(route.params.id ?? ''));
-const { dashboard, widgets, values, isLoading, isLoadingData } = useOverviewDashboard(dashId);
+const { dashboard, widgets, values, isLoading, isLoadingData, metricsPartial } = useOverviewDashboard(dashId);
 
 interface Section { title: string; cols: number; widgets: OverviewWidget[] }
 const sections = computed<Section[]>(() => {
@@ -77,6 +77,12 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
       <p v-if="dashboard.description" class="lede">{{ dashboard.description }}</p>
       <span v-if="isLoadingData" class="loading">{{ t('Loading data…') }}</span>
     </header>
+
+    <!-- A lost batch leaves a page-side rollup LOW rather than absent, which
+         reads as a real number. Said once for the page. -->
+    <div v-if="metricsPartial" class="banner warn">
+      {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
+    </div>
 
     <div v-if="isLoading" class="empty">{{ t('Loading dashboard…') }}</div>
     <div v-else-if="!dashboard" class="empty">{{ t('Dashboard not found.') }}</div>
@@ -144,6 +150,15 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
 </template>
 
 <style scoped>
+.banner.warn {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--sw-warn-soft);
+  border: 1px solid var(--sw-warn);
+  border-radius: 6px;
+  color: var(--sw-warn);
+  font-size: 11.5px;
+}
 .dash-view { padding: 20px 20px 60px; max-width: 1440px; margin: 0 auto; }
 .dash-head { margin-bottom: 18px; display: flex; flex-direction: column; gap: 6px; }
 .dash-head h1 {

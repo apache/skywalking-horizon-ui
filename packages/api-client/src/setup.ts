@@ -90,6 +90,20 @@ export interface LandingConfig {
   orderBy: string;
   columns: LandingColumn[];
   /**
+   * Ask for the layer header's HOURLY figures instead of the picked window.
+   *
+   * The header describes one completed hour, held per layer, and the response
+   * says which hour in `kpiHour`. Only a caller that renders that label may ask
+   * for it: everything else — the Overview's page-side widgets among them —
+   * gets values for the window it actually asked for, which is what the rest of
+   * the response's `durationStart` / `durationEnd` describe.
+   *
+   * Opt-in on purpose. Deciding it from the expressions instead would hand
+   * hour-old numbers to any caller whose MQE happened to match a header
+   * column's, labelled with the window it asked for and no way to tell.
+   */
+  hourlyKpi?: boolean;
+  /**
    * Per-user threshold overrides for topology + endpoint-dependency
    * metrics. Keyed by `<scope>.<metricId>` where scope is
    * `topology` or `dependency`. Merged on top of the template's

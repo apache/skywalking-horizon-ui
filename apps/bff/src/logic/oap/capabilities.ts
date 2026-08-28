@@ -73,7 +73,12 @@ interface Entry {
   result: OapCapabilities;
   fetchedAt: number;
 }
-const cache = new Map<string, Entry>();
+// One Horizon reads one OAP deployment, and every node in it answers alike, so
+// there is no second answer for a key to separate — see apps/bff/CLAUDE.md.
+// This was a Map keyed on `oap.queryUrl`, which is a single config field: it
+// held exactly one entry for the life of the process and separated nothing.
+let cache: Entry | null = null;
+let flight: Promise<OapCapabilities> | null = null;
 const CAPS_TTL_MS = 5 * 60_000;
 /** When introspection itself fails, cache the conservative result for
  *  only this long so the page recovers quickly when OAP comes back —
@@ -81,37 +86,57 @@ const CAPS_TTL_MS = 5 * 60_000;
  *  every request. */
 const CAPS_FAILURE_TTL_MS = 60_000;
 
-/** Reset the per-queryUrl cache. Test-only. */
+/** Reset the cache. Test-only. */
 export function _resetCapabilitiesCache(): void {
-  cache.clear();
+  cache = null;
+  flight = null;
 }
 
 export async function getOapCapabilities(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
-  /** The caller's cancellation, on a read route. See `getServerOffsetMinutes`:
-   *  the same reasoning applies, and the conservative result this caches on
-   *  failure lasts a minute rather than expiring with the request. */
+  /** The caller's cancellation, on a read route. It unblocks THIS caller only —
+   *  see `getServerOffsetMinutes`, which shares its probe the same way. */
   signal?: AbortSignal,
 ): Promise<OapCapabilities> {
-  const key = config.oap.queryUrl;
-  const now = Date.now();
-  const hit = cache.get(key);
-  if (hit && now - hit.fetchedAt < CAPS_TTL_MS) return hit.result;
+  if (cache && Date.now() - cache.fetchedAt < CAPS_TTL_MS) return cache.result;
 
+  // ONE introspection per expiry, shared by every concurrent caller. Without
+  // this a round's dozen reads each probed, and a slow failure landing after a
+  // fast success overwrote real capabilities with the conservative all-false —
+  // hiding alarm queries and content search for a minute on a capable backend.
+  flight ??= probeCapabilities(config, fetchImpl).finally(() => {
+    flight = null;
+  });
+  if (!signal) return flight;
+  return Promise.race([
+    flight,
+    new Promise<OapCapabilities>((_, reject) => {
+      const abort = (): void => {
+        const e = new Error('This operation was aborted');
+        e.name = 'AbortError';
+        reject(e);
+      };
+      if (signal.aborted) return abort();
+      signal.addEventListener('abort', abort, { once: true });
+    }),
+  ]);
+}
+
+async function probeCapabilities(
+  config: HorizonConfig,
+  fetchImpl: FetchLike | undefined,
+): Promise<OapCapabilities> {
+  const now = Date.now();
   let raw: IntrospectionRaw;
   try {
     raw = await graphqlPost<IntrospectionRaw>(
-      buildOapOpts(config, fetchImpl, signal),
+      buildOapOpts(config, fetchImpl),
       INTROSPECTION_QUERY,
     );
-  } catch (err) {
-    // Cancelled by the caller, so it measured nothing. Caching the conservative
-    // answer here would hide alarm queries and content search from every LATER
-    // request for a minute, on the strength of a probe that was never made.
-    if (signal?.aborted) throw err;
+  } catch {
     const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false };
-    cache.set(key, { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS });
+    cache = { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS };
     return conservative;
   }
 
@@ -126,12 +151,11 @@ export async function getOapCapabilities(
   if (fieldSet.has('supportQueryLogsByKeywords')) {
     try {
       const env = await graphqlPost<LogKeywordsRaw>(
-        buildOapOpts(config, fetchImpl, signal),
+        buildOapOpts(config, fetchImpl),
         LOG_KEYWORDS_QUERY,
       );
       logKeywords = env.supportQueryLogsByKeywords === true;
-    } catch (err) {
-      if (signal?.aborted) throw err;
+    } catch {
       logKeywords = false;
       probeFailed = true;
     }
@@ -144,9 +168,9 @@ export async function getOapCapabilities(
   // one: caching it for the full window would hide content search on a
   // capable backend for five minutes over one slow reply. A false the storage
   // actually answered is durable — it only changes when OAP restarts.
-  cache.set(key, {
+  cache = {
     result,
     fetchedAt: probeFailed ? now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS : now,
-  });
+  };
   return result;
 }

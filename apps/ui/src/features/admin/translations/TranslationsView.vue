@@ -44,8 +44,8 @@ import LayerDashboardCanvas from '@/features/admin/_shared/LayerDashboardCanvas.
 import OverviewDashboardCanvas from '@/features/admin/_shared/OverviewDashboardCanvas.vue';
 import TemplatePicker from '@/features/admin/_shared/TemplatePicker.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
-import Modal from '@/features/operate/_shared/Modal.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import Modal from '@/components/primitives/Modal.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import TranslationFieldPanel from './TranslationFieldPanel.vue';
 import { useTranslationPicker } from './useTranslationPicker';
 import { useTranslationDraft, type EffectiveSource } from './useTranslationDraft';

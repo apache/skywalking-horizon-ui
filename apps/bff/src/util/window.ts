@@ -133,8 +133,8 @@ interface TzCacheEntry {
   /** OAP query URL this offset was probed from — a config hot-reload that
    *  repoints OAP misses the cache and re-probes, instead of serving a
    *  different server's offset for up to the TTL. */
-  queryUrl: string;
 }
+let tzFlight: Promise<number> | null = null;
 let tzCache: TzCacheEntry | null = null;
 const TZ_TTL_MS = 60_000;
 
@@ -145,6 +145,13 @@ const TIME_INFO_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+/** Drop the cached offset and any probe in flight. Test-only — the cache is
+ *  process-global, as the offset is a property of the deployment. */
+export function _resetTimezoneCache(): void {
+  tzCache = null;
+  tzFlight = null;
+}
 
 /** Look up the OAP server's UTC offset in minutes. Cached 60s.
  *
@@ -159,14 +166,49 @@ export async function getServerOffsetMinutes(
    *  read route makes it, so an abandoned page cost one of these per request. */
   signal?: AbortSignal,
 ): Promise<number> {
-  const now = Date.now();
-  const queryUrl = config.current.oap.queryUrl;
-  if (tzCache && tzCache.queryUrl === queryUrl && now - tzCache.fetchedAt < TZ_TTL_MS) {
+  if (tzCache && Date.now() - tzCache.fetchedAt < TZ_TTL_MS) {
     return tzCache.offsetMinutes;
   }
+  // ONE probe per expiry, shared by every concurrent caller.
+  //
+  // A refresh round fires a dozen reads at once, so a dozen probes used to race
+  // here. Behind a VIP that is a real hazard: the fast ones answer from a
+  // healthy node and write the true offset, then a slow one times out against a
+  // sick node and overwrites it with the UTC fallback — which then answers every
+  // request for the next minute, eight hours off. Sharing the flight means the
+  // late failure has nothing left to overwrite.
+  //
+  // The shared flight deliberately carries NO caller signal: whoever arrived
+  // first must not be able to cancel a probe the others are waiting on.
+  tzFlight ??= probeServerOffset(config, fetchImpl).finally(() => {
+    tzFlight = null;
+  });
+  // A caller that was cancelled stops waiting; the flight itself continues for
+  // the others, and its result is still cached.
+  if (!signal) return tzFlight;
+  return Promise.race([
+    tzFlight,
+    new Promise<number>((_, reject) => {
+      if (signal.aborted) return reject(abortError());
+      signal.addEventListener('abort', () => reject(abortError()), { once: true });
+    }),
+  ]);
+}
+
+function abortError(): Error {
+  const e = new Error('This operation was aborted');
+  e.name = 'AbortError';
+  return e;
+}
+
+async function probeServerOffset(
+  config: ConfigSource,
+  fetchImpl: FetchLike | undefined,
+): Promise<number> {
+  const now = Date.now();
   try {
     const env = await graphqlPost<{ time?: { timezone?: string | null } | null }>(
-      buildOapOpts(config.current, fetchImpl, signal),
+      buildOapOpts(config.current, fetchImpl),
       TIME_INFO_QUERY,
     );
     const raw = env.time?.timezone ?? '+0000';
@@ -176,16 +218,12 @@ export async function getServerOffsetMinutes(
       const h = parseInt(m[2], 10);
       const mi = parseInt(m[3], 10);
       const offset = sign * (h * 60 + mi);
-      tzCache = { offsetMinutes: offset, fetchedAt: now, queryUrl };
+      tzCache = { offsetMinutes: offset, fetchedAt: now };
       return offset;
     }
-  } catch (err) {
-    // A probe WE cancelled says nothing about the server's offset. Caching the
-    // UTC fallback from it would make one abandoned request answer every other
-    // request for the next minute with a timezone nobody measured.
-    if (signal?.aborted) throw err;
+  } catch {
     /* fall through to 0 */
   }
-  tzCache = { offsetMinutes: 0, fetchedAt: now, queryUrl };
+  tzCache = { offsetMinutes: 0, fetchedAt: now };
   return 0;
 }

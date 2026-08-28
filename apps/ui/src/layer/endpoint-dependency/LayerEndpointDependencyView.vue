@@ -807,8 +807,7 @@ function edgeRowCrosshair(rowId: string): number | null {
 
     <div v-if="!reachable" class="banner err">
       <template v-if="blocked === 'layer-disabled'">
-        <strong>{{ t('This layer’s template is disabled.') }}</strong>
-        {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+        <strong>{{ t('This page is not available.') }}</strong>
       </template>
       <template v-else-if="blocked === 'store-unreachable'">
         <strong>{{ t('The template store could not be read.') }}</strong>
@@ -1155,8 +1154,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                Retry would invite the operator to keep asking for something
                that cannot change until someone re-enables it. -->
           <div v-else-if="phase === 'failed' && blocked === 'layer-disabled'" class="loader">
-            {{ t('This layer’s template is disabled.') }}
-            {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+            {{ t('This page is not available.') }}
           </div>
           <div v-else-if="phase === 'failed'" class="loader">
             {{ t('Could not load the dependency graph.') }}
