@@ -260,3 +260,31 @@ describe('LayerApi.topology / endpointDependency', () => {
     );
   });
 });
+
+// This method rebuilds the body field by field rather than spreading the
+// config, so a field nobody names here never reaches the BFF — which is exactly
+// how the hourly opt-in was added, typed, gated on the server, and silently
+// dropped in transit. `toMatchObject` would not have caught it either: it
+// ignores absent keys. Assert the SERIALIZED body.
+describe('LayerApi.landing — the hourly opt-in survives serialization', () => {
+  const cfg = {
+    priority: 1,
+    topN: 5,
+    orderBy: 'cpm',
+    columns: [{ metric: 'cpm', label: 'CPM', mqe: 'service_cpm', aggregation: 'sum' as const }],
+  };
+
+  it('sends hourlyKpi when the header asks for it', async () => {
+    const { bff, calls } = makeStub();
+    await new LayerApi(bff).landing('general', { ...cfg, hourlyKpi: true });
+    expect(JSON.parse(JSON.stringify(calls[0][2])).hourlyKpi).toBe(true);
+  });
+
+  it('omits it entirely for every other caller', async () => {
+    const { bff, calls } = makeStub();
+    await new LayerApi(bff).landing('general', cfg);
+    // Absent, not `false` — the BFF gate reads `=== true`, and an explicit
+    // false would still be a field this route did not have before.
+    expect(Object.keys(JSON.parse(JSON.stringify(calls[0][2])))).not.toContain('hourlyKpi');
+  });
+});

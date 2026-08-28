@@ -17,6 +17,7 @@
 
 import { test, expect } from '../support/diagnostics.js';
 import { PROVIDER_SERVICE, LAYER } from '../fixture.js';
+import { selectService } from '../support/layer.js';
 
 // The second click. Lists are the entry point; what an operator opens FROM a
 // row is a separate render path with its own fetch, so a list can be perfect
@@ -48,6 +49,7 @@ test('a trace row opens its detail beside the list', async ({ page, pageErrors }
 
 test('a log row jumps to the trace popout and back', async ({ page, pageErrors }) => {
   await page.goto(`/layer/${LAYER}/logs`);
+  await selectService(page, PROVIDER_SERVICE);
   await page.locator('button.lg-run-btn').click();
 
   const rows = page.locator('.lg-stream .lg-row');
@@ -80,6 +82,7 @@ test('a log row jumps to the trace popout and back', async ({ page, pageErrors }
 
 test('a log row opens its detail with the full content', async ({ page, pageErrors }) => {
   await page.goto(`/layer/${LAYER}/logs`);
+  await selectService(page, PROVIDER_SERVICE);
   await page.locator('button.lg-run-btn').click();
 
   const rows = page.locator('.lg-stream .lg-row');

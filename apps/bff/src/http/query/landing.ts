@@ -46,6 +46,15 @@ import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { clientGone } from '../client-gone.js';
+import { resolveEffectiveLayerTemplate } from '../../logic/layers/effective.js';
+import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
+import {
+  bucketHasValues,
+  getHeaderKpis,
+  rankFromCache,
+  type KpiRead,
+  type ScanFn,
+} from '../../logic/layers/header-kpi-cache.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
 import {
   defaultMinuteWindow,
@@ -56,6 +65,9 @@ import {
 
 export interface LandingRouteDeps extends AuthDeps {
   fetch?: FetchLike;
+  /** Reads the layer's effective template, so the route can refuse a metric
+   *  the template does not declare instead of fetching it. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 interface ListServicesRow {
@@ -142,6 +154,11 @@ export const bodySchema = z.object({
   step: z.enum(['MINUTE', 'HOUR', 'DAY']).optional(),
   startMs: z.number().int().positive().optional(),
   endMs: z.number().int().positive().optional(),
+  // Ask for the layer header's HOURLY figures instead of the window above.
+  // Opt-in, and only the layer header sets it — it is the one screen that
+  // renders the hour's label, so it is the one caller for which substituting a
+  // different window is honest. See the cache gate below.
+  hourlyKpi: z.boolean().optional(),
 });
 
 /**
@@ -285,12 +302,74 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
       const cfg = parsed.data;
+
+      // The template is the boundary of what may be asked for.
+      //
+      // A column names a metric; the cache holds one value per (service,
+      // metric) for exactly the metrics the layer declares. Accepting an
+      // undeclared one would widen both the request and the cache by asking —
+      // so it is refused, and refused rather than dropped, because a caller
+      // that asked for a column and got a row without it cannot tell whether
+      // the metric was rejected or the read failed.
+      const tpl = await resolveEffectiveLayerTemplate(deps.uiTemplateClient, layerKey);
+      // `layer-header` in the JSON; the parser renames it to `metrics`.
+      const declared = tpl?.metrics?.columns;
+      // A column that BRINGS its own MQE names the expression to evaluate. The
+      // Overview is built that way — `w_0`, `w_1`… from its own widgets, which
+      // no layer template declares and never will — so those pass through.
+      //
+      // A column with no expression has the BFF build one from the METRIC NAME,
+      // and reporting a name this layer does not declare is worth doing: it is
+      // almost always a typo or a stale client, and the alternative is a silent
+      // column of dashes.
+      //
+      // It is NOT an authorization boundary. Whether a caller may query metrics
+      // at all is the RBAC query verb's decision; this is template analysis, and
+      // the same request may carry any `mqe` it likes without passing through
+      // here. So it runs only where there is something to check against — a
+      // layer whose template could not be read refuses nothing, since refusing
+      // would cost real callers a working page during a template-store outage
+      // and withhold nothing from anyone.
+      // For an HOURLY request the template's values win, because they decide
+      // the number rather than its presentation: `aggregation` picks sum or avg
+      // for the rollup, and `orderBy` picks WHICH services are in the top-N that
+      // gets rolled up. Trusting the caller for those would let two requests
+      // read one cached hour and report different KPIs from it — and would make
+      // "the template decides" false for the two fields that decide most.
+      //
+      // For everything else the caller's own values stand: it asked about its
+      // own window and is not claiming to render this layer's header.
+      const declaredByMetric = new Map((declared ?? []).map((c) => [c.metric, c]));
+      if (cfg.hourlyKpi === true && declaredByMetric.size > 0) {
+        cfg.columns = cfg.columns.map((c) => {
+          const d = declaredByMetric.get(c.metric);
+          return d ? { ...c, aggregation: d.aggregation ?? c.aggregation } : c;
+        });
+        const templateOrderBy = tpl?.metrics?.orderBy;
+        if (templateOrderBy && declaredByMetric.has(templateOrderBy)) {
+          cfg.orderBy = templateOrderBy;
+        }
+      }
+
+      const namedOnly = cfg.columns.filter((c) => !c.mqe);
+      if (Array.isArray(declared) && declared.length > 0 && namedOnly.length > 0) {
+        const allowed = new Set(declared.map((c) => c.metric));
+        const refused = namedOnly.map((c) => c.metric).filter((m) => !allowed.has(m));
+        if (refused.length > 0) {
+          return reply.code(400).send({ error: 'undeclared_metric', metrics: refused });
+        }
+      }
       const oapLayer = layerKey.toUpperCase();
       const cfgCurrent = deps.config.current;
       const { bulkSize: maxServicesPerBatch, concurrency: batchConcurrency } =
         cfgCurrent.performance.bulk.landing;
       const signal = clientGone(reply);
       const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
+      // The hourly scan OUTLIVES the request that starts it: it is left running
+      // so the next caller is served from it. Carrying this request's
+      // cancellation would mean navigating away kills the work meant to warm
+      // the page you navigate to, and the next request starts it over.
+      const scanOpts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
       // Honor the SPA's topbar time picker when all three triplet fields
       // are present; otherwise fall back to the last-hour MINUTE window
@@ -302,6 +381,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
       let services: ListServicesRow[];
+      let layerRoster: ListServicesRow[] = [];
       try {
         const data = await graphqlPost<{ services: ListServicesRow[] }>(
           opts,
@@ -309,6 +389,13 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           { layer: oapLayer },
         );
         services = data.services ?? [];
+        // The LAYER's whole roster, before any narrowing. The hourly scan reads
+        // this rather than the filtered list: the bucket is keyed by service id,
+        // which is unique across the deployment, so one scan answers every
+        // group. Scanning the narrowed list instead would fill the hour with
+        // only the first group asked for, and every other group would read its
+        // own services as absent for the rest of that hour.
+        layerRoster = services;
         // Optional `?group=` (split-by-service-group menu entry) — narrow
         // the roster to that OAP Service.group before the top-N rollup.
         const group = (req.query as { group?: string }).group;
@@ -389,12 +476,14 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       // single timeout could push the busiest services out of the top-N and
       // rename the layer's default service, with nothing on the wire to say the
       // ranking had been decided on partial information.
-      let totalBatches = 0;
-      let failedBatches = 0;
-      /** Services whose metrics a failed batch left unread — NOT services with
-       *  no traffic. The distinction is the whole point: absent means zero,
-       *  unread means we do not know. */
-      const unread = new Set<string>();
+      /** This request's own fan-out ledger: batches attempted, batches lost,
+       *  and the services those lost batches left UNREAD.
+       *
+       *  Unread is not the same as idle, and the distinction is the whole
+       *  point: absent means zero, unread means we do not know. Ranking an
+       *  unread service as though it reported nothing is a claim about the
+       *  operator's system made from a failure to measure it. */
+      const requestAcct = { total: 0, failed: 0, unread: new Set<string>() };
 
       // Probe `cols` for every service in `svcList`, chunked into
       // per-request batches and drained through the bounded pool. Keyed by
@@ -403,14 +492,36 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       const probeColumns = async (
         svcList: typeof services,
         cols: typeof resolved,
+        /** Overrides the request's window. The hourly KPI scan asks for its own
+         *  completed hour rather than whatever the topbar currently shows. */
+        windowOverride?: Window,
+        /** Where to charge this fan-out. Defaults to the request's own ledger.
+         *  The hourly scan passes its own, because it OUTLIVES the request that
+         *  started it: a scan still running while that request assembles its
+         *  reply would otherwise be adding to — and, on the stale-fallback path,
+         *  overwriting — counters the reply is about to read. */
+        acct: { total: number; failed: number; unread: Set<string> } = requestAcct,
+        /** Which storage stage to read. Defaults to what the request asked for.
+         *
+         *  The hourly scan passes `false` — always hot. The hour it holds is a
+         *  property of the layer, not of the pill a particular operator happens
+         *  to have on, and one cache keyed by layer cannot hold two answers for
+         *  the same hour. Reading hot keeps it one answer, and the header is
+         *  the one place a cold read buys nothing anyway: a completed hour that
+         *  is minutes old has not aged into cold storage. */
+        stage: boolean = coldStage,
+        /** Which OAP options — i.e. whose cancellation — this fan-out runs
+         *  under. The hourly scan passes `scanOpts`, which carries none. */
+        oapOpts: typeof opts = opts,
       ): Promise<Map<string, MqeResultShape>> => {
+        const w = windowOverride ?? window;
         const out = new Map<string, MqeResultShape>();
         if (svcList.length === 0 || !cols.some((c) => !!c.expression)) return out;
         const chunks: (typeof svcList)[] = [];
         for (let i = 0; i < svcList.length; i += maxServicesPerBatch) {
           chunks.push(svcList.slice(i, i + maxServicesPerBatch));
         }
-        totalBatches += chunks.length;
+        acct.total += chunks.length;
         await mapPool(chunks, batchConcurrency, async (batch) => {
           const fragments: string[] = [];
           const back: { a: string; key: string }[] = [];
@@ -423,8 +534,8 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
                 buildMqeFragment(
                   a,
                   { expression, serviceName: svc.value, normal: svc.normal !== false },
-                  window,
-                  coldStage,
+                  w,
+                  stage,
                 ),
               );
             });
@@ -432,7 +543,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           if (fragments.length === 0) return;
           try {
             const data = await graphqlPost<Record<string, MqeResultShape>>(
-              opts,
+              oapOpts,
               `query LandingMqe { ${fragments.join('\n    ')} }`,
             );
             for (const { a, key } of back) {
@@ -441,64 +552,231 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           } catch {
             // Batch-local failure. Those cells stay empty — but remember WHICH
             // services they were, because an unread metric is not a low one and
-            // must not be ranked as though it were. See `unread` below.
-            failedBatches++;
-            for (const svc of batch) unread.add(svc.id);
+            // must not be ranked as though it were. See the ledger above.
+            acct.failed++;
+            for (const svc of batch) acct.unread.add(svc.id);
           }
         });
         return out;
       };
 
-      // Bound the column fan-out to `landingServiceCap` services. The
-      // landing lists ALL services; when a layer exceeds the cap we run a
-      // cheap single-metric ranking pass (the `orderBy` column over every
-      // service) to pick the TRUE top-`cap`, then fetch the full columns for
-      // just those. At or under the cap we probe everyone directly. The UI
-      // surfaces "top N of M" so the trim is never silent.
+      // The header's values come from the hourly cache, not from this request.
+      //
+      // Ranking used to be the expensive half: to find the top `cap` we read
+      // the sort metric for EVERY service, which at `bulkSize: 6` is hundreds
+      // of requests on a large layer, repeated every refresh, for numbers that
+      // describe an hour. The cache holds one completed hour's scalar per
+      // (service, metric) — the same bulk fan-out, run once per layer per hour
+      // over that hour — so ranking is now a sort in memory and costs nothing.
+      //
+      // `null` means the cache has neither the hour nor one before it and the
+      // scan outran its bound. The header shows a dash rather than the page
+      // hanging on a first visit to a large layer.
       const cap = deps.config.current.query.landingServiceCap;
-      let sampled = services;
-      if (totalServiceCount > cap) {
-        const orderByCol = resolved.find((r) => r.column.metric === cfg.orderBy && r.expression);
-        if (orderByCol) {
-          const ranked = await probeColumns(services, [orderByCol]);
-          const scored = services.map((svc) => ({ svc, v: collapseToScalar(ranked.get(`${svc.id}#0`)) }));
-          scored.sort((a, b) => {
-            if (a.v == null && b.v == null) return 0;
-            if (a.v == null) return 1;
-            if (b.v == null) return -1;
-            return b.v - a.v;
+
+      // WHAT may be cached: the header's KPI metrics, and nothing else.
+      //
+      // This is not a general metric cache — it holds ONE completed hour for
+      // the KPI strip at the top of a layer, so the only expressions that may
+      // enter it are the ones the layer template declares under
+      // `layer-header.columns`. Anything outside that set takes the live
+      // fan-out below.
+      //
+      // The whitelist is a set of (MQE, entity) pairs and does not ask who is
+      // calling. A column's name is the caller's own — the Overview calls
+      // `service_cpm` "w_0" — so keying on the name would both miss the match
+      // and let two different expressions collide under one familiar label.
+      // Keyed on what was actually evaluated, the answer is the same value for
+      // whoever asks, and a column whose MQE was overridden in setup simply
+      // falls outside the set instead of quietly collecting numbers computed
+      // for the original expression.
+      //
+      // The scan reads the WHOLE whitelist regardless of how much of it this
+      // request wanted. Filling only the requested part would let whichever
+      // request arrived first decide the hour's contents, and the rest would
+      // read as dashes until the hour rolled.
+      const declaredResolved = (declared ?? [])
+        .map((c) => ({ column: c, expression: resolveMqe(c.metric, c.mqe, layerKey) }))
+        .filter((r) => r.expression !== null);
+      const whitelist = new Set(declaredResolved.map((r) => r.expression as string));
+      // Doubles as the cache's identity: an admin editing the header's columns
+      // changes what the hour means, so buckets held for the old set are
+      // dropped rather than served under the new one.
+      //
+      // The OAP offset is part of it because the hour is floored on the SERVER's
+      // clock. If the timezone probe falls back to UTC during an outage and then
+      // recovers, buckets read on the wrong grid would otherwise stay held under
+      // the same signature and be served as if they were the right hour.
+      const headerSignature = `${offset}\n${[...whitelist].sort().join('\n')}`;
+      // TWO conditions, and they answer different questions.
+      //
+      // `hourlyKpi` is the caller saying it wants the completed hour rather
+      // than the window it sent — only the layer header says that, because it
+      // is the only screen that prints the hour's label beside the numbers.
+      // Without it the Overview's page-side widgets would be handed hour-old
+      // figures under `durationStart`/`durationEnd` describing the ten minutes
+      // they asked for, with nothing on screen to tell.
+      //
+      // The whitelist then bounds WHAT such a caller may be given, by
+      // expression and without regard to who asked.
+      const cacheable =
+        cfg.hourlyKpi === true &&
+        resolved.length > 0 &&
+        resolved.every((r) => r.expression !== null && whitelist.has(r.expression));
+
+      let sampled: typeof services = services;
+      // Did the hourly path actually answer? If it did not — a deployment too
+      // young for OAP's hour flush to have run, so neither the completed hour
+      // nor the one in progress holds anything — the request reads the
+      // operator's own window instead, exactly as it did before this cache
+      // existed. An empty hour must not decide the ranking: it would sort the
+      // layer alphabetically and change which service the page opens on.
+      let servedFromCache = false;
+      let scalarByService = new Map<string, Record<string, number | null>>();
+      let kpiRead: KpiRead | null = null;
+      // Whether a scan is actually running for the hour. Distinct from "no
+      // bucket": an hour that was read and holds nothing, or one whose read
+      // failed, also come back without a bucket, and neither is worth waiting
+      // for. See `KpiRead.state`.
+      let hourScanRunning = false;
+      // The fan-out path probes every sampled service in full, so it already
+      // holds the series the header draws; the cache path holds scalars only
+      // and reads the series separately for the top rows.
+      let probedCells: Awaited<ReturnType<typeof probeColumns>> | null = null;
+
+      if (cacheable) {
+        const scan: ScanFn = async (_layerKey, hourStartMs) => {
+          // The scan's fan-out is charged to the BUCKET, not to this request:
+          // the bucket outlives us, and whoever is served from it later must
+          // be able to say how complete it is.
+          const acct = { total: 0, failed: 0, unread: new Set<string>() };
+          // The SAME bulk path, asked for the target hour at HOUR precision, so
+          // OAP returns one bucket per service instead of sixty the BFF would
+          // then collapse.
+          const hourWindow = windowFromRange('HOUR', hourStartMs, hourStartMs + 3_599_999, offset);
+          const byService = new Map<string, Record<string, number | null>>();
+          const nothing = { total: 0, failed: 0 };
+          if (!hourWindow) {
+            return { byService, unread: acct.unread, batches: nothing };
+          }
+          const cells = await probeColumns(
+            layerRoster,
+            declaredResolved,
+            hourWindow,
+            acct,
+            false,
+            scanOpts,
+          );
+          for (const svc of layerRoster) {
+            const row: Record<string, number | null> = {};
+            declaredResolved.forEach(({ expression }, ci) => {
+              if (expression) row[expression] = collapseToScalar(cells.get(`${svc.id}#${ci}`));
+            });
+            byService.set(svc.id, row);
+          }
+          return {
+            byService,
+            unread: acct.unread,
+            batches: { total: acct.total, failed: acct.failed },
+          };
+        };
+        const read = await getHeaderKpis(layerKey, headerSignature, scan, Date.now(), offset);
+        hourScanRunning = read.state === 'warming';
+        if (read.state === 'hit' && read.bucket && bucketHasValues(read.bucket)) {
+          const orderByExpr =
+            resolved.find((r) => r.column.metric === cfg.orderBy)?.expression ?? '';
+          sampled = rankFromCache(read.bucket, services, orderByExpr, cap, (x) => x.value);
+          scalarByService = read.bucket.byService;
+          servedFromCache = true;
+          kpiRead = read;
+        }
+        // Anything else leaves `kpiRead` null: the response says nothing about
+        // an hour, and the values below describe the picked window like any
+        // other read.
+      }
+      // Still WARMING: the hour is being scanned and nothing is held to answer
+      // from yet. Reading the picked window live instead costs a second fan-out
+      // the size of the one already running, and every concurrent caller adds
+      // another — on a large layer that is the whole expense this cache exists
+      // to remove, paid twice. Above `headerWarmupMaxServices` the header says
+      // it is still reading and the running scan warms the next request; below
+      // it a live read is cheap enough to be worth doing.
+      //
+      // Only a caller that ASKED for the hour can be told to wait for it.
+      // Everything else wanted the window it sent and gets it.
+      // Waiting is only honest when a scan IS running that will answer. An hour
+      // read and found empty, a read that failed, and a request whose columns
+      // fall outside the whitelist all come back without a bucket too — and
+      // telling any of them to wait leaves "still reading" on screen for an
+      // answer that is never coming. `hourScanRunning` is the cache saying so
+      // rather than the route inferring it from an absence.
+      const warmupCap = deps.config.current.performance.limits.headerWarmupMaxServices;
+      const kpiWarming =
+        cfg.hourlyKpi === true &&
+        hourScanRunning &&
+        !servedFromCache &&
+        layerRoster.length > warmupCap;
+
+      if (kpiWarming) {
+        // Trim to the same cap the fan-out would have. Skipping the block below
+        // also skips its capping, which would put the layer's WHOLE roster in
+        // `sampledRows` — ten thousand rows of nulls on exactly the layer this
+        // valve exists for. Order is the roster's own; there is nothing read to
+        // rank on yet, and the header says so.
+        sampled = services.slice(0, cap);
+      }
+
+      if (!servedFromCache && !kpiWarming) {
+        // Bound the column fan-out to `landingServiceCap` services. At or under
+        // the cap everyone is probed; above it a cheap single-metric ranking
+        // pass over every service picks the true top-`cap` first. The UI
+        // surfaces "top N of M" so the trim is never silent.
+        sampled = services;
+        if (totalServiceCount > cap) {
+          const orderByCol = resolved.find((r) => r.column.metric === cfg.orderBy && r.expression);
+          if (orderByCol) {
+            const ranked = await probeColumns(services, [orderByCol]);
+            const scored = services.map((svc) => ({ svc, v: collapseToScalar(ranked.get(`${svc.id}#0`)) }));
+            scored.sort((a, b) => {
+              if (a.v == null && b.v == null) return 0;
+              if (a.v == null) return 1;
+              if (b.v == null) return -1;
+              return b.v - a.v;
+            });
+            sampled = scored.slice(0, cap).map((x) => x.svc);
+          } else {
+            sampled = services.slice(0, cap);
+          }
+        }
+        probedCells = await probeColumns(sampled, resolved);
+        for (const svc of sampled) {
+          const row: Record<string, number | null> = {};
+          resolved.forEach(({ expression }, ci) => {
+            if (expression) row[expression] = collapseToScalar(probedCells!.get(`${svc.id}#${ci}`));
           });
-          sampled = scored.slice(0, cap).map((x) => x.svc);
-        } else {
-          // No orderBy column to rank by — fall back to the first `cap`.
-          sampled = services.slice(0, cap);
+          scalarByService.set(svc.id, row);
         }
       }
-      const probed = await probeColumns(sampled, resolved);
 
-      // Step 3 — assemble per-row metrics + retain the per-bucket
-      // series so the layer header can render a sparkline under each
-      // KPI (aggregated point-wise across topN below).
-      const seriesByServiceMetric = new Map<string, Map<string, Array<number | null>>>();
+      // Step 3 — rows from the CACHE, series for the top rows only.
+      //
+      // The values are already held: the hourly scan read every service, so a
+      // second fan-out over the sampled hundred would ask for what is in hand.
+      // The series is the one thing the cache deliberately does not hold — at
+      // 100k services it would be tens of millions of points — and it is only
+      // ever drawn for the template's `topN` rows, so it is read for those and
+      // nobody else. That read is a handful of fragments whatever the layer's
+      // size, which is the property the old shape did not have.
       const rows: LandingServiceRow[] = sampled.map((svc) => {
+        const held = scalarByService.get(svc.id) ?? {};
         const metrics: Record<string, number | null> = {};
-        const seriesMap = new Map<string, Array<number | null>>();
-        resolved.forEach(({ column }, cIdx) => {
-          const raw = probed.get(`${svc.id}#${cIdx}`);
-          const series = collapseToSeries(raw);
-          if (series) {
-            seriesMap.set(
-              column.metric,
-              series.map((v) => postProcess(v, column.scale, column.precision)),
-            );
-          }
+        for (const { column, expression } of resolved) {
           metrics[column.metric] = postProcess(
-            collapseToScalar(raw),
+            (expression ? held[expression] : null) ?? null,
             column.scale,
             column.precision,
           );
-        });
-        seriesByServiceMetric.set(svc.id, seriesMap);
+        }
         return {
           serviceId: svc.id,
           serviceName: svc.value,
@@ -508,25 +786,66 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         };
       });
 
+      // A cache-served page arrives ranked — `rankFromCache` sorted on the same
+      // values these rows carry, so re-sorting could only disagree with it.
+      // The fan-out path does not: its roster is in listing order, so the
+      // ranking happens here.
+      //
       // A service whose metric we could not READ is not a service with no
       // traffic, and must not be ranked as one — sorting it last is a claim
       // about the operator's system made from a failure to measure it. Unread
       // services rank ABOVE the genuinely-absent, so a timeout cannot silently
       // evict the busiest service from the top-N; the response says the ranking
       // was partial so the reason is visible rather than inferred from a gap.
-      const rank = (r: (typeof rows)[number]): 0 | 1 | 2 => {
-        if (r.metrics[cfg.orderBy] != null) return 0;
-        return unread.has(r.serviceId) ? 1 : 2;
-      };
-      rows.sort((a, b) => {
-        const ra = rank(a);
-        const rb = rank(b);
-        if (ra !== rb) return ra - rb;
-        const av = a.metrics[cfg.orderBy];
-        const bv = b.metrics[cfg.orderBy];
-        if (av == null || bv == null) return a.serviceName.localeCompare(b.serviceName);
-        return bv - av;
-      });
+      if (!servedFromCache) {
+        const rank = (r: (typeof rows)[number]): 0 | 1 | 2 => {
+          if (r.metrics[cfg.orderBy] != null) return 0;
+          return requestAcct.unread.has(r.serviceId) ? 1 : 2;
+        };
+        rows.sort((a, b) => {
+          const ra = rank(a);
+          const rb = rank(b);
+          if (ra !== rb) return ra - rb;
+          const av = a.metrics[cfg.orderBy];
+          const bv = b.metrics[cfg.orderBy];
+          if (av == null || bv == null) return a.serviceName.localeCompare(b.serviceName);
+          return bv - av;
+        });
+      }
+
+      // Nothing while warming. The rows are in roster order then — the ranking
+      // has not been read — so these would be an arbitrary handful of services
+      // drawn under a "top N" heading, and each one costs a live query on the
+      // layer the valve exists to protect.
+      const topRowsForSeries = kpiWarming ? [] : rows.slice(0, cfg.topN);
+      const seriesByServiceMetric = new Map<string, Map<string, Array<number | null>>>();
+      if (topRowsForSeries.length > 0) {
+        const byId = new Map(sampled.map((svc) => [svc.id, svc]));
+        // The fan-out path already read the full series for every sampled
+        // service — the scalars it produced were collapsed FROM them — so
+        // asking again for the top rows would be the same query twice. Only a
+        // cache hit needs this read: the bucket holds scalars and nothing else.
+        const seriesProbe =
+          probedCells ??
+          (await probeColumns(
+            topRowsForSeries.map((r) => byId.get(r.serviceId)).filter((x): x is (typeof sampled)[number] => !!x),
+            resolved,
+          ));
+        topRowsForSeries.forEach((r) => {
+          const seriesMap = new Map<string, Array<number | null>>();
+          resolved.forEach(({ column }, cIdx) => {
+            const series = collapseToSeries(seriesProbe.get(`${r.serviceId}#${cIdx}`));
+            if (series) {
+              seriesMap.set(
+                column.metric,
+                series.map((v) => postProcess(v, column.scale, column.precision)),
+              );
+            }
+          });
+          seriesByServiceMetric.set(r.serviceId, seriesMap);
+        });
+      }
+
       const topRows = rows.slice(0, cfg.topN);
 
       // Step 5 — aggregates for the KPI tile. Each header column becomes a
@@ -580,8 +899,16 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       // still a drawable answer, and the graph layer's acceptance rule depends
       // on that — but the ranking was decided on incomplete data and a caller
       // that shows a "busiest service" is entitled to know.
+      // The response is as complete as everything that fed it: this request's
+      // own reads, plus the scan behind whichever bucket answered the header.
+      // Charging only the live reads meant an hour whose scan lost a batch was
+      // reported as sound on every request but the one that filled it.
+      const bucketBatches = kpiRead?.bucket?.batches ?? { total: 0, failed: 0 };
+      const failedAll = requestAcct.failed + bucketBatches.failed;
       const metricsPartial =
-        failedBatches > 0 ? { failedChunks: failedBatches, totalChunks: totalBatches } : undefined;
+        failedAll > 0
+          ? { failedChunks: failedAll, totalChunks: requestAcct.total + bucketBatches.total }
+          : undefined;
 
       const body: LandingResponse = {
         layer: layerKey,
@@ -592,6 +919,16 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         durationStart: window.start,
         durationEnd: window.end,
         ...(metricsPartial ? { metricsPartial } : {}),
+        ...(kpiWarming ? { kpiWarming: true } : {}),
+        ...(kpiRead?.bucket
+          ? {
+              kpiHour: {
+                hourStartMs: kpiRead.bucket.hourStartMs,
+                stale: kpiRead.stale === true,
+                ...(kpiRead.partial ? { partial: true } : {}),
+              },
+            }
+          : {}),
         rows: topRows,
         // `rows` is already sorted desc by orderBy and sliced to topN;
         // `sampledRows` is the full set the BFF probed (post-sort), so

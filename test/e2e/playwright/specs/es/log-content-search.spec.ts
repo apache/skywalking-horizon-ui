@@ -16,7 +16,8 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { LAYER } from '../fixture.js';
+import { LAYER, PROVIDER_SERVICE } from '../fixture.js';
+import { selectService } from '../support/layer.js';
 
 // Searching stored logs by CONTENT, which only this deployment can do.
 //
@@ -28,6 +29,7 @@ import { LAYER } from '../fixture.js';
 test('a content search narrows the stored-log stream', async ({ page, pageErrors }) => {
   test.setTimeout(180_000);
   await page.goto(`/layer/${LAYER}/logs`);
+  await selectService(page, PROVIDER_SERVICE);
 
   const content = page.locator('input[name="log-content"]');
   await expect(content, 'ElasticSearch reports keyword support, so the box belongs here').toBeVisible(

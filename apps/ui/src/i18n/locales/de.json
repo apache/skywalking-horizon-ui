@@ -2873,5 +2873,10 @@
   "ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.": "ⓘ Dies sind Einstellungen aus OAPs `application.yml`. Dieses Backend hält eine Aufbewahrungsdauer für alles, was ein Record enthält, und eine für alles, was eine Metrik enthält — die Werte oben sind echt, lassen sich aber nicht einzeln anpassen. Aufbewahrung je Datenklasse gibt es nur bei BanyanDB.",
   "One bydb.yml group per row · widths proportional to total retention": "Eine bydb.yml-Gruppe je Zeile · Breite proportional zur Gesamtaufbewahrung",
   "This page is not available.": "Diese Seite ist nicht verfügbar.",
-  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "Für dieses OAP ist keine Cold-Stage konfiguriert, daher liefert jede Abfrage nichts, welches Fenster Sie auch wählen. Schalten Sie Cold aus."
+  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "Für dieses OAP ist keine Cold-Stage konfiguriert, daher liefert jede Abfrage nichts, welches Fenster Sie auch wählen. Schalten Sie Cold aus.",
+  "These metrics are read once per hour, not per refresh.": "Diese Metriken werden einmal pro Stunde gelesen, nicht bei jeder Aktualisierung.",
+  "metrics for {range}": "Metriken für {range}",
+  "metrics for {range} — a newer hour is still loading": "Metriken für {range} — eine neuere Stunde wird noch geladen",
+  "metrics for the hour so far": "Metriken der laufenden Stunde",
+  "Reading the last completed hour…": "Letzte abgeschlossene Stunde wird gelesen…"
 }

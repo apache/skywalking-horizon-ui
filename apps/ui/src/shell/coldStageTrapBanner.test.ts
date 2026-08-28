@@ -98,3 +98,36 @@ describe('the cold-stage trap banner', () => {
     expect(w.text()).toContain('7');
   });
 });
+
+// Horizon sends the cold flag for traces, logs and metrics only, so the classes
+// it does NOT read under cold must not decide what this banner says. The
+// trigger is the SHALLOWEST class, and alarms, events and profiling — all in
+// `records.normal` — routinely have the shallowest retention of the lot. Read
+// there, a one-day `normal` raised the bar to one day and SUPPRESSED the
+// warning for every range in between, which is exactly the range an operator
+// flipping Cold is most likely to be looking at.
+it('warns on the shallowest class it actually reads, not the shallowest there is', async () => {
+  setActivePinia(createPinia());
+  ttl.value = {
+    stages: {
+      hot: {
+        records: { normal: 1, trace: 30, log: 30, zipkinTrace: 1, browserErrorLog: 30 },
+        metrics: { minute: 30, hour: 30, day: 30, metadata: 30 },
+      },
+      cold: {
+        records: { normal: 90, trace: 90, log: 90, zipkinTrace: 90, browserErrorLog: 90 },
+        metrics: { minute: 90, hour: 90, day: 90, metadata: 90 },
+      },
+    },
+  };
+  const w = mountBanner();
+  useColdStageStore().set(true);
+  const time = useTimeRangeStore();
+  // Ten days back: past `normal`, well inside the thirty days every class this
+  // page reads under cold still keeps hot. A cold read here returns nothing.
+  time.selectCustom(Date.now() - 11 * DAY, Date.now() - 10 * DAY, 'HOUR');
+  await w.vm.$nextTick();
+
+  expect(w.text(), 'a one-day `records.normal` hid the warning').toContain('Pick a window older than');
+  expect(w.text()).toContain('30');
+});

@@ -119,15 +119,18 @@ const alarmsQuery = useQuery({
    * `fetchLimit` is in the key so a config change re-fetches with
    * the new cap on the next render tick. */
   queryKey: alarmsKey,
-  queryFn: () => {
+  queryFn: ({ signal }) => {
     const end = Date.now();
     const start = end - windowMs.value;
-    return bff.alarms.list({
-      startTime: start,
-      endTime: end,
-      layer: hasQueryAlarms.value && props.layer ? props.layer : undefined,
-      pageSize: fetchLimit.value,
-    });
+    return bff.alarms.list(
+      {
+        startTime: start,
+        endTime: end,
+        layer: hasQueryAlarms.value && props.layer ? props.layer : undefined,
+        pageSize: fetchLimit.value,
+      },
+      signal,
+    );
   },
   // The round decides when this reads. Holding it fresh for 30 seconds meant
   // a round at a shorter cadence redrew every other widget on the dashboard

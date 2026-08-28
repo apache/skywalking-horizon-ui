@@ -257,6 +257,11 @@ export function useOverviewDashboard(idRef: Ref<string>) {
             reqs: g.reqs,
             mqeReqs,
             aggregates: res.aggregates,
+            // A group that aggregates page-side fans out per service, so a lost
+            // batch makes its rollup quietly LOW rather than absent. Carried
+            // through so the page can say so; self-aggregating groups answer
+            // null on failure and need no help.
+            metricsPartial: res.metricsPartial ?? null,
           }));
         },
         // The round decides when this fetches; nothing else may. Holding an
@@ -331,6 +336,21 @@ export function useOverviewDashboard(idRef: Ref<string>) {
 
   const isLoadingData = computed(() => layerQueries.value.some((q) => q.isLoading));
 
+  /** How much of the page's metric fan-out could not be read, across every
+   *  group. Absent when everything answered. */
+  const metricsPartial = computed<{ failedChunks: number; totalChunks: number } | null>(() => {
+    let failed = 0;
+    let total = 0;
+    for (const q of layerQueries.value) {
+      const p = (q.data as { metricsPartial?: { failedChunks: number; totalChunks: number } | null } | undefined)
+        ?.metricsPartial;
+      if (!p) continue;
+      failed += p.failedChunks;
+      total += p.totalChunks;
+    }
+    return failed > 0 ? { failedChunks: failed, totalChunks: total } : null;
+  });
+
   return {
     isLoading: dash.isLoading,
     isLoadingData,
@@ -338,5 +358,6 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     dashboard,
     widgets,
     values,
+    metricsPartial,
   };
 }

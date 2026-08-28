@@ -146,6 +146,22 @@ The block is also accepted as `layer-header` — what every bundled template aut
 
 At most **10** columns — the service list's query rejects more. Publishing is refused outright if two columns share a `metric`, if `orderBy` names no column, if a `metric` or `label` is empty, or if there are more than 10 columns. The editor holds you to the first two and the cap automatically, and marks an emptied `metric` or `label` invalid as you type.
 
+### What window these columns describe
+
+The values in this table, and the KPI strip above it, describe **one completed hour** — not the range in the time picker. The header names the hour it is showing (*09:00–10:00*), so the figures are never older than they appear, and everything below the header still follows the picker as usual.
+
+The hour is taken about ten minutes after it ends, giving the backend time to finish aggregating it; shortly after ten past, the header moves on to the hour that just closed. Between those moments the numbers do not change, so a refresh that leaves them exactly as they were is the expected behaviour rather than a stalled page.
+
+Two states are worth recognising on screen:
+
+- **A star beside each value**, and a note saying a newer hour is still loading. The previous hour is being shown while the new one is read, so the figures are around two hours old rather than one. It clears on its own.
+
+- **"metrics for the hour so far"**, on a deployment new enough that no completed hour holds anything yet. The values are the hour in progress and settle once one has closed.
+
+**No hour named at all** means the backend has not yet written hour-level figures for this layer. They are aggregated on a longer cycle than minute-level ones, so a freshly-started deployment has none for a while, and neither do the opening minutes of any hour. The header falls back to the time picker's own window until they appear, which is what it did before it read by the hour. A finished hour is preferred to the one in progress whenever one is available, including the hour before the newest — the hour in progress is what you see when there is no finished hour to show at all.
+
+Editing the columns here changes what the header reads, so the hour it was holding is discarded and read again with the new set — the first load after a push is the slower one.
+
 ## `dashboards`
 
 The bulk of the template. A map from scope to an ordered widget array.

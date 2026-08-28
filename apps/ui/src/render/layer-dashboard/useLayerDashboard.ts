@@ -146,6 +146,31 @@ export interface DashboardRange {
   endMs: number;
 }
 
+/**
+ * Bucket position of an OAP duration bound, as a comparable number.
+ *
+ * The BFF asks OAP for whole buckets, so the series a response carries begin at
+ * a TRUNCATED bound — `durationStart` — not at the millisecond the browser
+ * happened to ask from. Aligning two entities on their request times therefore
+ * mis-set the offset by a whole bucket whenever their sub-bucket remainders
+ * straddled a half-step, which draws one entity's series shifted against the
+ * other's: the failure this alignment exists to prevent.
+ *
+ * The strings are OAP-server local (`YYYY-MM-DD HHmm` / ` HH` / no time part),
+ * and both entities were answered by the same deployment, so reading them as if
+ * they were UTC puts every entity on ONE grid without needing the server's
+ * offset. The absolute value is meaningless; only differences are used.
+ */
+export function bucketMsOfDuration(s: string | undefined, step: DashboardRange['step']): number | null {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2})(\d{2})?)?$/.exec(s.trim());
+  if (!m) return null;
+  const [, y, mo, d, hh, mm] = m;
+  if (step === 'MINUTE' && mm === undefined) return null;
+  if (step === 'HOUR' && hh === undefined) return null;
+  return Date.UTC(+y, +mo - 1, +d, hh ? +hh : 0, mm ? +mm : 0);
+}
+
 export function useLayerDashboard(
   layerKey: Ref<string>,
   service: Ref<string | null>,
@@ -620,14 +645,28 @@ export function useLayerDashboard(
      */
     windowByEntity: computed(() => {
       const out = new Map<string, DashboardRange | null>();
+      // What OAP was asked for, not what the browser typed: see
+      // `bucketMsOfDuration`.
+      //
+      // A bound that cannot be read yields NO window rather than the request's,
+      // because the two are different grids. Mixing them across a cohort is
+      // worse than having neither: one entity placed by bucket beside another
+      // placed by wall-clock puts a series hours out, and nothing on screen
+      // says so. With no window the series is simply drawn unaligned, which is
+      // what it was before any of this.
+      const readWith = (resp: DashboardResponse | undefined): DashboardRange | null => {
+        if (!resp) return null;
+        const start = bucketMsOfDuration(resp.durationStart, resp.step);
+        const end = bucketMsOfDuration(resp.durationEnd, resp.step);
+        if (start == null || end == null) return null;
+        return { step: resp.step, startMs: start, endMs: end };
+      };
       const p = primaryEntity.value;
-      if (p && q.data.value) out.set(p, q.data.value.requestWindow);
+      if (p && q.data.value) out.set(p, readWith(q.data.value.response));
       const results = entityQueries.value;
       fanoutList.value.forEach((entity, i) => {
-        const env = results[i]?.data as
-          | { response: DashboardResponse; requestWindow: DashboardRange | null }
-          | undefined;
-        if (env) out.set(entity, env.requestWindow);
+        const env = results[i]?.data as { response: DashboardResponse } | undefined;
+        if (env) out.set(entity, readWith(env.response));
       });
       return out;
     }),
