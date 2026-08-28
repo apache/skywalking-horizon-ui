@@ -19,8 +19,10 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
 import Modal from '@/features/operate/_shared/Modal.vue';
+import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n();
+const auth = useAuthStore();
 
 const props = withDefaults(defineProps<{
   row: LogRow | null;
@@ -114,7 +116,7 @@ function onJumpTrace(): void {
         </div>
         <div class="ld-ctrls">
           <button class="sw-btn small" :class="{ 'is-copied': copied }" type="button" @click="copyContent">{{ copied ? t('Copied') : t('Copy') }}</button>
-          <button v-if="row.traceId" class="sw-btn small" type="button" @click="onJumpTrace">↗ {{ t('trace') }}</button>
+          <button v-if="row.traceId && auth.hasVerb('traces:read')" class="sw-btn small" type="button" @click="onJumpTrace">↗ {{ t('trace') }}</button>
         </div>
       </div>
       <div class="ld-meta">

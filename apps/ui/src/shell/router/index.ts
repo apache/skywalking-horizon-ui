@@ -87,7 +87,7 @@ function layerRoute(): RouteRecordRaw {
       // The entry component renders the Zipkin view for this path regardless.
       { path: 'zipkin-trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
-      { path: 'evaluation-record', component: () => import('@/layer/evaluation-record/LayerEvaluationRecordView.vue') },
+      { path: 'evaluation-record', component: () => import('@/layer/evaluation-record/LayerEvaluationRecordView.vue'), meta: { verb: 'logs:read' } },
       // BROWSER-layer JS error logs + source-map de-obfuscation (#6784).
       { path: 'browser-errors', component: () => import('@/layer/browser-errors/LayerBrowserErrorsView.vue') },
       // On-demand pod logs (live tail). Instance-pinned; only K8s-
