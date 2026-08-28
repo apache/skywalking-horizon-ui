@@ -44,8 +44,9 @@ export interface EvaluationRecordQueryRequest {
   page?: number;
   pageSize?: number;
   windowMinutes?: number;
-  startTime?: string;
-  endTime?: string;
+  /** Absolute epoch milliseconds; the BFF formats these in OAP's timezone. */
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface EvaluationRecordRow {

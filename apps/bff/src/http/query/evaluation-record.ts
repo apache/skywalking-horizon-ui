@@ -43,6 +43,7 @@ import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
+import { readPage, type PagedQuerySpec } from '../../logic/paging/read-page.js';
 
 export interface EvaluationRecordRouteDeps {
   config: ConfigSource;
@@ -52,6 +53,7 @@ export interface EvaluationRecordRouteDeps {
 
 const DEFAULT_WINDOW_MIN = 30;
 const SCORE_SCALE = 1_000_000;
+const WINDOW_CAP_MS = 7 * 24 * 60 * 60_000;
 /** OAP feeds `paging.pageSize` straight to its storage layer as a
  *  LIMIT clause. The cap is `performance.limits.maxPageSize.logs`
  *  (default 100); mirror that server-side so the cap holds against
@@ -83,13 +85,20 @@ function scoreBoundToStoredValue(value: number | null, lowerBound: boolean): num
  *    - explicit SECOND form `YYYY-MM-DD HHmmss` — forwarded verbatim.
  *    - no explicit form → rolling fallback, formatted OAP-local at
  *      SECOND precision using the cached server offset. */
-function defaultWindow(
-    offsetMinutes: number,
-    minutes?: number,
-    explicit?: { startTime?: string; endTime?: string },
-): { start: string; end: string } {
-  if (explicit?.startTime && explicit.endTime) {
-    return { start: toSecond(explicit.startTime), end: toSecond(explicit.endTime) };
+function defaultWindow(offsetMinutes: number, minutes?: number, explicit?: { startTime?: number; endTime?: number }):
+    { start: string; end: string } | { error: string } {
+  const hasStart = explicit?.startTime != null;
+  const hasEnd = explicit?.endTime != null;
+  if (hasStart || hasEnd) {
+    if (!hasStart || !hasEnd) return { error: 'startTime and endTime must be provided together' };
+    const start = Number(explicit?.startTime);
+    const end = Number(explicit?.endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      return { error: 'startTime and endTime must be epoch milliseconds' };
+    }
+    if (end <= start) return { error: 'endTime must be greater than startTime' };
+    if (end - start > WINDOW_CAP_MS) return { error: 'time window cannot exceed 7 days' };
+    return { start: fmtSecond(start, offsetMinutes), end: fmtSecond(end, offsetMinutes) };
   }
   const m = Number.isFinite(minutes) && (minutes as number) > 0
       ? Math.min(60 * 24 * 7, Math.round(minutes as number))
@@ -99,16 +108,7 @@ function defaultWindow(
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
-function toSecond(s: string): string {
-  // Pad MINUTE-precision strings ("YYYY-MM-DD HHmm") to seconds. Pass
-  // SECOND-precision strings through unchanged.
-  return /\s\d{4}$/.test(s) ? `${s}00` : s;
-}
-
-const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
-  query QueryGenAIEvaluationRecords($evaluationRecordCondition: GenAIEvaluationRecordQueryCondition) {
-    data: queryGenAIEvaluationRecord(condition: $evaluationRecordCondition) {
-      genAIEvaluationRecordList {
+const EVALUATION_RECORD_SELECTION = /* GraphQL */ `
         traceRef { type traceId segmentId spanIndex spanId }
         serviceId
         serviceName
@@ -126,7 +126,19 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
         reason
         judgeModel
         evaluationTime
-      }
+`;
+const EVALUATION_RECORD_PAGE: PagedQuerySpec = {
+  operationName: 'QueryGenAIEvaluationRecords',
+  conditionType: 'GenAIEvaluationRecordQueryCondition',
+  field: 'queryGenAIEvaluationRecord',
+  rowsField: 'genAIEvaluationRecordList',
+  rowsSelection: EVALUATION_RECORD_SELECTION,
+  probeSelection: 'traceRef { traceId }',
+};
+const QUERY_EVALUATION_RECORD_FACETS = /* GraphQL */ `
+  query QueryGenAIEvaluationRecordFacets($evaluationRecordCondition: GenAIEvaluationRecordQueryCondition) {
+    data: queryGenAIEvaluationRecord(condition: $evaluationRecordCondition) {
+      genAIEvaluationRecordList { ${EVALUATION_RECORD_SELECTION} }
     }
   }
 `;
@@ -224,7 +236,7 @@ export async function fetchEvaluationRecords(
   const maxScore = scope.valueType === 'SCORE'
     ? scoreBoundToStoredValue(optionalFiniteNumber(scope.maxScore), false)
     : null;
-  const evaluationRecordCondition = {
+  const evaluationRecordCondition = (page: { pageNum: number; pageSize: number }) => ({
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.providerId ? { providerId: scope.providerId } : {}),
     ...(scope.modelId ? { modelId: scope.modelId } : {}),
@@ -244,23 +256,23 @@ export async function fetchEvaluationRecords(
       step: 'SECOND',
       ...(coldStage ? { coldStage: true } : {}),
     },
-    paging: { ...paging, pageSize: paging.pageSize + 1 },
-  };
+    paging: page,
+  });
   try {
-    const env = await graphqlPost<{
-      data: {
-        genAIEvaluationRecordList: OapEvaluationRecordRow[];
-      } | null;
-    }>(opts, QUERY_EVALUATION_RECORDS, { evaluationRecordCondition });
-    const raw = env.data?.genAIEvaluationRecordList ?? [];
-    const records = raw.slice(0, paging.pageSize).map(mapEvaluationRecordRow);
+    const page = await readPage<OapEvaluationRecordRow>(
+      opts,
+      EVALUATION_RECORD_PAGE,
+      evaluationRecordCondition,
+      paging,
+    );
+    const records = page.rows.map(mapEvaluationRecordRow);
     return {
       generatedAt: Date.now(),
       query: {},
       total: records.length,
       records,
       reachable: true,
-      hasNext: raw.length > paging.pageSize,
+      hasNext: page.hasNext,
     };
   } catch (err) {
     return {
@@ -303,9 +315,10 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         const opts = buildOapOpts(deps.config.current, deps.fetch);
         const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
         const window = defaultWindow(offset, body.windowMinutes, {
-          startTime: body.startTime,
-          endTime: body.endTime,
+          startTime: body.startTime == null ? undefined : Number(body.startTime),
+          endTime: body.endTime == null ? undefined : Number(body.endTime),
         });
+        if ('error' in window) return reply.code(400).send({ error: window.error });
 
         // Resolve a service NAME to an id if the caller used one.
         const res = await fetchEvaluationRecords(
@@ -361,9 +374,10 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         const opts = buildOapOpts(deps.config.current, deps.fetch);
         const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
         const window = defaultWindow(offset, body.windowMinutes, {
-          startTime: body.startTime,
-          endTime: body.endTime,
+          startTime: body.startTime == null ? undefined : Number(body.startTime),
+          endTime: body.endTime == null ? undefined : Number(body.endTime),
         });
+        if ('error' in window) return reply.code(400).send({ error: window.error });
         const evaluationRecordCondition = {
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
@@ -379,7 +393,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         try {
           const env = await graphqlPost<{
             data: { genAIEvaluationRecordList: OapEvaluationRecordRow[] } | null;
-          }>(opts, QUERY_EVALUATION_RECORDS, { evaluationRecordCondition });
+          }>(opts, QUERY_EVALUATION_RECORD_FACETS, { evaluationRecordCondition });
           const rows = env.data?.genAIEvaluationRecordList ?? [];
           const level: EvaluationRecordFacetsResponse['level'] = {
             fail: 0,

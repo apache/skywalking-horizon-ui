@@ -56,8 +56,14 @@ function queryString(name: string): string | null {
 }
 const providerIdParam = computed(() => queryString('providerId'));
 const modelIdParam = computed(() => queryString('modelId'));
-const startTimeParam = computed(() => queryString('startTime'));
-const endTimeParam = computed(() => queryString('endTime'));
+function queryEpochMs(name: string): number | null {
+  const value = queryString(name);
+  if (!value) return null;
+  const epochMs = Number(value);
+  return Number.isFinite(epochMs) ? epochMs : null;
+}
+const startTimeParam = computed(() => queryEpochMs('startTime'));
+const endTimeParam = computed(() => queryEpochMs('endTime'));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
@@ -145,7 +151,10 @@ const valueType = ref<'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null>('SCORE');
 const minScore = ref<number | null>(null);
 const maxScore = ref<number | null>(null);
 const booleanValue = ref<boolean | null>(null);
-const taskName = ref('');
+// A dashboard drill seeds the clicked task once. Do not watch the query
+// afterwards: the text field must remain editable, including clearing it to
+// broaden the result set.
+const taskName = ref(queryString('taskName') ?? '');
 const judgeModel = ref('');
 const sortField = ref<'EVALUATION_TIME' | 'SCORE_VALUE'>('EVALUATION_TIME');
 const sortOrder = ref<'ASC' | 'DES'>('DES');
@@ -207,25 +216,21 @@ watch(isCustomRange, (custom) => {
   }
 });
 watch([startTimeParam, endTimeParam], ([start, end]) => {
-  if (!start || !end) return;
+  if (start == null || end == null) return;
   windowMinutes.value = CUSTOM_RANGE_SENTINEL;
-  customStart.value = start;
-  customEnd.value = end;
+  customStart.value = fmtDateTimeLocal(new Date(start));
+  customEnd.value = fmtDateTimeLocal(new Date(end));
 }, { immediate: true });
-/** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
- *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
- *  same `queryDuration.start/end` slot the trace tab uses. */
-function toOapMinute(local: string | null): string | null {
+function localInputToEpoch(local: string | null): number | null {
   if (!local) return null;
-  const [d, t] = local.split('T');
-  if (!d || !t) return null;
-  return `${d} ${t.replace(':', '')}`;
+  const epochMs = new Date(local).getTime();
+  return Number.isFinite(epochMs) ? epochMs : null;
 }
-const startTimeRef = computed<string | null>(() =>
-    isCustomRange.value ? toOapMinute(customStart.value) : null,
+const startTimeRef = computed<number | null>(() =>
+    isCustomRange.value ? localInputToEpoch(customStart.value) : null,
 );
-const endTimeRef = computed<string | null>(() =>
-    isCustomRange.value ? toOapMinute(customEnd.value) : null,
+const endTimeRef = computed<number | null>(() =>
+    isCustomRange.value ? localInputToEpoch(customEnd.value) : null,
 );
 const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,

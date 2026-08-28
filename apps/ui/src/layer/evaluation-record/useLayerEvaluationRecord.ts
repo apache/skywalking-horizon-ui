@@ -77,8 +77,8 @@ export interface EvaluationRecordParams {
   page: Ref<number>;
   pageSize: Ref<number>;
   windowMinutes?: Ref<number>;
-  startTime?: Ref<string | null>;
-  endTime?: Ref<string | null>;
+  startTime?: Ref<number | null>;
+  endTime?: Ref<number | null>;
 }
 
 export function useLayerEvaluationRecord(layerKey: Ref<string>, params: EvaluationRecordParams) {
@@ -209,7 +209,9 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     logs: genAIEvaluationRecordStreamRows,
     records: computed(() => genAIEvaluationRecords.value.map(toGenAIEvaluationRecordSummary)),
     total: computed(() => q.data.value?.total ?? 0),
-    reachable: computed(() => q.data.value?.reachable ?? true),
+    // A transport failure has no response envelope, so treating the missing
+    // data as reachable would turn network/403/500 errors into an empty list.
+    reachable: computed(() => !q.error.value && (q.data.value?.reachable ?? true)),
     queryError: computed(() => q.data.value?.error ?? q.error.value?.message ?? null),
     isFetching: q.isFetching,
     error: q.error,
@@ -225,8 +227,8 @@ export interface EvaluationRecordFacetParams {
   traceId?: Ref<string | null>;
   keywords?: Ref<string[]>;
   windowMinutes?: Ref<number>;
-  startTime?: Ref<string | null>;
-  endTime?: Ref<string | null>;
+  startTime?: Ref<number | null>;
+  endTime?: Ref<number | null>;
 }
 
 export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: EvaluationRecordFacetParams) {

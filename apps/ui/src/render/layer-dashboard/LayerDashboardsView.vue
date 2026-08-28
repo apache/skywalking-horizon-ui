@@ -610,8 +610,8 @@ function onDrillPoint(
       query: {
         providerId: selectedId.value!,
         modelId: effectiveInstanceId.value!,
-        startTime: toLocalInput(win.fromMs),
-        endTime: toLocalInput(win.toMs),
+        startTime: String(win.fromMs),
+        endTime: String(win.toMs),
         ...(p.seriesName ? { taskName: p.seriesName } : {}),
       },
       title: w.title,
