@@ -1828,6 +1828,7 @@
   "View cluster status →": "View cluster status →",
   "View error traces": "View error traces",
   "View evaluation records": "View evaluation records",
+  "Evaluation records": "Evaluation records",
   "View events for {name}": "View events for {name}",
   "View slow traces": "View slow traces",
   "View task detail": "View task detail",

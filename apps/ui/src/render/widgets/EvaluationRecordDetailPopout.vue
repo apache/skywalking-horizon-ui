@@ -18,7 +18,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n();

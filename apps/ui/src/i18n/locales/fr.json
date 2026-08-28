@@ -1828,6 +1828,7 @@
   "View cluster status →": "Voir l’état du cluster →",
   "View error traces": "Voir les traces en erreur",
   "View evaluation records": "Voir les enregistrements d'évaluation",
+  "Evaluation records": "Enregistrements d'évaluation",
   "View events for {name}": "Voir les événements de {name}",
   "View slow traces": "Voir les traces lentes",
   "View task detail": "Voir le détail de la tâche",

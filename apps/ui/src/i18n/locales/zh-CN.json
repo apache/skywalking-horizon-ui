@@ -1828,6 +1828,7 @@
   "View cluster status →": "查看集群状态 →",
   "View error traces": "查看错误 Trace",
   "View evaluation records": "查看评估记录",
+  "Evaluation records": "评估记录",
   "View events for {name}": "查看 {name} 的事件",
   "View slow traces": "查看慢 Trace",
   "View task detail": "查看任务详情",
