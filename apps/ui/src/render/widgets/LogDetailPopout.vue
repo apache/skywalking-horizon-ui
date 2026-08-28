@@ -21,7 +21,7 @@
   tags table, the service / instance / endpoint / time meta strip, a
   copy button, and the trace-id link.
 
-  Built on `_shared/Modal.vue` (backdrop + Escape + close). Used by BOTH
+  Built on `components/primitives/Modal.vue` (backdrop + Escape + close). Used by BOTH
   the per-layer Logs tab and the cross-layer Log inspect view. The host
   owns the trace jump — the popout just emits `jump-trace`.
 
@@ -35,7 +35,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 
 const { t } = useI18n();
 

@@ -35,8 +35,8 @@ import type { AdminLayerTemplate } from '@/api/client';
 import type { DashboardWidget, InstanceAttributePredicate } from '@skywalking-horizon-ui/api-client';
 
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
-import Modal from '@/features/operate/_shared/Modal.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import Modal from '@/components/primitives/Modal.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import DependencyConfigSection from './DependencyConfigSection.vue';
 import ProcessConfigEditor from './ProcessConfigEditor.vue';
 import TopologyConfigEditor from './TopologyConfigEditor.vue';

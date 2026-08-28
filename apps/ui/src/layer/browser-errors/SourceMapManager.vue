@@ -26,7 +26,7 @@ import { useI18n } from 'vue-i18n';
 import type { SourceMapDescriptor, SourceMapUsage } from '@/api/client';
 import Btn from '@/components/primitives/Btn.vue';
 import Icon from '@/components/icons/Icon.vue';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n({ useScope: 'global' });

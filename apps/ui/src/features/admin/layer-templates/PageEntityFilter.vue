@@ -36,7 +36,7 @@ import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { instancePageMatcher } from '@/render/layer-dashboard/instancePageFilter';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
