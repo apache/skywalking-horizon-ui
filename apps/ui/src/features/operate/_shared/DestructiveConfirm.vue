@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Modal from './Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import Btn from '@/components/primitives/Btn.vue';
 
 const { t } = useI18n();

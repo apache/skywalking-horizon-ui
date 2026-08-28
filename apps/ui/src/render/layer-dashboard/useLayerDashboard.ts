@@ -146,6 +146,31 @@ export interface DashboardRange {
   endMs: number;
 }
 
+/**
+ * Bucket position of an OAP duration bound, as a comparable number.
+ *
+ * The BFF asks OAP for whole buckets, so the series a response carries begin at
+ * a TRUNCATED bound — `durationStart` — not at the millisecond the browser
+ * happened to ask from. Aligning two entities on their request times therefore
+ * mis-set the offset by a whole bucket whenever their sub-bucket remainders
+ * straddled a half-step, which draws one entity's series shifted against the
+ * other's: the failure this alignment exists to prevent.
+ *
+ * The strings are OAP-server local (`YYYY-MM-DD HHmm` / ` HH` / no time part),
+ * and both entities were answered by the same deployment, so reading them as if
+ * they were UTC puts every entity on ONE grid without needing the server's
+ * offset. The absolute value is meaningless; only differences are used.
+ */
+export function bucketMsOfDuration(s: string | undefined, step: DashboardRange['step']): number | null {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2})(\d{2})?)?$/.exec(s.trim());
+  if (!m) return null;
+  const [, y, mo, d, hh, mm] = m;
+  if (step === 'MINUTE' && mm === undefined) return null;
+  if (step === 'HOUR' && hh === undefined) return null;
+  return Date.UTC(+y, +mo - 1, +d, hh ? +hh : 0, mm ? +mm : 0);
+}
+
 export function useLayerDashboard(
   layerKey: Ref<string>,
   service: Ref<string | null>,
@@ -270,7 +295,12 @@ export function useLayerDashboard(
       // stale (wrong-expression) data from cache.
       computed(() => (widgetsList?.value ? JSON.stringify(widgetsList.value) : null)),
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      // Snapshotted BEFORE the request goes out. Read after the await it would
+      // be whatever the clock says when the answer LANDS, so a slow W1 response
+      // arriving into a re-anchored W2 would be stamped W2 — the very mislabel
+      // the stamp exists to prevent.
+      const askedFor = rangeRef.value ?? null;
       const total = widgetsList?.value.length ?? 0;
       progress.value = { arrived: 0, total };
       const baseBody = {
@@ -301,10 +331,14 @@ export function useLayerDashboard(
       // an answer" rule the maps and the roster follow. Thrown, the previous
       // widgets stay and the failure reaches the refresh history.
       const resp = await fetchDrawable(() =>
-        bffClient.layer.dashboard(layerKey.value, baseBody, opts),
+        bffClient.layer.dashboard(layerKey.value, baseBody, opts, signal),
       );
       progress.value = { arrived: resp.widgets?.length ?? total, total };
-      return resp;
+      // The window travels WITH the response. A retained last-good answer
+      // outlives the window that produced it — that is the point of keeping it
+      // — so anything drawing it has to ask what it was read with rather than
+      // what the clock says now. Captured at firing time, where it is exact.
+      return { response: resp, requestWindow: askedFor };
     },
     // Trailing-control principle: the widget batch is the deepest
     // control in the chain and must wait for everything upstream
@@ -449,16 +483,22 @@ export function useLayerDashboard(
           // Refused if it could not be read, like the primary batch — without
           // this one compared entity lost its last-good widgets to a soft OAP
           // failure while its siblings kept theirs.
-          queryFn: (): Promise<DashboardResponse> =>
-            limit(() =>
+          // `askWindow` is read before the fan-out is built, so it is already
+          // the dispatch-time window; naming it here keeps that visible next to
+          // the primary query, which had to capture its own.
+          queryFn: async ({ signal }: { signal: AbortSignal }) => ({
+            response: await limit(() =>
               fetchDrawable(() =>
                 bffClient.layer.dashboard(
                   layerKey.value,
                   entityDashboardBody(s, svc, name, askWindow, widgetsList?.value ?? null, requestPage.value),
                   opts,
+                  signal,
                 ),
               ),
             ),
+            requestWindow: askWindow ?? null,
+          }),
           // Zero, like the primary read it fans out beside. A freshness
           // window here would have half a compare cohort re-read while the
           // other half answered from cache — the entities would then be
@@ -487,12 +527,14 @@ export function useLayerDashboard(
   const resultByEntity = computed<Map<string, Map<string, DashboardWidgetResult>>>(() => {
     const out = new Map<string, Map<string, DashboardWidgetResult>>();
     const p = primaryEntity.value;
-    const pData = q.data.value;
+    const pData = q.data.value?.response;
     if (p && pData?.widgets) out.set(p, indexById(pData.widgets));
     const results = entityQueries.value;
     fanoutList.value.forEach((entity, i) => {
-      const data = results[i]?.data as DashboardResponse | undefined;
-      if (data?.widgets) out.set(entity, indexById(data.widgets));
+      const env = results[i]?.data as
+        | { response: DashboardResponse; requestWindow: DashboardRange | null }
+        | undefined;
+      if (env?.response?.widgets) out.set(entity, indexById(env.response.widgets));
     });
     return out;
   });
@@ -592,7 +634,42 @@ export function useLayerDashboard(
   );
 
   return {
-    data: computed(() => q.data.value ?? null),
+    data: computed(() => q.data.value?.response ?? null),
+    /**
+     * The window each entity's widgets were actually READ with.
+     *
+     * A member whose round failed keeps its previous answer — that is the
+     * design — so the cohort can legitimately hold widgets from two windows at
+     * once. Anything plotting them needs to know which, or the older series
+     * gets drawn against the newer axis and reads as current.
+     */
+    windowByEntity: computed(() => {
+      const out = new Map<string, DashboardRange | null>();
+      // What OAP was asked for, not what the browser typed: see
+      // `bucketMsOfDuration`.
+      //
+      // A bound that cannot be read yields NO window rather than the request's,
+      // because the two are different grids. Mixing them across a cohort is
+      // worse than having neither: one entity placed by bucket beside another
+      // placed by wall-clock puts a series hours out, and nothing on screen
+      // says so. With no window the series is simply drawn unaligned, which is
+      // what it was before any of this.
+      const readWith = (resp: DashboardResponse | undefined): DashboardRange | null => {
+        if (!resp) return null;
+        const start = bucketMsOfDuration(resp.durationStart, resp.step);
+        const end = bucketMsOfDuration(resp.durationEnd, resp.step);
+        if (start == null || end == null) return null;
+        return { step: resp.step, startMs: start, endMs: end };
+      };
+      const p = primaryEntity.value;
+      if (p && q.data.value) out.set(p, readWith(q.data.value.response));
+      const results = entityQueries.value;
+      fanoutList.value.forEach((entity, i) => {
+        const env = results[i]?.data as { response: DashboardResponse } | undefined;
+        if (env) out.set(entity, readWith(env.response));
+      });
+      return out;
+    }),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

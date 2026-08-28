@@ -148,7 +148,7 @@ const alarmsQuery = useQuery({
     applied.value.endpoint,
     applied.value.keyword,
   ]),
-  queryFn: (): Promise<AlarmsResponse> =>
+  queryFn: ({ signal }): Promise<AlarmsResponse> =>
     bff.alarms.list({
       startTime: startTime.value,
       endTime: endTime.value,
@@ -158,7 +158,7 @@ const alarmsQuery = useQuery({
       instance: applied.value.instance || undefined,
       endpoint: applied.value.endpoint || undefined,
       keyword: applied.value.keyword || undefined,
-    }),
+    }, signal),
   staleTime: Infinity,
   refetchOnWindowFocus: false,
 });

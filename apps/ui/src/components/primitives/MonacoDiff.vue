@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as monaco from 'monaco-editor';
-import { setupMonaco, RR_THEME_NAME } from '../../../monaco/setup.js';
+import { setupMonaco, RR_THEME_NAME } from '@/monaco/setup';
 
 const props = withDefaults(
   defineProps<{

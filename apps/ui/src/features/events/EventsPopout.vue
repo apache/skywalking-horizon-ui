@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import EventsGantt from './EventsGantt.vue';
 import EventsDetailPanel from './EventsDetailPanel.vue';
 import { useEventsWindow, PRESETS, MAX_CUSTOM_MS } from './useEventsWindow';

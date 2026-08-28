@@ -67,6 +67,14 @@ rather than replacing the client's own timeout.
 - **All time strings are OAP-server local.** Not UTC, not browser-local. The
   server's offset is exposed via `getTimeInfo`. The BFF owns this conversion;
   the UI displays in browser-local.
+- **One Horizon reads ONE deployment, and every node in it answers alike.** The
+  timezone, the capability set, the layer-level table and the storage backend
+  are properties of that deployment, not of whichever node a request lands on —
+  Horizon may read any of them and get the same answer. So a process-level cache
+  of any of those needs no per-`queryUrl` key: there is no second answer for a
+  key to separate. Several of them carry one anyway, from before this was
+  written down; it is harmless and load-bearing nowhere, and new code should not
+  copy it.
 
 ## Cold stage
 
@@ -83,16 +91,115 @@ calls the last two `log` and `browserErrorLog`.)
 
 The flag reaches the BFF as the `x-horizon-cold-stage` header, is stashed once
 per request on `req.coldStage`, and routes splice it in via `withColdStage`.
-**Whether a route calls `withColdStage` is the ground truth for whether that
-data has a cold stage at all** — and the UI mirrors it: a query whose route
-applies the flag needs the stage in its cache key, because an answer from one
-stage is not an answer to the other's question.
+Whether a route calls it is OUR decision about scope, not a reading of what the
+storage supports — the table below is that decision.
 
-**Deliberately NOT cold-staged:** metadata, the instance and endpoint pickers,
-and alarms. Operationally we do not recommend putting these in cold storage —
-they are small, and they are what an operator reaches for first during an
-incident. So their UI queries do not carry the stage in their key either. If
-that recommendation ever changes, both sides change together.
+### The cold scope is ours, not the protocol's
+
+The protocol accepts `Duration.coldStage` on far more than we send it on. **We
+send it for traces, logs and metrics, and nowhere else** — because those are the
+only classes a deployment is advised to age into cold storage. Metadata, alarms,
+the rest of the `records` group and everything from profiling stay hot: they are
+small, and they are the first things an operator reaches for during an incident.
+
+This is not a suggestion the code merely documents. `coldStage: true` **replaces**
+the hot read, so sending it on an out-of-scope route does not widen the answer —
+it empties it. A Cold toggle would blank the alarm list and the entity pickers.
+
+| Sends `coldStage` | Never sends it |
+|---|---|
+| `trace.ts` — traces | `alarms.ts` — `/api/alarms`, `/api/alarms/count` |
+| `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
+| `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
+| `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |
+| | `ebpf.ts` — network profiling |
+| | `trace-tag.ts` — tag key/value autocomplete |
+| | `ai/` — the assistant's own reads |
+
+**Adding a route means placing it in this table.** The default is the right-hand
+column: a route sends the flag only because its data is a trace, a log or a
+metric.
+
+**One read inside a left-hand route deliberately does not send it**: the layer
+header's hourly KPI scan. What it holds is a property of the LAYER, not of the
+pill one operator happens to have on, and a cache keyed by layer cannot hold two
+answers for the same hour. It reads hot, always. Nothing is lost — a completed
+hour that is minutes old has not aged into cold storage. The rest of the landing
+route still honours the flag.
+
+**Two of the right-hand rows are outside the scope for their own reasons**, not
+because their data is hot-only:
+
+- **Tag autocomplete** (`/api/{trace,log}-tags/{keys,values}` and the Zipkin
+  pair) completes what the operator is TYPING. The candidate list is a property
+  of the schema rather than of a window — narrowing it to whatever happens to
+  exist in cold storage would offer fewer completions than the query it is
+  helping to write can match. It carries no stage and asks for none.
+- **The AI assistant** (`/api/ai/*`) passes `coldStage: false` explicitly rather
+  than by omission, in `ai/lib/tools/visualization/tools.ts`. Its tools read on
+  the operator's behalf but not from their screen, so inheriting a pill they set
+  somewhere else would make an answer depend on invisible state. If cold ever
+  becomes something the assistant can be ASKED for, it should be a parameter of
+  the question, not an ambient flag.
+
+**The stage is NOT part of any UI cache key**, on either side of the table. It
+rides on the request header and reaches OAP with whatever the page asks for
+next. Keying on it was tried and is wrong for a reason that has nothing to do
+with correctness of storage: a key that moves when the pill flips has no cached
+entry, so the query library fetches at once — which is the immediate page-wide
+read the toggle deliberately does not perform. The trade is that the screen goes
+on showing the previous stage's answer until the next read; the pill says what
+the next read will ask for.
+
+**Horizon does not check whether a group has a cold stage configured.** The
+operator asks for cold, so Horizon asks OAP for cold. Inferring availability
+from the TTL response would be a second-guess with no upstream contract behind
+it, and it is per-group anyway, so one answer could not be right for every
+query. A cold read against a group with no cold stage returns empty, which is
+the honest answer. The Time To Live page reports the configuration; it gates
+nothing.
+
+## The template decides; the code does not second-guess it
+
+Where a layer template states something, that statement is the answer. The BFF
+reads it and applies it — it does not carry its own idea of what the value
+should be, and it does not "improve" one that looks wrong.
+
+The fields this covers today, under a layer's `layer-header`, `dashboards`,
+`topology` and `endpointDependency` blocks: `orderBy`, the `columns` list with
+each column's `metric` / `mqe` / `aggregation`, the sort direction inside a
+`top_n(...)` expression, and the metric ids themselves.
+
+**`topN` is NOT among them for the header**, whatever the sentence below once
+claimed. `LayerHeaderConfig` has no such field and no bundled template declares
+one — the number of rows the header's KPI aggregates is the page's, not the
+template's. Say so rather than describing an ownership that does not exist:
+half of "the template decides" is knowing which fields it actually decides.
+
+Two consequences worth stating, because both have been mistaken for bugs:
+
+- **`topN: 5` means the header describes five services, not the layer.** Its
+  KPI aggregates the top five rows, so a 900-service layer shows the throughput
+  of its five busiest. Holding every service's value would make a whole-layer
+  rollup possible; it would not make it wanted.
+- **A column that NAMES a metric must be one the template declares.** Naming
+  `cpm` is asking the layer for something it already knows, so an undeclared
+  name is refused rather than fetched — otherwise a caller widens the layer's
+  surface by asking. A column that carries its own `mqe` is a different
+  request: it names the expression to evaluate and is answered live. The
+  Overview is built that way, synthesising `w_0`, `w_1`… from its own widgets,
+  which no layer template declares and never will.
+- **The hourly header cache holds only what the template declares.** Its
+  whitelist is the set of (MQE, entity) pairs under `layer-header.columns`,
+  matched on the EXPRESSION rather than the column's name — the name is the
+  caller's own, and the Overview calls `service_cpm` "w_0". Anything outside
+  that set is read live. Editing the declared columns discards the layer's held
+  hour: the values were computed for different expressions, so serving them
+  under the new ones would be a different number wearing a familiar label.
+
+A code constant is for what the template has NO opinion about — a transport
+bound like `bulkSize`, a timeout, a cache TTL. If you find yourself writing a
+default for something a template already carries, read the template instead.
 
 ## Metric entity-scope is load-bearing
 

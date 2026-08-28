@@ -49,12 +49,20 @@ export class LayerApi {
     layerKey: string,
     cfg: LandingConfig,
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
+    /** The query's cancellation. Without it a capped round rolls back the
+     *  cache but leaves the socket open, so the BFF never sees the client go
+     *  and OAP finishes a fan-out nobody is waiting for. */
+    signal?: AbortSignal,
   ): Promise<LandingResponse> {
     const body: Record<string, unknown> = {
       topN: cfg.topN,
       orderBy: cfg.orderBy,
       columns: cfg.columns,
     };
+    // Forwarded only when asked for. The body is rebuilt field by field rather
+    // than spread, so anything not named here never reaches the BFF — which is
+    // how this flag was silently dropped once already.
+    if (cfg.hourlyKpi) body.hourlyKpi = true;
     if (range) {
       body.step = range.step;
       body.startMs = range.startMs;
@@ -64,6 +72,8 @@ export class LayerApi {
       'POST',
       `/api/layer/${encodeURIComponent(layerKey)}/landing`,
       body,
+      undefined,
+      signal,
     );
   }
 
@@ -102,6 +112,9 @@ export class LayerApi {
     } = {},
     /** Dev-mode `?mockTop=N` — pad every TopList result to N synthetic rows. */
     opts: { mockTop?: number } = {},
+    /** The query's cancellation — see `landing`. Reaches EVERY chunk of the
+     *  oversize path, which is where the cost is. */
+    signal?: AbortSignal,
   ): Promise<DashboardResponse> {
     const qs = opts.mockTop && opts.mockTop > 0 ? `?mockTop=${opts.mockTop}` : '';
     const path = `/api/layer/${encodeURIComponent(layerKey)}/dashboard${qs}`;
@@ -109,7 +122,7 @@ export class LayerApi {
 
     // Fast path: a single request is enough.
     if (widgets.length <= DASHBOARD_WIDGETS_PER_REQUEST) {
-      return this.bff.request<DashboardResponse>('POST', path, body);
+      return this.bff.request<DashboardResponse>('POST', path, body, undefined, signal);
     }
 
     // Slow path: oversize widget set. The BFF rejects bodies with more
@@ -130,7 +143,7 @@ export class LayerApi {
 
     const responses = await Promise.all(
       chunks.map((chunk) =>
-        this.bff.request<DashboardResponse>('POST', path, { ...body, widgets: chunk }),
+        this.bff.request<DashboardResponse>('POST', path, { ...body, widgets: chunk }, undefined, signal),
       ),
     );
 

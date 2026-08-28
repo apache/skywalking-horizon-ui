@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import {
   fmtSecond,
   fmtMinute,
@@ -25,6 +25,7 @@ import {
   defaultMinuteWindow,
   windowFromRange,
   getServerOffsetMinutes,
+  _resetTimezoneCache,
   type TimeStep,
 } from './window.js';
 import { parseTimezone } from './time.js';
@@ -500,6 +501,10 @@ function fakeOap(timezone: () => unknown): {
 }
 
 describe('getServerOffsetMinutes — probing the OAP timezone', () => {
+  // The cache is process-global — one deployment, one offset — so each case
+  // clears it rather than relying on a distinct URL to be isolated.
+  beforeEach(() => _resetTimezoneCache());
+
   it('parses the +HHMM shape OAP emits, including negative and half-hour zones', async () => {
     const cases: [string, number][] = [
       ['+0000', 0],
@@ -510,6 +515,8 @@ describe('getServerOffsetMinutes — probing the OAP timezone', () => {
       ['+1345', 825],
     ];
     for (const [tz, expected] of cases) {
+      // One cache for the process, so each shape needs a clean one.
+      _resetTimezoneCache();
       const url = `http://oap-parse-${tz.replace(/[+:]/g, 'p').replace('-', 'm')}:12800`;
       expect(await getServerOffsetMinutes(configFor(url), fakeOap(() => tz).fetch)).toBe(expected);
     }
@@ -517,6 +524,7 @@ describe('getServerOffsetMinutes — probing the OAP timezone', () => {
 
   it('agrees with time.ts parseTimezone on every shape OAP emits', async () => {
     for (const tz of ['+0000', '+0800', '-0500', '+0530', '-0930']) {
+      _resetTimezoneCache();
       const url = `http://oap-agree-${tz.replace(/[+-]/g, '')}:12800`;
       const probed = await getServerOffsetMinutes(configFor(url), fakeOap(() => tz).fetch);
       expect(probed).toBe(parseTimezone(tz));
@@ -534,21 +542,37 @@ describe('getServerOffsetMinutes — probing the OAP timezone', () => {
     });
   });
 
-  it('does NOT cache a UTC fallback derived from a probe the caller cancelled', async () => {
-    const url = 'http://oap-cancelled-probe:12800';
-    const ac = new AbortController();
-    // What a real fetch does once the caller's signal fires.
-    const aborting: FetchLike = async () => {
-      ac.abort();
-      const err = new Error('This operation was aborted');
-      err.name = 'AbortError';
-      throw err;
+  it('shares ONE probe between concurrent callers, so a slow failure cannot overwrite a fast success', async () => {
+    // The race this prevents: a refresh round fires a dozen reads at once,
+    // each probing. Behind a VIP the fast ones answer from a healthy node and
+    // write the true offset; a slow one then times out against a sick node and
+    // overwrites it with the UTC fallback, which answers every request for the
+    // next minute — eight hours off.
+    const url = 'http://oap-singleflight:12800';
+    let probes = 0;
+    const oap = fakeOap(() => '+0800');
+    const counting: FetchLike = async (input, init) => {
+      probes++;
+      return oap.fetch(input, init);
     };
-    // The probe measured nothing. Swallowing the abort and caching 0 would let
-    // one abandoned request answer every OTHER request for the next minute
-    // with a timezone nobody read.
-    await expect(getServerOffsetMinutes(configFor(url), aborting, ac.signal)).rejects.toThrow();
-    // Cache untouched, so the next live read still gets the truth.
+    const all = await Promise.all(
+      Array.from({ length: 8 }, () => getServerOffsetMinutes(configFor(url), counting)),
+    );
+    expect(all).toEqual([480, 480, 480, 480, 480, 480, 480, 480]);
+    expect(probes, 'each caller probed OAP separately').toBe(1);
+  });
+
+  it('a cancelled caller stops waiting without poisoning the shared answer', async () => {
+    // The caller's signal never reaches the shared flight — whoever arrived
+    // first must not be able to cancel a probe the others are waiting on — so a
+    // caller that gives up rejects on its own while the probe still completes
+    // and caches the value it measured.
+    const url = 'http://oap-caller-cancelled:12800';
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      getServerOffsetMinutes(configFor(url), fakeOap(() => '+0800').fetch, ac.signal),
+    ).rejects.toThrow();
     expect(await getServerOffsetMinutes(configFor(url), fakeOap(() => '+0800').fetch)).toBe(480);
   });
 
@@ -581,19 +605,11 @@ describe('getServerOffsetMinutes — probing the OAP timezone', () => {
     expect(srv.calls()).toBe(2);
   });
 
-  it('is keyed by queryUrl — repointing OAP re-probes instead of serving the old server’s offset', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-17T00:00:00Z'));
-    const a = fakeOap(() => '+0800');
-    const b = fakeOap(() => '-0500');
-    expect(await getServerOffsetMinutes(configFor('http://oap-a:12800'), a.fetch)).toBe(480);
-    // Hot reload repoints at a different OAP well inside the TTL.
-    expect(await getServerOffsetMinutes(configFor('http://oap-b:12800'), b.fetch)).toBe(-300);
-    expect(b.calls()).toBe(1);
-    // ...and back again: the cache holds only one entry, so A is re-probed.
-    expect(await getServerOffsetMinutes(configFor('http://oap-a:12800'), a.fetch)).toBe(480);
-    expect(a.calls()).toBe(2);
-  });
+  // There used to be a case here pinning "keyed by queryUrl — repointing OAP
+  // re-probes". The key separated nothing: `oap.queryUrl` is a single config
+  // field, so the map held one entry for the life of the process. A Horizon
+  // reads one deployment and every node in it answers alike, so there is no
+  // second offset for a key to tell apart — see apps/bff/CLAUDE.md.
 
   it('falls back to UTC (0) without throwing when the probe fails', async () => {
     const transport: FetchLike = async () => {

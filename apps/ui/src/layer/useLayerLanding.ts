@@ -49,16 +49,31 @@ export function useLayerLanding(
    *  rollup feeds and must fire ZERO queries, so it passes a true ref to suppress
    *  the fetch. Defaults off (live) for the interactive route. */
   replay?: Ref<boolean>,
+  /**
+   * Ask for the layer header's HOURLY figures rather than the picked window.
+   *
+   * OFF by default, and only `LayerShell` turns it on — it renders the strip
+   * and the picker that print which hour the numbers describe. Every other
+   * caller of this composable (traces, logs, dashboards, the maps, profiling)
+   * wants the roster and the window it asked for; handing them an hour-old
+   * value would be a different number under the heading they chose.
+   */
+  hourlyKpi = false,
 ) {
   const layerKey = computed(() => layer.value.key);
   // Cache key reflects every field that changes the server response —
   // when an operator edits aggregation / MQE override / scale via setup,
   // vue-query re-fetches.
+  // The mode is part of the key: the same columns asked for two different
+  // windows are two different answers, and sharing one cache entry between them
+  // would serve whichever landed first to both.
   const cfgHash = computed(() => JSON.stringify({
     topN: cfg.value.topN,
     orderBy: cfg.value.orderBy,
     columns: cfg.value.columns,
+    hourlyKpi,
   }));
+  const request = computed(() => (hourlyKpi ? { ...cfg.value, hourlyKpi: true } : cfg.value));
   const rangeRef = range ?? computed<LandingRange | null>(() => null);
   // The IDENTITY of the window, not its bounds. Minute-bucketing them made the
   // clock re-key the query, which is a refresh by accident: it fired outside
@@ -84,9 +99,9 @@ export function useLayerLanding(
     // count of zero — a statement about the operator's system, made from a
     // failure to read it. Thrown, the previous roster survives in the cache and
     // the failure reaches the refresh history.
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       fetchDrawable(() =>
-        bffClient.layer.landing(layerKey.value, cfg.value, rangeRef.value ?? undefined),
+        bffClient.layer.landing(layerKey.value, request.value, rangeRef.value ?? undefined, signal),
       ),
     enabled: isEnabled,
     staleTime: Infinity,

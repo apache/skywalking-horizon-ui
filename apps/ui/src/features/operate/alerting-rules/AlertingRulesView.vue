@@ -46,7 +46,7 @@ import {
   type AlarmRunningContext,
   type AlarmMqeSnapshotSeries,
 } from '@/api/client';
-import Modal from '@/features/operate/_shared/Modal.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import { useOapInfo } from '@/shell/useOapInfo';
 

@@ -86,96 +86,58 @@ describe('the flip is atomic', () => {
   });
 });
 
-describe('the refetch is a round, not a storm', () => {
-  it('cancels what is in flight, so nothing straddles the flip', () => {
-    // The stage is a header read when a request GOES OUT, so a request queued
-    // behind the concurrency limiter would leave under the new stage while
-    // belonging to the old round — landing a cold answer in a hot entry.
-    useColdStageStore().set(true);
-
-    expect(cancelQueries, 'an in-flight read could span both stages').toHaveBeenCalled();
-  });
-
-  it('marks everything stale WITHOUT refetching it', () => {
-    const cold = useColdStageStore();
-
-    cold.set(true);
-
-    expect(invalidateQueries).toHaveBeenCalledWith({ refetchType: 'none' });
-  });
-
-  it('runs one round, so the page is re-read together', () => {
+describe('flipping the stage reads nothing', () => {
+  // The flip used to fire a round of its own. Cold reads are slow, so that
+  // round routinely hit the sixty-second cap — and the sweep that followed
+  // re-queued exactly the queries the cap had just cancelled, because it
+  // selected on `dataUpdatedAt` and a cancelled query never updates it. The cap
+  // was therefore at its most useless during the outage it exists for.
+  //
+  // And `coldStage: true` REPLACES the hot read rather than widening it, so an
+  // operator who has not yet moved the time range into the cold window would
+  // watch the whole page empty the instant they clicked. The stage is a
+  // parameter for the NEXT read, not an action.
+  it('starts no round', () => {
     const auto = useAutoRefreshStore();
     const before = auto.tickCount;
 
     useColdStageStore().set(true);
 
-    expect(auto.tickCount, 'the flip did not go through a round').toBe(before + 1);
+    expect(auto.tickCount, 'the flip triggered a page-wide read').toBe(before);
   });
 
-  it('re-reads what the round did not cover, and only that', async () => {
+  it('cancels what is already out, so no batch straddles the flip', () => {
+    // Cancelling is not reading. The stage is sampled when a request
+    // DISPATCHES, so a call queued behind the concurrency limiter would go out
+    // under the new stage while belonging to the batch that asked under the old
+    // one — a compare grid half hot and half cold, with nothing to show it.
+    useColdStageStore().set(true);
+
+    expect(cancelQueries).toHaveBeenCalled();
+  });
+
+  it('marks everything stale WITHOUT refetching it', () => {
+    // The whole mechanism: what is on screen is now known to be the other
+    // stage's answer, and the next read of each query picks the new stage up
+    // through the request header.
+    useColdStageStore().set(true);
+
+    expect(invalidateQueries).toHaveBeenCalledWith({ refetchType: 'none' });
+  });
+
+  it('refetches nothing, now or after the page settles', async () => {
+    useColdStageStore().set(true);
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(refetchQueries, 'a sweep re-read the page behind the operator').not.toHaveBeenCalled();
+  });
+
+  it('still sends the new stage on the very next request', () => {
     const cold = useColdStageStore();
 
     cold.set(true);
-    await new Promise((r) => setTimeout(r, 0));
 
-    // Selected by WHEN the data was fetched, not by staleness. Round-managed
-    // queries carry no freshness window, so `stale: true` would have selected
-    // every one of them and turned this into the second storm it exists to
-    // avoid.
-    const arg = refetchQueries.mock.calls.at(-1)?.[0] as
-      | { type?: string; predicate?: (q: unknown) => boolean }
-      | undefined;
-    expect(arg?.type).toBe('active');
-    expect(typeof arg?.predicate, 'the sweep selected by staleness again').toBe('function');
-    // Answered after the flip ⇒ already the new stage ⇒ left alone.
-    expect(arg?.predicate?.({ state: { dataUpdatedAt: Date.now() + 5_000 } })).toBe(false);
-    // Answered before it ⇒ still the old stage ⇒ re-read.
-    expect(arg?.predicate?.({ state: { dataUpdatedAt: 0 } })).toBe(true);
-  });
-
-  it('waits for the TRAILING round when the flip lands mid-round', async () => {
-    // The coalescing case. A flip while a round is out does not start a round
-    // of its own — it queues one — so awaiting the call would have resolved
-    // before the successor had even begun, and the leftovers would have been
-    // re-read against the stage that was on the way out.
-    const auto = useAutoRefreshStore();
-    let release!: () => void;
-    let rounds = 0;
-    auto.joinRound(() => {
-      rounds += 1;
-      return rounds === 1 ? new Promise<void>((r) => { release = r; }) : undefined;
-    });
-    void auto.refreshNow();
-    await Promise.resolve();
-
-    useColdStageStore().set(true);
-    // A full flush, not one microtask: awaiting the flip's own call would
-    // resolve within a few ticks, and a shorter wait could not tell that apart
-    // from correctly waiting for the successor.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(refetchQueries, 'the leftovers were re-read against the outgoing stage').not.toHaveBeenCalled();
-
-    release();
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(rounds, 'the flip did not queue a round of its own').toBe(2);
-    expect(refetchQueries).toHaveBeenCalled();
-  });
-
-  it('does not re-read the leftovers until the round has finished', async () => {
-    const auto = useAutoRefreshStore();
-    let release!: () => void;
-    auto.joinRound(() => new Promise<void>((r) => { release = r; }));
-
-    useColdStageStore().set(true);
-    await Promise.resolve();
-
-    expect(
-      refetchQueries,
-      'the leftovers were re-read while the round was still out',
-    ).not.toHaveBeenCalled();
-
-    release();
+    expect(readColdStageHeader(), 'the next request would carry the old stage').toBe(true);
   });
 });

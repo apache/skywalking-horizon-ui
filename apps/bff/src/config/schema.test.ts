@@ -27,6 +27,18 @@ describe('configSchema defaults', () => {
   it('parses an empty object — every non-optional field has a default', () => {
     expect(() => configSchema.parse({})).not.toThrow();
   });
+
+  // The layer header's warm-up valve. A deployment that never sets it must get
+  // a bound anyway: without one, a large layer reads its whole roster live on
+  // every request while the hour it actually wants is still being scanned.
+  it('bounds the layer-header warm-up read by default', () => {
+    const cfg = configSchema.parse({});
+    expect(cfg.performance.limits.headerWarmupMaxServices).toBe(200);
+    expect(
+      configSchema.parse({ performance: { limits: { headerWarmupMaxServices: 25 } } }).performance
+        .limits.headerWarmupMaxServices,
+    ).toBe(25);
+  });
 });
 
 // horizon.yaml is the SHIPPED default + the env-var reference: every

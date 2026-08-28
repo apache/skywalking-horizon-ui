@@ -51,4 +51,4 @@ Picking a different service, endpoint, depth or time range is a different questi
 
 ## Query cold stage
 
-Switching **Query cold stage** re-reads the page as one round. It is not a widening of the current query but a replacement — see [Data retention](data-retention.md) — so the page is never left showing hot and cold answers side by side while it settles.
+Switching **Query cold stage** does not re-read the page. It changes what the NEXT read asks for — the following refresh, or whatever you do first, which is usually choosing the time range the cold data lives in. Until then the screen goes on showing what it last read, and the pill tells you which stage the next read will use. Cold is not a widening of the current query but a replacement — see [Data retention](data-retention.md) — so switching it on with a recent window selected would empty the page, which is why the switch waits for you rather than acting on the click.

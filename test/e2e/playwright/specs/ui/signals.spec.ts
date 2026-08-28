@@ -17,6 +17,7 @@
 
 import { test, expect } from '../support/diagnostics.js';
 import { PROVIDER_SERVICE, CONSUMER_SERVICE, DEMO_ENDPOINTS, LAYER } from '../fixture.js';
+import { selectService } from '../support/layer.js';
 
 // Signals beyond trace and metric, asserted where the operator sees them.
 // The values checked here are the ones the BFF returned — read off the page
@@ -116,6 +117,7 @@ test('a topology edge drills into the instance map', async ({ page, pageErrors, 
 test('the logs tab shows log lines with their content', async ({ page, pageErrors }) => {
 
   await page.goto(`/layer/${LAYER}/logs`);
+  await selectService(page, PROVIDER_SERVICE);
   const run = page.locator('button.lg-run-btn');
   await expect(run).toBeEnabled();
   await run.click();

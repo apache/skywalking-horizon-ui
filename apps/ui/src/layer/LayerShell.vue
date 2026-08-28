@@ -304,7 +304,42 @@ const headerRange = computed(() => ({
   startMs: timeRange.range.startMs,
   endMs: timeRange.range.endMs,
 }));
-const landing = useLayerLanding(safeLayer, safeCfg, headerRange);
+// `true` — the header is the one screen that prints which hour these numbers
+// describe, so it is the one caller allowed to ask for the hourly figures.
+const landing = useLayerLanding(safeLayer, safeCfg, headerRange, undefined, true);
+/**
+ * The header's KPIs describe a completed HOUR, not the picked range.
+ *
+ * They are read once per layer per hour because the fan-out behind them grows
+ * with the layer's service count. Marked with a star and labelled with the
+ * hour itself — a relative age would read "an hour ago" and then "two hours
+ * ago" at the roll, which looks like a fault rather than a schedule.
+ */
+const kpiHour = computed(() => landing.data.value?.kpiHour ?? null);
+/** The displayed hour is NOT the newest one — a newer bucket is still being
+ *  read, so these numbers are roughly two hours old rather than one. The star
+ *  marks that exception; the note describes the ordinary case. */
+const kpiStale = computed<boolean>(() => kpiHour.value?.stale === true);
+/** No completed hour holds anything yet — a new install — so these are the
+ *  hour still being written. Read live, and labelled as in progress rather
+ *  than as a finished hour it is not. */
+const kpiPartial = computed<boolean>(() => kpiHour.value?.partial === true);
+// Part of the metric fan-out did not come back. Said here rather than left to
+// the blank cells, which read as "idle" — the one reading that is certainly
+// wrong, because a service we could not measure is not a service doing nothing.
+const landingPartial = computed(() => landing.data.value?.metricsPartial ?? null);
+// The hour is being read and there is nothing held yet. Said plainly, because
+// the alternative on screen is a strip of dashes, which reads as "no traffic".
+const kpiWarming = computed<boolean>(() => landing.data.value?.kpiWarming === true);
+const kpiHourLabel = computed<string | null>(() => {
+  const h = kpiHour.value;
+  if (!h) return null;
+  const from = new Date(h.hourStartMs);
+  const to = new Date(h.hourStartMs + 3_600_000);
+  const hhmm = (d: Date) =>
+    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${hhmm(from)}–${hhmm(to)}`;
+});
 
 // Cascade-clear for the header: the instant the layer changes (menu
 // click), reset to "no data" so the KPI strip + selected-service values
@@ -404,12 +439,19 @@ const isZipkinTrace = computed<boolean>(() => {
 // (absent from the roster) auto-corrects to the first sampled row, and
 // only once the roster has loaded so a valid pin isn't clobbered in flight.
 watch(
-  [sampledServices, selectedId, viewOwnsServiceSelector, fullRoster, rosterLoading],
-  ([rows, id, ownsSelector, roster, rosterIsLoading]) => {
+  [sampledServices, selectedId, viewOwnsServiceSelector, fullRoster, rosterLoading, kpiWarming],
+  ([rows, id, ownsSelector, roster, rosterIsLoading, warming]) => {
     if (ownsSelector) return;
     const first = rows[0];
     if (!first) return;
     if (!id) {
+      // Not while the hour is still being read. The rows are in roster order
+      // then — nothing has been ranked — so the first one is arbitrary, and
+      // writing it PINS it: once an id exists this watcher keeps it, and the
+      // ranking that arrives a moment later never gets to choose. Waiting
+      // costs a second of no selection; not waiting costs the operator the
+      // wrong service until they notice and change it.
+      if (warming) return;
       setSelected(first.serviceId);
       return;
     }
@@ -590,13 +632,34 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
             </span>
           </div>
         </div>
+        <!-- The range is said ONCE for the strip: every KPI here comes from
+             the same completed hour. The star appears only when that hour is
+             NOT the newest one — an exception worth marking, rather than a
+             decoration on every value. -->
+        <div v-if="kpiWarming && layerKpis.length > 0" class="kpi-hour-note">
+          {{ t('Reading the last completed hour…') }}
+        </div>
+        <div v-else-if="kpiHourLabel && layerKpis.length > 0" class="kpi-hour-note">
+          <template v-if="kpiPartial">{{ t('metrics for the hour so far') }}</template>
+          <template v-else-if="kpiStale">
+            <span class="kpi-hour-mark">*</span>
+            {{ t('metrics for {range} — a newer hour is still loading', { range: kpiHourLabel }) }}
+          </template>
+          <template v-else>{{ t('metrics for {range}', { range: kpiHourLabel }) }}</template>
+        </div>
+        <div v-if="landingPartial" class="banner warn kpi-partial">
+          {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: landingPartial.failedChunks, total: landingPartial.totalChunks }) }}
+        </div>
         <div v-if="layerKpis.length > 0" class="kpi-strip layer-kpis">
           <div v-for="(k, i) in layerKpis" :key="i" class="kpi">
             <div class="kpi-label">
               {{ k.label }}<span v-if="k.unit" class="unit">({{ k.unit }})</span>
             </div>
             <div class="kpi-value" :style="{ color: k.color }">
-              <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span>
+              <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span><span
+                v-if="kpiStale && k.value != null"
+                class="kpi-hour-mark"
+              >*</span>
             </div>
             <Sparkline
               v-if="k.spark && k.spark.length > 1"
@@ -680,7 +743,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
               {{ k.label }}<span v-if="k.unit" class="unit">({{ k.unit }})</span>
             </span>
             <span class="kpi-value inline" :style="{ color: k.color }">
-              <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span>
+              <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span><span
+                v-if="kpiStale && k.value != null"
+                class="kpi-hour-mark"
+              >*</span>
             </span>
           </div>
         </div>
@@ -693,6 +759,9 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
     <LayerServiceSelector
       v-if="layer && pickerOpen && (sampledServices.length > 0 || fullRoster.length > 0) && !viewOwnsServiceSelector"
       :services="sampledServices"
+      :kpi-hour-label="kpiHourLabel"
+      :kpi-hour-stale="kpiStale"
+      :kpi-hour-partial="kpiPartial"
       :roster="fullRoster"
       :order-by="safeCfg.orderBy"
       :columns="selectorColumns"
@@ -762,6 +831,25 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
 </template>
 
 <style scoped>
+.kpi-partial {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  background: var(--sw-warn-soft);
+  border: 1px solid var(--sw-warn);
+  border-radius: 6px;
+  color: var(--sw-warn);
+  font-size: 11.5px;
+}
+.kpi-hour-note {
+  font-size: 11px;
+  color: var(--sw-text-dim);
+  margin-bottom: 2px;
+}
+.kpi-hour-mark {
+  color: var(--sw-text-dim);
+  font-weight: 600;
+  margin-left: 2px;
+}
 .svc-refresh {
   width: 32px;
   height: 32px;

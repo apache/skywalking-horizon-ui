@@ -35,8 +35,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import type { TemplateSyncRow } from '@/api/scopes/template-sync';
-import Modal from '@/features/operate/_shared/Modal.vue';
-import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import Modal from '@/components/primitives/Modal.vue';
+import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import Btn from '@/components/primitives/Btn.vue';
 
 const { t } = useI18n({ useScope: 'global' });

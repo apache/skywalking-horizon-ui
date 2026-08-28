@@ -72,6 +72,16 @@ export interface ServiceCatalog {
    * because the answer looked successful.
    */
   unreachable?: boolean;
+  /**
+   * The rows are a PREVIOUS good read, kept because the latest one failed.
+   *
+   * Distinct from `unreachable`, which describes the latest attempt: together
+   * they say "these services are real but may have moved on". A consumer that
+   * renders counts should prefer stale rows to none — publishing zero is a
+   * statement about the operator's system made from a failure to read it — but
+   * anything that reports health must still treat the read as failed.
+   */
+  stale?: boolean;
 }
 
 export interface ServiceLayerCatalogDeps {
@@ -98,15 +108,39 @@ export class ServiceLayerCatalog {
 
   constructor(private readonly deps: ServiceLayerCatalogDeps) {}
 
+  /** How long a FAILED read is allowed to suppress the next attempt. Short,
+   *  because the point is only to stop a hard outage re-probing on every
+   *  request — not to hold an unreadable answer for a full TTL. */
+  private readonly failureTtl = 5_000;
+
   async get(): Promise<ServiceCatalog> {
     const now = Date.now();
-    if (this.cached && now - this.lastFetchAt < this.ttl) return this.cached;
+    // A failed read expires on the short clock, so recovery is seconds away
+    // rather than a minute. Caching an empty `unreachable` snapshot for the
+    // full TTL meant a two-second storage hiccup blanked the sidebar's service
+    // counts and collapsed group navigation until it expired, long after OAP
+    // itself was healthy again.
+    const ttl = this.cached?.unreachable ? this.failureTtl : this.ttl;
+    if (this.cached && now - this.lastFetchAt < ttl) return this.cached;
     if (this.inflight) return this.inflight;
     this.inflight = this.refresh()
       .then((r) => {
-        this.cached = r;
+        // An unreadable answer never REPLACES a roster we already had. The
+        // rows are the operator's own services, merely stale; discarding them
+        // publishes a service count of zero, which every consumer that does
+        // not check `unreachable` — the sidebar among them — renders as fact.
+        // Keyed on whether the RETAINED rows are worth keeping, not on whether
+        // the previous read succeeded. Asking `!this.cached.unreachable` made
+        // the retention last exactly one failure: the first marked the snapshot
+        // unreachable, and the second then saw that mark and overwrote the rows
+        // with the empty answer — so a sustained outage still collapsed the
+        // sidebar, only a beat later than before.
+        const keep = r.unreachable && this.cached !== null && this.cached.byName.size > 0;
+        this.cached = keep
+          ? { ...(this.cached as ServiceCatalog), unreachable: true, stale: true }
+          : r;
         this.lastFetchAt = Date.now();
-        return r;
+        return this.cached;
       })
       .finally(() => {
         this.inflight = null;
