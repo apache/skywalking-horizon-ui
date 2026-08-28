@@ -59,12 +59,11 @@
 #      plus apache/skywalking-ui:latest when v<v> is the highest v* tag). These
 #      are NOT published by the tag push: a tag is only a release candidate
 #      until the vote passes, so the tag build publishes the immutable digest
-#      tag alone. The stable tags and the Docker Hub mirror are attached by
-#      re-running the publish-image workflow via workflow_dispatch for that
-#      tag, which is the promotion step and belongs BEFORE this script — and
-#      that run moves :latest only for the highest tag, so promoting a patch
-#      on a superseded line leaves it alone. Publishing stays CI's job; this
-#      step only CONFIRMS the expected tags arrived.
+#      tag alone. The stable tags and the Docker Hub mirror are attached by the
+#      promotion run, which publishing the GitHub release (step 7 below)
+#      triggers — that run moves :latest only for the highest tag, so promoting
+#      a patch on a superseded line leaves it alone. Publishing stays CI's job;
+#      this step WAITS for the expected tags and then confirms them.
 #
 # Usage:  bash scripts/release-finalize.sh
 #
@@ -520,11 +519,16 @@ fi
 note "Step 8 — Verify Docker Hub image: ${DOCKERHUB_REPO}"
 
 # The stable tags are vote-gated: the `v*` tag push publishes only the
-# immutable digest, and they arrive when the publish-image workflow is
-# re-run via workflow_dispatch for the tag — the promotion step, which the
-# release manager does once the vote passes and before running this script.
-# This step only VERIFIES they arrived; publishing is CI's job, there is no
-# local-push fallback.
+# immutable digest. They arrive from the PROMOTION run, which the GitHub
+# release published a few steps above has just triggered — so this step waits
+# for it rather than assuming it already happened. Publishing stays CI's job;
+# there is no local-push fallback.
+#
+# The wait is bounded. A multi-architecture build takes minutes, and the two
+# architectures build on their own native runners before a manifest job
+# stitches them, so the tag appears only at the very end.
+DH_WAIT_SECONDS="${DH_WAIT_SECONDS:-1800}"
+DH_POLL_SECONDS=30
 DH_VERSION_TAG="${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}"
 DH_LATEST_TAG="${DOCKERHUB_REPO}:latest"
 
@@ -557,25 +561,42 @@ else
     echo "  ${DH_LATEST_TAG} is NOT expected to move: ${HIGHEST_TAG} is higher than ${TAG}, so the promotion run left it on that release."
 fi
 
+# Wait for the promotion the release trigger started. Polls quietly; the first
+# minutes are expected to be empty.
+echo "Waiting for the promotion run to mirror ${DH_VERSION_TAG} (up to $((DH_WAIT_SECONDS / 60)) min)…"
+echo "  Watch it: https://github.com/${GH_REPO}/actions/workflows/publish-image.yaml"
+DH_WAITED=0
+while ! docker buildx imagetools inspect "${DH_VERSION_TAG}" >/dev/null 2>&1; do
+    if [ "${DH_WAITED}" -ge "${DH_WAIT_SECONDS}" ]; then
+        break
+    fi
+    sleep "${DH_POLL_SECONDS}"
+    DH_WAITED=$((DH_WAITED + DH_POLL_SECONDS))
+    echo "  … ${DH_WAITED}s"
+done
+
 if docker buildx imagetools inspect "${DH_VERSION_TAG}" >/dev/null 2>&1; then
     DH_VERSION_DIGEST=$(dockerhub_digest "${DH_VERSION_TAG}" || true)
     echo "✓ ${DH_VERSION_TAG} is on Docker Hub — the promotion run mirrored it.${DH_VERSION_DIGEST:+ (${DH_VERSION_DIGEST})}"
     echo "  Inspect:  docker buildx imagetools inspect ${DH_VERSION_TAG}"
 else
-    err "✗ ${DH_VERSION_TAG} is NOT on Docker Hub."
-    err "  The stable image tags are attached by the promotion run, not by the tag"
-    err "  push — most likely it has not been run yet. The SVN promote + GitHub"
-    err "  release above already succeeded; only the image is missing. Run the"
-    err "  workflow (workflow_dispatch with tag ${TAG}), then re-run this script:"
+    err "✗ ${DH_VERSION_TAG} did not appear within $((DH_WAIT_SECONDS / 60)) minutes."
+    err "  Publishing the GitHub release above triggers the promotion run, so it"
+    err "  should be building — check whether it failed, or is merely slow. The SVN"
+    err "  promote and the GitHub release already succeeded; only the image is"
+    err "  missing, and re-running this script picks up where it left off."
     err "    https://github.com/${GH_REPO}/actions/workflows/publish-image.yaml"
+    err "  If the run is absent (a tag that pre-dates the release trigger), start it"
+    err "  by hand: workflow_dispatch with tag ${TAG}."
+    err "  A longer wait: DH_WAIT_SECONDS=3600 bash scripts/release-finalize.sh"
     exit 1
 fi
 
 if [ "${IS_HIGHEST_TAG}" = true ]; then
     if ! docker buildx imagetools inspect "${DH_LATEST_TAG}" >/dev/null 2>&1; then
         err "✗ ${DH_LATEST_TAG} is NOT on Docker Hub, though ${TAG} is the highest v* tag"
-        err "  and the promotion run mirrors it alongside ${DH_VERSION_TAG}. Re-run the"
-        err "  workflow (workflow_dispatch with tag ${TAG}), then re-run this script:"
+        err "  and the promotion run attaches it in the same pass as ${DH_VERSION_TAG}."
+        err "  One arriving without the other means that run half-failed — read it:"
         err "    https://github.com/${GH_REPO}/actions/workflows/publish-image.yaml"
         exit 1
     fi
@@ -583,7 +604,7 @@ if [ "${IS_HIGHEST_TAG}" = true ]; then
     if [ -n "${DH_VERSION_DIGEST}" ] && [ -n "${DH_LATEST_DIGEST}" ] && [ "${DH_VERSION_DIGEST}" != "${DH_LATEST_DIGEST}" ]; then
         err "✗ ${DH_LATEST_TAG} points at ${DH_LATEST_DIGEST}, not at this release's"
         err "  ${DH_VERSION_DIGEST} (${DH_VERSION_TAG}) — 'latest' is serving something else."
-        err "  Re-run the workflow (workflow_dispatch with tag ${TAG}) to move it:"
+        err "  Re-run the promotion for this tag to move it (workflow_dispatch, ${TAG}):"
         err "    https://github.com/${GH_REPO}/actions/workflows/publish-image.yaml"
         exit 1
     fi
