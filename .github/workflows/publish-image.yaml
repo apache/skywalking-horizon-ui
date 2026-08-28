@@ -24,12 +24,17 @@
 #     only ever moved forward — see Tagging below).
 #
 # Manual trigger
-#   The `workflow_dispatch` accepts an optional `tag` input (e.g.
-#   `v0.5.0`; defaults to the most recent v* tag). This IS the promotion
-#   step: run it after the release vote passes to attach the stable tags
-#   and mirror to Docker Hub. It is also how you back-fill a release whose
-#   tag-push pre-dated this workflow, or retry one whose publish failed.
-#   `latest` is attached only if that tag is the highest v* in the repo.
+#   Promotion is normally automatic: publishing the GitHub release attaches
+#   the stable tags and mirrors to Docker Hub. `release: types: [released]`
+#   fires for a real publish only — not a draft, not a prerelease — and the
+#   release is created after the vote passes, so it is a faithful signal that
+#   a candidate became a release.
+#
+#   The `workflow_dispatch` accepts an optional `tag` input (e.g. `v0.5.0`;
+#   defaults to the most recent v* tag) and does the same thing by hand. Use
+#   it to back-fill a release whose tag-push pre-dated this workflow, or to
+#   retry one whose publish failed. `latest` is attached only if that tag is
+#   the highest v* in the repo, whichever path promoted it.
 #
 # Architecture story
 #   The Dockerfile builds `dist/` from source inside the image. The
@@ -73,6 +78,13 @@ on:
       - main
     tags:
       - 'v*'
+  # Publishing a GitHub release IS the promotion. `released` fires only for a
+  # real publish — never a draft, never a prerelease — and the release is
+  # created after the vote passes, so it is the honest signal that a candidate
+  # became a release. The tag it names already exists by then.
+  release:
+    types:
+      - released
   workflow_dispatch:
     inputs:
       tag:
@@ -117,9 +129,19 @@ jobs:
       - id: resolve
         env:
           INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -eu
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # A release names its tag; a dispatch is given one or defaults to the
+          # newest. Both then resolve the COMMIT from the tag rather than
+          # trusting the event's sha, so the image is built from the ref that
+          # was voted on.
+          if [ "${{ github.event_name }}" = "release" ]; then
+            tag="${RELEASE_TAG}"
+            if [ -z "$tag" ]; then
+              echo "::error::release event carried no tag_name"; exit 1
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             tag="${INPUT_TAG}"
             if [ -z "$tag" ]; then
               tag=$(git tag --list 'v*' --sort=-version:refname | head -1)
@@ -128,6 +150,8 @@ jobs:
               fi
               echo "::notice::No tag provided — defaulting to latest: ${tag}"
             fi
+          fi
+          if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if ! git rev-parse "${tag}^{commit}" >/dev/null 2>&1; then
               echo "::error::tag ${tag} does not exist (must be already pushed to the repo)"; exit 1
             fi
@@ -171,9 +195,13 @@ jobs:
           # CANDIDATE — the Apache vote happens afterwards and can fail, so a
           # tag push publishes the immutable `:<sha>` and nothing else. The
           # human-facing `:<ver>`, `:<major.minor>` and `:latest` tags are
-          # attached later by re-running this workflow via workflow_dispatch
-          # for that tag, once the vote has passed. That dispatch is the
-          # promotion step; it rebuilds from the same tag and moves the tags.
+          # attached by the PROMOTION run, which rebuilds from the same tag.
+          #
+          # Promotion happens when the GitHub RELEASE is published, since that
+          # is done after the vote passes and cannot be done for a candidate.
+          # A workflow_dispatch does the same thing by hand, for back-filling a
+          # release whose tag pre-dates this workflow and for retrying a
+          # publish that failed.
           #
           # `latest` additionally must always name the NEWEST release, so it
           # is attached only when the promoted tag is the highest v* in the
@@ -182,8 +210,10 @@ jobs:
           # is git's numeric version sort, so v1.0.10 ranks above v1.0.2.
           is_highest=false
           is_promote=false
-          if [ "${IS_TAG}" = "true" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            is_promote=true
+          if [ "${IS_TAG}" = "true" ]; then
+            case "${{ github.event_name }}" in
+              release|workflow_dispatch) is_promote=true ;;
+            esac
           fi
           if [ "${IS_TAG}" = "true" ] && [ "${is_promote}" != "true" ]; then
             echo "::notice::${TAG_NAME} tagged — publishing the immutable :<sha> only. Stable tags (:${TAG_NAME#v}, :latest) wait for the release vote; re-run this workflow via workflow_dispatch for ${TAG_NAME} to promote."
