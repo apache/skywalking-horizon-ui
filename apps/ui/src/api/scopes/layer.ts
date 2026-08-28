@@ -59,6 +59,10 @@ export class LayerApi {
       orderBy: cfg.orderBy,
       columns: cfg.columns,
     };
+    // Forwarded only when asked for. The body is rebuilt field by field rather
+    // than spread, so anything not named here never reaches the BFF — which is
+    // how this flag was silently dropped once already.
+    if (cfg.hourlyKpi) body.hourlyKpi = true;
     if (range) {
       body.step = range.step;
       body.startMs = range.startMs;

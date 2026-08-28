@@ -2873,5 +2873,10 @@
   "ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.": "ⓘ 이는 OAP `application.yml` 설정입니다. 이 백엔드는 레코드 전체에 하나, 메트릭 전체에 하나의 보존 기간을 적용하므로 위 수치는 실제 값이지만 개별로 조정할 수 없습니다. 데이터 클래스별 보존 기간은 BanyanDB에서만 지원합니다.",
   "One bydb.yml group per row · widths proportional to total retention": "한 행이 bydb.yml 그룹 하나 · 너비는 총 보존 기간에 비례",
   "This page is not available.": "이 페이지는 사용할 수 없습니다.",
-  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "이 OAP 에는 콜드 스테이지가 구성되어 있지 않아 어떤 시간 범위를 선택해도 결과가 비어 있습니다. Cold 를 끄십시오."
+  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "이 OAP 에는 콜드 스테이지가 구성되어 있지 않아 어떤 시간 범위를 선택해도 결과가 비어 있습니다. Cold 를 끄십시오.",
+  "These metrics are read once per hour, not per refresh.": "이 메트릭은 새로고침마다가 아니라 한 시간에 한 번 읽습니다.",
+  "metrics for {range}": "{range} 메트릭",
+  "metrics for {range} — a newer hour is still loading": "{range} 메트릭 — 더 최근 시간대를 불러오는 중",
+  "metrics for the hour so far": "현재 시간대까지의 메트릭",
+  "Reading the last completed hour…": "마지막으로 완료된 1시간을 읽는 중…"
 }

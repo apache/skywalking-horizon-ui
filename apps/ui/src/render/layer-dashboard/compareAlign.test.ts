@@ -26,6 +26,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { alignToAxis } from './useCompareEngine';
+import { bucketMsOfDuration } from './useLayerDashboard';
 
 const MIN = 60_000;
 /** A MINUTE window of `len` buckets starting at bucket `t` (t = minutes). */
@@ -78,4 +79,50 @@ describe('placing a retained series on the current axis', () => {
     const data = [1, 2, 3];
     expect(alignToAxis(data, null, null, 3)).toBe(data);
   });
+});
+
+describe('the bound a series actually starts at', () => {
+  const min = (t: string) => bucketMsOfDuration(t, 'MINUTE')!;
+
+  it('reads OAP duration strings onto one grid, per step', () => {
+    // The absolute value is meaningless — only differences are used — so what
+    // matters is the spacing each step produces.
+    expect(min('2026-08-28 1231') - min('2026-08-28 1230')).toBe(60_000);
+    const hr = (t: string) => bucketMsOfDuration(t, 'HOUR')!;
+    expect(hr('2026-08-28 13') - hr('2026-08-28 12')).toBe(3_600_000);
+    const day = (t: string) => bucketMsOfDuration(t, 'DAY')!;
+    expect(day('2026-08-29') - day('2026-08-28')).toBe(86_400_000);
+  });
+
+  it('refuses a bound carrying less precision than the step', () => {
+    // A MINUTE series cannot be placed from an hour-precision bound; assuming
+    // the minute would put it up to 59 buckets from where it belongs.
+    expect(bucketMsOfDuration('2026-08-28 12', 'MINUTE')).toBeNull();
+    expect(bucketMsOfDuration('2026-08-28', 'HOUR')).toBeNull();
+    expect(bucketMsOfDuration('not a time', 'MINUTE')).toBeNull();
+    expect(bucketMsOfDuration(undefined, 'MINUTE')).toBeNull();
+  });
+
+  it('places a retained series at the buckets it was read for', () => {
+    const axis = { step: 'MINUTE' as const, startMs: min('2026-08-28 1230'), endMs: 0 };
+    // Same bound — the two rounds fired seconds apart, but OAP answered both
+    // from 12:30, so nothing shifts. Rounding the REQUEST gap could not tell.
+    const same = { step: 'MINUTE' as const, startMs: min('2026-08-28 1230'), endMs: 0 };
+    expect(alignToAxis([1, 2, 3], same, axis, 3)).toEqual([1, 2, 3]);
+
+    // Two minutes older: its first two points predate the axis and are dropped,
+    // and the series stops where its data does rather than running to the edge.
+    const older = { step: 'MINUTE' as const, startMs: min('2026-08-28 1228'), endMs: 0 };
+    expect(alignToAxis([7, 8, 9], older, axis, 4)).toEqual([9, null, null, null]);
+  });
+});
+
+// A cohort where one entity's bound cannot be read must not mix grids: bucket
+// positions and wall-clock milliseconds differ by decades, so one series placed
+// by each would sit hours apart with nothing on screen saying why. No window at
+// all is the honest state, and it draws the series unaligned as before.
+it('draws a series with no known window unaligned, rather than on a foreign grid', () => {
+  const axis = { step: 'MINUTE' as const, startMs: bucketMsOfDuration('2026-08-28 1230', 'MINUTE')!, endMs: 0 };
+  expect(alignToAxis([1, 2, 3], null, axis, 3)).toEqual([1, 2, 3]);
+  expect(alignToAxis([1, 2, 3], undefined, axis, 3)).toEqual([1, 2, 3]);
 });

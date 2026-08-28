@@ -43,6 +43,16 @@ const props = withDefaults(
     columns: ReadonlyArray<LandingColumn>;
     selectedId: string | null;
     accent?: string;
+    /** The completed hour the metric columns describe, "HH:MM–HH:MM".
+     *  Absent when the values follow the picked range instead. Drives the
+     *  star beside each value and the note explaining it. */
+    kpiHourLabel?: string | null;
+    /** The displayed hour is not the newest — a newer one is still being read,
+     *  so these values are roughly two hours old. Marks each value with a star;
+     *  the note says why. */
+    kpiHourStale?: boolean;
+    /** No completed hour has data yet — these are the hour in progress. */
+    kpiHourPartial?: boolean;
     pageSize?: number;
     /** Per-layer topology-cluster rule. When supplied, rows render a
      *  cluster chip; when null, no chip. The OAP `<group>::` legacy
@@ -217,6 +227,18 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
         @click="filter = ''"
       >×</button>
       <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: inScope.length }) }}</span>
+      <!-- Said once, for the whole table. Every metric column here describes
+           the same completed hour, so marking each cell would repeat one fact
+           as many times as there are numbers. It sits by the filter because
+           that is where the eye lands before reading them. -->
+      <span v-if="kpiHourLabel" class="hour-note" :title="t('These metrics are read once per hour, not per refresh.')">
+        <template v-if="kpiHourPartial">{{ t('metrics for the hour so far') }}</template>
+        <template v-else-if="kpiHourStale">
+          <span class="hour-mark">*</span>
+          {{ t('metrics for {range} — a newer hour is still loading', { range: kpiHourLabel }) }}
+        </template>
+        <template v-else>{{ t('metrics for {range}', { range: kpiHourLabel }) }}</template>
+      </span>
       <span
         v-if="probedCount > 0 && allRows.length > probedCount"
         class="count capped"
@@ -274,7 +296,8 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
               :class="{ muted: r.row.metrics[c.metric] == null }"
               :style="{ color: thresholdColor(c.metric, r.row.metrics[c.metric] ?? null) ?? undefined }"
             >
-              {{ fmtMetric(r.row.metrics[c.metric]) }}
+              {{ fmtMetric(r.row.metrics[c.metric])
+              }}<span v-if="kpiHourStale && r.row.metrics[c.metric] != null" class="hour-mark">*</span>
             </td>
           </tr>
           <!-- Below the metric cap: roster-only row, no numbers probed.
@@ -344,6 +367,20 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
 </template>
 
 <style scoped>
+.hour-mark {
+  color: var(--sw-text-dim);
+  font-weight: 600;
+  margin-left: 1px;
+}
+.hour-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+  font-size: 11px;
+  color: var(--sw-text-dim);
+  white-space: nowrap;
+}
 .picker {
   margin-bottom: 14px;
 }

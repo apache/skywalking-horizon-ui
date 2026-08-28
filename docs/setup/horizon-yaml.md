@@ -94,6 +94,7 @@ performance:
   limits:
     topologyMaxNodes?: number
     topologyMaxEdges?: number
+    headerWarmupMaxServices?: number
     maxPageSize: { traces?, logs?, browserLogs?, events? }
 
 layers:  { excluded?: [{ key, reason? }] }
@@ -230,6 +231,7 @@ performance:
   limits:
     topologyMaxNodes: 5000
     topologyMaxEdges: 15000
+    headerWarmupMaxServices: 200
     maxPageSize: { traces: 100, logs: 100, browserLogs: 100, events: 200 }
 ```
 
@@ -258,6 +260,7 @@ These govern how Horizon batches and parallelizes its metric queries to OAP. Eac
 |---|---|---|
 | `topologyMaxNodes` | The render valve for a service map — a graph with more nodes than this is **rejected with a "narrow the scope" notice** rather than drawn as an unreadable hairball. | `5000` |
 | `topologyMaxEdges` | The same valve on edges. | `15000` |
+| `headerWarmupMaxServices` | The largest layer for which the header will read the picked time window **while it is still loading its hourly figures**. The header's KPIs describe one completed hour, read once per layer per hour; until that read lands there is nothing to show. On a layer this size or smaller Horizon reads the picked window meanwhile, which is cheap. On a larger one it does not — that read costs a second pass over every service in the layer, once per person looking — and the header says it is still reading instead. | `200` |
 | `maxPageSize.traces` | The largest **page** the Traces list will show — records displayed at once, not a page count. The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. Each read fetches one record beyond the page, which is how the list knows whether there is a next page. | `100` |
 | `maxPageSize.logs` | The same displayed-page cap for Logs. | `100` |
 | `maxPageSize.browserLogs` | The same displayed-page cap for Browser Logs. | `100` |

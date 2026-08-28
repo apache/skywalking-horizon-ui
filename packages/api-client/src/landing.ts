@@ -72,6 +72,37 @@ export interface LandingResponse {
    * Same shape as the topology responses' field, deliberately.
    */
   metricsPartial?: { failedChunks: number; totalChunks: number };
+  /**
+   * The header's KPI values describe one COMPLETED hour, not the picked range.
+   *
+   * They are read once per layer per hour rather than on every refresh — the
+   * fan-out that produces them is proportional to the layer's service count,
+   * and repeating it every thirty seconds is what it cannot survive. Present
+   * whenever `rows[].metrics` and `aggregates` came from that hour.
+   *
+   * A renderer must SAY so. The values sit beside charts that do follow the
+   * time picker, and nothing else on screen distinguishes them; `hourStartMs`
+   * is the label to show, not a relative age, which would jump from "an hour
+   * ago" to "two hours ago" at the roll and read as a fault.
+   *
+   * `stale` means a newer hour is being read and this is the one before it.
+   *
+   * `partial` means these are the hour IN PROGRESS, read live and not cached —
+   * it happens only while no completed hour holds anything, which is a
+   * deployment installed minutes ago. An empty header would be the wrong answer
+   * there, since the data plainly exists; it is just not finished.
+   */
+  kpiHour?: { hourStartMs: number; stale: boolean; partial?: boolean };
+  /**
+   * The hour is being read and there is nothing to show yet.
+   *
+   * Only on a layer above `performance.limits.headerWarmupMaxServices`, where
+   * reading the picked window instead would cost a second fan-out the size of
+   * the one already running — once per concurrent caller. The rows come back
+   * without metric values; a renderer should say the figures are still being
+   * read rather than drawing the blanks as zero or as "no traffic".
+   */
+  kpiWarming?: boolean;
   layer: string;
   topN: number;
   orderBy: string;

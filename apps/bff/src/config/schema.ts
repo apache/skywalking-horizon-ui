@@ -928,6 +928,15 @@ const performanceSchema = z
         // with a "narrow the scope" notice rather than drawn unreadably.
         topologyMaxNodes: z.number().int().positive().default(5000),
         topologyMaxEdges: z.number().int().positive().default(15000),
+        // Layer-header warm-up valve. The header's figures come from one
+        // completed hour, scanned once per layer per hour. Until that scan
+        // lands there is nothing to show, and the header would otherwise read
+        // the picked window live — a second fan-out the size of the one it is
+        // waiting for, repeated for every concurrent caller. Above this many
+        // services in the layer it does not: it reports that it is still
+        // reading, and the scan it is waiting for warms the next request.
+        // Below it, a live read is cheap enough to be worth doing.
+        headerWarmupMaxServices: z.number().int().positive().default(200),
         // Max rows one page of each event list DISPLAYS — NOT a page count,
         // and not the storage LIMIT to the row: every read fetches one row
         // past the page it shows, which is the only way to know a next page
