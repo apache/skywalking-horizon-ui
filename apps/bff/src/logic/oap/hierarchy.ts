@@ -71,7 +71,7 @@ interface RawLevelsResp {
   levels: LayerLevel[];
 }
 
-// Per-queryUrl process-lifetime cache. The level table doesn't change
+// Process-lifetime cache. The level table doesn't change
 // at OAP runtime; a new deployment recycles the BFF anyway. We still
 // short-cache failures (60s) so a transient OAP outage recovers
 // without forever returning stale-or-empty.
@@ -80,20 +80,19 @@ interface LevelEntry {
   fetchedAt: number;
   ok: boolean;
 }
-const levelsCache = new Map<string, LevelEntry>();
+let levelsCache: LevelEntry | null = null;
 const LEVELS_FAIL_MS = 60_000;
 
 /** Test-only — clear the level cache. */
 export function _resetLevelsCache(): void {
-  levelsCache.clear();
+  levelsCache = null;
 }
 
 async function getLayerLevels(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
 ): Promise<LayerLevel[]> {
-  const key = config.oap.queryUrl;
-  const hit = levelsCache.get(key);
+  const hit = levelsCache;
   if (hit && hit.ok) return hit.levels ?? [];
   if (hit && !hit.ok && Date.now() - hit.fetchedAt < LEVELS_FAIL_MS) {
     return hit.levels ?? [];
@@ -104,12 +103,12 @@ async function getLayerLevels(
       LEVELS_QUERY,
     );
     const levels = (data.levels ?? []).slice().sort((a, b) => a.level - b.level);
-    levelsCache.set(key, { levels, fetchedAt: Date.now(), ok: true });
+    levelsCache = { levels, fetchedAt: Date.now(), ok: true };
     return levels;
   } catch {
     // Cache the failure briefly; downstream callers still get a usable
     // response (UI groups by layer name, just without canonical order).
-    levelsCache.set(key, { levels: null, fetchedAt: Date.now(), ok: false });
+    levelsCache = { levels: null, fetchedAt: Date.now(), ok: false };
     return [];
   }
 }

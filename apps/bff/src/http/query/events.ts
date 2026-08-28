@@ -255,7 +255,10 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
       window,
       order,
       { pageNum, pageSize },
-      !!req.coldStage,
+      // Events live in BanyanDB's `records` group, which is outside the cold
+      // scope — see apps/bff/CLAUDE.md. Asking for cold here would empty the
+      // list rather than widen it.
+      false,
     );
 
     return reply.send({

@@ -62,7 +62,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { queryClient } from '@/api/queryClient';
-import { useAutoRefreshStore } from '@/controls/autoRefresh';
 
 export const COLD_STAGE_HEADER = 'X-Horizon-Cold-Stage';
 
@@ -109,53 +108,38 @@ export const useColdStageStore = defineStore('cold-stage', () => {
    * "turn it off" did not — so the banner cleared the flag while every screen
    * kept rendering the cold answers it had already cached.
    */
+  /**
+   * Flipping the stage changes what the NEXT read asks for. It does not read.
+   *
+   * This used to fire a round of its own, and that was the wrong shape twice
+   * over. Cold reads are slow, so the round it started routinely hit the
+   * sixty-second cap — and the sweep that followed re-queued exactly the
+   * queries the cap had just cancelled, because it selected on `dataUpdatedAt`
+   * and a cancelled query never updates it. The cap was therefore at its most
+   * useless during precisely the outage it exists for. Beyond that, a toggle
+   * that empties every widget the instant it is clicked is a poor bargain when
+   * `coldStage: true` REPLACES the hot read: an operator who has not yet moved
+   * the time range into the cold window sees the whole page go blank.
+   *
+   * So: write the flag, mark what is on screen stale, and stop. The header
+   * rides on the next request the page makes — the next auto-refresh round, or
+   * whatever the operator does first, typically choosing the time range the
+   * cold data actually lives in.
+   */
   function set(on: boolean): void {
     if (enabled.value === on) return;
-    const flippedAt = Date.now();
     enabled.value = on;
     persist(on);
-    // CANCEL what is in flight first, and this is the ONLY thing keeping a
-    // read from straddling the flip.
-    //
-    // The stage rides on every request as a header read when the request goes
-    // out, so anything already queued behind the concurrency limiter would
-    // otherwise leave carrying the NEW stage while belonging to the round that
-    // asked under the old one, and land its answer in the other stage's entry.
-    //
-    // Scoping the cache by stage was tried instead and is WRONG: a query's hash
-    // is computed when it is created, and existing observers do not rebind when
-    // a global flips — so a response could be stored under the old hash while
-    // every lookup used the new one, which breaks isolation, deduplication and
-    // exact cancellation at once. Cancelling has none of that ambiguity.
+    // CANCEL what is already out. Cancelling is not reading — nothing starts
+    // here — but the stage is sampled when a request DISPATCHES, so anything
+    // queued behind the concurrency limiter would leave carrying the new stage
+    // while belonging to the batch that asked under the old one, and a cohort
+    // could land half hot and half cold in one grid. A request already on the
+    // wire is worse still: it answers for a stage the pill no longer shows.
     void queryClient.cancelQueries();
-    // Marked stale WITHOUT refetching, so nothing starts before the round
-    // does. A query whose key already carries the stage has moved to a
-    // different cache entry anyway.
+    // Stale, NOT refetched: the next read of each query picks up the new stage
+    // through the request header. Nothing starts here.
     void queryClient.invalidateQueries({ refetchType: 'none' });
-    const auto = useAutoRefreshStore();
-    // Named for what it IS. Reported as 'manual' the failure history said the
-    // operator had asked for a refresh, when what they did was change the
-    // stage — two different things to be looking at when a round fails.
-    void auto.refreshNow('cold-stage');
-    // Whatever the round did not cover — an explore page with its own controls,
-    // which subscribes to no round — is still showing the other stage's
-    // answers, so it is re-read once the page has settled.
-    //
-    // Selected by WHEN the data was fetched, not by staleness. Round-managed
-    // queries hold no freshness window, so they are stale the instant they
-    // land and `stale: true` selected every one of them — turning the sweep
-    // into the second storm it exists to avoid. Anything answered after the
-    // flip already reflects the new stage and is left alone.
-    //
-    // `whenIdle`, not the round's own promise: flipping the stage while a round
-    // was already out coalesces into a trailing round, and awaiting the call
-    // would have resolved before that successor had even started.
-    void auto.whenIdle().then(() =>
-      queryClient.refetchQueries({
-        type: 'active',
-        predicate: (q) => q.state.dataUpdatedAt < flippedAt,
-      }),
-    );
   }
   function toggle(): void {
     set(!enabled.value);

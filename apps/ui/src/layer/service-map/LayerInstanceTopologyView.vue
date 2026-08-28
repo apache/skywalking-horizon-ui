@@ -709,8 +709,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
              asking for something that will not change until someone re-enables
              it. -->
         <div v-else-if="blocked === 'layer-disabled'" class="imv-state">
-          {{ t('This layer’s template is disabled.') }}
-          {{ t('An administrator turned it off — re-enable it under Operate → Templates.') }}
+          {{ t('This page is not available.') }}
         </div>
         <div v-else-if="showFailed" class="imv-state">
           {{ t('Could not load the instance relationship.') }}

@@ -29,7 +29,6 @@
 import { computed, ref, watch } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useTimeRangeStore } from '@/controls/timeRange';
-import { useColdStageStore } from '@/controls/coldStage';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
 
 /** Anything the graph routes return. They all carry this flag; see `accepts`. */
@@ -89,37 +88,10 @@ export class GraphUnavailableError extends Error {
  * without this the "success" path receives `{nodes: [], reachable: false}` and
  * has no way to refuse it.
  */
-export async function fetchDrawable<T extends GraphResponse>(
-  fetch: () => Promise<T>,
-  /** The window this request asked about, remembered WITH the response. */
-  window?: { step: string; startMs: number; endMs: number },
-): Promise<T> {
+export async function fetchDrawable<T extends GraphResponse>(fetch: () => Promise<T>): Promise<T> {
   const resp = await fetch();
   if (!accepts(resp)) throw new GraphUnavailableError(resp);
-  if (window) windowByResponse.set(resp as object, { ...window });
   return resp;
-}
-
-/**
- * The window each response was fetched with, keyed by the response itself.
- *
- * A snapshot outlives the window that produced it — that is the whole point of
- * keeping the last good one — so anything merged INTO a snapshot has to ask
- * about the window that snapshot was read with, not whatever the clock says.
- * Deriving it from a ref could not work: on a remount the accepted snapshot
- * comes from the cache, possibly minutes old, while every ref has just been
- * initialised from the current window. Keyed by object identity, the two
- * cannot drift apart. A WeakMap, so a response that falls out of the cache
- * takes its entry with it.
- */
-const windowByResponse = new WeakMap<object, { step: string; startMs: number; endMs: number }>();
-
-/** The window a response was fetched with, or null if it was not recorded. */
-export function windowOf(
-  resp: unknown,
-): { step: string; startMs: number; endMs: number } | null {
-  if (!resp || typeof resp !== 'object') return null;
-  return windowByResponse.get(resp as object) ?? null;
 }
 
 /**
@@ -278,12 +250,6 @@ export interface GraphPredicate {
   time: string;
   /** The unpublished draft this view renders, if any. */
   preview?: unknown;
-  /**
-   * Cold stage REPLACES the hot read rather than widening it, so it is part of
-   * the question, not a header that rides along. A Cold tab showing Hot data
-   * because the key did not move is the failure this prevents.
-   */
-  cold: boolean;
 }
 
 /** A `ServiceRef`-shaped value reduced to what identifies it. */
@@ -319,7 +285,6 @@ export function predicateKey(p: GraphPredicate): string {
     `d=${p.depth ?? ''}`,
     `t=${p.time}`,
     `p=${p.preview === undefined || p.preview === null ? '' : JSON.stringify(p.preview)}`,
-    `k=${p.cold ? '1' : '0'}`,
   ].join('|');
 }
 
@@ -348,21 +313,19 @@ export function useTimeIdentity(
   ownWindow?: ComputedRef<{ startMs: number; endMs: number; step: string }>,
 ): ComputedRef<string> {
   const timeRange = useTimeRangeStore();
-  const cold = useColdStageStore();
-  // The STAGE is part of the question, not a header that rides along with it.
-  // Cold replaces the hot read rather than widening it, so an answer from one
-  // stage is not an answer to the other's question — and a key that ignored it
-  // let a Cold tab keep showing Hot data until something else moved the key.
-  const stage = computed(() => (cold.enabled ? ':cold' : ''));
+  // The stage is deliberately NOT part of this identity. It rides on the
+  // request header, and flipping it must not re-key: a new key has no cached
+  // entry, so TanStack would fetch at once — which is exactly the immediate
+  // page-wide read the toggle is not supposed to trigger. See `coldStage.ts`.
   return computed(() => {
     if (ownsWindow?.value && ownWindow) {
       const w = ownWindow.value;
-      return `own:${w.step}:${w.startMs}:${w.endMs}${stage.value}`;
+      return `own:${w.step}:${w.startMs}:${w.endMs}`;
     }
     if (timeRange.presetId === 'custom') {
-      return `custom:${timeRange.step}:${timeRange.customStartMs}:${timeRange.customEndMs}${stage.value}`;
+      return `custom:${timeRange.step}:${timeRange.customStartMs}:${timeRange.customEndMs}`;
     }
-    return `preset:${timeRange.presetId}:${timeRange.step}${stage.value}`;
+    return `preset:${timeRange.presetId}:${timeRange.step}`;
   });
 }
 

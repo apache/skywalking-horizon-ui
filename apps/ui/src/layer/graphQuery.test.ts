@@ -27,6 +27,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { computed, ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
+import { useColdStageStore } from '@/controls/coldStage';
 import { accepts, fetchDrawable, GraphUnavailableError, predicateKey, predicateService, useGraphState, useTimeIdentity, useTriggeredRefetch, anchorForMount, useRoundWindow } from './graphQuery';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
@@ -241,7 +242,7 @@ describe('useTimeIdentity — keying the question, not the instant', () => {
 });
 
 describe('predicateKey — what counts as a different question', () => {
-  const base = { layer: 'general', time: 'preset:1h:MINUTE', cold: false };
+  const base = { layer: 'general', time: 'preset:1h:MINUTE' };
 
   // The defect this replaced: the focus list reached the key through
   // `Array.join`, which stringifies an object to "[object Object]" — so every
@@ -259,8 +260,17 @@ describe('predicateKey — what counts as a different question', () => {
     expect(predicateKey({ ...base, focus: [one, two] })).toBe(predicateKey({ ...base, focus: [two, one] }));
   });
 
-  it('separates cold from hot — a Cold tab must not answer with Hot data', () => {
-    expect(predicateKey({ ...base, cold: true })).not.toBe(predicateKey({ ...base, cold: false }));
+  // The stage is NOT part of the question, and that is load-bearing rather than
+  // an omission: a key that moved on the flip would have no cached entry, so
+  // TanStack would fetch at once — the page-wide read the toggle deliberately
+  // does not trigger. Cold rides on the request header and reaches OAP with
+  // whatever the page asks for NEXT. See `coldStage.ts`.
+  it('does not re-key on a cold-stage flip, so flipping fetches nothing', () => {
+    const cold = useColdStageStore();
+    const before = predicateKey({ ...base });
+    cold.set(true);
+    expect(predicateKey({ ...base })).toBe(before);
+    cold.set(false);
   });
 
   it('separates depth, endpoint and the instance pair', () => {

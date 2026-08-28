@@ -67,6 +67,14 @@ rather than replacing the client's own timeout.
 - **All time strings are OAP-server local.** Not UTC, not browser-local. The
   server's offset is exposed via `getTimeInfo`. The BFF owns this conversion;
   the UI displays in browser-local.
+- **One Horizon reads ONE deployment, and every node in it answers alike.** The
+  timezone, the capability set, the layer-level table and the storage backend
+  are properties of that deployment, not of whichever node a request lands on —
+  Horizon may read any of them and get the same answer. So a process-level cache
+  of any of those needs no per-`queryUrl` key: there is no second answer for a
+  key to separate. Several of them carry one anyway, from before this was
+  written down; it is harmless and load-bearing nowhere, and new code should not
+  copy it.
 
 ## Cold stage
 
@@ -83,16 +91,49 @@ calls the last two `log` and `browserErrorLog`.)
 
 The flag reaches the BFF as the `x-horizon-cold-stage` header, is stashed once
 per request on `req.coldStage`, and routes splice it in via `withColdStage`.
-**Whether a route calls `withColdStage` is the ground truth for whether that
-data has a cold stage at all** — and the UI mirrors it: a query whose route
-applies the flag needs the stage in its cache key, because an answer from one
-stage is not an answer to the other's question.
+Whether a route calls it is OUR decision about scope, not a reading of what the
+storage supports — the table below is that decision.
 
-**Deliberately NOT cold-staged:** metadata, the instance and endpoint pickers,
-and alarms. Operationally we do not recommend putting these in cold storage —
-they are small, and they are what an operator reaches for first during an
-incident. So their UI queries do not carry the stage in their key either. If
-that recommendation ever changes, both sides change together.
+### The cold scope is ours, not the protocol's
+
+The protocol accepts `Duration.coldStage` on far more than we send it on. **We
+send it for traces, logs and metrics, and nowhere else** — because those are the
+only classes a deployment is advised to age into cold storage. Metadata, alarms,
+the rest of the `records` group and everything from profiling stay hot: they are
+small, and they are the first things an operator reaches for during an incident.
+
+This is not a suggestion the code merely documents. `coldStage: true` **replaces**
+the hot read, so sending it on an out-of-scope route does not widen the answer —
+it empties it. A Cold toggle would blank the alarm list and the entity pickers.
+
+| Sends `coldStage` | Never sends it |
+|---|---|
+| `trace.ts` — traces | `alarms.ts` — `/api/alarms`, `/api/alarms/count` |
+| `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
+| `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
+| `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |
+| | `ebpf.ts` — network profiling |
+
+**Adding a route means placing it in this table.** The default is the right-hand
+column: a route sends the flag only because its data is a trace, a log or a
+metric.
+
+**The stage is NOT part of any UI cache key**, on either side of the table. It
+rides on the request header and reaches OAP with whatever the page asks for
+next. Keying on it was tried and is wrong for a reason that has nothing to do
+with correctness of storage: a key that moves when the pill flips has no cached
+entry, so the query library fetches at once — which is the immediate page-wide
+read the toggle deliberately does not perform. The trade is that the screen goes
+on showing the previous stage's answer until the next read; the pill says what
+the next read will ask for.
+
+**Horizon does not check whether a group has a cold stage configured.** The
+operator asks for cold, so Horizon asks OAP for cold. Inferring availability
+from the TTL response would be a second-guess with no upstream contract behind
+it, and it is per-group anyway, so one answer could not be right for every
+query. A cold read against a group with no cold stage returns empty, which is
+the honest answer. The Time To Live page reports the configuration; it gates
+nothing.
 
 ## Metric entity-scope is load-bearing
 

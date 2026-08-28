@@ -86,20 +86,27 @@ describe('OAP capability probe', () => {
     });
   });
 
-  it('does NOT cache the conservative answer from a probe the caller cancelled', async () => {
-    const ac = new AbortController();
-    // What a real fetch does once the caller's signal fires.
-    const aborting: FetchLike = async () => {
-      ac.abort();
-      const err = new Error('This operation was aborted');
-      err.name = 'AbortError';
-      throw err;
-    };
-    // Nothing was measured, so nothing may be concluded. Caching all-false here
-    // would hide alarm queries and content search from every LATER request for
-    // a minute, on the strength of a probe that was never made.
-    await expect(getOapCapabilities(config, aborting, ac.signal)).rejects.toThrow();
+  it('shares ONE introspection between concurrent callers', async () => {
+    // A round fires a dozen reads at once. Without a shared flight each probed,
+    // and a slow failure landing after a fast success overwrote real
+    // capabilities with the conservative all-false — hiding alarm queries and
+    // content search for a minute on a backend that supports both.
     const oap = fakeOap(['queryAlarms', 'supportQueryLogsByKeywords'], true);
+    const all = await Promise.all(
+      Array.from({ length: 6 }, () => getOapCapabilities(config, oap.fetch)),
+    );
+    for (const caps of all) expect(caps).toEqual({ queryAlarms: true, logKeywords: true });
+    expect(oap.asks(), 'each caller ran its own keyword probe').toBe(1);
+  });
+
+  it('a cancelled caller stops waiting without poisoning the shared answer', async () => {
+    // The caller's signal never reaches the shared flight — whoever arrived
+    // first must not cancel a probe the others await — so a caller that gives
+    // up rejects on its own while the probe completes and caches what it read.
+    const ac = new AbortController();
+    ac.abort();
+    const oap = fakeOap(['queryAlarms', 'supportQueryLogsByKeywords'], true);
+    await expect(getOapCapabilities(config, oap.fetch, ac.signal)).rejects.toThrow();
     await expect(getOapCapabilities(config, oap.fetch)).resolves.toEqual({
       queryAlarms: true,
       logKeywords: true,

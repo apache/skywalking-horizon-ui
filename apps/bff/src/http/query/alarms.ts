@@ -65,7 +65,6 @@ import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { clientGone } from '../client-gone.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { readPageWith, type OapPaging } from '../../logic/paging/read-page.js';
-import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { alarmsQuerySchema } from './alarms-request.js';
 import type {
@@ -349,7 +348,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     const start = fmtSecond(q.startTime, offset);
     const end = fmtSecond(q.endTime, offset);
 
-    const duration = withColdStage(req, { start, end, step: 'SECOND' });
+    const duration = { start, end, step: 'SECOND' as const };
     /* One page of raw alarm rows for a given paging pair. Handed to the shared
      * over-fetch seam, which asks for one row more than the page displays so
      * `truncated` is exact instead of a `length >= pageSize` guess. */
@@ -431,7 +430,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       const start = fmtSecond(q.startTime, offset);
       const end = fmtSecond(q.endTime, offset);
 
-      const duration = withColdStage(req, { start, end, step: 'SECOND' });
+      const duration = { start, end, step: 'SECOND' as const };
       const fetchCountRows = async (
         paging: OapPaging,
       ): Promise<Array<{ id: string; startTime: number; recoveryTime: number | null }>> => {

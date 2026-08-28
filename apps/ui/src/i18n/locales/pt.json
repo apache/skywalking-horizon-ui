@@ -97,7 +97,6 @@
   "AI request failed ({status}).": "A solicitação de IA falhou ({status}).",
   "alert page | alert pages": "página de alerta | páginas de alerta",
   "An ACTIVE rule must be inactivated first.": "Uma regra ACTIVE precisa ser inativada primeiro.",
-  "An administrator turned it off — re-enable it under Operate → Templates.": "Um administrador o desativou — reative-o em Operate → Templates.",
   "API dependency": "Dependência de API",
   "API dependency chain": "Cadeia de dependências de API",
   "API dependency config": "Configuração de dependências de API",
@@ -1681,7 +1680,6 @@
   "Theme: {name} (your override) — click to change": "Tema: {name} (seu ajuste) — clique para alterar",
   "Theme: {name} — click to change": "Tema: {name} — clique para alterar",
   "These layers' templates provide a service map, so their cubes render as a call graph (and seed the cross-layer hierarchy). Read-only — it's a layer-template property, not a 3D-map setting.": "Os templates destas camadas fornecem um mapa de serviços, então seus cubos são renderizados como um grafo de chamadas (e alimentam a hierarquia entre camadas). Somente leitura — é uma propriedade do template da camada, não uma configuração do 3D-map.",
-  "This layer’s template is disabled.": "O template desta layer está desativado.",
   "This OAP serves traces via": "Este OAP entrega traces via",
   "This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.": "Esta versão do OAP suporta apenas filtros por palavra-chave + tag. Atualize para filtros por camada + entidade.",
   "This rule has no bundled version on disk — deleting it removes the only copy, and Horizon cannot restore it.": "Esta regra não tem versão incluída em disco — excluí-la remove a única cópia, e o Horizon não consegue restaurá-la.",
@@ -2873,5 +2871,7 @@
   "Hour metrics": "Métricas por hora",
   "Day metrics": "Métricas por dia",
   "ⓘ These are OAP `application.yml` settings. This backend keeps one retention for everything a record holds and one for everything a metric holds, so the figures above are real but cannot be tuned apart. Retention per data class is BanyanDB-only.": "ⓘ São definições do `application.yml` do OAP. Este backend mantém uma retenção para tudo o que é um record e outra para tudo o que é uma métrica, portanto os valores acima são reais mas não podem ser ajustados separadamente. A retenção por classe de dados existe apenas no BanyanDB.",
-  "One bydb.yml group per row · widths proportional to total retention": "Um grupo do bydb.yml por linha · larguras proporcionais à retenção total"
+  "One bydb.yml group per row · widths proportional to total retention": "Um grupo do bydb.yml por linha · larguras proporcionais à retenção total",
+  "This page is not available.": "Esta página não está disponível.",
+  "this OAP has no cold stage configured, so every read returns nothing whatever window you pick. Turn the Cold pill off.": "Este OAP não tem cold stage configurada, portanto nenhuma janela retorna dados. Desligue o botão Cold."
 }

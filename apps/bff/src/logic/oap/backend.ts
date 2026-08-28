@@ -69,13 +69,15 @@ interface Entry {
   backend: OapBackend;
   fetchedAt: number;
 }
-const cache = new Map<string, Entry>();
+// One deployment, one answer — see apps/bff/CLAUDE.md. Keying this on
+// `oap.queryUrl` separated nothing: it is a single config field.
+let cache: Entry | null = null;
 const TTL_OK_MS = 5 * 60_000;
 const TTL_FAIL_MS = 60_000;
 
-/** Reset the per-queryUrl cache. Test-only. */
+/** Reset the cache. Test-only. */
 export function _resetBackendCache(): void {
-  cache.clear();
+  cache = null;
 }
 
 export function classifyBackend(raw: TtlProbeRaw): OapBackend {
@@ -106,19 +108,18 @@ export async function getOapBackend(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
 ): Promise<OapBackend> {
-  const key = config.oap.queryUrl;
   const now = Date.now();
-  const hit = cache.get(key);
+  const hit = cache;
   if (hit && now - hit.fetchedAt < TTL_OK_MS) return hit.backend;
   try {
     const raw = await probeTtl(config, fetchImpl);
     const backend = classifyBackend(raw);
-    cache.set(key, { backend, fetchedAt: now });
+    cache = { backend, fetchedAt: now };
     return backend;
   } catch {
     // Conservative: report unknown rather than guessing. Short cache
     // so the next poll re-probes and recovers when OAP comes back.
-    cache.set(key, { backend: 'unknown', fetchedAt: now - TTL_OK_MS + TTL_FAIL_MS });
+    cache = { backend: 'unknown', fetchedAt: now - TTL_OK_MS + TTL_FAIL_MS };
     return 'unknown';
   }
 }
