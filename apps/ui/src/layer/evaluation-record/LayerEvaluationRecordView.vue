@@ -27,6 +27,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { LayerDef } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerServices } from '@/layer/useLayerServices';
@@ -47,6 +48,7 @@ import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStream
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
 
 const route = useRoute();
+const { t } = useI18n();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { openTrace } = useTracePopout();
 
@@ -434,10 +436,10 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
          on top, conditions grid below, active tag chips at the foot. -->
     <header class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
-        <span class="kicker">Evaluation Records</span>
+        <span class="kicker">{{ t('Evaluation records') }}</span>
         <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}...</code></span>
         <span v-if="isFetching" class="hint">refreshing...</span>
-        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">Run query</button>
+        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <!-- Instance / Sidecar picker. `All` is the default for every
@@ -481,12 +483,12 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         </label>
         <label class="cf">
           <span>Task name</span>
-          <input v-model="taskName" type="text" class="cf-input" placeholder="All tasks" @change="page = 1" />
+          <input v-model="taskName" type="text" class="cf-input" :placeholder="t('All tasks')" @change="page = 1" />
         </label>
         <label class="cf">
           <span>Service</span>
           <select v-model="serviceId" class="cf-input" :disabled="callerServicesFetching" @change="page = 1">
-            <option value="">All services</option>
+            <option value="">{{ t('All services') }}</option>
             <option v-for="service in callerServices" :key="service.id" :value="service.id">
               {{ service.name }}
             </option>
@@ -494,12 +496,12 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         </label>
         <label class="cf">
           <span>Judge model</span>
-          <input v-model="judgeModel" type="text" class="cf-input" placeholder="All judge models" @change="page = 1" />
+          <input v-model="judgeModel" type="text" class="cf-input" :placeholder="t('All judge models')" @change="page = 1" />
         </label>
         <label class="cf">
           <span>Sort by</span>
           <select v-model="sortField" class="cf-input" @change="page = 1">
-            <option value="EVALUATION_TIME">Evaluation time</option>
+            <option value="EVALUATION_TIME">{{ t('Evaluation time') }}</option>
             <option v-if="valueType === 'SCORE'" value="SCORE_VALUE">Score</option>
           </select>
         </label>
@@ -551,7 +553,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     </header>
 
     <div v-if="!reachable" class="banner err">
-      <strong>Evaluation records feed failed.</strong> {{ queryError || 'Backend unreachable.' }}
+      <strong>{{ t('Evaluation records feed failed.') }}</strong> {{ queryError || t('Backend unreachable.') }}
     </div>
 
     <!-- Histogram + main stream -->
@@ -563,7 +565,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
              (this query is already service-scoped, so the service
              dimension carries no information). -->
         <div v-if="facets || genAIEvaluationRecordStreamRows.length > 0" class="lg-legend">
-          <span class="lg-legend-kicker">Evaluation Levels</span>
+          <span class="lg-legend-kicker">{{ t('Evaluation Levels') }}</span>
           <button
               v-for="l in LEVEL_ORDER"
               :key="l"
@@ -641,7 +643,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
 
         <!-- Stream -->
         <div v-if="filteredGenAIEvaluationRecordRows.length === 0" class="lg-empty">
-          {{ genAIEvaluationRecordStreamRows.length === 0 ? 'No evaluation records returned for this scope.' : 'No evaluation records match the active filters.' }}
+          {{ genAIEvaluationRecordStreamRows.length === 0 ? t('No evaluation records returned for this scope.') : t('No evaluation records match the active filters.') }}
         </div>
         <!-- Row click ??open the full-payload popout. The dense row
              rendering is the shared `LogStreamPanel` (same markup the
@@ -659,13 +661,13 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             <template v-if="total != null"> of {{ total }} total</template>
           </span>
           <div class="lg-pager-ctrls">
-            <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">Prev</button>
+            <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">{{ t('Prev') }}</button>
             <button
                 class="sw-btn small"
                 type="button"
                 :disabled="!hasNext || isFetching"
                 @click="page++"
-            >Next</button>
+            >{{ t('Next') }}</button>
           </div>
         </div>
       </div>
@@ -848,7 +850,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
   background: var(--sw-err-soft);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  color: #f87171;
+  color: var(--sw-err);
   font-size: 11.5px;
 }
 

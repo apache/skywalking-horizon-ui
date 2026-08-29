@@ -179,8 +179,8 @@ function onJumpTrace(): void {
   color: var(--sw-fg-0); white-space: pre-wrap; word-break: break-all; overflow: auto;
   border-radius: 4px;
 }
-.ld-body.fmt-json { color: var(--sw-cyan); }
-.ld-body.fmt-yaml { color: #fbbf24; }
+.ld-body.fmt-json { color: var(--sw-info); }
+.ld-body.fmt-yaml { color: var(--sw-warn); }
 .ld-tags {
   flex: 0 0 340px; border-left: 1px solid var(--sw-line); padding: 8px 14px 12px;
   overflow: auto; background: var(--sw-bg-1);

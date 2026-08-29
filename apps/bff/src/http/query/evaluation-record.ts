@@ -44,6 +44,7 @@ import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/gr
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { readPage, type PagedQuerySpec } from '../../logic/paging/read-page.js';
+import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
 export interface EvaluationRecordRouteDeps {
   config: ConfigSource;
@@ -304,6 +305,7 @@ interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
 
 export function registerEvaluationRecordRoute(app: FastifyInstance, deps: EvaluationRecordRouteDeps): void {
   const auth = requireAuth(deps);
+  const catalog = serviceLayerCatalog({ config: deps.config, fetch: deps.fetch });
   app.post(
       '/api/layer/:key/evaluation-records',
       { preHandler: auth },
@@ -322,11 +324,19 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         });
         if ('error' in window) return reply.code(400).send({ error: window.error });
 
+        let resolvedServiceId = body.serviceId ?? null;
+        if (!resolvedServiceId && body.service) {
+          const services = (await catalog.get()).byLayer.get(layerKey.toUpperCase()) ?? [];
+          const match = services.find((s) => s.id === body.service || s.name === body.service);
+          if (!match) return reply.code(400).send({ error: 'service not found in layer' });
+          resolvedServiceId = match.id;
+        }
+
         // Resolve a service NAME to an id if the caller used one.
         const res = await fetchEvaluationRecords(
             opts,
             {
-              serviceId: body.serviceId,
+              serviceId: resolvedServiceId,
               providerId: body.providerId,
               modelId: body.modelId,
               valueType: body.valueType,
@@ -380,8 +390,15 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           endTime: body.endTime == null ? undefined : Number(body.endTime),
         });
         if ('error' in window) return reply.code(400).send({ error: window.error });
+        let resolvedServiceId = body.serviceId ?? null;
+        if (!resolvedServiceId && body.service) {
+          const services = (await catalog.get()).byLayer.get(layerKey.toUpperCase()) ?? [];
+          const match = services.find((s) => s.id === body.service || s.name === body.service);
+          if (!match) return reply.code(400).send({ error: 'service not found in layer' });
+          resolvedServiceId = match.id;
+        }
         const evaluationRecordCondition = {
-          ...(body.serviceId ? { serviceId: body.serviceId } : {}),
+          ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
           ...(body.valueType ? { valueType: body.valueType } : {}),
