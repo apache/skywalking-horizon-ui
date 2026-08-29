@@ -474,7 +474,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
           <input v-model.number="maxScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
         </label>
         <label v-if="valueType === 'BOOLEAN'" class="cf">
-          <span>Boolean value</span>
+          <span>{{ t('Boolean value') }}</span>
           <select v-model="booleanValue" class="cf-input" @change="page = 1">
             <option :value="null">All</option>
             <option :value="true">True</option>
@@ -537,11 +537,11 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
           </template>
           <select v-else v-model.number="windowMinutes" class="cf-input">
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
-            <option :value="CUSTOM_RANGE_SENTINEL">Custom...</option>
+            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
           </select>
         </label>
         <label class="cf">
-          <span>Page size</span>
+          <span>{{ t('Page size') }}</span>
           <select v-model.number="pageSize" class="cf-input" @change="page = 1">
             <option :value="20">20</option>
             <option :value="30">30</option>
@@ -579,8 +579,8 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             <span class="lg-legend-name">{{ l }}</span>
             <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
           </button>
-          <span v-if="facets" class="lg-legend-sample" :title="`window sample of ${facets.sampled} rows`">
-            sample of {{ facets.sampled }}
+          <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
+            {{ t('sample of {n}', { n: facets.sampled }) }}
           </span>
         </div>
 

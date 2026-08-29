@@ -30,7 +30,7 @@ const props = withDefaults(defineProps<{
   endpointLabel?: string;
   badgeTagKey?: string;
 }>(), {
-  modalTitle: 'Evaluation Record Entry',
+  modalTitle: 'Evaluation Record',
   endpointLabel: 'Task Name',
   badgeTagKey: 'value_type',
 });

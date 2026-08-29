@@ -446,7 +446,6 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
               .slice(0, 12);
           return reply.send({
             generatedAt: Date.now(),
-            total: rows.length,
             sampled: rows.length,
             level,
             services,
@@ -455,7 +454,6 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         } catch (err) {
           return reply.send({
             generatedAt: Date.now(),
-            total: 0,
             sampled: 0,
             level: { fail: 0, warning: 0, good: 0, excellent: 0, undefined: 0 },
             services: [],

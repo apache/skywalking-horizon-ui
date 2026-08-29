@@ -83,7 +83,6 @@ export interface EvaluationRecordsResponse {
 
 export interface EvaluationRecordFacetsResponse {
   generatedAt: number;
-  total: number;
   sampled: number;
   level: Record<'fail' | 'warning' | 'good' | 'excellent' | 'undefined', number>;
   services: Array<{ name: string; count: number }>;
