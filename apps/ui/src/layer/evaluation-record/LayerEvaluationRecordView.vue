@@ -43,6 +43,7 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
@@ -51,6 +52,7 @@ const route = useRoute();
 const { t } = useI18n();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { openTrace } = useTracePopout();
+const { openTrace: openZipkinTrace } = useZipkinTracePopout();
 
 function queryString(name: string): string | null {
   const value = route.query[name];
@@ -426,6 +428,10 @@ function fmtAxisTime(ts: number): string {
  *  window ??without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
 function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null): void {
+  if (traceType === 'OTLP') {
+    openZipkinTrace(traceId);
+    return;
+  }
   openTrace(traceId, ts, traceType);
 }
 </script>

@@ -51,7 +51,12 @@ export function useZipkinTracePopout() {
 
   function openTrace(id: string): void {
     if (!id) return;
-    void router.replace({ path: route.path, query: { ...route.query, traceId: id } });
+    // Force the shared trace-id popout coordinator to select the Zipkin
+    // renderer even when the current layer's default source is native.
+    void router.replace({
+      path: route.path,
+      query: { ...route.query, traceId: id, source: 'zipkin' },
+    });
   }
 
   function closeTrace(): void {
@@ -59,6 +64,7 @@ export function useZipkinTracePopout() {
     const next = { ...route.query };
     delete next.traceId;
     delete next.traceAt;
+    if (next.source === 'zipkin') delete next.source;
     void router.replace({ path: route.path, query: next });
   }
 
