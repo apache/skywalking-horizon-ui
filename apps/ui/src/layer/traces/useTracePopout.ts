@@ -44,6 +44,7 @@ import { useTraceSourceIsZipkin } from './useZipkinTracePopout';
  *  popout falls back to the default 1-day search. */
 export const TRACE_POPOUT_QUERY = 'traceId';
 export const TRACE_POPOUT_AT = 'traceAt';
+export const TRACE_POPOUT_TYPE = 'traceType';
 
 export function useTracePopout() {
   const route = useRoute();
@@ -61,7 +62,7 @@ export function useTracePopout() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  function openTrace(id: string, atMs?: number): void {
+  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null): void {
     if (!id) return;
     const next: Record<string, string | (string | null)[] | null | undefined> = {
       ...route.query,
@@ -72,6 +73,8 @@ export function useTracePopout() {
     } else {
       delete next[TRACE_POPOUT_AT];
     }
+    if (traceType) next[TRACE_POPOUT_TYPE] = traceType;
+    else delete next[TRACE_POPOUT_TYPE];
     void router.push({ path: route.path, query: next });
   }
 
@@ -79,6 +82,7 @@ export function useTracePopout() {
     const q = { ...route.query };
     delete q[TRACE_POPOUT_QUERY];
     delete q[TRACE_POPOUT_AT];
+    delete q[TRACE_POPOUT_TYPE];
     void router.replace({ path: route.path, query: q });
   }
 

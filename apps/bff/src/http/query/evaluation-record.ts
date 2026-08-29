@@ -269,7 +269,9 @@ export async function fetchEvaluationRecords(
     return {
       generatedAt: Date.now(),
       query: {},
-      total: records.length,
+      // OAP exposes page rows and a next-page probe, but no total count.
+      // Do not present the current page length as a global total.
+      total: null,
       records,
       reachable: true,
       hasNext: page.hasNext,
@@ -379,9 +381,17 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         });
         if ('error' in window) return reply.code(400).send({ error: window.error });
         const evaluationRecordCondition = {
+          ...(body.serviceId ? { serviceId: body.serviceId } : {}),
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
           ...(body.valueType ? { valueType: body.valueType } : {}),
+          ...(body.valueType === 'SCORE' && body.minScore != null
+            ? { minScore: scoreBoundToStoredValue(Number(body.minScore), true) } : {}),
+          ...(body.valueType === 'SCORE' && body.maxScore != null
+            ? { maxScore: scoreBoundToStoredValue(Number(body.maxScore), false) } : {}),
+          ...(body.valueType === 'BOOLEAN' && body.booleanValue != null ? { booleanValue: body.booleanValue } : {}),
+          ...(body.taskName ? { taskName: body.taskName } : {}),
+          ...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),
           ...(body.traceId ? { relatedTrace: { type: body.traceType ?? 'SKYWALKING_NATIVE', traceId: body.traceId } } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a
@@ -410,7 +420,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
             else if (raw === 'good') level.good++;
             else if (raw === 'excellent') level.excellent++;
             else level.undefined++;
-            const svc = r.providerName ?? '(none)';
+            const svc = r.serviceName ?? '(none)';
             svcMap.set(svc, (svcMap.get(svc) ?? 0) + 1);
           }
           const services = Array.from(svcMap.entries())

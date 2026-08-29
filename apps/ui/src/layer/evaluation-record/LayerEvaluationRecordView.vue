@@ -282,9 +282,17 @@ const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, 
 
 const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerKey, {
   service: computed(() => null),
+  serviceId: computed(() => serviceId.value.trim() || null),
   providerId: providerIdRef,
   modelId: modelIdRef,
+  valueType,
+  minScore,
+  maxScore,
+  booleanValue,
+  taskName: computed(() => taskName.value.trim() || null),
+  judgeModel: computed(() => judgeModel.value.trim() || null),
   traceId: traceIdRef,
+  traceType: traceTypeRef,
   keywords: keywordsRef,
   windowMinutes: windowMinutesEffective,
   startTime: startTimeRef,
@@ -415,8 +423,8 @@ function fmtAxisTime(ts: number): string {
  *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
  *  window ??without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
-function jumpToTrace(traceId: string, ts?: number): void {
-  openTrace(traceId, ts);
+function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null): void {
+  openTrace(traceId, ts, traceType);
 }
 </script>
 
@@ -643,10 +651,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
             v-else
             :rows="filteredGenAIEvaluationRecordRows"
             @select="onRowClick($event.row)"
-            @jump-trace="jumpToTrace($event.traceId, $event.ts)"
+            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType)"
         />
         <div class="lg-pager">
-          <span class="hint">page {{ page }} · showing {{ filteredGenAIEvaluationRecordRows.length }} of {{ total }} total</span>
+          <span class="hint">
+            page {{ page }} · showing {{ filteredGenAIEvaluationRecordRows.length }}
+            <template v-if="total != null"> of {{ total }} total</template>
+          </span>
           <div class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">Prev</button>
             <button
@@ -665,7 +676,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
     <EvaluationRecordDetailPopout
         :row="popoutRow"
         @close="popoutRow = null"
-        @jump-trace="jumpToTrace($event.traceId, $event.ts)"
+            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType)"
     />
   </div>
 </template>

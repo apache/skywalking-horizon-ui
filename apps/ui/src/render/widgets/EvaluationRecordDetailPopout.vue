@@ -36,7 +36,7 @@ const props = withDefaults(defineProps<{
 });
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'jump-trace', payload: { traceId: string; ts: number }): void;
+  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; ts: number }): void;
 }>();
 
 type LogFormat = 'json' | 'yaml' | 'text';
@@ -102,7 +102,14 @@ async function copyContent(): Promise<void> {
 watch(() => props.row, () => { copied.value = false; });
 onBeforeUnmount(() => { if (copyTimer) clearTimeout(copyTimer); });
 function onJumpTrace(): void {
-  if (props.row?.traceId) emit('jump-trace', { traceId: props.row.traceId, ts: props.row.timestamp });
+  if (props.row?.traceId) emit('jump-trace', {
+    traceId: props.row.traceId,
+    traceType: (() => {
+      const value = props.row.tags.find((tag) => tag.key.toLowerCase() === 'trace_type')?.value;
+      return value === 'OTLP' || value === 'SKYWALKING_NATIVE' ? value : null;
+    })(),
+    ts: props.row.timestamp,
+  });
 }
 </script>
 

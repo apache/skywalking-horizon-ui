@@ -73,7 +73,8 @@ export interface EvaluationRecordRow {
 export interface EvaluationRecordsResponse {
   generatedAt: number;
   query: EvaluationRecordQueryRequest;
-  total: number;
+  /** OAP does not expose a total count for this record query. */
+  total: number | null;
   records: EvaluationRecordRow[];
   reachable: boolean;
   hasNext?: boolean;

@@ -44,6 +44,7 @@ export interface GenAIEvaluationRecordStreamRow {
   endpointName: string | null;
   endpointId: string | null;
   traceId: string | null;
+  traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null;
   timestamp: number;
   contentType: string;
   content: string;
@@ -178,6 +179,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       endpointName: row.taskName,
       endpointId: null,
       traceId: row.traceId,
+      traceType: row.traceRef?.type ?? null,
       timestamp: row.evaluationTime,
       contentType: 'text/plain',
       content: displayValue(row),
@@ -208,7 +210,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     ),
     logs: genAIEvaluationRecordStreamRows,
     records: computed(() => genAIEvaluationRecords.value.map(toGenAIEvaluationRecordSummary)),
-    total: computed(() => q.data.value?.total ?? 0),
+    total: computed(() => q.data.value?.total ?? null),
     // A transport failure has no response envelope, so treating the missing
     // data as reachable would turn network/403/500 errors into an empty list.
     reachable: computed(() => !q.error.value && (q.data.value?.reachable ?? true)),
@@ -222,9 +224,17 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
 
 export interface EvaluationRecordFacetParams {
   service: Ref<string | null>;
+  serviceId?: Ref<string | null>;
   providerId?: Ref<string | null>;
   modelId?: Ref<string | null>;
+  valueType?: Ref<'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null>;
+  minScore?: Ref<number | null>;
+  maxScore?: Ref<number | null>;
+  booleanValue?: Ref<boolean | null>;
+  taskName?: Ref<string | null>;
+  judgeModel?: Ref<string | null>;
   traceId?: Ref<string | null>;
+  traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
   keywords?: Ref<string[]>;
   windowMinutes?: Ref<number>;
   startTime?: Ref<number | null>;
@@ -237,9 +247,17 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
       'layer-evaluation-record-facets',
       layerKey,
       params.service,
+      params.serviceId ?? computed(() => null),
       params.providerId ?? computed(() => null),
       params.modelId ?? computed(() => null),
+      params.valueType ?? computed(() => null),
+      params.minScore ?? computed(() => null),
+      params.maxScore ?? computed(() => null),
+      params.booleanValue ?? computed(() => null),
+      params.taskName ?? computed(() => null),
+      params.judgeModel ?? computed(() => null),
       params.traceId ?? computed(() => null),
+      params.traceType ?? computed(() => null),
       params.keywords ?? computed(() => []),
       params.windowMinutes ?? computed(() => 0),
       params.startTime ?? computed(() => null),
@@ -247,9 +265,17 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
     ],
     queryFn: () =>
       bffClient.evaluationRecord.facets(layerKey.value, {
+        ...(params.serviceId?.value ? { serviceId: params.serviceId.value } : {}),
         ...(params.providerId?.value ? { providerId: params.providerId.value } : {}),
         ...(params.modelId?.value ? { modelId: params.modelId.value } : {}),
+        ...(params.valueType?.value ? { valueType: params.valueType.value } : {}),
+        ...(params.valueType?.value === 'SCORE' && params.minScore?.value != null ? { minScore: params.minScore.value } : {}),
+        ...(params.valueType?.value === 'SCORE' && params.maxScore?.value != null ? { maxScore: params.maxScore.value } : {}),
+        ...(params.valueType?.value === 'BOOLEAN' && params.booleanValue?.value != null ? { booleanValue: params.booleanValue.value } : {}),
+        ...(params.taskName?.value ? { taskName: params.taskName.value } : {}),
+        ...(params.judgeModel?.value ? { judgeModel: params.judgeModel.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
+        ...(params.traceType?.value ? { traceType: params.traceType.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }
