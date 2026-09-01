@@ -34,7 +34,7 @@ import { rowKey } from './row-key';
 
 const { t } = useI18n();
 const config = defineModel<TopologyConfig | undefined>('config');
-defineProps<{ serviceNoun: string; instanceNoun: string }>();
+defineProps<{ serviceNoun: string; instanceNoun: string; layerKey?: string }>();
 
 function ensure(): TopologyConfig {
   if (!config.value) config.value = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
@@ -124,6 +124,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in nodeMetrics"
             :key="rowKey(m)"
             v-model:metric="nodeMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="service"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
             show-thresholds
@@ -150,6 +152,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in serverMetrics"
             :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="service-relation"
             :can-move-up="i > 0"
             :can-move-down="i < serverMetrics.length - 1"
             @move-up="move(serverMetrics, i, -1)"
@@ -171,6 +175,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in clientMetrics"
             :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="service-relation"
             :can-move-up="i > 0"
             :can-move-down="i < clientMetrics.length - 1"
             @move-up="move(clientMetrics, i, -1)"
@@ -205,6 +211,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 v-for="(m, i) in instNodeMetrics"
                 :key="rowKey(m)"
                 v-model:metric="instNodeMetrics[i]"
+                :layer-key="layerKey"
+                site-scope="instance"
                 :role-options="TOPOLOGY_ROLE_OPTIONS"
                 show-role
                 show-thresholds
@@ -231,6 +239,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 v-for="(m, i) in instServerMetrics"
                 :key="rowKey(m)"
                 v-model:metric="instServerMetrics[i]"
+                :layer-key="layerKey"
+                site-scope="instance-relation"
                 :can-move-up="i > 0"
                 :can-move-down="i < instServerMetrics.length - 1"
                 @move-up="move(instServerMetrics, i, -1)"
@@ -252,6 +262,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 v-for="(m, i) in instClientMetrics"
                 :key="rowKey(m)"
                 v-model:metric="instClientMetrics[i]"
+                :layer-key="layerKey"
+                site-scope="instance-relation"
                 :can-move-up="i > 0"
                 :can-move-down="i < instClientMetrics.length - 1"
                 @move-up="move(instClientMetrics, i, -1)"

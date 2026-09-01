@@ -31,10 +31,16 @@ import type { AdminLayerTemplate } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
 import { nextFreeId } from './free-id';
 import { rowKey } from './row-key';
+import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 
 const { t } = useI18n();
 const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
-defineProps<{ serviceLabel: string }>();
+defineProps<{
+  serviceLabel: string;
+  /** The layer being edited — fixed context for running a column's MQE.
+   *  Absent (a layer not yet picked) hides the run affordance. */
+  layerKey?: string;
+}>();
 
 /** The landing request accepts at most this many columns, and the push schema
  *  refuses a template carrying more — so the add button stops here. Mirrors the
@@ -191,7 +197,19 @@ const effectiveOrderBy = computed(
               <option value="avg">avg</option>
             </select>
           </td>
-          <td><input class="mono" v-model="c.mqe" :placeholder="t('catalog default')" /></td>
+          <td>
+            <!-- Blank is legal here: the landing route falls back to the
+                 catalog default for the column's metric id, so the run panel
+                 is given `metric` too and resolves the same default. -->
+            <MqeExpressionInput
+              v-model="c.mqe"
+              :placeholder="t('catalog default')"
+              :title="c.label || c.metric"
+              :layer-key="layerKey"
+              :metric="c.metric"
+              site-scope="service"
+            />
+          </td>
           <td><input type="number" step="any" :value="c.scale" placeholder="1" @input="setNum(c, 'scale', $event)" /></td>
           <td><input type="number" min="0" max="6" :value="c.precision" :placeholder="t('auto')" @input="setNum(c, 'precision', $event)" /></td>
           <td>

@@ -52,6 +52,7 @@ import { registerEventsRoute } from './http/query/events.js';
 import { registerExploreRoutes } from './http/query/explore.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
+import { registerMqeExecRoute } from './http/query/mqe-exec.js';
 import { registerAlarmsQueryRoutes } from './http/query/alarms.js';
 import { registerAiRoutes } from './ai/chat-assistant/route.js';
 import { registerMcpRoutes } from './ai/mcp/route.js';
@@ -340,6 +341,7 @@ registerDashboardQueryRoute(app, {
   ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
+registerMqeExecRoute(app, { ...authDeps });
 registerAlarmsQueryRoutes(app, { ...authDeps, serviceLayer });
 registerAiRoutes(app, {
   ...authDeps,

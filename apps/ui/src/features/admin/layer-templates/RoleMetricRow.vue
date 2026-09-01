@@ -29,6 +29,7 @@
 import { useI18n } from 'vue-i18n';
 import type { DeploymentMetricDef } from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
+import type { MqeSiteScope } from '@/features/admin/_shared/mqeEntity';
 
 const { t } = useI18n();
 
@@ -40,6 +41,10 @@ defineProps<{
   showThresholds?: boolean;
   mqePlaceholder?: string;
   mqeTitle?: string;
+  /** Layer being edited, and how this bucket's MQE is really evaluated —
+   *  both are required before the row offers to run the expression. */
+  layerKey?: string;
+  siteScope?: MqeSiteScope;
   unitPlaceholder?: string;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -57,7 +62,7 @@ function toggleThresholds(m: DeploymentMetricDef): void {
       <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" /></label>
       <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" /></label>
       <label v-if="showAlias" class="mf mf-narrow"><span>{{ t('alias') }}</span><input v-model="metric.alias" type="text" class="mf-input mono" placeholder="W" :title="t('Short prefix on the edge, e.g. W / R')" /></label>
-      <label class="mf mf-wide"><span>{{ t('MQE') }}</span><MqeExpressionInput v-model="metric.mqe" :placeholder="mqePlaceholder" :title="mqeTitle" /></label>
+      <label class="mf mf-wide"><span>{{ t('MQE') }}</span><MqeExpressionInput v-model="metric.mqe" :placeholder="mqePlaceholder" :title="mqeTitle" :layer-key="layerKey" :site-scope="siteScope" /></label>
       <label class="mf mf-narrow"><span>{{ t('unit') }}</span><input v-model="metric.unit" type="text" class="mf-input" :placeholder="unitPlaceholder" /></label>
       <label v-if="showRole" class="mf"><span>{{ t('role') }}</span>
         <select v-model="metric.role" class="mf-input">

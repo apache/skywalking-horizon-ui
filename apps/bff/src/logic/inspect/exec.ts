@@ -89,8 +89,13 @@ export function parseExecBody(body: unknown, reply: FastifyReply): ExecBody | nu
     reply.code(400).send({ error: 'missing_entity' });
     return null;
   }
-  if (typeof (b.entity as MqeEntity).scope !== 'string') {
-    reply.code(400).send({ error: 'invalid_entity', detail: 'scope is required' });
+  // `scope` is optional, and deprecated upstream since OAP 9.4.0 — the query
+  // protocol senses it from the metric name. Relation metrics must omit it
+  // entirely (forcing it empties the result on some OAP versions), so this
+  // only rejects a present-but-wrong-typed value.
+  const entityScope = (b.entity as MqeEntity).scope;
+  if (entityScope !== undefined && typeof entityScope !== 'string') {
+    reply.code(400).send({ error: 'invalid_entity', detail: 'scope must be a string when present' });
     return null;
   }
   if (typeof b.duration !== 'object' || b.duration === null) {

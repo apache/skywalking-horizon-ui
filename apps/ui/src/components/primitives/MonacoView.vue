@@ -17,13 +17,13 @@
 <script setup lang="ts">
 /**
  * Read-only Monaco viewer — a single editor for inspecting a value with
- * syntax highlighting (the inspect popout uses it for the cell's full
- * JSON). The editable counterpart is `MonacoYaml`; the two-pane diff is
- * `MonacoDiff`.
+ * syntax highlighting: an LAL cell's full payload, an MQE response.
+ * The editable counterpart is `MonacoYaml` (which stays with the feature
+ * that owns rule editing); the two-pane diff is `MonacoDiff`.
  */
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as monaco from 'monaco-editor';
-import { setupMonaco, RR_THEME_NAME } from '../../../monaco/setup.js';
+import { setupMonaco, RR_THEME_NAME } from '@/monaco/setup';
 
 const props = withDefaults(
   defineProps<{ value: string; language?: string }>(),

@@ -26,6 +26,7 @@ The scopes are not organised by screen, and several screens legitimately share o
 | `dsl`, `liveDebug`, `inspect`, `explore`, `oapOps` | the Operate sub-features |
 | `infra3d` | the 3D infrastructure map |
 | `layerTemplates`, `templateSync`, `configs` | the admin editors, plus the layer shell and the app-level config bundle |
+| `mqe` | the layer template editor's run panel — one expression, raw result |
 | `adminAudit`, `adminAuth`, `adminUsers` | the admin pages |
 | `ai` | the AI chat |
 

@@ -46,7 +46,7 @@ import RoleMetricRow from './RoleMetricRow.vue';
 import { rowKey } from './row-key';
 
 const config = defineModel<DeploymentConfig | undefined>('config');
-defineProps<{ instanceNoun: string }>();
+defineProps<{ instanceNoun: string; layerKey?: string }>();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -490,6 +490,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   v-for="(m, mi) in r.nodeMetrics"
                   :key="rowKey(m)"
                   v-model:metric="r.nodeMetrics[mi]"
+                  :layer-key="layerKey"
+                  site-scope="instance"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
                   show-thresholds
@@ -539,6 +541,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   v-for="(m, mi) in p.metrics"
                   :key="rowKey(m)"
                   v-model:metric="p.metrics[mi]"
+                  :layer-key="layerKey"
+                  site-scope="deployment-relation"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
                   show-alias
@@ -569,6 +573,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             v-for="(m, i) in deploymentNodeMetrics"
             :key="rowKey(m)"
             v-model:metric="deploymentNodeMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="instance"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
             show-thresholds
@@ -595,6 +601,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             v-for="(m, i) in deploymentServerMetrics"
             :key="rowKey(m)"
             v-model:metric="deploymentServerMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="deployment-relation"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentServerMetrics.length - 1"
             @move-up="moveMetric('sitLinkServer', i, -1)"
@@ -616,6 +624,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             v-for="(m, i) in deploymentClientMetrics"
             :key="rowKey(m)"
             v-model:metric="deploymentClientMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="deployment-relation"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentClientMetrics.length - 1"
             @move-up="moveMetric('sitLinkClient', i, -1)"
