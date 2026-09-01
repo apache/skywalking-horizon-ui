@@ -562,6 +562,28 @@ A top banner summarizes page state — *Synced from OAP — N diverged, Y local*
 
 If OAP already holds a record that isn't readable as the template it is stored as — pushed by an older Horizon, by another tool, or by hand — the banner turns to **UNREADABLE** and lists each one with its OAP record id and the reason. Two shapes end up there: a record stored under a name Horizon never asks for (a lower-case layer key, an OAP legacy alias), and a record stored under the right name whose content declares a *different* layer. Neither renders anywhere: a layer whose only record is unreadable falls back to Horizon's built-in defaults, exactly as a layer with no published template does, and never to the other layer's dashboard. To clean one up, republish it so its stored name and its content agree — and if that means publishing under a different name, retire the record left behind on OAP afterwards; Horizon never retires a record on its own.
 
+### Trying an expression before you publish
+
+Every MQE field in the editor has a **run** button beside it. It opens a panel that evaluates that one expression against your OAP and shows what came back, so you can tell a working expression from a broken one without publishing anything.
+
+The panel supplies the context an expression needs besides itself:
+
+- **Layer** — fixed to the template you are editing, and shown rather than chosen. An expression from this template only ever runs against this layer.
+- **Entity** — a service, narrowed to one of its instances or endpoints when the metric is scoped that way. A process relation also asks for the process name under each selected service instance; the name stays editable because processes are temporal and may be virtual. Relation metrics (topology links, deployment links, process links, API dependency links) ask for a **source** and a **destination**, because that is the pair they measure.
+- **Time range** — the same picker the top of the page uses: a precision tab (Minute / Hour / Day, each capped at the window it can address), that precision's rolling presets, and a custom start/end range. It is the panel's own window, not the page's. Widen it when a metric is reported hourly and a short window shows nothing.
+
+What comes back is OAP's own answer, shaped to what it returned. A time series is drawn as a graph — one line per series, all on a shared time axis, with a legend naming each from the metric's own labels. **Copy JSON** hands you OAP's response verbatim when you need the exact numbers. A `top_n` is ranked rows with the entity each value belongs to; record metrics show the sampled text and its trace id; an aggregate is a single row. **Copy JSON** takes the whole response away for a bug report.
+
+Three results are worth recognising:
+
+- **An error message** is OAP telling you the expression is wrong — an unknown metric name, or a syntax error — and it is quoted exactly as OAP phrased it.
+- **No rows** means the expression is valid but this entity and window hold nothing. Try a wider range or a busier service before assuming the expression is at fault.
+- **A blank field still runs.** A service-list column with no expression falls back to a default derived from its metric id, and the panel names the expression it used, so you can see what your operators will actually get.
+
+Nothing here writes anything: the panel is a read, and it runs the expression currently in the field — including one you have typed but not yet saved.
+
+To find out which metrics this OAP exposes and what scope each one lives at, use [Metrics Inspect](../operate/inspect.md) — the catalog answers *which* metric, this panel answers *does mine work*.
+
 ### Bundled defaults vs. your OAP-published templates
 
 Each layer template has two copies: the **bundled** default shipped with Horizon, and the **remote** copy stored on OAP (what end users actually render — OAP wins at render time). On boot, Horizon seeds OAP **only with templates that are absent there** — a brand-new layer with no remote copy yet is pushed automatically so it works out of the box.

@@ -15,15 +15,24 @@
   limitations under the License.
 -->
 <!--
-  MQE expression field. A single-line inline input for quick edits plus an
-  expand button that opens a larger pop-out so a long expression can be
-  read and edited in full. Shared by the layer-dashboard and overview
-  template editors via `v-model`. Self-contained (own teleported overlay)
-  so it carries no cross-feature dependency.
+  MQE expression field. A single-line inline input for quick edits, an
+  expand button that opens a larger pop-out so a long expression can be read
+  and edited in full, and — when the caller says which layer and scope the
+  field belongs to — a run button that fires the expression against a real
+  entity and shows what OAP returns. Shared by the layer-dashboard and
+  overview template editors via `v-model`.
+
+  The run affordance is opt-in because it needs context this component has no
+  way to infer: the same expression means different things at Service,
+  ServiceInstance and relation scope. A caller that supplies neither
+  `layerKey` nor `siteScope` keeps exactly the old behaviour.
 -->
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import Icon from '@/components/icons/Icon.vue';
+import MqeRunPanel from './MqeRunPanel.vue';
+import type { MqeSiteScope } from './mqeEntity';
 
 const props = withDefaults(
   defineProps<{
@@ -33,13 +42,34 @@ const props = withDefaults(
     readonly?: boolean;
     /** Header label for the pop-out. */
     title?: string;
+    /** Layer the expression belongs to. Supplying it (with `siteScope`)
+     *  turns on the run button; it is fixed, never picked in the panel. */
+    layerKey?: string;
+    /** How this field's MQE is really evaluated. See {@link MqeSiteScope}. */
+    siteScope?: MqeSiteScope;
+    /** Column id, so a BLANK expression can still be run: the BFF resolves
+     *  the catalog default from the metric name plus the layer. */
+    metric?: string;
   }>(),
-  { modelValue: '', placeholder: '', readonly: false, title: undefined },
+  {
+    modelValue: '',
+    placeholder: '',
+    readonly: false,
+    title: undefined,
+    layerKey: undefined,
+    siteScope: undefined,
+    metric: undefined,
+  },
 );
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const { t } = useI18n({ useScope: 'global' });
 const popTitle = computed(() => props.title ?? t('MQE expression'));
+
+// Runnable only when the caller named both halves of the context. A blank
+// expression is still runnable — that is the catalog-default case.
+const canRun = computed(() => !!props.layerKey && !!props.siteScope);
+const runOpen = ref(false);
 
 const open = ref(false);
 const draft = ref('');
@@ -83,8 +113,27 @@ function onKeydown(e: KeyboardEvent): void {
       :readonly="readonly"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
+    <button
+      v-if="canRun"
+      type="button"
+      class="mqe-run"
+      :title="t('Run this expression')"
+      :aria-label="t('Run this expression')"
+      @click="runOpen = true"
+    ><Icon name="metric" :size="12" /></button>
     <button type="button" class="mqe-expand" :title="t('Expand — {title}', { title: popTitle })" @click="openPopout">⤢</button>
   </div>
+
+  <MqeRunPanel
+    v-if="canRun && runOpen"
+    :open="true"
+    :expression="modelValue ?? ''"
+    :metric="metric"
+    :layer-key="layerKey!"
+    :site-scope="siteScope!"
+    :title="title"
+    @close="runOpen = false"
+  />
 
   <Teleport to="body">
     <div v-if="open" class="mqe-pop-backdrop" @mousedown.self="cancel">
@@ -150,6 +199,22 @@ function onKeydown(e: KeyboardEvent): void {
 }
 .mqe-expand:hover {
   color: var(--sw-fg-0);
+  border-color: var(--sw-accent-line);
+}
+.mqe-run {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 26px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+}
+.mqe-run:hover {
+  color: var(--sw-accent);
   border-color: var(--sw-accent-line);
 }
 

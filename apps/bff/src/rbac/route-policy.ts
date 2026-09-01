@@ -174,6 +174,10 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/service-hierarchy':         'topology:read',
 
   'POST /api/layer/:key/dashboard':                'metrics:read',
+  // Running one expression to see what it returns is a metrics read, not a
+  // platform-internals action — deliberately NOT `inspect:read`, so a
+  // dashboard author can test their own MQE.
+  'POST /api/mqe/exec':                            'metrics:read',
   'GET /api/layer/:key/dashboard/config':          'metrics:read',
   'POST /api/layer/:key/landing':                  'metrics:read',
   'GET /api/layer/:key/instances':                 'metrics:read',

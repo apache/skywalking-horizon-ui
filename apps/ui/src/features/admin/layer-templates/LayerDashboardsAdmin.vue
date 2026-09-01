@@ -561,6 +561,7 @@ const namingTest = computed<NamingTestResult>(() => {
         <ServiceListMetricsEditor
           v-model:config="selectedTpl.metrics"
           :service-label="serviceNoun"
+          :layer-key="selectedKey"
         />
 
         <ScopeTabsBar
@@ -707,22 +708,26 @@ const namingTest = computed<NamingTestResult>(() => {
           v-model:config="selectedTpl.topology"
           :service-noun="serviceNoun"
           :instance-noun="instanceNoun"
+          :layer-key="selectedKey"
         />
 
         <DeploymentConfigEditor
           v-else-if="activeScope === 'deployment'"
           v-model:config="selectedTpl.deployment"
           :instance-noun="instanceNoun"
+          :layer-key="selectedKey"
         />
 
         <DependencyConfigSection
           v-else-if="activeScope === 'dependency'"
           v-model:config="selectedTpl.endpointDependency"
+          :layer-key="selectedKey"
         />
 
         <ProcessConfigEditor
           v-else-if="activeScope === 'networkProfiling'"
           v-model:config="selectedTpl.processTopology"
+          :layer-key="selectedKey"
         />
 
         <!-- Trace + Logs are built-in views with no per-layer config

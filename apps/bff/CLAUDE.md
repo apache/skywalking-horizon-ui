@@ -111,6 +111,7 @@ it empties it. A Cold toggle would blank the alarm list and the entity pickers.
 | `trace.ts` — traces | `alarms.ts` — `/api/alarms`, `/api/alarms/count` |
 | `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
 | `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
+| `mqe-exec.ts` — one metric expression, run from the template editor | |
 | `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |
 | | `ebpf.ts` — network profiling |
 | | `trace-tag.ts` — tag key/value autocomplete |

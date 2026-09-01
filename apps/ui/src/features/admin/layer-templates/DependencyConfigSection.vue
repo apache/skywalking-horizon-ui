@@ -34,6 +34,7 @@ import { rowKey } from './row-key';
 const { t } = useI18n();
 
 const config = defineModel<EndpointDependencyConfig | undefined>('config');
+defineProps<{ layerKey?: string }>();
 
 // Seed an empty block on open (mirrors the legacy ensureEndpointDep, which
 // auto-created it on first render) so both metric sections render their
@@ -108,6 +109,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             show-role
             show-thresholds
             mqe-placeholder="endpoint_cpm"
+            :layer-key="layerKey"
+            site-scope="endpoint"
             :can-move-up="i > 0"
             :can-move-down="i < nodeMetrics.length - 1"
             @move-up="move(nodeMetrics, i, -1)"
@@ -129,6 +132,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in linkMetrics"
             :key="rowKey(m)"
             v-model:metric="linkMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="endpoint-relation"
             :can-move-up="i > 0"
             :can-move-down="i < linkMetrics.length - 1"
             @move-up="move(linkMetrics, i, -1)"
