@@ -48,12 +48,14 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
+import { useAuthStore } from '@/state/auth';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
 
 const { t } = useI18n({ useScope: 'global' });
+const auth = useAuthStore();
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -552,6 +554,8 @@ function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
 function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
   return (
     layerKey.value.toUpperCase() === 'VIRTUAL_GENAI' &&
+    layer.value?.caps?.evaluationRecord === true &&
+    auth.hasVerb('logs:read') &&
     scope.value === 'instance' &&
     w.type === 'line' &&
     w.id === 'evaluation score' &&

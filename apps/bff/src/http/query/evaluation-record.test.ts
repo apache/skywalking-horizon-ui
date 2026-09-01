@@ -197,4 +197,19 @@ describe('evaluation-record route scope and time window', () => {
     expect(res.json()).toMatchObject({ sampled: 1, services: [{ name: 'openai', count: 1 }] });
     expect(res.json()).not.toHaveProperty('total');
   });
+
+  it('ignores an empty max score consistently with the list query', async () => {
+    const oap = fakeRouteOap();
+    const { app, sid } = await buildRoute(oap.fetch);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/layer/virtual_genai/evaluation-records/facets',
+      headers: { cookie: `horizon_sid=${sid}` },
+      payload: { valueType: 'SCORE', maxScore: '' },
+    });
+    expect(res.statusCode).toBe(200);
+    const call = oap.calls.find((c) => c.query.includes('QueryGenAIEvaluationRecordFacets'));
+    const condition = call?.variables.evaluationRecordCondition as Record<string, unknown>;
+    expect(condition).not.toHaveProperty('maxScore');
+  });
 });

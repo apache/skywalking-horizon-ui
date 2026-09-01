@@ -397,15 +397,17 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           if (!match) return reply.code(400).send({ error: 'service not found in layer' });
           resolvedServiceId = match.id;
         }
+        const minScore = body.valueType === 'SCORE'
+          ? scoreBoundToStoredValue(optionalFiniteNumber(body.minScore), true) : null;
+        const maxScore = body.valueType === 'SCORE'
+          ? scoreBoundToStoredValue(optionalFiniteNumber(body.maxScore), false) : null;
         const evaluationRecordCondition = {
           ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
           ...(body.valueType ? { valueType: body.valueType } : {}),
-          ...(body.valueType === 'SCORE' && body.minScore != null
-            ? { minScore: scoreBoundToStoredValue(Number(body.minScore), true) } : {}),
-          ...(body.valueType === 'SCORE' && body.maxScore != null
-            ? { maxScore: scoreBoundToStoredValue(Number(body.maxScore), false) } : {}),
+          ...(minScore != null ? { minScore } : {}),
+          ...(maxScore != null ? { maxScore } : {}),
           ...(body.valueType === 'BOOLEAN' && body.booleanValue != null ? { booleanValue: body.booleanValue } : {}),
           ...(body.taskName ? { taskName: body.taskName } : {}),
           ...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),

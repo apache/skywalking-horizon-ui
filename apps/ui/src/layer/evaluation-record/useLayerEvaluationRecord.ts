@@ -80,9 +80,11 @@ export interface EvaluationRecordParams {
   windowMinutes?: Ref<number>;
   startTime?: Ref<number | null>;
   endTime?: Ref<number | null>;
+  enabled?: Ref<boolean>;
 }
 
 export function useLayerEvaluationRecord(layerKey: Ref<string>, params: EvaluationRecordParams) {
+  const isEnabled = computed(() => layerKey.value.length > 0 && (params.enabled?.value ?? true));
   const q = useQuery<EvaluationRecordsResponse>({
     queryKey: [
       'layer-evaluation-record',
@@ -131,10 +133,10 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
         page: params.page.value,
         pageSize: params.pageSize.value,
       }),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: isEnabled,
     staleTime: 15_000,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
+  useAutoRefreshSubscribe(() => q.refetch(), isEnabled);
 
   function displayValue(row: EvaluationRecordRow): string {
     if (row.valueType === 'SCORE') {
@@ -239,9 +241,11 @@ export interface EvaluationRecordFacetParams {
   windowMinutes?: Ref<number>;
   startTime?: Ref<number | null>;
   endTime?: Ref<number | null>;
+  enabled?: Ref<boolean>;
 }
 
 export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: EvaluationRecordFacetParams) {
+  const isEnabled = computed(() => layerKey.value.length > 0 && (params.enabled?.value ?? true));
   const q = useQuery<EvaluationRecordFacetsResponse>({
     queryKey: [
       'layer-evaluation-record-facets',
@@ -282,7 +286,7 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
           : {}),
         sampleSize: 200,
       }),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: isEnabled,
     staleTime: 30_000,
   });
   return {

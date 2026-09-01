@@ -236,6 +236,16 @@ const startTimeRef = computed<number | null>(() =>
 const endTimeRef = computed<number | null>(() =>
     isCustomRange.value ? localInputToEpoch(customEnd.value) : null,
 );
+const customRangeError = computed<string | null>(() => {
+  if (!isCustomRange.value) return null;
+  const start = startTimeRef.value;
+  const end = endTimeRef.value;
+  if (start == null || end == null) return 'Select both start and end times.';
+  if (end <= start) return 'End time must be later than start time.';
+  if (end - start > 7 * 24 * 60 * 60_000) return 'Time range cannot exceed 7 days.';
+  return null;
+});
+const queryEnabled = computed(() => customRangeError.value == null);
 const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,
 );
@@ -260,6 +270,16 @@ function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined')
   page.value = 1;
 }
 
+watch(
+  [
+    providerIdRef, modelIdRef, serviceId, valueType, minScore, maxScore,
+    booleanValue, taskName, selectedLevel, judgeModel, sortField, sortOrder,
+    traceIdRef, pageSize, windowMinutes, customStart, customEnd,
+  ],
+  () => { page.value = 1; },
+  { flush: 'sync' },
+);
+
 const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, isFetching, refetch } = useLayerEvaluationRecord(layerKey, {
   service: computed(() => null),
   serviceId: computed(() => serviceId.value.trim() || null),
@@ -282,6 +302,7 @@ const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, 
   windowMinutes: windowMinutesEffective,
   startTime: startTimeRef,
   endTime: endTimeRef,
+  enabled: queryEnabled,
 });
 
 const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerKey, {
@@ -301,14 +322,16 @@ const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerK
   windowMinutes: windowMinutesEffective,
   startTime: startTimeRef,
   endTime: endTimeRef,
+  enabled: queryEnabled,
 });
-useAutoRefreshSubscribe(() => refetchFacets());
+useAutoRefreshSubscribe(() => refetchFacets(), queryEnabled);
 
 // Run-query handler mirrors the trace tab: refetch both the log
 // stream + the facet sample on demand. With most filters already
 // auto-refetching, this is the operator's "I'm done editing ??refresh
 // now" affordance, identical voice to `LayerTracesView#runQuery`.
 function runQuery(): void {
+  if (!queryEnabled.value) return;
   page.value = 1;
   void refetch();
   void refetchFacets();
@@ -445,7 +468,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         <span class="kicker">{{ t('Evaluation records') }}</span>
         <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}...</code></span>
         <span v-if="isFetching" class="hint">refreshing...</span>
-        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
+        <button class="sw-btn primary lg-run-btn" type="button" :disabled="!queryEnabled" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <!-- Instance / Sidecar picker. `All` is the default for every
@@ -561,9 +584,10 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     <div v-if="!reachable" class="banner err">
       <strong>{{ t('Evaluation records feed failed.') }}</strong> {{ queryError || t('Backend unreachable.') }}
     </div>
+    <div v-else-if="customRangeError" class="banner err">{{ customRangeError }}</div>
 
     <!-- Histogram + main stream -->
-    <section class="lg-body sw-card">
+    <section v-if="!customRangeError" class="lg-body sw-card">
       <div class="lg-main">
         <!-- Top-of-table legend strip ??one chip per level with the
              in-window count when data exists. Clickable: toggles the
