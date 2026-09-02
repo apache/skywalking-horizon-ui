@@ -17,7 +17,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { SCOPE_VERBS } from '../oauth/scopes.js';
-import { WILDCARD_EXEMPT_VERBS, hasVerb, resolveVerbsForRoles } from './verbs.js';
+import {
+  WILDCARD_EXEMPT_VERBS,
+  hasVerb,
+  isGrantRecognised,
+  resolveVerbsForRoles,
+} from './verbs.js';
 import { configSchema } from '../config/schema.js';
 import { BUILTIN_ROLES, BUILTIN_LANDING_BY_ROLE } from '../config/builtin-roles.js';
 
@@ -86,6 +91,48 @@ describe('resolveVerbsForRoles', () => {
     expect(resolveVerbsForRoles(policy, ['operator', 'unknown-role'], true)).toEqual(
       expect.arrayContaining(['*:read', 'rule:write', 'profile:enable']),
     );
+  });
+});
+
+/** Grant → required → expected. Shared with `apps/ui/src/state/auth.test.ts`,
+ *  which runs the SAME table through the UI's copy of this matcher: three
+ *  copies exist (BFF, auth store, Roles board) and they diverged together
+ *  once, so they are pinned to one answer rather than to one another. */
+export const MATCHER_CASES: ReadonlyArray<[string, string, boolean]> = [
+  // A malformed grant confers nothing — it must never be read as a shorter
+  // one it happens to start with.
+  ['rule:*:typo', 'rule:delete', false],
+  ['rule:*:typo', 'rule:write:structural', false],
+  ['rule:write:structural:extra', 'rule:write:structural', false],
+  ['metrics:read:typo', 'metrics:read', false],
+  ['*:read:typo', 'metrics:read', false],
+  // The documented grammar, unchanged.
+  ['rule:*', 'rule:delete', true],
+  ['rule:*', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write', false],
+  ['*:read', 'metrics:read', true],
+  ['metrics:*', 'metrics:read', true],
+  ['metrics:read', 'metrics:read', true],
+  // Wildcard-exempt: only a bare `*`, `admin`, or the verb itself.
+  ['*:read', 'audit:read', false],
+  ['audit:*', 'audit:read', false],
+  ['audit:read', 'audit:read', true],
+  ['*', 'audit:read', true],
+  ['admin', 'audit:read', true],
+];
+
+describe('the verb grammar, including what is NOT it', () => {
+  it.each(MATCHER_CASES)('%s grants %s → %s', (grant, required, expected) => {
+    expect(hasVerb([grant], required)).toBe(expected);
+  });
+
+  it('a malformed grant is reported at startup rather than quietly granting', () => {
+    // `split(':', 3)` truncates instead of failing, so `rule:*:typo` used to
+    // read as `rule:*` and hand over the whole area.
+    for (const g of ['rule:*:typo', 'rule:write:structural:extra', 'metrics:read:typo']) {
+      expect(isGrantRecognised(g), g).toBe(false);
+    }
   });
 });
 

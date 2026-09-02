@@ -58,9 +58,12 @@ function hasVerb(grants: readonly string[], required: string): boolean {
     // this board draws a check mark for a grant the server denies, on the row
     // whose own hint says a wildcard does not include it.
     if (WILDCARD_EXEMPT_VERBS.has(required)) continue;
+    // Both as the BFF: a fourth segment is malformed rather than truncated,
+    // and `area:*` carries no sub-segment.
+    if (g.split(':').length > 3) continue;
     const gp = g.split(':', 3);
     const rp = required.split(':', 3);
-    if (gp[0] === rp[0] && gp[1] === '*') return true;
+    if (gp[0] === rp[0] && gp[1] === '*' && gp[2] === undefined) return true;
     if (gp[0] === '*' && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
     if (gp[0] === rp[0] && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
   }

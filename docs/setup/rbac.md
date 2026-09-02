@@ -96,6 +96,8 @@ Grants are dot-namespaced strings. Four matching modes:
 | `area:*` | Matches any verb in that area: `rule:*` grants `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. |
 | `*:read` | Matches the `read` action across any area. |
 
+Nothing else is a grant. A string outside these forms — a typo like `rule:*:typo`, or a fourth segment — matches no verb and confers nothing; Horizon names it in a startup warning so it does not sit in your config looking effective.
+
 A user's effective verbs are the **union** of all grants from all their roles.
 
 ## `landingByRole`
