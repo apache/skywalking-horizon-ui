@@ -124,11 +124,13 @@ export function useSidebarMenu() {
       kind: 'setup',
       kicker: t('Dashboard setup'),
       links: [
-        { icon: 'set', label: t('Overview templates'), to: '/admin/overview-templates', verb: 'overview:write' },
-        { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'dashboard:read' },
-        { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'overview:write' },
+        // Each row shows on the page's READ verb; the page itself goes
+        // read-only without the matching write verb.
+        { icon: 'set', label: t('Overview templates'), to: '/admin/overview-templates', verb: 'overview-template:read' },
+        { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'layer-template:read' },
+        { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'translation:read' },
         { icon: 'alert', label: t('Alert page'), to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
-        { icon: 'set', label: t('3D Infra Map'), to: '/admin/3d-map', verb: 'overview:write' },
+        { icon: 'set', label: t('3D Infra Map'), to: '/admin/3d-map', verb: 'infra-3d-setup:read' },
         { icon: 'set', label: t('Global defaults'), to: '/admin/global-defaults', verb: 'setup:read' },
       ],
     },

@@ -33,7 +33,7 @@
  */
 
 import type { HorizonConfig } from '../config/schema.js';
-import { hasVerb } from '../rbac/verbs.js';
+import { hasVerb, resolveVerbsForRoles } from '../rbac/verbs.js';
 
 export const DEFAULT_SCOPE = 'horizon:read';
 
@@ -80,8 +80,9 @@ export function verbCapFor(scopes: readonly string[]): string[] | undefined {
  * should not read "change alarm rules" on the way.
  */
 export function grantedVerbs(config: HorizonConfig, roles: readonly string[], scopes: readonly string[]): string[] {
-  const owned = new Set<string>();
-  for (const r of roles) for (const v of config.rbac.roles[r] ?? []) owned.add(v);
+  // Same expansion the gate uses, so a role still naming a retired verb is
+  // listed here under what it actually grants rather than dropped.
+  const owned = new Set<string>(resolveVerbsForRoles(config.rbac.roles, roles, config.rbac.enabled));
   if (!config.rbac.enabled || owned.has('*') || owned.has('admin')) {
     // An admin (or RBAC-off) holds everything, so the scope alone describes it.
     return scopes.includes('horizon:full') ? ['*'] : ['*:read'];

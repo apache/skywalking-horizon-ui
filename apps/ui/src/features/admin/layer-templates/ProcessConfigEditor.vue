@@ -17,8 +17,8 @@
 <!--
   Network-profiling process-relation config editor — client + server edge
   metrics for the process-topology detail panel. Config-local: owns the
-  `processTopology` block via v-model and seeds an empty one on mount. Same
-  pattern as DependencyConfigSection; edge rows are the lean MetricDefinitionRow
+  `processTopology` block via v-model and seeds an empty one on mount (never
+  while read-only). Same pattern as DependencyConfigSection; edge rows are the lean MetricDefinitionRow
   (no role / thresholds).
 -->
 <script setup lang="ts">
@@ -32,7 +32,7 @@ import { rowKey } from './row-key';
 const { t } = useI18n({ useScope: 'global' });
 
 const config = defineModel<ProcessTopologyConfig | undefined>('config');
-defineProps<{ layerKey?: string }>();
+const props = defineProps<{ layerKey?: string; readOnly?: boolean }>();
 
 function ensure(): ProcessTopologyConfig {
   if (!config.value) config.value = { edgeClientMetrics: [], edgeServerMetrics: [] };
@@ -40,7 +40,9 @@ function ensure(): ProcessTopologyConfig {
   if (!config.value.edgeServerMetrics) config.value.edgeServerMetrics = [];
   return config.value;
 }
-onMounted(ensure);
+onMounted(() => {
+  if (!props.readOnly) ensure();
+});
 
 const clientMetrics = computed(() => config.value?.edgeClientMetrics ?? []);
 const serverMetrics = computed(() => config.value?.edgeServerMetrics ?? []);
@@ -50,17 +52,21 @@ function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
   return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
 function addClient(): void {
+  if (props.readOnly) return;
   ensure().edgeClientMetrics.push(blankMetric(clientMetrics.value));
 }
 function addServer(): void {
+  if (props.readOnly) return;
   ensure().edgeServerMetrics.push(blankMetric(serverMetrics.value));
 }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
 }
 function remove(list: TopologyMetricDef[], i: number): void {
+  if (props.readOnly) return;
   list.splice(i, 1);
 }
 </script>
@@ -76,7 +82,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Client-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addClient">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addClient">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -85,6 +91,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="process-relation"
             mqe-placeholder="process_relation_client_write_cpm"
             :can-move-up="i > 0"
@@ -100,7 +107,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Server-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addServer">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addServer">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -109,6 +116,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="process-relation"
             mqe-placeholder="process_relation_server_write_cpm"
             :can-move-up="i > 0"

@@ -52,7 +52,6 @@ const props = defineProps<{
   localCount: number;
   unconfiguredCount: number;
   refreshing: boolean;
-  readOnly: boolean;
   badgeFor: (name: string) => TemplateStatus | null;
   /** Enabled OAP record ids for a duplicated template name, else null —
    *  same `horizon.layer.<KEY>` argument as `badgeFor`. */
@@ -240,10 +239,8 @@ function pickFromDropdown(key: string): void {
             <button
               type="button"
               class="sw-btn refresh-btn"
-              :disabled="refreshing || readOnly"
-              :title="readOnly
-                ? t('OAP unreachable — cannot refresh')
-                : t('Force the BFF to re-read every UI-template from OAP (clears the 30s cache)')"
+              :disabled="refreshing"
+              :title="t('Force the BFF to re-read every UI-template from OAP (clears the 30s cache)')"
               @click="emit('refresh')"
             >{{ refreshing ? t('refreshing…') : t('refresh from remote') }}</button>
           </div>

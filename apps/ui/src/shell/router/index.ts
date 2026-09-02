@@ -275,7 +275,9 @@ const shellRoutes: RouteRecordRaw[] = [
   {
     path: 'admin/layer-dashboards',
     component: () => import('@/features/admin/layer-templates/LayerDashboardsAdmin.vue'),
-    meta: { verb: 'dashboard:read' },
+    // Read verb, not write: a holder of the read half opens the page and sees
+    // it in read-only. Every save is refused server-side by the write half.
+    meta: { verb: 'layer-template:read' },
   },
   // Alert page setup — sits under Dashboard setup in the sidebar but
   // routes off the admin tree since it's an operator-only config view.
@@ -297,22 +299,19 @@ const shellRoutes: RouteRecordRaw[] = [
     path: 'admin/3d-map',
     name: 'admin-3d-map',
     component: () => import('@/features/admin/infra-3d/Infra3dAdminView.vue'),
-    // The config is a template kind published via the generic template-sync
-    // API (overview:write) — gate the editor on the same verb so page
-    // visibility matches what the push actually requires.
-    meta: { verb: 'overview:write' },
+    meta: { verb: 'infra-3d-setup:read' },
   },
   {
     path: 'admin/overview-templates',
     name: 'overview-templates',
     component: () => import('@/features/admin/overview-templates/OverviewTemplatesAdmin.vue'),
-    meta: { verb: 'overview:write' },
+    meta: { verb: 'overview-template:read' },
   },
   {
     path: 'admin/translations',
     name: 'translations',
     component: () => import('@/features/admin/translations/TranslationsView.vue'),
-    meta: { verb: 'overview:write' },
+    meta: { verb: 'translation:read' },
   },
   {
     path: 'admin/users',

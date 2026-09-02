@@ -46,7 +46,7 @@ import RoleMetricRow from './RoleMetricRow.vue';
 import { rowKey } from './row-key';
 
 const config = defineModel<DeploymentConfig | undefined>('config');
-defineProps<{ instanceNoun: string; layerKey?: string }>();
+const props = defineProps<{ instanceNoun: string; layerKey?: string; readOnly?: boolean }>();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -89,13 +89,16 @@ function blankMetric(taken: readonly DeploymentMetricDef[]): DeploymentMetricDef
   return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
 function addMetric(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient'): void {
+  if (props.readOnly) return;
   const list = ensureDeploymentList(bucket);
   list.push(blankMetric(list));
 }
 function removeMetric(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient', i: number): void {
+  if (props.readOnly) return;
   getSitList(bucket).splice(i, 1);
 }
 function moveMetric(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient', i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const list = getSitList(bucket);
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
@@ -279,14 +282,17 @@ const roleEd = makeRuleEditor(
 // (matched on the roleBy value), falling back to the top-level node metrics.
 const deploymentRoles = computed<NodeRoleConfig[]>(() => config.value?.roles ?? []);
 function addRole(): void {
+  if (props.readOnly) return;
   const t = ensure();
   if (!t.roles) t.roles = [];
   t.roles.push({ key: nextFreeId('role_', t.roles.map((r) => r.key)), label: '', main: false, nodeMetrics: [] });
 }
 function removeRole(i: number): void {
+  if (props.readOnly) return;
   config.value?.roles?.splice(i, 1);
 }
 function moveRole(i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const list = config.value?.roles;
   if (!list) return;
   const j = i + dir;
@@ -298,12 +304,15 @@ function ensureRoleMetrics(r: NodeRoleConfig): DeploymentMetricDef[] {
   return r.nodeMetrics;
 }
 function addRoleMetric(list: DeploymentMetricDef[]): void {
+  if (props.readOnly) return;
   list.push(blankMetric(list));
 }
 function removeRoleMetric(list: DeploymentMetricDef[], i: number): void {
+  if (props.readOnly) return;
   list.splice(i, 1);
 }
 function moveRoleMetric(list: DeploymentMetricDef[], i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
@@ -313,14 +322,17 @@ function moveRoleMetric(list: DeploymentMetricDef[], i: number, dir: -1 | 1): vo
 // the per-metric rows reuse addRoleMetric / moveRoleMetric / removeRoleMetric.
 const deploymentRoleToRole = computed<RolePairMetrics[]>(() => config.value?.roleToRole ?? []);
 function addRolePair(): void {
+  if (props.readOnly) return;
   const t = ensure();
   if (!t.roleToRole) t.roleToRole = [];
   t.roleToRole.push({ from: '*', to: '*', primary: '', metrics: [] });
 }
 function removeRolePair(i: number): void {
+  if (props.readOnly) return;
   config.value?.roleToRole?.splice(i, 1);
 }
 function moveRolePair(i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const list = config.value?.roleToRole;
   if (!list) return;
   const j = i + dir;
@@ -337,6 +349,7 @@ function primaryStr(p: RolePairMetrics): string {
   return Array.isArray(p.primary) ? p.primary.join(', ') : p.primary ?? '';
 }
 function setPrimary(p: RolePairMetrics, v: string): void {
+  if (props.readOnly) return;
   const ids = v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3);
   if (ids.length === 0) delete p.primary;
   else if (ids.length === 1) p.primary = ids[0];
@@ -365,7 +378,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <div class="sit-cluster-cfg">
           <label class="mf mf-narrow">
             <span>{{ t('mode') }}</span>
-            <select v-model="sitClusterMode" class="mf-input">
+            <select v-model="sitClusterMode" class="mf-input" :disabled="readOnly">
               <option value="none">{{ t('none') }}</option>
               <option value="attribute">{{ t('by attribute') }}</option>
               <option value="attributes">{{ t('by attributes (composite)') }}</option>
@@ -373,20 +386,20 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             </select>
           </label>
           <template v-if="sitClusterMode === 'attribute'">
-            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="sitClusterAttribute" type="text" class="mf-input mono" placeholder="node_role" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="sitClusterAttribute" type="text" class="mf-input mono" placeholder="node_role" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="sitClusterMode === 'attributes'">
-            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="sitClusterAttributes" type="text" class="mf-input mono" placeholder="node_role, node_type" /></label>
-            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="sitClusterSeparator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="sitClusterAttributes" type="text" class="mf-input mono" placeholder="node_role, node_type" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="sitClusterSeparator" type="text" class="mf-input mono" placeholder=" / " :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="sitClusterMode === 'nameRegex'">
-            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="sitClusterPattern" type="text" class="mf-input mono" placeholder="^(?<service>.+?)-(?<group>data|liaison)" /></label>
-            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="sitClusterFlags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="sitClusterDisplayGroup" type="text" class="mf-input mono" placeholder="service" /></label>
-            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="sitClusterValueGroup" type="text" class="mf-input mono" placeholder="group" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="group" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="sitClusterPattern" type="text" class="mf-input mono" placeholder="^(?<service>.+?)-(?<group>data|liaison)" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="sitClusterFlags" type="text" class="mf-input mono" placeholder="i" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="sitClusterDisplayGroup" type="text" class="mf-input mono" placeholder="service" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="sitClusterValueGroup" type="text" class="mf-input mono" placeholder="group" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="group" :disabled="readOnly" /></label>
           </template>
         </div>
       </div>
@@ -399,7 +412,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         </header>
         <div class="sit-cluster-cfg">
           <label class="mf mf-narrow"><span>{{ t('mode') }}</span>
-            <select v-model="siblingEd.mode" class="mf-input">
+            <select v-model="siblingEd.mode" class="mf-input" :disabled="readOnly">
               <option value="none">{{ t('none') }}</option>
               <option value="attribute">{{ t('by attribute') }}</option>
               <option value="attributes">{{ t('by attributes (composite)') }}</option>
@@ -407,20 +420,20 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             </select>
           </label>
           <template v-if="siblingEd.mode === 'attribute'">
-            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="siblingEd.attribute" type="text" class="mf-input mono" placeholder="pod_name" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="siblingEd.attribute" type="text" class="mf-input mono" placeholder="pod_name" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="siblingEd.mode === 'attributes'">
-            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="siblingEd.attributes" type="text" class="mf-input mono" placeholder="pod_name" /></label>
-            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="siblingEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="siblingEd.attributes" type="text" class="mf-input mono" placeholder="pod_name" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="siblingEd.separator" type="text" class="mf-input mono" placeholder=" / " :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="siblingEd.mode === 'nameRegex'">
-            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="siblingEd.pattern" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="siblingEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="siblingEd.displayGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="siblingEd.valueGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="siblingEd.pattern" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="siblingEd.flags" type="text" class="mf-input mono" placeholder="i" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="siblingEd.displayGroup" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="siblingEd.valueGroup" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" :disabled="readOnly" /></label>
           </template>
         </div>
       </div>
@@ -433,7 +446,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         </header>
         <div class="sit-cluster-cfg">
           <label class="mf mf-narrow"><span>{{ t('mode') }}</span>
-            <select v-model="roleEd.mode" class="mf-input">
+            <select v-model="roleEd.mode" class="mf-input" :disabled="readOnly">
               <option value="none">{{ t('none') }}</option>
               <option value="attribute">{{ t('by attribute') }}</option>
               <option value="attributes">{{ t('by attributes (composite)') }}</option>
@@ -441,20 +454,20 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             </select>
           </label>
           <template v-if="roleEd.mode === 'attribute'">
-            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="roleEd.attribute" type="text" class="mf-input mono" placeholder="container_name" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="roleEd.attribute" type="text" class="mf-input mono" placeholder="container_name" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="roleEd.mode === 'attributes'">
-            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="roleEd.attributes" type="text" class="mf-input mono" placeholder="container_name" /></label>
-            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="roleEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="roleEd.attributes" type="text" class="mf-input mono" placeholder="container_name" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="roleEd.separator" type="text" class="mf-input mono" placeholder=" / " :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" :disabled="readOnly" /></label>
           </template>
           <template v-else-if="roleEd.mode === 'nameRegex'">
-            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="roleEd.pattern" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="roleEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="roleEd.displayGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="roleEd.valueGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="roleEd.pattern" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="roleEd.flags" type="text" class="mf-input mono" placeholder="i" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="roleEd.displayGroup" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="roleEd.valueGroup" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" :disabled="readOnly" /></label>
           </template>
         </div>
       </div>
@@ -464,25 +477,25 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Roles') }}</h5>
           <span class="sub">{{ t('per-role metric sets — an instance renders the metrics of its role (matched on the “Node role” value above); a role with no metrics falls back to the node metrics below') }}</span>
-          <button class="sw-btn add" type="button" @click="addRole">{{ t('＋ Add role') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addRole">{{ t('＋ Add role') }}</button>
         </header>
         <div v-if="deploymentRoles.length === 0" class="topo-cfg-empty">{{ t('No roles defined. Add one per role (e.g. liaison / data / lifecycle) to give each its own metrics.') }}</div>
         <div v-else class="role-list">
           <article v-for="(r, ri) in deploymentRoles" :key="rowKey(r)" class="role-card">
             <div class="role-head">
-              <label class="mf mf-narrow"><span>{{ t('key') }}</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" /></label>
-              <label class="mf"><span>{{ t('label') }}</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" /></label>
-              <label class="mf mf-checkbox"><input v-model="r.main" type="checkbox" /><span>{{ t('main hex') }}</span></label>
+              <label class="mf mf-narrow"><span>{{ t('key') }}</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" :disabled="readOnly" /></label>
+              <label class="mf"><span>{{ t('label') }}</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" :disabled="readOnly" /></label>
+              <label class="mf mf-checkbox"><input v-model="r.main" type="checkbox" :disabled="readOnly" /><span>{{ t('main hex') }}</span></label>
               <div class="metric-row-actions">
-                <button class="sw-btn small ghost" type="button" :disabled="ri === 0" :title="t('Move up')" @click="moveRole(ri, -1)">↑</button>
-                <button class="sw-btn small ghost" type="button" :disabled="ri === deploymentRoles.length - 1" :title="t('Move down')" @click="moveRole(ri, 1)">↓</button>
-                <button class="sw-btn small ghost danger" type="button" :title="t('Remove role')" @click="removeRole(ri)">×</button>
+                <button class="sw-btn small ghost" type="button" :disabled="readOnly || ri === 0" :title="t('Move up')" @click="moveRole(ri, -1)">↑</button>
+                <button class="sw-btn small ghost" type="button" :disabled="readOnly || ri === deploymentRoles.length - 1" :title="t('Move down')" @click="moveRole(ri, 1)">↓</button>
+                <button class="sw-btn small ghost danger" type="button" :disabled="readOnly" :title="t('Remove role')" @click="removeRole(ri)">×</button>
               </div>
             </div>
             <div class="role-metrics">
               <header class="topo-cfg-head role-metrics-head">
                 <h6>{{ t('metrics for “{name}” — queried as', { name: r.label || r.key || t('role') }) }} <code>service_instance_*</code></h6>
-                <button class="sw-btn add" type="button" @click="addRoleMetric(ensureRoleMetrics(r))">{{ t('＋ Add') }}</button>
+                <button class="sw-btn add" type="button" :disabled="readOnly" @click="addRoleMetric(ensureRoleMetrics(r))">{{ t('＋ Add') }}</button>
               </header>
               <div v-if="!r.nodeMetrics || r.nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No metrics — this role falls back to the node metrics below.') }}</div>
               <div v-else class="metric-list">
@@ -491,6 +504,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   :key="rowKey(m)"
                   v-model:metric="r.nodeMetrics[mi]"
                   :layer-key="layerKey"
+                  :read-only="readOnly"
                   site-scope="instance"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
@@ -515,25 +529,25 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Role-to-role edge metrics') }}</h5>
           <span class="sub">{{ t('per source→target role-pair edge metrics (e.g. liaison → data) — takes precedence over the link fallback below;') }} <code>from</code>/<code>to</code> {{ t('use role keys or') }} <code>*</code> {{ t('for any') }}</span>
-          <button class="sw-btn add" type="button" @click="addRolePair">{{ t('＋ Add pair') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addRolePair">{{ t('＋ Add pair') }}</button>
         </header>
         <div v-if="deploymentRoleToRole.length === 0" class="topo-cfg-empty">{{ t('No role pairs. Add one per edge type (e.g. liaison → data); otherwise edges use the link fallback below.') }}</div>
         <div v-else class="role-list">
           <article v-for="(p, pi) in deploymentRoleToRole" :key="rowKey(p)" class="role-card">
             <div class="role-head">
-              <label class="mf mf-narrow"><span>{{ t('from') }}</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" /></label>
-              <label class="mf mf-narrow"><span>{{ t('to') }}</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" /></label>
-              <label class="mf"><span>{{ t('primary (≤3)') }}</span><input :value="primaryStr(p)" type="text" class="mf-input mono" placeholder="write, query" :title="t('Up to 3 metric ids, comma-separated — printed on the edge')" @input="setPrimary(p, ($event.target as HTMLInputElement).value)" /></label>
+              <label class="mf mf-narrow"><span>{{ t('from') }}</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" :disabled="readOnly" /></label>
+              <label class="mf mf-narrow"><span>{{ t('to') }}</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" :disabled="readOnly" /></label>
+              <label class="mf"><span>{{ t('primary (≤3)') }}</span><input :value="primaryStr(p)" type="text" class="mf-input mono" placeholder="write, query" :title="t('Up to 3 metric ids, comma-separated — printed on the edge')" @input="setPrimary(p, ($event.target as HTMLInputElement).value)" :disabled="readOnly" /></label>
               <div class="metric-row-actions">
-                <button class="sw-btn small ghost" type="button" :disabled="pi === 0" :title="t('Move up')" @click="moveRolePair(pi, -1)">↑</button>
-                <button class="sw-btn small ghost" type="button" :disabled="pi === deploymentRoleToRole.length - 1" :title="t('Move down')" @click="moveRolePair(pi, 1)">↓</button>
-                <button class="sw-btn small ghost danger" type="button" :title="t('Remove pair')" @click="removeRolePair(pi)">×</button>
+                <button class="sw-btn small ghost" type="button" :disabled="readOnly || pi === 0" :title="t('Move up')" @click="moveRolePair(pi, -1)">↑</button>
+                <button class="sw-btn small ghost" type="button" :disabled="readOnly || pi === deploymentRoleToRole.length - 1" :title="t('Move down')" @click="moveRolePair(pi, 1)">↓</button>
+                <button class="sw-btn small ghost danger" type="button" :disabled="readOnly" :title="t('Remove pair')" @click="removeRolePair(pi)">×</button>
               </div>
             </div>
             <div class="role-metrics">
               <header class="topo-cfg-head role-metrics-head">
                 <h6>{{ t('edge metrics for “{from} → {to}” — queried as', { from: p.from || '*', to: p.to || '*' }) }} <code>service_instance_relation_*</code></h6>
-                <button class="sw-btn add" type="button" @click="addRoleMetric(ensurePairMetrics(p))">{{ t('＋ Add') }}</button>
+                <button class="sw-btn add" type="button" :disabled="readOnly" @click="addRoleMetric(ensurePairMetrics(p))">{{ t('＋ Add') }}</button>
               </header>
               <div v-if="!p.metrics || p.metrics.length === 0" class="topo-cfg-empty">{{ t('No metrics — this edge falls back to the link metrics below.') }}</div>
               <div v-else class="metric-list">
@@ -542,6 +556,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   :key="rowKey(m)"
                   v-model:metric="p.metrics[mi]"
                   :layer-key="layerKey"
+                  :read-only="readOnly"
                   site-scope="deployment-relation"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
@@ -565,7 +580,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Fallback node metrics') }}</h5>
           <span class="sub">{{ t('used for unroled instances + roles with no metrics of their own — queried as') }} <code>service_instance_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitNode')">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addMetric('sitNode')">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
         <div v-else class="metric-list">
@@ -574,6 +589,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             :key="rowKey(m)"
             v-model:metric="deploymentNodeMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="instance"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
@@ -593,7 +609,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Link · server-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitLinkServer')">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addMetric('sitLinkServer')">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -602,6 +618,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             :key="rowKey(m)"
             v-model:metric="deploymentServerMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="deployment-relation"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentServerMetrics.length - 1"
@@ -616,7 +633,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Link · client-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitLinkClient')">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addMetric('sitLinkClient')">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -625,6 +642,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
             :key="rowKey(m)"
             v-model:metric="deploymentClientMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="deployment-relation"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentClientMetrics.length - 1"

@@ -99,6 +99,10 @@ export interface ConflictRow {
   name: string;
   kind: TemplateKind;
   key: string;
+  /** Set when the duplicated row is a per-locale overlay, unset on a source
+   *  row — the same discriminator {@link TemplateRow} carries, and what
+   *  decides whether this conflict belongs to the Translations page. */
+  locale?: string;
   /** UUIDs of every enabled OAP row that shares this name, sorted ASC.
    *  Horizon renders the lowest of these and touches none of them.
    *  Sorted, not ranked: the survivor is NOT always the first element. */
@@ -790,6 +794,7 @@ function parseRemoteRows(
         name,
         kind: winner.kind,
         key: winner.key,
+        ...(winner.locale !== undefined ? { locale: winner.locale } : {}),
         enabledIds: enabled.map((r) => r.id),
         identical: enabled.every((r) => r.configuration === enabled[0]!.configuration),
       });

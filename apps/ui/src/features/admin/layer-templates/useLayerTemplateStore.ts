@@ -370,9 +370,13 @@ export function useLayerTemplateStore() {
    *  Priority: local draft → remote → bundled (or the synthesized blank for
    *  layers that ship no JSON). The bundled fall-through is what makes every
    *  roster layer editable; nothing renders live until the operator
-   *  publishes, so opening from bundled is safe. */
+   *  publishes, so opening from bundled is safe.
+   *  A READ-ONLY session skips the local draft: it cannot reach "Reset to",
+   *  so a stale browser draft would be the only thing it could ever see, and
+   *  it would see it without being told it differs from OAP. The draft stays
+   *  in browser storage — the session may regain the write verb. */
   function syncDraft(): void {
-    if (hasLocalDraft.value) {
+    if (hasLocalDraft.value && !sync.readOnly.value) {
       loadFrom('local');
       return;
     }
@@ -415,6 +419,7 @@ export function useLayerTemplateStore() {
   // trigger the TemplateConflictPrompt right after every reset. Subsequent
   // edits in the editor re-create a local draft naturally on the next change.
   function resetTo(src: 'bundled' | 'remote'): void {
+    if (sync.readOnly.value) return;
     loadFrom(src);
     localEdits.remove(editName.value);
   }
@@ -498,6 +503,18 @@ export function useLayerTemplateStore() {
     return JSON.stringify(draft.template) !== loadedSnapshot.value;
   });
 
+  // Which source syncDraft prefers depends on `readOnly`, and that flag
+  // settles asynchronously (the config bundle decides whether OAP admin is
+  // reachable). Re-seed on the flip so the editor never keeps showing a
+  // source the current mode would not have picked — but never over unsaved
+  // keystrokes, which the operator would have no way to get back.
+  watch(
+    () => sync.readOnly.value,
+    () => {
+      if (sourcesReady.value && selectedKey.value && !dirty.value) syncDraft();
+    },
+  );
+
   /** Editor content differs from the publish target (remote) — gates Save
    *  so "Reset to bundled" (pristine-vs-load, `dirty=false`) is still
    *  publishable when bundled ≠ remote. Key-stable to ignore key order. */
@@ -528,7 +545,7 @@ export function useLayerTemplateStore() {
   /** Save the current editor state to the browser local draft. This is the
    *  only "save" — it never writes OAP. Publish later with "Push local → OAP". */
   function save(): void {
-    if (!draft.template) return;
+    if (sync.readOnly.value || !draft.template) return;
     // Named here, not at push: the schema refuses these too, but only
     // after the operator has committed to publishing and read a server
     // error — and an imported template can arrive carrying them.
@@ -571,7 +588,7 @@ export function useLayerTemplateStore() {
    *  the row may have appeared moments later. */
   async function pushToOap(): Promise<void> {
     const local = localEdits.get<AdminLayerTemplate>(editName.value);
-    if (!local || isSaving.value) return;
+    if (sync.readOnly.value || !local || isSaving.value) return;
     isSaving.value = true;
     saveMsg.value = 'Saving to OAP…';
     let elapsed = 0;
@@ -642,6 +659,7 @@ export function useLayerTemplateStore() {
   // keys are a closed enum — you can't invent a layer here — so the target
   // KEY must already be loaded on this deployment; otherwise reject.
   async function onImportFile(): Promise<void> {
+    if (sync.readOnly.value) return;
     const text = await pickJsonFile();
     if (text === null) return;
     const res = validateImport('layer', text);
@@ -691,6 +709,7 @@ export function useLayerTemplateStore() {
     danger?: boolean;
     run: () => void | Promise<void>;
   }): void {
+    if (sync.readOnly.value) return;
     confirmTitle.value = o.title;
     confirmMessage.value = o.message;
     confirmLabel.value = o.label;
@@ -701,7 +720,7 @@ export function useLayerTemplateStore() {
 
   function askDeleteLayer(): void {
     const key = selectedKey.value;
-    if (!key || !editName.value) return;
+    if (!key || !editName.value || sync.readOnly.value) return;
     const onOap = remoteAvailable.value || bundledExists.value;
     if (!onOap) {
       confirmTitle.value = 'Remove local draft?';
@@ -722,7 +741,7 @@ export function useLayerTemplateStore() {
   }
   function askReactivateLayer(): void {
     const key = selectedKey.value;
-    if (!key || !editName.value) return;
+    if (!key || !editName.value || sync.readOnly.value) return;
     confirmTitle.value = 'Reactivate layer?';
     confirmMessage.value = `Reactivate the “${key}” layer? It comes back with the configuration it had, and reappears in the sidebar for everyone.`;
     confirmLabel.value = 'Reactivate';

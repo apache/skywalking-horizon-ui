@@ -163,9 +163,13 @@ export function useSingletonTemplateEditor<T>(
   }
 
   /** Pick the source on (re)load: local draft if present, else remote (the
-   *  runtime source of truth), else bundled. */
+   *  runtime source of truth), else bundled.
+   *  A READ-ONLY session skips the local draft: it cannot reach "Reset to",
+   *  so a stale browser draft would be the only thing it could ever see, and
+   *  it would see it without being told it differs from OAP. The draft stays
+   *  in browser storage — the session may regain the write verb. */
   function syncDraft(): void {
-    if (hasLocalDraft.value) loadFrom('local');
+    if (hasLocalDraft.value && !readOnly.value) loadFrom('local');
     else if (hasRemote.value) loadFrom('remote');
     else loadFrom('bundled');
   }
@@ -202,6 +206,18 @@ export function useSingletonTemplateEditor<T>(
     // against the normalized draft.
     return stableStringify(draft.value) !== stableStringify(normalizedClone(baseline ?? null));
   });
+
+  // Which source syncDraft prefers depends on `readOnly`, and that flag
+  // settles asynchronously (the config bundle decides whether OAP admin is
+  // reachable). Re-seed on the flip so the editor never keeps showing a
+  // source the current mode would not have picked — but never over unsaved
+  // keystrokes, which the operator would have no way to get back.
+  watch(
+    () => readOnly.value,
+    () => {
+      if (!sources.isLoading.value && !dirty.value) syncDraft();
+    },
+  );
 
   /** Save the current editor state as a browser-local draft. The only
    *  "save" — it never writes OAP. Publish via "Check diff & push". */

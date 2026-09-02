@@ -116,7 +116,7 @@ Read-only. To change roles, edit `rbac.roles` in `horizon.yaml`; hot-reload appl
 | `/operate/log-inspect` | `inspect:read` | viewer, maintainer, operator, admin |
 | `/operate/ttl` | `ttl:read` | maintainer, operator, admin |
 | `/operate/config` | `config:read` | maintainer, operator, admin |
-| `/admin/3d-map` | `overview:write` | operator, admin |
+| `/admin/3d-map` | `infra-3d-setup:read` | operator, admin |
 
 `auth:read`, `user:read`, `role:read` are **not** in any default role. Either grant them via a custom role:
 

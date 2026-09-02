@@ -64,6 +64,15 @@ import NewOverviewDashboardModal from './NewOverviewDashboardModal.vue';
 // page-level banner + read-only mode + per-row badge lookup.
 const { t } = useI18n();
 const sync = useTemplateSync({ kind: 'overview' });
+// A disabled control's tooltip is the only place the operator reads WHY the
+// page refuses edits, and the three reasons take different remedies.
+const readOnlyTitle = computed(() => {
+  if (sync.lacksWriteVerb.value) return t('You can view this configuration but not change it.');
+  if (sync.status.value?.mode === 'readonly') {
+    return t('Read-only mode — templates are served from the local bundle. Editing and publishing are disabled.');
+  }
+  return t('OAP unreachable — page is read-only');
+});
 
 const listQuery = useQuery({
   queryKey: ['admin/overview-templates'],
@@ -123,7 +132,12 @@ const remoteOnlyDashboards = computed<OverviewTemplateSummary[]>(() => {
 // flagged `local` — so create mirrors edit: draft locally, preview, then
 // "Check diff & push" publishes them. Once pushed they become remote-only
 // (then server-backed once OAP serves them) and drop out of this list.
+// A READ-ONLY session lists none of them: it is shown only published (or
+// bundled) content, and a draft that was never published is neither — so
+// picking one would open a blank editor it could not reset or discard. The
+// drafts stay in browser storage; the session may regain the write verb.
 const localOnlyDrafts = computed<OverviewTemplateSummary[]>(() => {
+  if (sync.readOnly.value) return [];
   const known = new Set([
     ...serverDashboards.value.map((d) => d.id),
     ...remoteOnlyDashboards.value.map((d) => d.id),
@@ -200,6 +214,7 @@ const newDashOpen = ref(false);
 const newDashError = ref<string | null>(null);
 
 function openNewDash(): void {
+  if (sync.readOnly.value) return;
   newDashOpen.value = true;
   newDashError.value = null;
 }
@@ -208,6 +223,7 @@ function cancelNewDash(): void {
   newDashError.value = null;
 }
 function createDash(payload: { id: string; title: string; description: string }): void {
+  if (sync.readOnly.value) return;
   const id = payload.id.trim();
   const title = payload.title.trim();
   if (!id) {
@@ -296,6 +312,7 @@ const deleteTitle = ref('');
 const deleteMessage = ref('');
 const deleteConfirmLabel = ref(t('Delete'));
 function askDeleteDash(): void {
+  if (sync.readOnly.value) return;
   const id = selectedId.value;
   if (!id || !editName.value) return;
   const onOap = remoteAvailable.value || bundledExists.value;
@@ -315,6 +332,7 @@ function askDeleteDash(): void {
   deleteOpen.value = true;
 }
 async function confirmDeleteDash(): Promise<void> {
+  if (sync.readOnly.value) return;
   const id = selectedId.value;
   const name = editName.value;
   deleteOpen.value = false;
@@ -432,6 +450,7 @@ function persistLocal(content: OverviewDashboard): void {
 // every reset). Subsequent edits re-create a local draft naturally.
 const resetDropdownOpen = ref(false);
 function resetTo(src: 'bundled' | 'remote'): void {
+  if (sync.readOnly.value) return;
   loadFrom(src);
   if (editName.value) localEdits.remove(editName.value);
   resetDropdownOpen.value = false;
@@ -527,8 +546,16 @@ const editorDiffersFromRemote = computed<boolean>(() => {
 //      bundled-only overview): bundled is the seed/reset source, never the
 //      runtime render, so the editor shows a "no published version" panel
 //      and the operator resets to bundled explicitly.
+//
+// A READ-ONLY session inverts two of those. It skips the local draft — it
+// cannot reach "Reset to", so a stale browser draft would be the only thing
+// it could ever see (the draft stays in storage; the session may regain the
+// write verb) — and it DOES fall through to bundled, because "adopt the
+// bundled default" is an edit it cannot make, and the panel offering it
+// would otherwise leave the viewer with a blank page.
 function seedEditor(): void {
-  if (hasLocalDraft.value) {
+  const readOnly = sync.readOnly.value;
+  if (hasLocalDraft.value && !readOnly) {
     loadFrom('local');
     return;
   }
@@ -536,9 +563,20 @@ function seedEditor(): void {
     loadFrom('remote');
     return;
   }
+  if (readOnly && bundledExists.value) {
+    loadFrom('bundled');
+    return;
+  }
   draft.value = null;
   loadedSnapshot.value = '';
 }
+/** Adopt the bundled default as the working copy. Distinct from the
+ *  automatic seed in `seedEditor` — this one is an operator edit. */
+function adoptBundled(): void {
+  if (sync.readOnly.value) return;
+  loadFrom('bundled');
+}
+
 /** Selected overview exists but has neither a local draft nor an OAP row,
  *  so nothing is loaded. Drives the "no published version" panel. */
 const noPublishedVersion = computed<boolean>(
@@ -585,9 +623,20 @@ watch(sourcesReady, (ready, wasReady) => {
   }
 });
 
+// Which source seedEditor prefers depends on `readOnly`, and that flag settles
+// asynchronously (the config bundle decides whether OAP admin is reachable).
+// Re-seed on the flip so the editor never keeps showing a source the current
+// mode would not have picked — but never over unsaved keystrokes.
+watch(
+  () => sync.readOnly.value,
+  () => {
+    if (sourcesReady.value && selectedId.value && !isDirty.value) seedEditor();
+  },
+);
+
 /** Save the editor to the browser local draft. Never writes OAP. */
 function onSave(): void {
-  if (!draft.value || !editName.value) return;
+  if (sync.readOnly.value || !draft.value || !editName.value) return;
   persistLocal(draft.value);
   editorSource.value = 'local';
   setFlash(t('Saved to your browser (local). Publish with “Check diff & push”.'));
@@ -615,7 +664,7 @@ const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value
  *  later. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<OverviewDashboard>(editName.value);
-  if (!local || saving.value) return;
+  if (sync.readOnly.value || !local || saving.value) return;
   saving.value = true;
   flash.value = t('Saving to OAP…');
   let elapsed = 0;
@@ -678,6 +727,7 @@ function onExport(): void {
 // the auto-select watchEffect runs, then select + force-load local so an
 // unsaved-but-dirty editor doesn't suppress the seed watcher.
 async function onImportFile(): Promise<void> {
+  if (sync.readOnly.value) return;
   const text = await pickJsonFile();
   if (text === null) return;
   const res = validateImport('overview', text);
@@ -701,7 +751,7 @@ async function onImportFile(): Promise<void> {
 
 // Widget reorder + delete — the drawer reaches back into these.
 function moveWidget(idx: number, dir: -1 | 1): void {
-  if (!draft.value) return;
+  if (sync.readOnly.value || !draft.value) return;
   const next = [...draft.value.widgets];
   const j = idx + dir;
   if (j < 0 || j >= next.length) return;
@@ -709,7 +759,7 @@ function moveWidget(idx: number, dir: -1 | 1): void {
   draft.value = { ...draft.value, widgets: next };
 }
 function removeWidget(idx: number): void {
-  if (!draft.value) return;
+  if (sync.readOnly.value || !draft.value) return;
   const removed = draft.value.widgets[idx];
   const next = draft.value.widgets.filter((_, i) => i !== idx);
   draft.value = { ...draft.value, widgets: next };
@@ -756,7 +806,7 @@ function removeWidget(idx: number): void {
           type="button"
           class="ot__btn"
           :disabled="sync.readOnly.value"
-          :title="sync.readOnly.value ? t('OAP unreachable — cannot create') : ''"
+          :title="sync.readOnly.value ? readOnlyTitle : ''"
           @click="openNewDash"
         >{{ t('+ New dashboard') }}</button>
       </div>
@@ -776,7 +826,13 @@ function removeWidget(idx: number): void {
         <div v-else-if="noPublishedVersion" class="ot__empty ot__no-remote">
           <h3>{{ t('No published version on OAP') }}</h3>
           <p>{{ t('This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.') }}</p>
-          <button class="ot__btn ot__btn--primary" type="button" :disabled="!bundledExists" @click="loadFrom('bundled')">{{ t('Reset to bundled') }}</button>
+          <button
+            class="ot__btn ot__btn--primary"
+            type="button"
+            :disabled="!bundledExists || sync.readOnly.value"
+            :title="sync.readOnly.value ? readOnlyTitle : ''"
+            @click="adoptBundled"
+          >{{ t('Reset to bundled') }}</button>
         </div>
         <template v-else-if="draft">
           <header class="ot__detail-head">
@@ -792,9 +848,9 @@ function removeWidget(idx: number): void {
             <button
               type="button"
               class="ot__head-btn ot__head-btn--danger"
-              :disabled="sync.readOnly.value && (remoteAvailable || bundledExists)"
-              :title="(sync.readOnly.value && (remoteAvailable || bundledExists))
-                ? t('OAP unreachable — cannot delete')
+              :disabled="sync.readOnly.value"
+              :title="sync.readOnly.value
+                ? readOnlyTitle
                 : bundledExists
                   ? t('Disable built-in dashboard {id} (OAP has no hard delete — hidden, irreversible from the UI)', { id: draft.id })
                   : remoteAvailable
@@ -805,6 +861,15 @@ function removeWidget(idx: number): void {
             <!-- Source / save / publish actions, right-aligned (same row as
                  the title + tabs, mirroring the layer dashboards editor). -->
             <div class="ot__head-actions">
+              <!-- Read-only sessions are shown the OAP-live (or bundled)
+                   content, not the draft — this says the draft is there but
+                   hidden, since nothing on the page can reload or discard
+                   it. -->
+              <span
+                v-if="sourcesReady && sync.readOnly.value && hasLocalDraft"
+                class="ot__src is-local"
+                :title="t('Unpublished local draft in this browser — not shown while read-only.')"
+              >{{ t('local') }}</span>
               <!-- Source pill — three visible states gated on
                    `sourcesReady` so the initial render doesn't flash
                    "from bundled" while the config bundle is still
@@ -840,11 +905,20 @@ function removeWidget(idx: number): void {
               <button
                 type="button"
                 class="ot__btn"
-                :title="t('Import a dashboard JSON file as a local draft — preview, then publish.')"
+                :disabled="sync.readOnly.value"
+                :title="sync.readOnly.value
+                  ? readOnlyTitle
+                  : t('Import a dashboard JSON file as a local draft — preview, then publish.')"
                 @click="onImportFile"
               >{{ t('import') }}</button>
               <div class="reset-dd">
-                <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
+                <button
+                  type="button"
+                  class="ot__btn"
+                  :disabled="sync.readOnly.value"
+                  :title="sync.readOnly.value ? readOnlyTitle : ''"
+                  @click="resetDropdownOpen = !resetDropdownOpen"
+                >
                   {{ t('reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
                 </button>
                 <template v-if="resetDropdownOpen">
@@ -857,13 +931,13 @@ function removeWidget(idx: number): void {
                     <button
                       class="reset-dd-item"
                       type="button"
-                      :disabled="isSynced"
+                      :disabled="isSynced || sync.readOnly.value"
                       :title="isSynced
                         ? t('Bundled equals OAP-live for this row — nothing to reset to.')
                         : t('Discard current edits and reload the bundled default.')"
                       @click="resetTo('bundled')"
                     >{{ t('Bundled') }}<span v-if="isSynced" class="reset-dd-suffix"> {{ t('(synced)') }}</span></button>
-                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="remoteAvailable ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy yet.')" @click="resetTo('remote')">{{ t('Remote') }}</button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable || sync.readOnly.value" :title="remoteAvailable ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy yet.')" @click="resetTo('remote')">{{ t('Remote') }}</button>
                   </div>
                 </template>
               </div>
@@ -893,8 +967,10 @@ function removeWidget(idx: number): void {
               <button
                 type="button"
                 class="ot__btn ot__btn--primary"
-                :disabled="(!isDirty && !editorDiffersFromRemote) || saving"
-                :title="t('Save the editor to your browser (local). Publish later with “Check diff & push”.')"
+                :disabled="(!isDirty && !editorDiffersFromRemote) || saving || sync.readOnly.value"
+                :title="sync.readOnly.value
+                  ? readOnlyTitle
+                  : t('Save the editor to your browser (local). Publish later with “Check diff & push”.')"
                 @click="onSave"
               >
                 {{ saving ? t('saving…') : t('save (local)') }}
@@ -914,6 +990,7 @@ function removeWidget(idx: number): void {
               :draft="draft"
               :selected-widget-id="selectedWidgetId"
               :layer-options="layerOptions"
+              :read-only="sync.readOnly.value"
               @close="selectedWidgetId = null"
               @move="moveWidget"
               @remove="removeWidget"
@@ -923,6 +1000,7 @@ function removeWidget(idx: number): void {
             <OverviewEditCanvas
               :model-value="draft"
               :selected-widget-id="selectedWidgetId"
+              :read-only="sync.readOnly.value"
               @update:model-value="(d) => (draft = d)"
               @select-widget="selectWidget"
             />
@@ -937,6 +1015,7 @@ function removeWidget(idx: number): void {
     <NewOverviewDashboardModal
       :open="newDashOpen"
       :error="newDashError"
+      :read-only="sync.readOnly.value"
       @close="cancelNewDash"
       @submit="createDash"
     />
@@ -951,7 +1030,7 @@ function removeWidget(idx: number): void {
       </div>
       <template #footer>
         <button class="sw-btn" type="button" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
-        <button class="sw-btn is-primary" type="button" :disabled="saving" @click="pushToOap">
+        <button class="sw-btn is-primary" type="button" :disabled="saving || sync.readOnly.value" @click="pushToOap">
           {{ saving ? t('Pushing…') : t('Confirm push') }}
         </button>
       </template>
@@ -962,7 +1041,7 @@ function removeWidget(idx: number): void {
       <p class="ot__confirm-msg">{{ deleteMessage }}</p>
       <template #footer>
         <button class="sw-btn" type="button" @click="deleteOpen = false">{{ t('Cancel') }}</button>
-        <button class="sw-btn is-danger" type="button" @click="confirmDeleteDash">{{ deleteConfirmLabel }}</button>
+        <button class="sw-btn is-danger" type="button" :disabled="sync.readOnly.value" @click="confirmDeleteDash">{{ deleteConfirmLabel }}</button>
       </template>
     </Modal>
   </div>

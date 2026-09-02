@@ -45,6 +45,7 @@ import { computed, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useConfigBundle } from '@/controls/configBundle';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
+import { useAuthStore } from '@/state/auth';
 import type {
   BundleSyncStatus,
   TemplateBadge,
@@ -84,10 +85,33 @@ export interface UseTemplateSyncOptions {
   /** Limit banner counts + badges to one kind — admin pages care only
    *  about their own family. */
   kind: TemplateKind;
+  /** Override the write verb this page's edits require. Only the
+   *  Translations page needs it: it edits per-locale overlays of other
+   *  kinds, so its authority is `translation:write`, not the underlying
+   *  template's. */
+  writeVerb?: string;
 }
 
+/** The verb a page must hold to publish this kind. Mirrors the BFF's
+ *  `rbac/template-verbs.ts`; the BFF is the authority and refuses the write
+ *  regardless — this only decides whether the page renders its controls. */
+const WRITE_VERB_BY_KIND: Readonly<Record<TemplateKind, string>> = {
+  overview: 'overview-template:write',
+  layer: 'layer-template:write',
+  alert: 'alarm-setup:write',
+  theme: 'setup:write',
+  'time-defaults': 'setup:write',
+  'infra-3d': 'infra-3d-setup:write',
+};
+
 export interface UseTemplateSyncReturn {
+  /** True when this page may not publish — for ANY reason: no write verb,
+   *  OAP admin unreachable, or `templates.mode=readonly`. Every editing
+   *  control binds to this one flag, so a new reason needs no page edits. */
   readOnly: ComputedRef<boolean>;
+  /** Read-only specifically because the session lacks the write verb, as
+   *  opposed to a store the page could edit once OAP is back. */
+  lacksWriteVerb: ComputedRef<boolean>;
   banner: ComputedRef<SyncBanner>;
   badgeFor: (name: string) => TemplateStatus | null;
   /** The duplicate row for `name`, or `null` when OAP has a single
@@ -170,10 +194,17 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return (s.unreadable ?? []).filter((u) => u.kind === opts.kind);
   });
 
-  // Read-only when OAP admin is unreachable (live mode, transient) OR the BFF
-  // is deliberately in readonly template mode (rendering the local bundle).
+  // Read-only when the session cannot publish this kind, OR OAP admin is
+  // unreachable (live mode, transient), OR the BFF is deliberately in readonly
+  // template mode (rendering the local bundle).
+  const auth = useAuthStore();
+  const writeVerb = opts.writeVerb ?? WRITE_VERB_BY_KIND[opts.kind];
+  const lacksWriteVerb = computed<boolean>(() => !auth.hasVerb(writeVerb));
   const readOnly = computed<boolean>(
-    () => status.value?.unreachable === true || status.value?.mode === 'readonly',
+    () =>
+      lacksWriteVerb.value ||
+      status.value?.unreachable === true ||
+      status.value?.mode === 'readonly',
   );
 
   // Shown on diverged + clean banners so the operator always knows what
@@ -202,6 +233,18 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     const counts: Partial<Record<TemplateStatus, number>> = {};
     for (const b of ownBadges.value) counts[b.status] = (counts[b.status] ?? 0) + 1;
 
+    if (lacksWriteVerb.value) {
+      return {
+        severity: 'readonly',
+        message: t('You can view this configuration but not change it.'),
+        detail: t('Publishing needs the “{verb}” permission — ask an administrator to grant it.', {
+          verb: writeVerb,
+        }),
+        counts,
+        localCount: localCount.value,
+        conflicts: [],
+      };
+    }
     if (s.mode === 'readonly') {
       return {
         severity: 'readonly',
@@ -332,5 +375,5 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return c ? buildConflictBanner(c, translate) : null;
   }
 
-  return { readOnly, banner, badgeFor, conflictFor, conflictBannerFor, status };
+  return { readOnly, lacksWriteVerb, banner, badgeFor, conflictFor, conflictBannerFor, status };
 }

@@ -232,7 +232,7 @@ No MQE — uses the layer's topology metric from the layer template (`topology.m
 
 ## Type-aware admin editor
 
-The Overview Templates admin editor (`/admin/overview-templates`, verb `overview:write`) exposes per-type forms — only fields relevant to the chosen `type` are shown. See [Customization → Overview Templates](../customization/overview-templates.md#admin-editor).
+The Overview Templates admin editor (`/admin/overview-templates`, verb `overview-template:read`) exposes per-type forms — only fields relevant to the chosen `type` are shown. See [Customization → Overview Templates](../customization/overview-templates.md#admin-editor).
 
 ## Choosing the right widget
 

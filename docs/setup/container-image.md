@@ -73,6 +73,7 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_AUTH_LDAP` | (none) | JSON | LDAP block: `{"url":"ldaps://…","userBaseDn":"…","groupMappings":[{"group":"*","role":"viewer"}]}`. |
 | `HORIZON_AUTH_BREAK_GLASS` | (none) | JSON | Break-glass admin (honored only when `ldap` + LDAP probe failing). |
 | `HORIZON_RBAC_ENABLED` | `true` | bool | When `false`, every session gets `*`. |
+| `HORIZON_RBAC_BUILTIN_ROLES` | `replace` | enum | `replace` or `keep` — whether a configured role map replaces the built-in roles or is merged onto them. |
 | `HORIZON_RBAC_ROLES` | (built-in) | JSON | Role → verb-grants map. |
 | `HORIZON_RBAC_LANDING_BY_ROLE` | (built-in) | JSON | Post-login landing route per role. |
 | `HORIZON_LAYERS_EXCLUDED` | `FAAS`, `VIRTUAL_GATEWAY` | JSON | Layers hidden from the sidebar; `[]` shows all. |

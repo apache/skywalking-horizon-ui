@@ -212,8 +212,10 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   'GET /api/overview/dashboards':                  'overview:read',
   'GET /api/overview/dashboards/:id':              'overview:read',
-  'GET /api/admin/templates/sync-status':          'overview:read',
-  'GET /api/admin/templates/:name/i18n/:locale':   'overview:read',
+  // Serves rows of EVERY kind, so one verb cannot gate it: policy is 'auth'
+  // and the handler filters the reply to the kinds the caller can read.
+  'GET /api/admin/templates/sync-status':          'auth',
+  'GET /api/admin/templates/:name/i18n/:locale':   'translation:read',
 
   'GET /api/infra-3d/config':                      'infra-3d:read',
   'POST /api/infra-3d/metrics':                    'infra-3d:read',
@@ -252,20 +254,21 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   // ── Operator — config / dashboard / rule / diagnostics writes ──
 
-  'GET /api/admin/layer-templates':                'dashboard:read',
+  'GET /api/admin/layer-templates':                'layer-template:read',
 
-  // Overview-template editor + OAP UI-template sync. The editor catalog needs
-  // write even to read it; rendered overviews stay 'overview:read' above.
-  'GET /api/admin/overview-templates':             'overview:write',
-  'GET /api/admin/overview-templates/:id':         'overview:write',
-  'POST /api/admin/templates/resync':              'overview:write',
-  'POST /api/admin/templates/save-translation':    'overview:write',
-  'POST /api/admin/templates/delete-translation':  'overview:write',
-  'POST /api/admin/templates/disable':             'overview:write',
-  'POST /api/admin/templates/:name/push-bundled':  'overview:write',
-  'POST /api/admin/templates/sync-all':            'overview:write',
-  // `save` is gated 'auth'; the real per-kind verb (layer → dashboard:write,
-  // else → overview:write) is enforced in the handler before any OAP write.
+  // Overview-template editor + OAP UI-template sync.
+  'GET /api/admin/overview-templates':             'overview-template:read',
+  'GET /api/admin/overview-templates/:id':         'overview-template:read',
+  'POST /api/admin/templates/save-translation':    'translation:write',
+  'POST /api/admin/templates/delete-translation':  'translation:write',
+  // `resync` re-lists OAP and mutates nothing — a refresh button on all six
+  // setup pages. Gated 'auth'; the handler requires SOME template read verb.
+  'POST /api/admin/templates/resync':              'auth',
+  // The rest address a row (or every row), so the verb follows the row's KIND
+  // and is enforced in the handler — see rbac/template-verbs.ts.
+  'POST /api/admin/templates/disable':             'auth',
+  'POST /api/admin/templates/:name/push-bundled':  'auth',
+  'POST /api/admin/templates/sync-all':            'auth',
   'POST /api/admin/templates/save':                'auth',
 
   'GET /api/rule':                                 'rule:read',

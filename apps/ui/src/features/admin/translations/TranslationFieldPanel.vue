@@ -40,6 +40,9 @@ defineProps<{
   dirty: boolean;
   /** Reader for the draft value of a field path. */
   draftValue: (path: string) => string;
+  /** No write authority (or an unwritable store): the EN source and the
+   *  current draft stay readable, nothing here can be changed. */
+  readOnly: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -105,6 +108,7 @@ function leafLabel(segments: Array<string | number>): string {
             v-autosize="draftValue(f.path) || f.source"
             :value="draftValue(f.path)"
             :placeholder="f.source"
+            :disabled="readOnly"
             rows="1"
             class="fp__input"
             @input="emit('update-field', f.path, ($event.target as HTMLTextAreaElement).value)"
@@ -113,7 +117,7 @@ function leafLabel(segments: Array<string | number>): string {
       </div>
       <footer class="fp__foot">
         <button type="button" class="sw-btn" @click="emit('close')">{{ t('Close') }}</button>
-        <button type="button" class="sw-btn is-primary" :disabled="saving || !dirty" @click="emit('stage')">
+        <button type="button" class="sw-btn is-primary" :disabled="readOnly || saving || !dirty" @click="emit('stage')">
           {{ t('Stage local') }}
         </button>
       </footer>

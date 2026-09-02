@@ -67,6 +67,13 @@ import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { sessionHasVerb } from '../../rbac/policy.js';
+import { overlayFindings } from '../../i18n/overlay-check.js';
+import {
+  templateVerbs,
+  canReadTemplateRow,
+  TEMPLATE_READ_VERBS,
+  TEMPLATE_WRITE_VERBS,
+} from '../../rbac/template-verbs.js';
 import {
   createAndConfirm,
   updateAndConfirm,
@@ -110,6 +117,76 @@ export function registerTemplateSyncAdminRoutes(
 ): void {
   const auth = requireAuth(deps);
 
+  /** 401/403 for a row the caller may not act on, else null. The routes below
+   *  are policy-gated 'auth' because one URL serves six independently-grantable
+   *  pages; the row's kind picks the verb. */
+  function denyRow(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    parsed: { kind: TemplateKind; locale?: string },
+    action: 'read' | 'write',
+  ): boolean {
+    const session = req.session;
+    if (!session) {
+      reply.code(401).send({ error: 'unauthenticated' });
+      return true;
+    }
+    const verb = templateVerbs(parsed.kind, parsed.locale)[action];
+    if (!sessionHasVerb(deps.config.current, session, verb)) {
+      reply.code(403).send({ error: 'permission_denied', verb });
+      return true;
+    }
+    return false;
+  }
+
+  /** The kinds this caller may read, as a row predicate. */
+  function readableRow(req: FastifyRequest): (r: { kind: TemplateKind; locale?: string }) => boolean {
+    const session = req.session;
+    const cfg = deps.config.current;
+    return (r) => canReadTemplateRow(cfg, session, r);
+  }
+
+  /** Holding NO template write verb means no bulk push. Per-row authority
+   *  still decides which rows move; this only stops a caller who can write
+   *  nothing at all from receiving a success it did not earn. */
+  function denyWithoutAnyTemplateWrite(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    kind?: TemplateKind,
+  ): boolean {
+    const session = req.session;
+    if (!session) {
+      reply.code(401).send({ error: 'unauthenticated' });
+      return true;
+    }
+    const cfg = deps.config.current;
+    // Name the verb the caller's own request needed, when the body scoped it
+    // to one kind — reporting a fixed verb sends an operator to the wrong
+    // permission. Unscoped, no single verb is the answer, so say the one that
+    // would let the batch start.
+    const wanted = kind ? [templateVerbs(kind).write] : TEMPLATE_WRITE_VERBS;
+    if (!wanted.some((v) => sessionHasVerb(cfg, session, v))) {
+      reply.code(403).send({ error: 'permission_denied', verb: wanted[0] });
+      return true;
+    }
+    return false;
+  }
+
+  /** Holding NO template read verb means no Dashboard-setup page at all. */
+  function denyWithoutAnyTemplateRead(req: FastifyRequest, reply: FastifyReply): boolean {
+    const session = req.session;
+    if (!session) {
+      reply.code(401).send({ error: 'unauthenticated' });
+      return true;
+    }
+    const cfg = deps.config.current;
+    if (!TEMPLATE_READ_VERBS.some((v) => sessionHasVerb(cfg, session, v))) {
+      reply.code(403).send({ error: 'permission_denied', verb: TEMPLATE_READ_VERBS[0] });
+      return true;
+    }
+    return false;
+  }
+
   app.get(
     '/api/admin/templates/sync-status',
     { preHandler: auth },
@@ -119,20 +196,25 @@ export function registerTemplateSyncAdminRoutes(
       // their own writes reflected without having to hit the explicit
       // "refresh from remote" button — config edits should always see
       // fresh state. The render-side bundle endpoint stays cached.
+      // A caller with no template read verb is refused rather than answered
+      // with an empty store — the two would otherwise look identical, and
+      // "there is nothing here" is the more misleading of the two.
+      if (denyWithoutAnyTemplateRead(req, reply)) return;
       const force = (req.query as { force?: string })?.force === 'true';
       if (force) resync();
       const status = await loadStatus(deps);
-      return reply.send(status);
+      return reply.send(filterStatusToReadable(status, readableRow(req)));
     },
   );
 
   app.post(
     '/api/admin/templates/resync',
     { preHandler: auth },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (denyWithoutAnyTemplateRead(req, reply)) return;
       resync();
       const status = await loadStatus(deps);
-      return reply.send(status);
+      return reply.send(filterStatusToReadable(status, readableRow(req)));
     },
   );
 
@@ -233,6 +315,28 @@ export function registerTemplateSyncAdminRoutes(
         message: 'OAP admin port unreachable — translations are read-only',
       });
     }
+    // `translation:write` means wording. The runtime merger replaces any string
+    // leaf at a matching path, so an unchecked overlay could rewrite a layer
+    // key, a widget type or an MQE expression — structure and queries. Hold it
+    // to the same allowlist the bundled catalogs are validated against, using
+    // the source row this overlay will actually merge into.
+    const sourceRow = status.rows.find((r) => r.name === name && r.locale === undefined);
+    const sourceCfg = sourceRow?.remote?.configuration ?? sourceRow?.bundled?.configuration ?? null;
+    const sourceEnv = sourceCfg ? parseEnvelope(sourceCfg) : null;
+    if (!sourceEnv) {
+      return reply.code(409).send({
+        code: 'source_template_unreadable',
+        message: `no readable source template for ${name}; an overlay cannot be validated without it`,
+      });
+    }
+    const overlayIssues = overlayFindings(sourceEnv.content, content);
+    if (overlayIssues.length > 0) {
+      return reply.code(400).send({
+        code: 'invalid_overlay',
+        message: 'overlay may only translate allowlisted text fields of its source template',
+        issues: overlayIssues.map((f) => `${f.path || '(root)'}: ${f.message}`),
+      });
+    }
     const envelope = buildOverlayEnvelope(parsed.kind as TemplateKind, parsed.key, locale, content);
     const configuration = serializeEnvelope(envelope);
     const existing = status.rows.find((r) => r.name === envelope.name);
@@ -244,7 +348,7 @@ export function registerTemplateSyncAdminRoutes(
       }
       resync();
       const fresh = await loadStatus(deps);
-      return reply.send(fresh);
+      return reply.send(filterStatusToReadable(fresh, readableRow(req)));
     } catch (err) {
       if (err instanceof WriteNotVisibleError) {
         logger.warn({ name: envelope.name, id: err.id }, 'save-translation propagation timeout');
@@ -300,13 +404,13 @@ export function registerTemplateSyncAdminRoutes(
     const existing = status.rows.find((r) => r.name === overlayName);
     if (!existing?.remote || existing.remote.disabled) {
       // Nothing to do — disk fallback already in effect.
-      return reply.send(status);
+      return reply.send(filterStatusToReadable(status, readableRow(req)));
     }
     try {
       await disableAndConfirm(deps.uiTemplateClient(), existing.remote.id, logger);
       resync();
       const fresh = await loadStatus(deps);
-      return reply.send(fresh);
+      return reply.send(filterStatusToReadable(fresh, readableRow(req)));
     } catch (err) {
       if (err instanceof WriteNotVisibleError) {
         return reply.code(504).send({
@@ -337,6 +441,7 @@ export function registerTemplateSyncAdminRoutes(
           message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
         });
       }
+      if (denyRow(req, reply, parsed, 'write')) return;
       resync(); // bypass the 30 s sync cache so create/update is decided on fresh OAP state
       const status = await loadStatus(deps);
       if (status.unreachable) {
@@ -379,7 +484,7 @@ export function registerTemplateSyncAdminRoutes(
         }
         resync();
         const fresh = await loadStatus(deps);
-        return reply.send(fresh);
+        return reply.send(filterStatusToReadable(fresh, readableRow(req)));
       } catch (err) {
         if (err instanceof WriteNotVisibleError) {
           logger.warn({ name, id: err.id }, 'push-bundled propagation timeout');
@@ -409,6 +514,7 @@ export function registerTemplateSyncAdminRoutes(
     Body: { kind?: TemplateKind };
   }>('/api/admin/templates/sync-all', { preHandler: auth }, async (req, reply) => {
     const kind = req.body?.kind;
+    if (denyWithoutAnyTemplateWrite(req, reply, kind)) return;
     resync(); // ensure the diff set comes from a fresh OAP read
     const status = await loadStatus(deps);
     if (status.unreachable) {
@@ -417,12 +523,29 @@ export function registerTemplateSyncAdminRoutes(
         message: 'OAP admin port unreachable — templates are read-only',
       });
     }
-    const targets = status.rows.filter(
+    const candidates = status.rows.filter(
       (r) =>
         (!kind || r.kind === kind) &&
         !!r.bundled &&
         (r.status === 'diverged' || r.status === 'bundled-fallback'),
     );
+    // Bulk push spans kinds, so authority is decided per row. A row the caller
+    // cannot write is REPORTED as skipped rather than dropped: a batch that
+    // silently does less than it says is how an operator concludes a template
+    // is in sync when it never moved.
+    const session = req.session;
+    if (!session) return reply.code(401).send({ error: 'unauthenticated' });
+    const cfg = deps.config.current;
+    // Read AND write. Write alone would let a caller push — and, through
+    // `synced` / `failed`, enumerate — rows it may not even look at, turning a
+    // bulk action into a listing of a surface it has no read on.
+    const readable = readableRow(req);
+    const targets = candidates.filter(
+      (r) => readable(r) && sessionHasVerb(cfg, session, templateVerbs(r.kind, r.locale).write),
+    );
+    const skipped = candidates
+      .filter((r) => !targets.includes(r) && readable(r))
+      .map((r) => ({ name: r.name, verb: templateVerbs(r.kind, r.locale).write }));
     const synced: string[] = [];
     const failed: Array<{ name: string; error: string }> = [];
     for (const row of targets) {
@@ -448,7 +571,7 @@ export function registerTemplateSyncAdminRoutes(
     }
     resync();
     const fresh = await loadStatus(deps);
-    return reply.send({ ...fresh, synced, failed });
+    return reply.send({ ...filterStatusToReadable(fresh, readableRow(req)), synced, failed, skipped });
   });
 
 
@@ -472,18 +595,20 @@ export function registerTemplateSyncAdminRoutes(
         message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
       });
     }
-    // Per-kind write authority (route is gated `auth`; the real verb check
-    // is here, before any validation or OAP write). A layer-template save is
-    // gated on `dashboard:write` — the verb the layer-dashboard editor
-    // advertises; every other kind on `overview:write`.
-    const saveVerb = parsed.kind === 'layer' ? 'dashboard:write' : 'overview:write';
-    const session = req.session;
-    if (!session) {
-      return reply.code(401).send({ error: 'unauthenticated' });
+    // An overlay name here would authorize as `translation:write` and then be
+    // written as its SOURCE row, because buildEnvelope below re-derives the
+    // name from kind+key and drops the locale. Overlays have their own route.
+    if (parsed.locale !== undefined) {
+      return reply.code(400).send({
+        code: 'invalid_template_name',
+        message: 'translation overlays are saved through /api/admin/templates/save-translation',
+      });
     }
-    if (!sessionHasVerb(deps.config.current, session, saveVerb)) {
-      return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
-    }
+    // Per-row write authority (route is gated `auth`; the real verb check is
+    // here, before any validation or OAP write). One URL serves all six
+    // Dashboard-setup pages, so the row's kind — and whether it is a
+    // translation overlay — picks the verb. See rbac/template-verbs.ts.
+    if (denyRow(req, reply, parsed, 'write')) return;
     // Identity + per-kind content validation. The envelope machinery is
     // content-opaque, so this is the only place a stored row is held to the
     // shape (and the name) its readers depend on.
@@ -524,7 +649,7 @@ export function registerTemplateSyncAdminRoutes(
       }
       resync();
       const fresh = await loadStatus(deps);
-      return reply.send(fresh);
+      return reply.send(filterStatusToReadable(fresh, readableRow(req)));
     } catch (err) {
       if (err instanceof WriteNotVisibleError) {
         logger.warn({ name, id: err.id }, 'save propagation timeout');
@@ -570,12 +695,14 @@ export function registerTemplateSyncAdminRoutes(
           message: 'body must be { name: string }',
         });
       }
-      if (!parseName(name)) {
+      const parsedDisable = parseName(name);
+      if (!parsedDisable) {
         return reply.code(400).send({
           code: 'invalid_template_name',
           message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
         });
       }
+      if (denyRow(req, reply, parsedDisable, 'write')) return;
       resync(); // disable picks bundled-fallback vs remote based on status — must be fresh, or we create a duplicate
       const status = await loadStatus(deps);
       if (status.unreachable) {
@@ -603,7 +730,7 @@ export function registerTemplateSyncAdminRoutes(
       const row = status.rows.find((r) => r.name === name);
       if (!row?.remote && !row?.bundled) {
         // Nothing on OAP and no bundle — already gone.
-        return reply.send(await loadStatus(deps));
+        return reply.send(filterStatusToReadable(await loadStatus(deps), readableRow(req)));
       }
       try {
         if (row.remote) {
@@ -615,7 +742,7 @@ export function registerTemplateSyncAdminRoutes(
           await disableAndConfirm(deps.uiTemplateClient(), id, logger);
         }
         resync();
-        return reply.send(await loadStatus(deps));
+        return reply.send(filterStatusToReadable(await loadStatus(deps), readableRow(req)));
       } catch (err) {
         if (err instanceof WriteNotVisibleError) {
           logger.warn({ name, id: err.id }, 'disable bundled-fallback create propagation timeout');
@@ -717,6 +844,26 @@ function bundledPushIssues(
   if (!row.bundled) return null;
   const env = parseEnvelope(row.bundled.configuration);
   return env ? publishIssues(row.kind, row.key, env.content, trustedLinkDomains) : null;
+}
+
+/**
+ * A SyncStatus carrying only the rows the caller may read. Every list in the
+ * envelope is narrowed, not just `rows` — a conflict or unreadable entry names
+ * a template and its kind, which is the same disclosure by another route.
+ *
+ * `mode` / `unreachable` stay: they describe the store, not any row, and the
+ * banner is what tells an operator why their page is read-only.
+ */
+function filterStatusToReadable(
+  status: SyncStatus,
+  readable: (r: { kind: TemplateKind; locale?: string }) => boolean,
+): SyncStatus {
+  return {
+    ...status,
+    rows: status.rows.filter(readable),
+    conflicts: status.conflicts.filter((c) => readable(c)),
+    unreadable: status.unreadable.filter((u) => readable(u)),
+  };
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {

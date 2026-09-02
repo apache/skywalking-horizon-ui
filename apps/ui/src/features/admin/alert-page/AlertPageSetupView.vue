@@ -113,6 +113,14 @@ function setFlash(msg: string): void {
   }, 4000);
 }
 
+// Read-only has two causes, and "OAP unreachable" is the wrong answer for
+// the permission one — it sends the operator to check a server that is fine.
+const readOnlyReason = computed<string>(() =>
+  sync.lacksWriteVerb.value
+    ? t('You can view this configuration but not change it.')
+    : t('OAP unreachable — page is read-only'),
+);
+
 // Diff & reset modal — alert page-setup is a singleton, so the
 // trigger lives near the Save button instead of per-row.
 const alertStatus = computed(() => sync.badgeFor('horizon.alert.page-setup'));
@@ -135,16 +143,19 @@ const addableLayers = computed<string[]>(() => {
 });
 
 function addLayer(key: string): void {
+  if (sync.readOnly.value) return;
   if (draft.value.includes(key)) return;
   if (draft.value.length >= MAX_PINNED) return;
   draft.value = [...draft.value, key];
 }
 
 function removeLayer(i: number): void {
+  if (sync.readOnly.value) return;
   draft.value = draft.value.filter((_, j) => j !== i);
 }
 
 function moveLayer(i: number, dir: -1 | 1): void {
+  if (sync.readOnly.value) return;
   const next = [...draft.value];
   const j = i + dir;
   if (j < 0 || j >= next.length) return;
@@ -155,7 +166,7 @@ function moveLayer(i: number, dir: -1 | 1): void {
 async function onSave(): Promise<void> {
   if (!validateLimit()) return;
   if (sync.readOnly.value) {
-    setFlash(t('cannot save — OAP is unreachable, page is read-only'));
+    setFlash(readOnlyReason.value);
     return;
   }
   saving.value = true;
@@ -195,6 +206,7 @@ async function onSave(): Promise<void> {
 }
 
 function onReset(): void {
+  if (sync.readOnly.value) return;
   if (q.data.value) {
     draft.value = [...q.data.value.pinnedLayers];
     draftWindowMs.value = q.data.value.defaultWindowMs;
@@ -262,7 +274,7 @@ function prettyLayer(k: string): string {
             <button
               type="button"
               class="aps__pin-arrow"
-              :disabled="i === 0"
+              :disabled="sync.readOnly.value || i === 0"
               :title="t('Move left')"
               @click="moveLayer(i, -1)"
             >‹</button>
@@ -272,13 +284,14 @@ function prettyLayer(k: string): string {
             <button
               type="button"
               class="aps__pin-arrow"
-              :disabled="i === draft.length - 1"
+              :disabled="sync.readOnly.value || i === draft.length - 1"
               :title="t('Move right')"
               @click="moveLayer(i, 1)"
             >›</button>
             <button
               type="button"
               class="aps__pin-del"
+              :disabled="sync.readOnly.value"
               :title="t('Unpin')"
               @click="removeLayer(i)"
             >×</button>
@@ -299,12 +312,13 @@ function prettyLayer(k: string): string {
               v-for="opt in ALARMS_WINDOW_OPTIONS"
               :key="opt"
               class="aps__win-opt"
-              :class="{ active: draftWindowMs === opt }"
+              :class="{ active: draftWindowMs === opt, disabled: sync.readOnly.value }"
             >
               <input
                 type="radio"
                 name="defaultWindow"
                 :value="opt"
+                :disabled="sync.readOnly.value"
                 v-model="draftWindowMs"
               />
               <span>{{ WINDOW_LABELS[opt] }}</span>
@@ -332,6 +346,7 @@ function prettyLayer(k: string): string {
                 :min="OVERVIEW_ALARMS_LIMIT_MIN"
                 :max="OVERVIEW_ALARMS_LIMIT_MAX"
                 step="10"
+                :disabled="sync.readOnly.value"
                 class="aps__in aps__in--num"
                 @blur="validateLimit"
               />
@@ -354,7 +369,7 @@ function prettyLayer(k: string): string {
             :key="key"
             type="button"
             class="aps__add-chip"
-            :disabled="draft.length >= MAX_PINNED"
+            :disabled="sync.readOnly.value || draft.length >= MAX_PINNED"
             @click="addLayer(key)"
           >
             <span>+ {{ prettyLayer(key) }}</span>
@@ -371,11 +386,11 @@ function prettyLayer(k: string): string {
       <button
         type="button"
         class="aps__btn"
-        :disabled="!isDirty || saving"
+        :disabled="!isDirty || saving || sync.readOnly.value"
         @click="onReset"
       >{{ t('reset') }}</button>
       <button
-        v-if="alertDiverged && !sync.readOnly.value"
+        v-if="alertDiverged"
         type="button"
         class="aps__btn"
         :title="t('Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation).')"
@@ -385,7 +400,7 @@ function prettyLayer(k: string): string {
         type="button"
         class="aps__btn aps__btn--primary"
         :disabled="!isDirty || saving || sync.readOnly.value"
-        :title="sync.readOnly.value ? t('OAP unreachable — page is read-only') : ''"
+        :title="sync.readOnly.value ? readOnlyReason : ''"
         @click="onSave"
       >{{ saving ? t('saving…') : sync.readOnly.value ? t('read-only') : t('save to OAP') }}</button>
     </div>
@@ -394,6 +409,7 @@ function prettyLayer(k: string): string {
       :open="diffModalOpen"
       name="horizon.alert.page-setup"
       confirm-key="page-setup"
+      :read-only="sync.readOnly.value"
       @close="diffModalOpen = false"
       @reset="onDiffReset"
     />
@@ -541,9 +557,13 @@ function prettyLayer(k: string): string {
   opacity: 0.3;
   cursor: not-allowed;
 }
-.aps__pin-del:hover {
+.aps__pin-del:not(:disabled):hover {
   background: var(--sw-err-soft);
   color: var(--sw-err);
+}
+.aps__pin-del:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .aps__win { padding: 10px 14px 12px; }
@@ -571,11 +591,16 @@ function prettyLayer(k: string): string {
   cursor: pointer;
 }
 .aps__win-opt input { margin: 0; cursor: pointer; }
-.aps__win-opt:hover { border-color: var(--sw-line-2); color: var(--sw-fg-0); }
+.aps__win-opt input:disabled { cursor: not-allowed; }
+.aps__win-opt:not(.disabled):hover { border-color: var(--sw-line-2); color: var(--sw-fg-0); }
 .aps__win-opt.active {
   border-color: var(--sw-accent);
   color: var(--sw-fg-0);
   background: var(--sw-bg-3);
+}
+.aps__win-opt.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .aps__limit {
   display: flex;
@@ -602,6 +627,10 @@ function prettyLayer(k: string): string {
   font-size: var(--sw-fs-base);
   padding: 5px 8px;
   border-radius: 4px;
+}
+.aps__in--num:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .aps__limit-err {
   color: var(--sw-err);

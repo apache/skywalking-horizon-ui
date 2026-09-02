@@ -19,7 +19,9 @@
   picker zone's services table, used across the per-layer page. Config-local:
   owns the template's `metrics` block via v-model and seeds an empty one on
   mount (mirrors the legacy ensureMetrics) so the operator can add columns
-  without hand-editing JSON. The block is mutated IN PLACE (it is part of the
+  without hand-editing JSON. Nothing is seeded while read-only — a session
+  that cannot save must not leave a draft behind, and the block's absence is
+  rendered as the empty state instead. The block is mutated IN PLACE (it is part of the
   live draft), so the model value is the same object the parent's draft holds.
   The sample-data preview fires no MQE — it shows how the configured columns
   render (label, scale, precision, unit, default-sort marker).
@@ -35,11 +37,12 @@ import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue'
 
 const { t } = useI18n();
 const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
-defineProps<{
+const props = defineProps<{
   serviceLabel: string;
   /** The layer being edited — fixed context for running a column's MQE.
    *  Absent (a layer not yet picked) hides the run affordance. */
   layerKey?: string;
+  readOnly?: boolean;
 }>();
 
 /** The landing request accepts at most this many columns, and the push schema
@@ -61,19 +64,25 @@ function ensure(): NonNullable<AdminLayerTemplate['metrics']> {
   }
   return config.value;
 }
-onMounted(ensure);
+onMounted(() => {
+  if (!props.readOnly) ensure();
+});
 
 // Mirrors the legacy metricsModel: seeds the block on access so the orderBy
 // control + columns table render even before the operator touches the JSON
-// (the block is part of the live draft and is mutated in place).
-const metricsModel = computed(() => ensure());
+// (the block is part of the live draft and is mutated in place). Read-only
+// reads it straight off the template instead — a render must not mutate a
+// draft the session cannot save.
+const metricsModel = computed(() => (props.readOnly ? config.value : ensure()));
 const metricsColumns = computed(() => {
+  if (props.readOnly) return config.value?.columns ?? [];
   const m = ensure();
   if (!m.columns) m.columns = [];
   return m.columns;
 });
 const atColumnCap = computed(() => metricsColumns.value.length >= MAX_COLUMNS);
 function addMetricColumn(): void {
+  if (props.readOnly) return;
   const m = ensure();
   if (!m.columns) m.columns = [];
   if (m.columns.length >= MAX_COLUMNS) return;
@@ -83,6 +92,7 @@ function addMetricColumn(): void {
   m.columns.push({ metric: id, label: `Metric ${id.slice('metric_'.length)}`, aggregation: 'avg' });
 }
 function deleteMetricColumn(i: number): void {
+  if (props.readOnly) return;
   const m = config.value;
   if (!m?.columns) return;
   m.columns.splice(i, 1);
@@ -96,6 +106,7 @@ function deleteMetricColumn(i: number): void {
  *  select just blanks instead of showing the operator anything. Follow the
  *  rename, since renaming the sort column is not a request to stop sorting. */
 function renameMetric(col: { metric: string }, e: Event): void {
+  if (props.readOnly) return;
   const next = (e.target as HTMLInputElement).value;
   const m = ensure();
   if (m.orderBy === col.metric) m.orderBy = next || undefined;
@@ -105,6 +116,7 @@ function renameMetric(col: { metric: string }, e: Event): void {
 // numbers, so an empty string would serialize an invalid value into the saved
 // template and break the renderer's numeric coercion.
 function setNum(col: { scale?: number; precision?: number }, key: 'scale' | 'precision', e: Event): void {
+  if (props.readOnly) return;
   const v = (e.target as HTMLInputElement).value;
   col[key] = v === '' ? undefined : Number(v);
 }
@@ -140,7 +152,7 @@ const effectiveOrderBy = computed(
       <button
         class="sw-btn add"
         type="button"
-        :disabled="atColumnCap"
+        :disabled="readOnly || atColumnCap"
         :title="atColumnCap ? t('The service list accepts at most {n} columns.', { n: MAX_COLUMNS }) : undefined"
         @click="addMetricColumn"
       >
@@ -150,7 +162,7 @@ const effectiveOrderBy = computed(
     <div v-if="metricsModel" class="metrics-keys">
       <label>
         <span>{{ t('Default sort (orderBy)') }}</span>
-        <select v-model="metricsModel.orderBy">
+        <select v-model="metricsModel.orderBy" :disabled="readOnly">
           <option :value="undefined">{{ t('(first column)') }}</option>
           <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.metric }}</option>
         </select>
@@ -180,6 +192,7 @@ const effectiveOrderBy = computed(
               :class="{ invalid: !c.metric.trim() }"
               :title="!c.metric.trim() ? t('Required — a column with no id is refused on push.') : undefined"
               :value="c.metric"
+              :disabled="readOnly"
               @input="renameMetric(c, $event)"
             />
           </td>
@@ -188,11 +201,12 @@ const effectiveOrderBy = computed(
               v-model="c.label"
               :class="{ invalid: !c.label.trim() }"
               :title="!c.label.trim() ? t('Required — a column with no label is refused on push.') : undefined"
+              :disabled="readOnly"
             />
           </td>
-          <td><input v-model="c.unit" placeholder="—" /></td>
+          <td><input v-model="c.unit" placeholder="—" :disabled="readOnly" /></td>
           <td>
-            <select v-model="c.aggregation">
+            <select v-model="c.aggregation" :disabled="readOnly">
               <option value="sum">sum</option>
               <option value="avg">avg</option>
             </select>
@@ -208,12 +222,13 @@ const effectiveOrderBy = computed(
               :layer-key="layerKey"
               :metric="c.metric"
               site-scope="service"
+              :readonly="readOnly"
             />
           </td>
-          <td><input type="number" step="any" :value="c.scale" placeholder="1" @input="setNum(c, 'scale', $event)" /></td>
-          <td><input type="number" min="0" max="6" :value="c.precision" :placeholder="t('auto')" @input="setNum(c, 'precision', $event)" /></td>
+          <td><input type="number" step="any" :value="c.scale" placeholder="1" :disabled="readOnly" @input="setNum(c, 'scale', $event)" /></td>
+          <td><input type="number" min="0" max="6" :value="c.precision" :placeholder="t('auto')" :disabled="readOnly" @input="setNum(c, 'precision', $event)" /></td>
           <td>
-            <button class="sw-btn is-icon danger" type="button" :title="t('Remove column')" @click="deleteMetricColumn(i)">✕</button>
+            <button class="sw-btn is-icon danger" type="button" :disabled="readOnly" :title="t('Remove column')" @click="deleteMetricColumn(i)">✕</button>
           </td>
         </tr>
       </tbody>

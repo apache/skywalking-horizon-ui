@@ -146,10 +146,30 @@ async function buildApp(fetchImpl: FetchLike): Promise<{
   app.addHook('onRoute', makeRouteAuthHook({ config, sessions }));
   registerTemplateSyncAdminRoutes(app, { config, sessions, uiTemplateClient: () => client });
   await app.ready();
-  // `operator` carries both dashboard:write (layer saves) and overview:write
-  // (the bundled pushes).
+  // `operator` carries every Dashboard-setup write verb.
   const sid = sessions.create('op', ['operator']).sid;
   return { app, cookie: `horizon_sid=${sid}`, client: () => client };
+}
+
+/** A session holding exactly `verbs`, for asserting a boundary rather than a
+ *  happy path — the suite's `operator` holds every write verb, so it cannot
+ *  see one. Roles are policy data, so a throwaway role is enough. */
+async function buildAppAs(
+  fetchImpl: FetchLike,
+  verbs: string[],
+): Promise<{ app: FastifyInstance; cookie: string }> {
+  const cfg = configSchema.parse({ rbac: { roles: { scoped: verbs } } });
+  const config: ConfigSource = {
+    current: cfg, current_: () => cfg, path: '', onChange: () => () => {}, close: async () => {},
+  };
+  const sessions = new SessionStore({ ttlMinutes: 60 });
+  const client = new UITemplateClient({ adminUrl: 'http://oap:17128', fetch: fetchImpl });
+  const app = Fastify();
+  await app.register(cookie);
+  app.addHook('onRoute', makeRouteAuthHook({ config, sessions }));
+  registerTemplateSyncAdminRoutes(app, { config, sessions, uiTemplateClient: () => client });
+  await app.ready();
+  return { app, cookie: `horizon_sid=${sessions.create('u', ['scoped']).sid}` };
 }
 
 async function post(app: FastifyInstance, url: string, cookieHeader: string, payload: object = {}) {
@@ -506,6 +526,99 @@ describe('POST /api/admin/templates/save — layer content reaching OAP', () => 
     });
     expect(res.statusCode).toBe(200);
     expect(store.writes).toEqual([{ op: 'create', id: 'horizon.theme.active' }]);
+    await app.close();
+  });
+});
+
+describe('a verb reaches its own page and no other', () => {
+  const get = async (app: FastifyInstance, url: string, cookie: string) =>
+    await app.inject({ method: 'GET', url, headers: { cookie } });
+
+  it('a translation reader sees overview and layer sources — and no other kind', async () => {
+    // Translating needs the source string beside the translation. It does not
+    // need the Alert page, the 3D map, the theme or the time defaults, each of
+    // which has a read verb of its own.
+    bundle.rows = [
+      { kind: 'layer', key: 'GENERAL', content: validLayer('GENERAL') },
+      { kind: 'overview', key: 'services', content: validOverview('services') },
+      { kind: 'alert', key: 'page-setup', content: { pinnedLayers: ['GENERAL'] } },
+      { kind: 'theme', key: 'active', content: { themeId: 'horizon' } },
+    ];
+    const { app, cookie: c } = await buildAppAs(makeStore().fetchImpl, ['translation:read']);
+    const res = await get(app, '/api/admin/templates/sync-status?force=true', c);
+    expect(res.statusCode).toBe(200);
+    const kinds = new Set((res.json() as { rows: Array<{ kind: string }> }).rows.map((r) => r.kind));
+    expect([...kinds].sort()).toEqual(['layer', 'overview']);
+    await app.close();
+  });
+
+  it('a bulk push touches only rows the caller may READ as well as write', async () => {
+    // Write alone would push — and, through `synced`, enumerate — rows the
+    // caller cannot look at.
+    bundle.rows = [{ kind: 'theme', key: 'active', content: { themeId: 'horizon' } }];
+    const store = makeStore();
+    const { app, cookie: c } = await buildAppAs(store.fetchImpl, ['setup:write']);
+    const res = await post(app, '/api/admin/templates/sync-all', c, {});
+    const body = res.json() as { synced?: string[] };
+    expect(body.synced ?? []).toEqual([]);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+});
+
+describe('the read/write boundary between a template and its translations', () => {
+  it('refuses an overlay name on /save — it would be written as its SOURCE row', async () => {
+    // `buildEnvelope` re-derives the name from kind+key and DROPS the locale,
+    // so this authorized as `translation:write` and landed on the source row.
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL.i18n.es',
+      content: validLayer('GENERAL'),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { code: string }).code).toBe('invalid_template_name');
+    expect(store.writes).toEqual([]);
+    expect(store.rows).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses an overlay that rewrites structure or a query, not wording', async () => {
+    // The runtime merger replaces ANY string leaf at a matching path, so an
+    // unchecked overlay is a structure edit under a permission that means text.
+    const store = makeStore();
+    bundle.rows = [{ kind: 'layer', key: 'GENERAL', content: validLayer('GENERAL') }];
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save-translation', c, {
+      name: 'horizon.layer.GENERAL',
+      locale: 'es',
+      content: { key: 'EVIL' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_overlay');
+    expect(body.issues.join(' ')).toContain('key');
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('accepts an overlay that only translates an allowlisted text field', async () => {
+    const store = makeStore();
+    bundle.rows = [{ kind: 'layer', key: 'GENERAL', content: validLayer('GENERAL') }];
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save-translation', c, {
+      name: 'horizon.layer.GENERAL',
+      locale: 'es',
+      content: { alias: 'General (es)' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes.length).toBe(1);
     await app.close();
   });
 });
