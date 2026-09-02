@@ -209,10 +209,17 @@ function matchOne(grant: Verb, required: Verb): boolean {
   if (grant === '*' || grant === 'admin') return true;
   if (grant === required) return true;
   if (WILDCARD_EXEMPT_VERBS.has(required)) return false;
+  // The grammar is at most three segments. `split(':', 3)` TRUNCATES rather
+  // than failing, so without this a fourth segment is silently dropped and
+  // `rule:write:structural:typo` grants `rule:write:structural` — a typo that
+  // confers authority instead of none.
+  if (grant.split(':').length > 3) return false;
   // `area:*` matches any verb in that area (and any sub-action — `rule:*` covers `rule:write:structural`)
   const [grantArea, grantAction, grantSub] = grant.split(':', 3);
   const [reqArea, reqAction, reqSub] = required.split(':', 3);
-  if (grantArea === reqArea && grantAction === '*') return true;
+  // `grantSub` must be absent: `rule:*:typo` is not a narrower `rule:*`, it is
+  // malformed, and reading it as the area wildcard grants the whole area.
+  if (grantArea === reqArea && grantAction === '*' && grantSub === undefined) return true;
   // `*:action` matches that action in any area
   if (grantArea === '*' && grantAction === reqAction && (grantSub ?? '') === (reqSub ?? '')) return true;
   // Sub-action exact match (e.g. grant `rule:write:structural` only matches itself)

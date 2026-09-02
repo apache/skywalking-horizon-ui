@@ -103,3 +103,40 @@ describe('auth store — no cached data survives an identity change', () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
   });
 });
+
+/**
+ * The same table `apps/bff/src/rbac/verbs.test.ts` asserts, run through the
+ * UI's copy of the matcher. Three copies of it exist — this store, the Roles
+ * board, and the BFF — and they diverged together once: a malformed grant
+ * (`rule:*:typo`) read as the area wildcard on all three, so the sidebar
+ * offered pages the server would have allowed too. Pin them to one answer.
+ */
+const MATCHER_CASES: ReadonlyArray<[string, string, boolean]> = [
+  ['rule:*:typo', 'rule:delete', false],
+  ['rule:*:typo', 'rule:write:structural', false],
+  ['rule:write:structural:extra', 'rule:write:structural', false],
+  ['metrics:read:typo', 'metrics:read', false],
+  ['*:read:typo', 'metrics:read', false],
+  ['rule:*', 'rule:delete', true],
+  ['rule:*', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write', false],
+  ['*:read', 'metrics:read', true],
+  ['metrics:*', 'metrics:read', true],
+  ['metrics:read', 'metrics:read', true],
+  ['*:read', 'audit:read', false],
+  ['audit:*', 'audit:read', false],
+  ['audit:read', 'audit:read', true],
+  ['*', 'audit:read', true],
+  ['admin', 'audit:read', true],
+];
+
+describe('the auth store answers the verb grammar exactly as the BFF does', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  it.each(MATCHER_CASES)('%s grants %s → %s', (grant, required, expected) => {
+    const auth = useAuthStore();
+    auth.user = { username: 'u', roles: ['r'], verbs: [grant] } as MeResponse;
+    expect(auth.hasVerb(required)).toBe(expected);
+  });
+});

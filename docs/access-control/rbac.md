@@ -102,7 +102,7 @@ A user's grant string is matched against a required verb using these rules:
 |---|---|
 | `*` or `admin` | Any verb. |
 | `area:verb` (exact) | The exact required verb (case-sensitive). |
-| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. |
+| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. The `*` is the whole second segment — `rule:*:anything` is not a narrower form of this, it is malformed, and grants nothing. |
 | `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`), and does **not** match `audit:read` — see below. |
 
 Effective verbs for a session are the **union** of all grants from all roles.
