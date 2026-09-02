@@ -225,7 +225,7 @@ This makes the sidebar honest: it stops listing a Services dashboard when nothin
 
 ## Admin Editor
 
-Overview templates are editable at runtime via **Dashboard setup → Overview templates** (`/admin/overview-templates`, verb `overview:write`). Pick a dashboard from the filterable dropdown (title + id + sync status), then lay it out on a **12-column canvas**: drag a widget to reorder, corner-drag to resize, click a widget to edit it in the right-hand drawer. Section breaks ("text widget" / line break) and the dashboard title are selectable too. The canvas shows **sample data** so you can judge layout; only the live page (Preview ▾) uses real OAP data.
+Overview templates are editable at runtime via **Dashboard setup → Overview templates** (`/admin/overview-templates`, opened with `overview-template:read`; publishing requires `overview-template:write`). Pick a dashboard from the filterable dropdown (title + id + sync status), then lay it out on a **12-column canvas**: drag a widget to reorder, corner-drag to resize, click a widget to edit it in the right-hand drawer. Section breaks ("text widget" / line break) and the dashboard title are selectable too. The canvas shows **sample data** so you can judge layout; only the live page (Preview ▾) uses real OAP data.
 
 **Per-widget fields** (the drawer shows only what the `widget.type` needs):
 

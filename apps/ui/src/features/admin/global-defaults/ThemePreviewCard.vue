@@ -34,7 +34,7 @@ import type { ThemeDef } from '@/state/theme';
 
 const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{
+const props = defineProps<{
   theme: ThemeDef;
   /** This card represents the currently-active theme (drives ribbon +
    *  primary-button label). Distinct from `selected`: a card can be
@@ -42,9 +42,17 @@ defineProps<{
   active: boolean;
   /** Hovered/clicked but not yet committed via Save. */
   selected: boolean;
+  /** The page may not publish a theme — the card renders as unpickable and
+   *  emits nothing. */
+  readOnly?: boolean;
 }>();
 
-defineEmits<{ pick: [] }>();
+const emit = defineEmits<{ pick: [] }>();
+
+function onPick(): void {
+  if (props.readOnly) return;
+  emit('pick');
+}
 
 function tagBadgeStyle(t: ThemeDef): Record<string, string> {
   return {
@@ -94,7 +102,8 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
 <template>
   <div
     class="tpc"
-    :class="{ 'tpc--selected': selected, 'tpc--active': active }"
+    :class="{ 'tpc--selected': selected, 'tpc--active': active, 'tpc--readonly': readOnly }"
+    :aria-disabled="readOnly || undefined"
     :style="{
       background: theme.bg1,
       color: theme.fg0,
@@ -103,7 +112,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
         ? `0 0 0 2px ${theme.accent}55, 0 12px 32px rgba(0,0,0,0.4)`
         : '0 4px 12px rgba(0,0,0,0.25)',
     }"
-    @click="$emit('pick')"
+    @click="onPick"
   >
     <!-- Top-left badges: tag + 'active' chip when this is the live theme. -->
     <div class="tpc__badges">
@@ -249,6 +258,8 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 .tpc:hover { transform: translateY(-1px); }
+.tpc--readonly { cursor: default; opacity: 0.55; }
+.tpc--readonly:hover { transform: none; }
 
 .tpc__badges {
   position: absolute;

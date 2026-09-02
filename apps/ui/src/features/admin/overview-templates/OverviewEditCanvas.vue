@@ -47,6 +47,9 @@ import { META_SEL } from './constants';
 const props = defineProps<{
   modelValue: OverviewDashboard;
   selectedWidgetId: string | null;
+  /** Page is read-only — selecting a widget to read its fields stays
+   *  available, everything that mutates the draft does not. */
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -110,12 +113,13 @@ function previewCellStyle(w: OverviewWidget, cols: number): Record<string, strin
 
 const dragId = ref<string | null>(null);
 function onWidgetDragStart(e: DragEvent, id: string): void {
+  if (props.readOnly) return;
   dragId.value = id;
   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
 }
 function onWidgetDrop(targetId: string): void {
   const d = props.modelValue;
-  if (!d || !dragId.value || dragId.value === targetId) {
+  if (props.readOnly || !d || !dragId.value || dragId.value === targetId) {
     dragId.value = null;
     return;
   }
@@ -131,6 +135,7 @@ function onWidgetDrop(targetId: string): void {
 
 const resize = reactive({ active: false, id: '', startX: 0, startY: 0, startSpan: 4, startRowSpan: 1, cellW: 1, cellH: 96, cols: 12 });
 function onResizeStart(e: MouseEvent, w: OverviewWidget, cols: number): void {
+  if (props.readOnly) return;
   e.preventDefault();
   e.stopPropagation();
   const grid = (e.target as HTMLElement).closest('.ot__pv-grid') as HTMLElement | null;
@@ -151,7 +156,7 @@ function onResizeStart(e: MouseEvent, w: OverviewWidget, cols: number): void {
   window.addEventListener('mouseup', onResizeEnd);
 }
 function onResizeMove(e: MouseEvent): void {
-  if (!resize.active || !props.modelValue) return;
+  if (props.readOnly || !resize.active || !props.modelValue) return;
   const span = Math.max(1, Math.min(resize.cols, resize.startSpan + Math.round((e.clientX - resize.startX) / resize.cellW)));
   const rowSpan = Math.max(1, Math.min(8, resize.startRowSpan + Math.round((e.clientY - resize.startY) / resize.cellH)));
   const w = props.modelValue.widgets.find((x) => x.id === resize.id);
@@ -185,6 +190,7 @@ const composerSpan = ref<number>(3);
 const composerRowSpan = ref<number>(1);
 
 function openComposer(): void {
+  if (props.readOnly) return;
   composerOpen.value = true;
   /* Default sizing matches the most common shape per type so the
    * operator doesn't have to remember "topology wants 9x6" etc. */
@@ -231,6 +237,7 @@ function widgetDefaults(type: OverviewWidget['type']): Partial<OverviewWidget> {
 }
 
 function createWidget(): void {
+  if (props.readOnly) return;
   const type = composerType.value;
   const defaults = widgetDefaults(type);
   const widget: OverviewWidget = {
@@ -274,7 +281,7 @@ function createWidget(): void {
         v-if="sec.sb"
         class="ot__pv-section-head ot__pv-sb"
         :class="{ 'ot__cw--sel': selectedWidgetId === sec.sb.id, 'ot__cw--drag': dragId === sec.sb.id }"
-        draggable="true"
+        :draggable="!readOnly"
         @click="selectWidget(sec.sb.id)"
         @dragstart="onWidgetDragStart($event, sec.sb.id)"
         @dragend="dragId = null"
@@ -299,7 +306,7 @@ function createWidget(): void {
           class="ot__cw"
           :class="{ 'ot__cw--sel': selectedWidgetId === w.id, 'ot__cw--drag': dragId === w.id }"
           :style="previewCellStyle(w, sec.cols)"
-          draggable="true"
+          :draggable="!readOnly"
           @click="selectWidget(w.id)"
           @dragstart="onWidgetDragStart($event, w.id)"
           @dragend="dragId = null"
@@ -380,6 +387,7 @@ function createWidget(): void {
           </article>
           <!-- Corner resize handle (drag to change span / rowSpan). -->
           <span
+            v-if="!readOnly"
             class="ot__cw-resize"
             :title="t('Drag to resize')"
             @mousedown="onResizeStart($event, w, sec.cols)"
@@ -397,6 +405,7 @@ function createWidget(): void {
         v-if="!composerOpen"
         type="button"
         class="ot__add-trigger"
+        :disabled="readOnly"
         @click="openComposer"
       >
         {{ t('+ Add widget') }}
@@ -428,7 +437,7 @@ function createWidget(): void {
             {{ t('A default title + content scaffold is generated; you can edit everything after creating.') }}
           </span>
           <button type="button" class="ot__btn" @click="cancelComposer">{{ t('cancel') }}</button>
-          <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">{{ t('create') }}</button>
+          <button type="button" class="ot__btn ot__btn--primary" :disabled="readOnly" @click="createWidget">{{ t('create') }}</button>
         </div>
       </article>
     </div>

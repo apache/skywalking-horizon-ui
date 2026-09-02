@@ -45,7 +45,7 @@ export interface LayerRow {
   spec: InfraLayerSpec | null;
 }
 
-defineProps<{
+const props = defineProps<{
   row: LayerRow;
   variant: 'tier' | 'unpinned';
   levels: InfraLevelSpec[];
@@ -57,6 +57,8 @@ defineProps<{
   resolvedLabel?: string;
   /** Unpinned variant only — highlights a layer nothing places. */
   unclassified?: boolean;
+  /** The session may not edit this config — every control on the row is inert. */
+  readOnly: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -71,29 +73,32 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 function onColor(e: Event): void {
+  if (props.readOnly) return;
   emit('set-color', (e.target as HTMLInputElement).value);
 }
 function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
+  if (props.readOnly) return;
   emit('update-metric', field, (e.target as HTMLInputElement).value);
 }
 </script>
 
 <template>
   <div class="layer-row" :class="{ unclassified: variant === 'unpinned' && unclassified }">
-    <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="onColor" />
+    <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" :disabled="readOnly" @input="onColor" />
     <span class="layer-key">{{ row.key }}</span>
     <template v-if="row.spec?.metric">
       <input
         class="inp mono metric-mqe"
         :value="row.spec.metric.mqe"
         :placeholder="variant === 'tier' ? t('mqe e.g. service_cpm') : 'mqe'"
+        :disabled="readOnly"
         @input="(e) => onMetric('mqe', e)"
       />
-      <input class="inp metric-lbl" :value="row.spec.metric.label" :placeholder="t('label')" @input="(e) => onMetric('label', e)" />
-      <input class="inp metric-unit" :value="row.spec.metric.unit" :placeholder="t('unit')" @input="(e) => onMetric('unit', e)" />
-      <button class="btn tiny danger" type="button" :title="t('remove metric')" @click="emit('clear-metric')">⊘</button>
+      <input class="inp metric-lbl" :value="row.spec.metric.label" :placeholder="t('label')" :disabled="readOnly" @input="(e) => onMetric('label', e)" />
+      <input class="inp metric-unit" :value="row.spec.metric.unit" :placeholder="t('unit')" :disabled="readOnly" @input="(e) => onMetric('unit', e)" />
+      <button class="btn tiny danger" type="button" :title="t('remove metric')" :disabled="readOnly" @click="emit('clear-metric')">⊘</button>
     </template>
-    <button v-else class="btn tiny ghost" type="button" @click="emit('ensure-metric')">{{ t('+ metric') }}</button>
+    <button v-else class="btn tiny ghost" type="button" :disabled="readOnly" @click="emit('ensure-metric')">{{ t('+ metric') }}</button>
     <div class="row-spacer" />
     <span
       v-if="variant === 'unpinned'"
@@ -103,7 +108,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
     >
       {{ resolved?.via === 'filtered' ? t('filtered out') : '→ ' + (resolvedLabel ?? '—') }}
     </span>
-    <select class="inp tier-select" :value="pinnedTier" @change="emit('change-tier', $event)">
+    <select class="inp tier-select" :value="pinnedTier" :disabled="readOnly" @change="emit('change-tier', $event)">
       <option value="">{{ variant === 'tier' ? t('— unpinned —') : t('— pin to tier —') }}</option>
       <option v-for="tier in levels" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
     </select>
@@ -112,6 +117,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
       class="btn tiny ghost"
       type="button"
       :title="t('Remove from this tier (moves to Unpinned)')"
+      :disabled="readOnly"
       @click="emit('remove')"
     >
       ×
@@ -121,6 +127,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
       class="btn tiny danger"
       type="button"
       :title="t('Delete this layer from the config entirely')"
+      :disabled="readOnly"
       @click="emit('remove')"
     >
       ×
@@ -182,6 +189,8 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
 }
 .inp.mono { font-family: var(--sw-mono-font, ui-monospace, monospace); font-size: 11px; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
+.inp[disabled] { opacity: 0.55; cursor: default; }
+.color-pick[disabled] { opacity: 0.55; cursor: default; }
 
 .btn {
   height: 26px;

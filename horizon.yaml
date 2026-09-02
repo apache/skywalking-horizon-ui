@@ -193,6 +193,7 @@ auth:
 # (viewer/maintainer/operator/admin). Override with a JSON object env var.
 rbac:
   enabled: ${HORIZON_RBAC_ENABLED:true}
+  builtinRoles: ${HORIZON_RBAC_BUILTIN_ROLES:replace}
   roles: ${HORIZON_RBAC_ROLES:null}
   landingByRole: ${HORIZON_RBAC_LANDING_BY_ROLE:null}
 

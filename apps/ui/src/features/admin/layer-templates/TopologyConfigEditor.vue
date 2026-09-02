@@ -17,8 +17,9 @@
 <!--
   Topology config editor — service-topology node/link metrics plus the optional
   instance-topology drill-down block. Config-local: owns the `topology` block
-  via v-model, seeds an empty one on mount, and the instance-topology block is
-  created/removed by the Enable toggle (instance buckets never auto-create —
+  via v-model, seeds an empty one on mount (never while read-only — a session
+  that cannot save must not leave a draft behind), and the instance-topology
+  block is created/removed by the Enable toggle (instance buckets never auto-create —
   they read straight off the nested block). Alias-aware nouns (service /
   instance) come in as props because they resolve against the live template's
   slots, which the parent owns.
@@ -34,7 +35,7 @@ import { rowKey } from './row-key';
 
 const { t } = useI18n();
 const config = defineModel<TopologyConfig | undefined>('config');
-defineProps<{ serviceNoun: string; instanceNoun: string; layerKey?: string }>();
+const props = defineProps<{ serviceNoun: string; instanceNoun: string; layerKey?: string; readOnly?: boolean }>();
 
 function ensure(): TopologyConfig {
   if (!config.value) config.value = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
@@ -42,7 +43,9 @@ function ensure(): TopologyConfig {
   if (!config.value.linkClientMetrics) config.value.linkClientMetrics = [];
   return config.value;
 }
-onMounted(ensure);
+onMounted(() => {
+  if (!props.readOnly) ensure();
+});
 
 const nodeMetrics = computed(() => config.value?.nodeMetrics ?? []);
 const serverMetrics = computed(() => config.value?.linkServerMetrics ?? []);
@@ -54,6 +57,7 @@ const instServerMetrics = computed(() => config.value?.instanceTopology?.linkSer
 const instClientMetrics = computed(() => config.value?.instanceTopology?.linkClientMetrics ?? []);
 
 function toggleShowGroup(): void {
+  if (props.readOnly) return;
   const t = ensure();
   t.showGroup = !t.showGroup;
 }
@@ -61,6 +65,7 @@ function toggleShowGroup(): void {
 // (service_instance_* / service_instance_relation_*) themselves; we never copy
 // the service-scope metrics down (wrong scope, misleading).
 function toggleInstance(): void {
+  if (props.readOnly) return;
   const t = ensure();
   if (t.instanceTopology) delete t.instanceTopology;
   else t.instanceTopology = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
@@ -69,18 +74,38 @@ function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
   const id = nextFreeId('metric_', taken.map((m) => m.id));
   return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
-function addNode(): void { ensure().nodeMetrics.push(blankMetric(nodeMetrics.value)); }
-function addServer(): void { ensure().linkServerMetrics!.push(blankMetric(serverMetrics.value)); }
-function addClient(): void { ensure().linkClientMetrics!.push(blankMetric(clientMetrics.value)); }
-function addInstNode(): void { ensure().instanceTopology!.nodeMetrics.push(blankMetric(instNodeMetrics.value)); }
-function addInstServer(): void { ensure().instanceTopology!.linkServerMetrics!.push(blankMetric(instServerMetrics.value)); }
-function addInstClient(): void { ensure().instanceTopology!.linkClientMetrics!.push(blankMetric(instClientMetrics.value)); }
+function addNode(): void {
+  if (props.readOnly) return;
+  ensure().nodeMetrics.push(blankMetric(nodeMetrics.value));
+}
+function addServer(): void {
+  if (props.readOnly) return;
+  ensure().linkServerMetrics!.push(blankMetric(serverMetrics.value));
+}
+function addClient(): void {
+  if (props.readOnly) return;
+  ensure().linkClientMetrics!.push(blankMetric(clientMetrics.value));
+}
+function addInstNode(): void {
+  if (props.readOnly) return;
+  ensure().instanceTopology!.nodeMetrics.push(blankMetric(instNodeMetrics.value));
+}
+function addInstServer(): void {
+  if (props.readOnly) return;
+  ensure().instanceTopology!.linkServerMetrics!.push(blankMetric(instServerMetrics.value));
+}
+function addInstClient(): void {
+  if (props.readOnly) return;
+  ensure().instanceTopology!.linkClientMetrics!.push(blankMetric(instClientMetrics.value));
+}
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
 }
 function remove(list: TopologyMetricDef[], i: number): void {
+  if (props.readOnly) return;
   list.splice(i, 1);
 }
 </script>
@@ -93,7 +118,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
     </div>
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
-        <input type="checkbox" :checked="showGroup" @change="toggleShowGroup" />
+        <input type="checkbox" :checked="showGroup" :disabled="readOnly" @change="toggleShowGroup" />
         <!-- One key, not three fragments: ja and ko put the prefix and the
              verb in a different order, which a split sentence cannot express
              and which left `Show` translated as a mid-sentence clause. -->
@@ -116,7 +141,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('{noun} node metrics', { noun: serviceNoun }) }}</h5>
           <span class="sub">{{ t("drives each node's center number + ring colour band") }}</span>
-          <button class="sw-btn add" type="button" @click="addNode">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addNode">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
         <div v-else class="metric-list">
@@ -125,6 +150,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="nodeMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="service"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
@@ -144,7 +170,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Link · server-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>service_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addServer">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addServer">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -153,6 +179,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="service-relation"
             :can-move-up="i > 0"
             :can-move-down="i < serverMetrics.length - 1"
@@ -167,7 +194,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Link · client-side metrics') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>service_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addClient">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addClient">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
@@ -176,6 +203,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="service-relation"
             :can-move-up="i > 0"
             :can-move-down="i < clientMetrics.length - 1"
@@ -193,7 +221,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <span class="tg-sub">{{ t("node = {noun} · drill-down between two services' instances", { noun: instanceNoun }) }}</span>
           </div>
           <label class="comp-toggle" :class="{ on: instanceEnabled }">
-            <input type="checkbox" :checked="instanceEnabled" @change="toggleInstance" />
+            <input type="checkbox" :checked="instanceEnabled" :disabled="readOnly" @change="toggleInstance" />
             <span class="comp-label">{{ t('Enable instance topology') }}</span>
           </label>
         </div>
@@ -203,7 +231,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <header class="topo-cfg-head">
               <h5>{{ t('{noun} node metrics', { noun: instanceNoun }) }}</h5>
               <span class="sub">{{ t('per-instance — queried as') }} <code>service_instance_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstNode">{{ t('＋ Add') }}</button>
+              <button class="sw-btn add" type="button" :disabled="readOnly" @click="addInstNode">{{ t('＋ Add') }}</button>
             </header>
             <div v-if="instNodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
             <div v-else class="metric-list">
@@ -212,6 +240,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 :key="rowKey(m)"
                 v-model:metric="instNodeMetrics[i]"
                 :layer-key="layerKey"
+                :read-only="readOnly"
                 site-scope="instance"
                 :role-options="TOPOLOGY_ROLE_OPTIONS"
                 show-role
@@ -231,7 +260,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <header class="topo-cfg-head">
               <h5>{{ t('Link · server-side metrics') }}</h5>
               <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_server_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstServer">{{ t('＋ Add') }}</button>
+              <button class="sw-btn add" type="button" :disabled="readOnly" @click="addInstServer">{{ t('＋ Add') }}</button>
             </header>
             <div v-if="instServerMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
             <div v-else class="metric-list">
@@ -240,6 +269,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 :key="rowKey(m)"
                 v-model:metric="instServerMetrics[i]"
                 :layer-key="layerKey"
+                :read-only="readOnly"
                 site-scope="instance-relation"
                 :can-move-up="i > 0"
                 :can-move-down="i < instServerMetrics.length - 1"
@@ -254,7 +284,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <header class="topo-cfg-head">
               <h5>{{ t('Link · client-side metrics') }}</h5>
               <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_client_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstClient">{{ t('＋ Add') }}</button>
+              <button class="sw-btn add" type="button" :disabled="readOnly" @click="addInstClient">{{ t('＋ Add') }}</button>
             </header>
             <div v-if="instClientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
             <div v-else class="metric-list">
@@ -263,6 +293,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
                 :key="rowKey(m)"
                 v-model:metric="instClientMetrics[i]"
                 :layer-key="layerKey"
+                :read-only="readOnly"
                 site-scope="instance-relation"
                 :can-move-up="i > 0"
                 :can-move-down="i < instClientMetrics.length - 1"

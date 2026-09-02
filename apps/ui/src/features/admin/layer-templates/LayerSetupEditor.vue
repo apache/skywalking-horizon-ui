@@ -53,6 +53,7 @@ const props = defineProps<{
    *  though clicking it works. */
   activePage?: string | null;
   instanceTopologyEnabled: boolean;
+  readOnly?: boolean;
 }>();
 const activePage = computed(() => props.activePage ?? null);
 const emit = defineEmits<{
@@ -100,6 +101,7 @@ function ensureComponents(): AdminLayerTemplate['components'] {
  * has always been.
  */
 function toggleComponent(key: ComponentKey): void {
+  if (props.readOnly) return;
   const c = ensureComponents();
   if (c[key] && DESTRUCTIVE_OFF.has(key)) {
     emit('confirm-disable', key);
@@ -140,6 +142,7 @@ watch(
 );
 
 function pruneMenuOrderToRows(): void {
+  if (props.readOnly) return;
   const order = template.value.menuOrder;
   if (!Array.isArray(order)) return;
   const kept = pruneMenuOrder(order, menuRows.value.map((r) => r.path));
@@ -285,12 +288,14 @@ const selectedRow = computed(
  *  built-in one is still a stored field, and would show as a pending
  *  change against OAP that says nothing. The first drop writes it. */
 function setRearranging(on: boolean): void {
+  if (props.readOnly) return;
   rearranging.value = on;
 }
 
 /** The only way back to the built-in order. Absence IS that order, so
  *  this deletes the field rather than storing a second spelling of it. */
 function resetOrder(): void {
+  if (props.readOnly) return;
   delete template.value.menuOrder;
   rearranging.value = false;
 }
@@ -298,9 +303,11 @@ function resetOrder(): void {
 const dragFrom = ref<number | null>(null);
 const dragOver = ref<number | null>(null);
 function onOrderDragStart(i: number): void {
+  if (props.readOnly) return;
   dragFrom.value = i;
 }
 function onOrderDrop(to: number): void {
+  if (props.readOnly) return;
   const from = dragFrom.value;
   dragFrom.value = null;
   dragOver.value = null;
@@ -318,6 +325,7 @@ function onOrderDrop(to: number): void {
  *  IS that order, so the field would be a pending change against OAP that
  *  changes no menu. Dragging back to where you started removes it. */
 function writeOrder(paths: string[]): void {
+  if (props.readOnly) return;
   if (isBuiltInOrder(paths, builtInOrder.value)) {
     delete template.value.menuOrder;
     return;
@@ -352,6 +360,7 @@ function ensureSlots(): NonNullable<AdminLayerTemplate['slots']> {
  *  internally consistent (the loader prefers `slots`, but keeping both
  *  in step avoids a confusing stale `aliases` block in the bundle). */
 function setSlot(slot: SlotKey, value: string): void {
+  if (props.readOnly) return;
   const s = ensureSlots();
   const v = value.trim();
   if (v) s[slot] = v;
@@ -391,6 +400,7 @@ function setSlot(slot: SlotKey, value: string): void {
             class="order-switch"
             :aria-checked="rearranging"
             :checked="rearranging"
+            :disabled="readOnly"
             @change="setRearranging(!rearranging)"
           />
           <span>{{ t('Rearrange menu') }}</span>
@@ -402,7 +412,7 @@ function setSlot(slot: SlotKey, value: string): void {
                 : t('the menu follows the built-in order')
           }}</span>
         </label>
-        <button v-if="customOrder" type="button" class="sw-btn xs ghost order-reset" @click="resetOrder">
+        <button v-if="customOrder" type="button" class="sw-btn xs ghost order-reset" :disabled="readOnly" @click="resetOrder">
           {{ t('Reset to built-in order') }}
         </button>
         <button
@@ -418,7 +428,7 @@ function setSlot(slot: SlotKey, value: string): void {
             over: dragOver === i,
           }"
           :disabled="!rearranging && !m.jumpable"
-          :draggable="rearranging"
+          :draggable="rearranging && !readOnly"
           :title="rearranging
             ? t('Drag to move {label}', { label: m.hint ? `${m.label} (${m.hint})` : m.label })
             : m.jumpable
@@ -454,13 +464,14 @@ function setSlot(slot: SlotKey, value: string): void {
             class="alias-input"
             :placeholder="template.key"
             spellcheck="false"
+            :disabled="readOnly"
           />
           <span class="alias-hint">{{ t('Display name in the sidebar, layer list, and landing KPI tile. Defaults to the layer key.') }}</span>
         </label>
         <div class="alias-field">
           <span>{{ t('Group split') }}</span>
           <label class="split-check">
-            <input type="checkbox" v-model="template.splitByServiceGroup" />
+            <input type="checkbox" v-model="template.splitByServiceGroup" :disabled="readOnly" />
             <span>{{ t("Split this layer's menu by service group") }}</span>
           </label>
           <span class="alias-hint">{{ t('One sidebar entry per OAP') }} <code>Service.group</code> {{ t('(the') }} <code>group::</code> {{ t('prefix), each scoped to its group. Off keeps all groups in one menu.') }}</span>
@@ -480,6 +491,7 @@ function setSlot(slot: SlotKey, value: string): void {
             <input
               type="checkbox"
               :checked="!!template.components?.[t.key]"
+              :disabled="readOnly"
               @change="toggleComponent(t.key)"
             />
             <span class="comp-label">{{ t.label }}</span>
@@ -504,6 +516,7 @@ function setSlot(slot: SlotKey, value: string): void {
                 :value="template.slots?.[f.slot] ?? ''"
                 :placeholder="f.def"
                 spellcheck="false"
+                :disabled="readOnly"
                 @input="setSlot(f.slot, ($event.target as HTMLInputElement).value)"
               />
             </label>

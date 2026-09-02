@@ -77,6 +77,7 @@ function harness(eff: EffectiveSource) {
     selectedKind,
     selectedName,
     effective: computed(() => source.value),
+    readOnly: computed(() => false),
   });
   draft.target.value = LOC;
   /** Seed the fetched OAP snapshot the way a BFF read would. */

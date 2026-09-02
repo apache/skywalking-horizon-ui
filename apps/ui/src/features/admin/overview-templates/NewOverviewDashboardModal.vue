@@ -33,6 +33,7 @@ const props = defineProps<{
   open: boolean;
   /** Validation error pushed back by the parent (uniqueness / shape). */
   error: string | null;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -58,6 +59,7 @@ watch(
 );
 
 function submit(): void {
+  if (props.readOnly) return;
   emit('submit', { id: id.value, title: title.value, description: description.value });
 }
 </script>
@@ -81,7 +83,7 @@ function submit(): void {
     </div>
     <template #footer>
       <button class="sw-btn" type="button" @click="emit('close')">{{ t('Cancel') }}</button>
-      <button class="sw-btn is-primary" type="button" @click="submit">{{ t('Create') }}</button>
+      <button class="sw-btn is-primary" type="button" :disabled="readOnly" @click="submit">{{ t('Create') }}</button>
     </template>
   </Modal>
 </template>

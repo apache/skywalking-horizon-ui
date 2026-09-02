@@ -51,10 +51,12 @@ const themeStoreRef = useThemeStore();
 const themeSync = useTemplateSync({ kind: 'theme' });
 const timeSync = useTemplateSync({ kind: 'time-defaults' });
 
-// readOnly is shared — both kinds depend on the same OAP admin
-// reachability. The composables return the same value because
-// syncStatus.unreachable is a global flag.
-const readOnly = computed<boolean>(() => themeSync.readOnly.value);
+// Per-section: the reachability half is global, but the write verb is
+// per-kind, so each section binds its own flag. The footer's Save writes both
+// rows, so it needs both.
+const themeReadOnly = computed<boolean>(() => themeSync.readOnly.value);
+const timeReadOnly = computed<boolean>(() => timeSync.readOnly.value);
+const readOnly = computed<boolean>(() => themeReadOnly.value || timeReadOnly.value);
 
 const themeStatus = computed(() => themeSync.badgeFor('horizon.theme.active'));
 const timeStatus = computed(() => timeSync.badgeFor('horizon.time-defaults.global'));
@@ -135,7 +137,7 @@ const dirty = computed(() => themeDirty.value || timeDirty.value);
 async function onSave(): Promise<void> {
   if (!dirty.value || saving.value) return;
   if (readOnly.value) {
-    setFlash(t('cannot save — OAP is unreachable, page is read-only'));
+    setFlash(t('You can view this configuration but not change it.'));
     return;
   }
   saving.value = true;
@@ -160,7 +162,18 @@ async function onSave(): Promise<void> {
   }
 }
 
+function onPickTheme(id: ThemeId): void {
+  if (themeReadOnly.value) return;
+  themeDraft.value = id;
+}
+
+function onPickWindow(minutes: number): void {
+  if (timeReadOnly.value) return;
+  timeDraftMinutes.value = minutes;
+}
+
 function onReset(): void {
+  if (readOnly.value) return;
   if (orig.value) {
     themeDraft.value = orig.value.themeId;
     timeDraftMinutes.value = orig.value.minutes;
@@ -232,7 +245,7 @@ async function onDiffReset(): Promise<void> {
           <h2>{{ t('Theme') }}</h2>
           <TemplateStatusBadge :status="themeStatus" />
           <button
-            v-if="themeDiverged && !readOnly"
+            v-if="themeDiverged"
             type="button"
             class="gd__small"
             @click="themeDiffOpen = true"
@@ -248,7 +261,8 @@ async function onDiffReset(): Promise<void> {
             :theme="t"
             :selected="themeDraft === t.id"
             :active="themeStoreRef.active === t.id"
-            @pick="!readOnly && (themeDraft = t.id)"
+            :read-only="themeReadOnly"
+            @pick="onPickTheme(t.id)"
           />
         </div>
       </section>
@@ -258,7 +272,7 @@ async function onDiffReset(): Promise<void> {
           <h2>{{ t('Default time window') }}</h2>
           <TemplateStatusBadge :status="timeStatus" />
           <button
-            v-if="timeDiverged && !readOnly"
+            v-if="timeDiverged"
             type="button"
             class="gd__small"
             @click="timeDiffOpen = true"
@@ -304,8 +318,8 @@ async function onDiffReset(): Promise<void> {
             type="button"
             class="gd__preset"
             :class="{ active: timeDraftMinutes === p.value }"
-            :disabled="readOnly"
-            @click="timeDraftMinutes = p.value"
+            :disabled="timeReadOnly"
+            @click="onPickWindow(p.value)"
           >{{ p.label }}</button>
           <label class="gd__custom">
             {{ t('custom (min)') }}
@@ -314,7 +328,7 @@ async function onDiffReset(): Promise<void> {
               type="number"
               min="1"
               max="44640"
-              :disabled="readOnly"
+              :disabled="timeReadOnly"
             />
           </label>
         </div>
@@ -334,14 +348,14 @@ async function onDiffReset(): Promise<void> {
         <button
           type="button"
           class="gd__btn"
-          :disabled="!dirty || saving"
+          :disabled="!dirty || saving || readOnly"
           @click="onReset"
         >{{ t('reset') }}</button>
         <button
           type="button"
           class="gd__btn gd__btn--primary"
           :disabled="!dirty || saving || readOnly"
-          :title="readOnly ? t('OAP unreachable — page is read-only') : ''"
+          :title="readOnly ? t('You can view this configuration but not change it.') : ''"
           @click="onSave"
         >{{ saving ? t('saving…') : readOnly ? t('read-only') : t('save to OAP') }}</button>
       </footer>
@@ -351,6 +365,7 @@ async function onDiffReset(): Promise<void> {
       :open="themeDiffOpen"
       name="horizon.theme.active"
       confirm-key="active"
+      :read-only="themeSync.readOnly.value"
       @close="themeDiffOpen = false"
       @reset="onDiffReset"
     />
@@ -358,6 +373,7 @@ async function onDiffReset(): Promise<void> {
       :open="timeDiffOpen"
       name="horizon.time-defaults.global"
       confirm-key="global"
+      :read-only="timeSync.readOnly.value"
       @close="timeDiffOpen = false"
       @reset="onDiffReset"
     />

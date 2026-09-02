@@ -66,6 +66,7 @@ const props = defineProps<{
   draft: { template: AdminLayerTemplate | null };
   activeScope: AdminScope;
   activePage?: string | null;
+  readOnly?: boolean;
 }>();
 const emit = defineEmits<{ (e: 'update:activePage', v: string | null): void }>();
 
@@ -118,6 +119,7 @@ function nextWidgetId(prefix: string): string {
 }
 
 function addWidget(type: DashboardWidget['type'] = 'card'): void {
+  if (props.readOnly) return;
   const widgets = [...widgetsFor(props.activeScope)];
   const idx = widgets.length;
   const id = nextWidgetId('widget_');
@@ -135,12 +137,14 @@ function addWidget(type: DashboardWidget['type'] = 'card'): void {
 }
 
 function deleteWidget(i: number): void {
+  if (props.readOnly) return;
   const widgets = [...widgetsFor(props.activeScope)];
   widgets.splice(i, 1);
   setWidgetsFor(props.activeScope, widgets);
 }
 
 function moveWidget(i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const widgets = [...widgetsFor(props.activeScope)];
   const j = i + dir;
   if (j < 0 || j >= widgets.length) return;
@@ -205,6 +209,7 @@ function subWidgetsOf(id: string, tabIdx: number): DashboardWidget[] {
 }
 /** Write a tab panel's widget list back to the draft (preserving the others). */
 function commitSubWidgets(id: string, tabIdx: number, widgets: DashboardWidget[]): void {
+  if (props.readOnly) return;
   const scope = [...widgetsFor(props.activeScope)];
   const i = scope.findIndex((w) => w.id === id && w.type === 'tab');
   const tw = i >= 0 ? scope[i] : null;
@@ -222,6 +227,7 @@ function selectSub(widgetId: string, tabIdx: number, subIdx: number): void {
 }
 /** Add a leaf widget into a tab's active panel. */
 function addToTab(widgetId: string, type: DashboardWidget['type']): void {
+  if (props.readOnly) return;
   const ti = activeTabOf(widgetId);
   const widgets = [...subWidgetsOf(widgetId, ti)];
   const n = widgets.length + 1;
@@ -235,7 +241,7 @@ function addToTab(widgetId: string, type: DashboardWidget['type']): void {
 // leaves the page blank with no trace.
 const currentWidgets = computed(() => widgetsFor(props.activeScope));
 
-const { canvasEl, resize, onResizeStart, onSubResizeStart } = useCanvasResize({
+const { canvasEl, resize, onResizeStart: startResize, onSubResizeStart: startSubResize } = useCanvasResize({
   currentWidgets,
   setWidgets: (widgets) => setWidgetsFor(props.activeScope, widgets),
   subWidgetsOf,
@@ -246,8 +252,8 @@ const { canvasEl, resize, onResizeStart, onSubResizeStart } = useCanvasResize({
 
 const {
   reorder,
-  onReorderStart,
-  onSubReorderStart,
+  onReorderStart: startReorder,
+  onSubReorderStart: startSubReorder,
   onCanvasDrop,
   onReorderOver,
   onReorderDrop,
@@ -261,6 +267,25 @@ const {
   selectSub,
   activeTabOf,
 });
+
+/* A read-only viewer still reads the canvas, but opens no drag session: the
+ * move / drop handlers below all early-return unless one is active. */
+function onResizeStart(e: MouseEvent, i: number): void {
+  if (props.readOnly) return;
+  startResize(e, i);
+}
+function onSubResizeStart(e: MouseEvent, widgetId: string, tabIdx: number, subIdx: number): void {
+  if (props.readOnly) return;
+  startSubResize(e, widgetId, tabIdx, subIdx);
+}
+function onReorderStart(e: DragEvent, i: number): void {
+  if (props.readOnly) return;
+  startReorder(e, i);
+}
+function onSubReorderStart(e: DragEvent, widgetId: string, tabIdx: number, subIdx: number): void {
+  if (props.readOnly) return;
+  startSubReorder(e, widgetId, tabIdx, subIdx);
+}
 
 /** Convenience: the currently-selected widget — a top-level widget
  *  (`selectedIdx`) OR a widget inside a tab panel (`subSel`). Used by the
@@ -297,6 +322,7 @@ const selCanMoveDown = computed<boolean>(() => {
  *  `tab`. A tab can't nest a tab — the `tab` type option is hidden while a
  *  widget inside a tab (`subSel`) is selected. */
 function onWidgetTypeChange(value: string): void {
+  if (props.readOnly) return;
   const w = selectedWidget.value;
   if (!w) return;
   w.type = value as DashboardWidget['type'];
@@ -327,6 +353,7 @@ function tabWidgetMut(widgetId: string): { tw: DashboardWidget; tabs: DashboardT
   return { tw, tabs: [...(tw.tabs ?? [])] };
 }
 function addTabToWidget(widgetId: string): void {
+  if (props.readOnly) return;
   const m = tabWidgetMut(widgetId);
   if (!m) return;
   m.tabs.push({ name: `Tab ${m.tabs.length + 1}`, widgets: [] });
@@ -334,12 +361,14 @@ function addTabToWidget(widgetId: string): void {
   setActiveTabOf(widgetId, m.tabs.length - 1);
 }
 function renameTabOf(widgetId: string, ti: number, name: string): void {
+  if (props.readOnly) return;
   const m = tabWidgetMut(widgetId);
   if (!m || !m.tabs[ti]) return;
   m.tabs[ti] = { ...m.tabs[ti], name };
   m.tw.tabs = m.tabs;
 }
 function deleteTabOf(widgetId: string, ti: number): void {
+  if (props.readOnly) return;
   const m = tabWidgetMut(widgetId);
   if (!m) return;
   m.tabs.splice(ti, 1);
@@ -352,6 +381,7 @@ function deleteTabOf(widgetId: string, ti: number): void {
   else if (active >= m.tabs.length) setActiveTabOf(widgetId, Math.max(0, m.tabs.length - 1));
 }
 function moveTabOf(widgetId: string, ti: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const m = tabWidgetMut(widgetId);
   if (!m) return;
   const tj = ti + dir;
@@ -364,6 +394,7 @@ function moveTabOf(widgetId: string, ti: number, dir: -1 | 1): void {
 }
 
 function setWidgetFormat(v: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   if (v === 'int' || v === 'decimal' || v === 'compact' || v === 'duration' || v === 'enum') w.format = v;
@@ -371,6 +402,7 @@ function setWidgetFormat(v: string): void {
 }
 
 function setWidgetTraceDrill(v: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
@@ -390,12 +422,14 @@ const valueMapEntries = computed<Array<[string, string]>>(() => {
   return w?.valueMap ? Object.entries(w.valueMap) : [];
 });
 function setValueMapLabel(key: string, label: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   if (!w.valueMap) w.valueMap = {};
   w.valueMap[key] = label;
 }
 function setValueMapKey(oldKey: string, newKey: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w || !w.valueMap || newKey === oldKey || newKey in w.valueMap) return;
   const label = w.valueMap[oldKey];
@@ -407,6 +441,7 @@ function setValueMapKey(oldKey: string, newKey: string): void {
   }
 }
 function addValueMapRow(): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   if (!w.valueMap) w.valueMap = {};
@@ -415,6 +450,7 @@ function addValueMapRow(): void {
   w.valueMap[String(k)] = '';
 }
 function removeValueMapRow(key: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w || !w.valueMap) return;
   delete w.valueMap[key];
@@ -432,6 +468,7 @@ function valueColorFor(key: string): string {
   return editingWidget.value?.valueColors?.[key] ?? '';
 }
 function setValueColor(key: string, color: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   if (!color) {
@@ -449,6 +486,7 @@ function setValueColor(key: string, color: string): void {
  *  separate apply step. The button row offers a delete shortcut. Works on a
  *  top-level widget or a widget inside a tab panel. */
 function deleteSelected(): void {
+  if (props.readOnly) return;
   if (subSel.value) {
     const { widgetId, tabIdx, subIdx } = subSel.value;
     const ws = [...subWidgetsOf(widgetId, tabIdx)];
@@ -462,6 +500,7 @@ function deleteSelected(): void {
   selectedIdx.value = null;
 }
 function moveSelected(dir: -1 | 1): void {
+  if (props.readOnly) return;
   if (subSel.value) {
     const { widgetId, tabIdx, subIdx } = subSel.value;
     const ws = [...subWidgetsOf(widgetId, tabIdx)];
@@ -482,6 +521,7 @@ function moveSelected(dir: -1 | 1): void {
 /** When a new widget is added, immediately select it so the drawer
  *  opens with empty fields ready for input. */
 async function addAndSelectWidget(type: DashboardWidget['type'] = 'card'): Promise<void> {
+  if (props.readOnly) return;
   addWidget(type);
   await nextTick();
   selectedIdx.value = currentWidgets.value.length - 1;
@@ -530,6 +570,7 @@ function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
   return a;
 }
 function updateExpr(i: number, v: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   const a = [...w.expressions];
@@ -537,6 +578,7 @@ function updateExpr(i: number, v: string): void {
   w.expressions = a;
 }
 function updateExprLabel(i: number, v: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionLabels, w.expressions.length, '');
@@ -544,6 +586,7 @@ function updateExprLabel(i: number, v: string): void {
   w.expressionLabels = a;
 }
 function updateExprUnit(i: number, v: string): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionUnits, w.expressions.length, '');
@@ -551,6 +594,7 @@ function updateExprUnit(i: number, v: string): void {
   w.expressionUnits = a;
 }
 function updateExprAxis(i: number, v: number): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionAxes, w.expressions.length, 0);
@@ -558,11 +602,13 @@ function updateExprAxis(i: number, v: number): void {
   w.expressionAxes = a;
 }
 function addExpr(): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w) return;
   w.expressions = [...w.expressions, ''];
 }
 function removeExpr(i: number): void {
+  if (props.readOnly) return;
   const w = editingWidget.value;
   if (!w || w.expressions.length <= 1) return;
   const drop = <T>(arr: T[] | undefined): T[] | undefined =>
@@ -605,7 +651,7 @@ const vwKindModel = computed<VwKind>({
   },
   set(k) {
     const w = editingWidget.value;
-    if (!w) return;
+    if (!w || props.readOnly) return;
     if (k === 'none') w.visibleWhen = undefined;
     else if (k === 'mqe') w.visibleWhen = { kind: 'mqe', expression: w.expressions?.[0] ?? '', op: 'exists' };
     else w.visibleWhen = { kind: 'entity', attribute: 'language', op: 'eq', value: 'JAVA' };
@@ -619,7 +665,7 @@ const vwTarget = computed<string>({
   },
   set(v) {
     const vw = editingWidget.value?.visibleWhen;
-    if (!vw) return;
+    if (!vw || props.readOnly) return;
     if (vw.kind === 'mqe') vw.expression = v;
     else vw.attribute = v;
   },
@@ -631,7 +677,7 @@ const vwOp = computed<string>({
   set(op) {
     const w = editingWidget.value;
     const vw = w?.visibleWhen;
-    if (!w || !vw) return;
+    if (!w || !vw || props.readOnly) return;
     if (vw.kind === 'mqe') {
       w.visibleWhen =
         op === 'exists'
@@ -656,7 +702,7 @@ const vwValue = computed<string>({
   },
   set(v) {
     const vw = editingWidget.value?.visibleWhen;
-    if (!vw || !('value' in vw)) return;
+    if (!vw || !('value' in vw) || props.readOnly) return;
     if (vw.kind === 'mqe') vw.value = Number(v) || 0;
     else vw.value = v;
   },
@@ -738,6 +784,7 @@ onBeforeUnmount(() => {
           class="sw-btn add"
           type="button"
           :aria-expanded="addMenuOpen"
+          :disabled="readOnly"
           @click="addMenuOpen = !addMenuOpen"
         >{{ t('＋ Add widget ▾') }}</button>
         <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
@@ -798,13 +845,13 @@ onBeforeUnmount(() => {
         >
           <header
             class="cw-head"
-            :draggable="w.type !== 'tab'"
+            :draggable="!readOnly && w.type !== 'tab'"
             @dragstart="w.type !== 'tab' && onReorderStart($event, i)"
             @dragend="onReorderEnd"
           >
             <span
               class="cw-grip"
-              :draggable="w.type === 'tab' ? true : undefined"
+              :draggable="!readOnly && w.type === 'tab' ? true : undefined"
               aria-hidden="true"
               @dragstart="w.type === 'tab' && onReorderStart($event, i)"
               @dragend="onReorderEnd"
@@ -831,7 +878,7 @@ onBeforeUnmount(() => {
                   @click.stop="setActiveTabOf(w.id, ti)"
                 >{{ tab.name || t('Tab {n}', { n: ti + 1 }) }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
               </div>
-              <button type="button" class="seg-add" :title="t('Add a tab')" @click.stop="addTabToWidget(w.id)">{{ t('+ tab') }}</button>
+              <button v-if="!readOnly" type="button" class="seg-add" :title="t('Add a tab')" @click.stop="addTabToWidget(w.id)">{{ t('+ tab') }}</button>
             </div>
             <h5 v-else>{{ w.title || w.id || t('untitled') }}</h5>
             <span class="cw-type" :class="`t-${w.type}`">{{ w.type }}</span>
@@ -888,7 +935,7 @@ onBeforeUnmount(() => {
                 >
                   <header
                     class="cw-head sub-head"
-                    :draggable="true"
+                    :draggable="!readOnly"
                     :title="t('Drag out of the tab to move to the top level')"
                     @dragstart.stop="onSubReorderStart($event, w.id, activeTabOf(w.id), j)"
                     @dragend="onReorderEnd"
@@ -908,14 +955,14 @@ onBeforeUnmount(() => {
                     </template>
                     <p v-else class="cw-empty">{{ sw.expressions.length ? sw.type : t('add an MQE in the drawer') }}</p>
                   </div>
-                  <span class="cw-resize" :title="t('Drag to resize')" @mousedown.stop="onSubResizeStart($event, w.id, activeTabOf(w.id), j)">
+                  <span v-if="!readOnly" class="cw-resize" :title="t('Drag to resize')" @mousedown.stop="onSubResizeStart($event, w.id, activeTabOf(w.id), j)">
                     <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor">
                       <circle cx="3" cy="9" r="0.8"/><circle cx="6" cy="9" r="0.8"/><circle cx="9" cy="9" r="0.8"/>
                       <circle cx="6" cy="6" r="0.8"/><circle cx="9" cy="6" r="0.8"/><circle cx="9" cy="3" r="0.8"/>
                     </svg>
                   </span>
                 </div>
-                <button type="button" class="cw-subadd" :title="t('Add a widget to this tab')" @click.stop="addToTab(w.id, 'card')">{{ t('＋ widget') }}</button>
+                <button v-if="!readOnly" type="button" class="cw-subadd" :title="t('Add a widget to this tab')" @click.stop="addToTab(w.id, 'card')">{{ t('＋ widget') }}</button>
               </div>
             </template>
             <p v-else class="cw-empty">
@@ -926,6 +973,7 @@ onBeforeUnmount(() => {
                right corner. Mouse-down captures the drag and
                updates span/rowSpan as the cursor moves. -->
           <span
+            v-if="!readOnly"
             class="cw-resize"
             :title="t('Drag to resize')"
             @mousedown="onResizeStart($event, i)"
@@ -955,24 +1003,24 @@ onBeforeUnmount(() => {
           <div class="d-row">
             <label :class="{ grow: selectedWidget.type === 'tab' }">
               <span>{{ t('id') }}</span>
-              <input class="mono" v-model="selectedWidget.id" />
+              <input class="mono" v-model="selectedWidget.id" :disabled="readOnly" />
             </label>
             <!-- A tab group has no title of its own — the tabs are the labels. -->
             <label v-if="selectedWidget.type !== 'tab'" class="grow">
               <span>{{ t('Title') }}</span>
-              <input v-model="selectedWidget.title" />
+              <input v-model="selectedWidget.title" :disabled="readOnly" />
             </label>
           </div>
           <div v-if="selectedWidget.type !== 'tab'" class="d-row">
             <label class="grow">
               <span>{{ t('Tip (hover hint)') }}</span>
-              <input v-model="selectedWidget.tip" placeholder="—" />
+              <input v-model="selectedWidget.tip" placeholder="—" :disabled="readOnly" />
             </label>
           </div>
           <div class="d-row">
             <label>
               <span>{{ t('Type') }}</span>
-              <select :value="selectedWidget.type" @change="onWidgetTypeChange(($event.target as HTMLSelectElement).value)">
+              <select :value="selectedWidget.type" :disabled="readOnly" @change="onWidgetTypeChange(($event.target as HTMLSelectElement).value)">
                 <option value="card">card</option>
                 <option value="line">line</option>
                 <option value="top">top</option>
@@ -985,11 +1033,11 @@ onBeforeUnmount(() => {
             <template v-if="selectedWidget.type !== 'tab'">
               <label>
                 <span>{{ t('Unit') }}</span>
-                <input v-model="selectedWidget.unit" placeholder="—" />
+                <input v-model="selectedWidget.unit" placeholder="—" :disabled="readOnly" />
               </label>
               <label>
                 <span>{{ t('Format') }}</span>
-                <select :value="selectedWidget.format ?? ''" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
+                <select :value="selectedWidget.format ?? ''" :disabled="readOnly" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
                   <option value="">{{ t('auto') }}</option>
                   <option value="int">int</option>
                   <option value="decimal">decimal</option>
@@ -1001,11 +1049,11 @@ onBeforeUnmount(() => {
             </template>
             <label>
               <span>{{ t('Span') }}</span>
-              <input type="number" min="1" max="12" v-model.number="selectedWidget.span" />
+              <input type="number" min="1" max="12" v-model.number="selectedWidget.span" :disabled="readOnly" />
             </label>
             <label>
               <span>{{ t('Row span') }}</span>
-              <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" />
+              <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" :disabled="readOnly" />
             </label>
           </div>
 
@@ -1020,16 +1068,17 @@ onBeforeUnmount(() => {
                     class="tm-name"
                     :value="tab.name"
                     :placeholder="t('Tab name')"
+                    :disabled="readOnly"
                     @input="renameTabOf(selectedWidget.id, ti, ($event.target as HTMLInputElement).value)"
                   />
                   <span class="tm-count">{{ t('{n}w', { n: tab.widgets.length }) }}</span>
                   <button type="button" class="tm-ctl" :title="t('Show on canvas')" @click="setActiveTabOf(selectedWidget.id, ti)">{{ t('show') }}</button>
-                  <button type="button" class="tm-ctl" :title="t('Move up')" @click="moveTabOf(selectedWidget.id, ti, -1)">↑</button>
-                  <button type="button" class="tm-ctl" :title="t('Move down')" @click="moveTabOf(selectedWidget.id, ti, 1)">↓</button>
-                  <button type="button" class="tm-ctl del" :title="t('Delete tab')" @click="deleteTabOf(selectedWidget.id, ti)">×</button>
+                  <button type="button" class="tm-ctl" :disabled="readOnly" :title="t('Move up')" @click="moveTabOf(selectedWidget.id, ti, -1)">↑</button>
+                  <button type="button" class="tm-ctl" :disabled="readOnly" :title="t('Move down')" @click="moveTabOf(selectedWidget.id, ti, 1)">↓</button>
+                  <button type="button" class="tm-ctl del" :disabled="readOnly" :title="t('Delete tab')" @click="deleteTabOf(selectedWidget.id, ti)">×</button>
                 </div>
               </div>
-              <button type="button" class="sw-btn ghost small" @click="addTabToWidget(selectedWidget.id)">{{ t('+ tab') }}</button>
+              <button type="button" class="sw-btn ghost small" :disabled="readOnly" @click="addTabToWidget(selectedWidget.id)">{{ t('+ tab') }}</button>
               <p class="d-hint">{{ t('Each tab holds its own widgets — switch tabs and add / edit their widgets right on the canvas tile. Only the active tab is queried at runtime.') }}</p>
             </div>
           </template>
@@ -1043,6 +1092,7 @@ onBeforeUnmount(() => {
                     <input
                       class="mono vm-key"
                       :value="row[0]"
+                      :disabled="readOnly"
                       @change="setValueMapKey(row[0], ($event.target as HTMLInputElement).value)"
                       placeholder="0"
                     />
@@ -1050,6 +1100,7 @@ onBeforeUnmount(() => {
                     <input
                       class="vm-label"
                       :value="row[1]"
+                      :disabled="readOnly"
                       @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
                       :placeholder="t('Failed')"
                     />
@@ -1057,14 +1108,15 @@ onBeforeUnmount(() => {
                       class="vm-color"
                       :value="valueColorFor(row[0])"
                       :title="t('Chip color')"
+                      :disabled="readOnly"
                       @change="setValueColor(row[0], ($event.target as HTMLSelectElement).value)"
                     >
                       <option v-for="c in CHIP_COLORS" :key="c" :value="c">{{ c || '—' }}</option>
                     </select>
-                    <button type="button" class="expr-del" :title="t('Remove')" @click="removeValueMapRow(row[0])">×</button>
+                    <button type="button" class="expr-del" :disabled="readOnly" :title="t('Remove')" @click="removeValueMapRow(row[0])">×</button>
                   </div>
                 </div>
-                <button type="button" class="sw-btn ghost small" @click="addValueMapRow">{{ t('+ value') }}</button>
+                <button type="button" class="sw-btn ghost small" :disabled="readOnly" @click="addValueMapRow">{{ t('+ value') }}</button>
                 <p class="d-hint">{{ t('Map a coded value — or a metric label such as a K8s node condition — to a label and an optional chip color') }} (<code>ok</code> {{ t('green') }} / <code>warn</code> {{ t('amber') }} / <code>err</code> {{ t('red') }} / <code>info</code> {{ t('blue') }} / <code>neutral</code> {{ t('grey') }}). {{ t('With a color set, the card renders colored status chips, one per matched value. Card widgets only; labels are translatable per locale.') }}</p>
               </div>
               <div class="d-section">
@@ -1085,12 +1137,14 @@ onBeforeUnmount(() => {
                       :title="t('Expression {n}', { n: i + 1 })"
                       :layer-key="runLayerKey"
                       :site-scope="runScope"
+                      :readonly="readOnly"
                       @update:model-value="updateExpr(i, $event)"
                     />
                     <input
                       v-if="showExprMeta"
                       class="expr-label"
                       :value="editingWidget.expressionLabels?.[i] ?? ''"
+                      :disabled="readOnly"
                       @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
                       :placeholder="editingWidget.type === 'top' ? t('Traffic') : 'p99'"
                     />
@@ -1098,6 +1152,7 @@ onBeforeUnmount(() => {
                       v-if="showExprMeta"
                       class="mono expr-unit"
                       :value="editingWidget.expressionUnits?.[i] ?? ''"
+                      :disabled="readOnly"
                       @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
                       :placeholder="editingWidget.unit || 'ms'"
                     />
@@ -1105,6 +1160,7 @@ onBeforeUnmount(() => {
                       v-if="showExprMeta && editingWidget.type === 'line'"
                       class="mono expr-axis"
                       :value="String(editingWidget.expressionAxes?.[i] ?? 0)"
+                      :disabled="readOnly"
                       @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
                       :title="t('Y-axis (Left / Right) — for dual-axis line widgets')"
                     >
@@ -1115,12 +1171,12 @@ onBeforeUnmount(() => {
                       type="button"
                       class="expr-del"
                       :title="t('Remove expression')"
-                      :disabled="editingWidget.expressions.length <= 1"
+                      :disabled="readOnly || editingWidget.expressions.length <= 1"
                       @click="removeExpr(i)"
                     >×</button>
                   </div>
                 </div>
-                <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">{{ t('+ expression') }}</button>
+                <button type="button" class="sw-btn ghost small expr-add" :disabled="readOnly" @click="addExpr">{{ t('+ expression') }}</button>
                 <p class="d-hint">
                   {{ t('For') }} <code>top</code> {{ t('widgets each expression is a switchable tab; for') }}
                   <code>line</code> {{ t('each is a series. Label / unit / axis apply per expression.') }}
@@ -1133,7 +1189,7 @@ onBeforeUnmount(() => {
                     <span>{{ t('Mode') }}</span>
                     <select
                       :value="editingWidget.traceDrill?.mode ?? ''"
-                      :disabled="!layerTracesEnabled"
+                      :disabled="readOnly || !layerTracesEnabled"
                       @change="setWidgetTraceDrill(($event.target as HTMLSelectElement).value)"
                     >
                       <option value="">{{ t('none') }}</option>
@@ -1154,7 +1210,7 @@ onBeforeUnmount(() => {
                   {{ t('Visible when (optional)') }}
                 </span>
                 <div class="vw-row">
-                  <select class="mono" v-model="vwKindModel">
+                  <select class="mono" v-model="vwKindModel" :disabled="readOnly">
                     <option value="none">{{ t('Always visible') }}</option>
                     <option value="mqe">{{ t('MQE metric…') }}</option>
                     <option value="entity">{{ t('Entity attribute…') }}</option>
@@ -1167,16 +1223,17 @@ onBeforeUnmount(() => {
                       :title="t('Gate expression')"
                       :layer-key="runLayerKey"
                       :site-scope="runScope"
+                      :readonly="readOnly"
                     />
-                    <select class="mono" v-model="vwOp">
+                    <select class="mono" v-model="vwOp" :disabled="readOnly">
                       <option value="exists">{{ t('has value') }}</option>
                       <option value="gt">&gt;</option>
                       <option value="lt">&lt;</option>
                     </select>
                   </template>
                   <template v-else-if="vwKindModel === 'entity'">
-                    <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
-                    <select class="mono" v-model="vwOp">
+                    <input class="mono vw-target" v-model="vwTarget" placeholder="language" :disabled="readOnly" />
+                    <select class="mono" v-model="vwOp" :disabled="readOnly">
                       <option value="exists">{{ t('exists') }}</option>
                       <option value="eq">{{ t('equals') }}</option>
                     </select>
@@ -1187,6 +1244,7 @@ onBeforeUnmount(() => {
                     v-model="vwValue"
                     :type="vwKindModel === 'mqe' ? 'number' : 'text'"
                     :placeholder="vwKindModel === 'entity' ? 'JAVA' : '0'"
+                    :disabled="readOnly"
                   />
                 </div>
                 <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
@@ -1204,20 +1262,21 @@ onBeforeUnmount(() => {
             <button
               class="sw-btn"
               type="button"
-              :disabled="!selCanMoveUp"
+              :disabled="readOnly || !selCanMoveUp"
               :title="t('Move up')"
               @click="moveSelected(-1)"
             >{{ t('↑ Up') }}</button>
             <button
               class="sw-btn"
               type="button"
-              :disabled="!selCanMoveDown"
+              :disabled="readOnly || !selCanMoveDown"
               :title="t('Move down')"
               @click="moveSelected(1)"
             >{{ t('↓ Down') }}</button>
             <button
               class="sw-btn danger"
               type="button"
+              :disabled="readOnly"
               :title="t('Delete widget')"
               @click="deleteSelected"
             >{{ t('✕ Delete') }}</button>

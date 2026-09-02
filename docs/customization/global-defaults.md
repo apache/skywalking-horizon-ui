@@ -53,7 +53,7 @@ The shipped default is 60 minutes.
 
 ## Permissions
 
-Seeing the Global defaults page requires the `setup:read` verb; publishing an edit requires `overview:write`. In the bundled roles both are held by **operator** (and **admin**). See [Roles and Permissions](../access-control/rbac.md).
+Seeing the Global defaults page requires the `setup:read` verb; publishing an edit requires `setup:write`. Holding only `setup:read` opens the page read-only. In the bundled roles both are held by **operator** (and **admin**). See [Roles and Permissions](../access-control/rbac.md).
 
 ## How the settings are stored
 

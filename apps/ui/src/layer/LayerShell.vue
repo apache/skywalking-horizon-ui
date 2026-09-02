@@ -176,8 +176,8 @@ const missingReason = computed<LayerMissingReason>(() =>
   layerMissingReason(bundle.value?.syncStatus.conflicts, layerKey.value),
 );
 // The duplicate is resolved on the template admin page; link there only for
-// operators who may open it (the route itself requires `dashboard:read`).
-const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('dashboard:read'));
+// operators who may open it (the route itself requires `layer-template:read`).
+const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('layer-template:read'));
 
 // Auto-redirect when the URL targets a sub-route the layer doesn't
 // support — e.g. `/layer/mesh_dp/service` on a layer with

@@ -25,7 +25,9 @@
  * surfaces share `resolveLevel` here so they never drift into the old
  * "edit the same array twice" redundancy.
  *
- * Bound to the editor `draft`; every mutation writes through it.
+ * Bound to the editor `draft`; every mutation writes through it, and every
+ * mutation no-ops while `readOnly` — a session that may not publish must not
+ * be able to stage a draft either.
  */
 
 import { computed, type ComputedRef, type Ref } from 'vue';
@@ -48,7 +50,10 @@ export function safeRegex(src: string): RegExp | null {
   }
 }
 
-export function useInfra3dLevels(draft: Ref<Infra3dConfig | null>): {
+export function useInfra3dLevels(
+  draft: Ref<Infra3dConfig | null>,
+  readOnly: ComputedRef<boolean>,
+): {
   levelsSorted: ComputedRef<InfraLevelSpec[]>;
   addLevel: () => void;
   removeLevel: (id: string) => void;
@@ -57,7 +62,7 @@ export function useInfra3dLevels(draft: Ref<Infra3dConfig | null>): {
   levelLabel: (levelId: string | null) => string;
 } {
   function addLevel(): void {
-    if (!draft.value) return;
+    if (!draft.value || readOnly.value) return;
     const maxOrder = Math.max(-1, ...draft.value.levels.map((l) => l.order));
     // Unique id — a length-based id collides after add-then-remove editing
     // (and a duplicate level id aliases tier buckets + fails save validation).
@@ -69,7 +74,7 @@ export function useInfra3dLevels(draft: Ref<Infra3dConfig | null>): {
   }
 
   function removeLevel(id: string): void {
-    if (!draft.value) return;
+    if (!draft.value || readOnly.value) return;
     draft.value.levels = draft.value.levels.filter((l) => l.id !== id);
     if (draft.value.unknownLayer.level === id && draft.value.levels.length > 0) {
       draft.value.unknownLayer.level = draft.value.levels[0]!.id;
@@ -86,6 +91,7 @@ export function useInfra3dLevels(draft: Ref<Infra3dConfig | null>): {
    *  (bundled has mesh order 2 before middleware order 1). Swap the `order`
    *  values of the two SORTED neighbours so ↑/↓ moves the intended tier. */
   function moveLevel(idx: number, delta: number): void {
+    if (readOnly.value) return;
     const sorted = levelsSorted.value;
     const target = idx + delta;
     if (target < 0 || target >= sorted.length) return;

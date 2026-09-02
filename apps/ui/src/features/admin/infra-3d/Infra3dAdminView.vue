@@ -49,7 +49,6 @@ import {
   type Infra3dConfig,
   type InfraGroupSpec,
   type InfraLayerSpec,
-  type InfraMqe,
 } from '@/api/client';
 import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composables/useInfra3dConfig';
 import { useSingletonTemplateEditor } from '@/features/admin/_shared/useSingletonTemplateEditor';
@@ -125,7 +124,25 @@ const {
 const layerSearch = ref('');
 
 const { levelsSorted, addLevel, removeLevel, moveLevel, resolveLevel, levelLabel } =
-  useInfra3dLevels(draft);
+  useInfra3dLevels(draft, readOnly);
+
+// A read-only session must not be able to stage a draft either — a local
+// draft it can never publish is a trap, and Import stages arbitrary content.
+// Export and the diff stay open: both only READ what the page already shows.
+function onSave(): void {
+  if (readOnly.value) return;
+  save();
+}
+
+function onResetTo(src: 'bundled' | 'remote'): void {
+  if (readOnly.value) return;
+  resetTo(src);
+}
+
+async function onImport(): Promise<void> {
+  if (readOnly.value) return;
+  await onImportFile();
+}
 
 /** Union of OAP-reported + config-declared layer keys (canonical upper). */
 const allLayerKeys = computed<string[]>(() => {
@@ -239,7 +256,7 @@ function ensureLayerSpec(key: string): InfraLayerSpec {
 /** Pin a layer to one tier, or unpin (nextLevelId null → falls to
  *  failover). A layer belongs to at most one tier's explicit list. */
 function assignLayerToLevel(key: string, nextLevelId: string | null): void {
-  if (!draft.value) return;
+  if (!draft.value || readOnly.value) return;
   const u = key.toUpperCase();
   for (const lvl of draft.value.levels) {
     lvl.layers = lvl.layers.filter((k) => k.toUpperCase() !== u);
@@ -258,7 +275,7 @@ function onMoveTier(key: string, e: Event): void {
 }
 
 function removeLayerFromConfig(key: string): void {
-  if (!draft.value) return;
+  if (!draft.value || readOnly.value) return;
   const u = key.toUpperCase();
   delete draft.value.layers[u];
   for (const lvl of draft.value.levels) {
@@ -273,20 +290,27 @@ function removeLayerFromConfig(key: string): void {
 
 /** Ensure a single metric object exists to bind the mqe/label/unit inputs
  *  to (creates the layer spec if missing). */
-function ensureMetric(key: string): InfraMqe {
+function ensureMetric(key: string): void {
+  if (readOnly.value) return;
   const spec = ensureLayerSpec(key);
   if (!spec.metric) spec.metric = { mqe: '', label: '', unit: '' };
-  return spec.metric;
 }
 
 function clearMetric(key: string): void {
+  if (readOnly.value) return;
   const spec = draft.value?.layers[key.toUpperCase()];
   if (spec) spec.metric = undefined;
+}
+
+function setLayerColor(key: string, color: string): void {
+  if (readOnly.value) return;
+  ensureLayerSpec(key).color = color;
 }
 
 /** Write one metric field — the row component edits via events (it can't
  *  mutate the row prop directly), so the parent owns the draft write. */
 function setMetricField(key: string, field: 'mqe' | 'label' | 'unit', value: string): void {
+  if (readOnly.value) return;
   const metric = draft.value?.layers[key.toUpperCase()]?.metric;
   if (metric) metric[field] = value;
 }
@@ -301,7 +325,7 @@ const ICON_NAMES = [
 ] as const;
 
 function addGroup(): void {
-  if (!draft.value) return;
+  if (!draft.value || readOnly.value) return;
   // `groups` is optional on the wire (older saved configs predate it) —
   // materialise it before pushing so the rest of the editor can treat
   // it as always-present.
@@ -319,18 +343,24 @@ function addGroup(): void {
     layers: [],
   });
 }
+function setGroupColor(g: InfraGroupSpec, color: string): void {
+  if (readOnly.value) return;
+  g.color = color;
+}
 function removeGroup(id: string): void {
-  if (!draft.value?.groups) return;
+  if (!draft.value?.groups || readOnly.value) return;
   draft.value.groups = draft.value.groups.filter((g) => g.id !== id);
 }
 function onAddLayerToGroup(g: InfraGroupSpec, e: Event): void {
   const sel = e.target as HTMLSelectElement;
   const key = sel.value;
   sel.value = '';
+  if (readOnly.value) return;
   const u = key.toUpperCase();
   if (u && !g.layers.some((k) => k.toUpperCase() === u)) g.layers.push(u);
 }
 function removeLayerFromGroup(g: InfraGroupSpec, key: string): void {
+  if (readOnly.value) return;
   const u = key.toUpperCase();
   g.layers = g.layers.filter((k) => k.toUpperCase() !== u);
 }
@@ -374,26 +404,35 @@ const stats = computed(() => {
         </p>
       </div>
       <div class="hd-actions">
+        <!-- A read-only session is shown the OAP-live (or bundled) config,
+             not the draft — this says the draft is there but hidden, since
+             nothing on the page can reload or discard it. -->
+        <span
+          v-if="readOnly && hasLocalDraft"
+          class="src-pill"
+          data-src="local"
+          :title="t('Unpublished local draft in this browser — not shown while read-only.')"
+        >{{ t('local') }}</span>
         <span class="src-pill" :data-src="editorSource">
           {{ t('editing: {source}', { source: editorSource }) }}
           <TemplateStatusBadge v-if="badge" :status="badge" />
         </span>
         <div class="reset-wrap">
-          <button class="btn" :disabled="pushing" @click="resetMenuOpen = !resetMenuOpen">{{ t('Reset to') }} ▾</button>
+          <button class="btn" :disabled="pushing || readOnly" @click="resetMenuOpen = !resetMenuOpen">{{ t('Reset to') }} ▾</button>
           <div v-if="resetMenuOpen" class="reset-menu">
             <button
               class="reset-item"
-              :disabled="isSynced"
+              :disabled="isSynced || readOnly"
               :title="isSynced ? t('Bundled equals OAP-live — nothing to reset to.') : t('Discard current edits and reload the bundled (shipped) default.')"
-              @click="resetTo('bundled')"
+              @click="onResetTo('bundled')"
             >
               {{ t('Bundled') }}<span v-if="isSynced" class="reset-suffix"> ({{ t('synced') }})</span>
             </button>
             <button
               class="reset-item"
-              :disabled="!hasRemote"
+              :disabled="!hasRemote || readOnly"
               :title="hasRemote ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy of this config yet.')"
-              @click="resetTo('remote')"
+              @click="onResetTo('remote')"
             >
               {{ t('Remote') }}
             </button>
@@ -411,12 +450,13 @@ const stats = computed(() => {
         </button>
         <button
           class="btn"
+          :disabled="readOnly"
           :title="t('Load a config JSON file as a local draft — preview, then publish.')"
-          @click="onImportFile"
+          @click="onImport"
         >
           {{ t('Import') }}
         </button>
-        <button class="btn" :disabled="!dirty" @click="save">
+        <button class="btn" :disabled="!dirty || readOnly" @click="onSave">
           {{ hasLocalDraft && !dirty ? t('Saved local') : t('Save local') }}
         </button>
         <button class="btn primary" :disabled="readOnly || dirty || !hasLocalDraft" @click="openPushDiff">
@@ -448,7 +488,7 @@ const stats = computed(() => {
         <div class="sect-body">
           <label class="field">
             <span class="lbl">filter.layer</span>
-            <input class="inp mono" v-model="draft.filter.layer" placeholder=".*" />
+            <input class="inp mono" v-model="draft.filter.layer" placeholder=".*" :disabled="readOnly" />
           </label>
         </div>
       </section>
@@ -466,19 +506,19 @@ const stats = computed(() => {
             </i18n-t></template>
           </span>
           <input class="inp search" v-model="layerSearch" :placeholder="t('filter layers…')" />
-          <button type="button" class="btn small" @click="addLevel">{{ t('+ add tier') }}</button>
+          <button type="button" class="btn small" :disabled="readOnly" @click="addLevel">{{ t('+ add tier') }}</button>
         </header>
         <div class="sect-body">
           <article v-for="(lvl, idx) in levelsSorted" :key="lvl.id" class="tier-card">
             <header class="lvl-head">
               <span class="lvl-order">#{{ lvl.order }}</span>
-              <input class="inp lvl-id mono" v-model="lvl.id" placeholder="apps" />
-              <input class="inp lvl-label" v-model="lvl.label" placeholder="Apps" />
+              <input class="inp lvl-id mono" v-model="lvl.id" placeholder="apps" :disabled="readOnly" />
+              <input class="inp lvl-label" v-model="lvl.label" placeholder="Apps" :disabled="readOnly" />
               <span class="tier-count">{{ t('{count} layers', { count: layersByTier[lvl.id]?.length ?? 0 }) }}</span>
               <div class="lvl-spacer" />
-              <button type="button" class="btn tiny" :disabled="idx === 0" @click="moveLevel(idx, -1)">↑</button>
-              <button type="button" class="btn tiny" :disabled="idx === levelsSorted.length - 1" @click="moveLevel(idx, 1)">↓</button>
-              <button type="button" class="btn tiny danger" @click="removeLevel(lvl.id)">{{ t('remove') }}</button>
+              <button type="button" class="btn tiny" :disabled="readOnly || idx === 0" @click="moveLevel(idx, -1)">↑</button>
+              <button type="button" class="btn tiny" :disabled="readOnly || idx === levelsSorted.length - 1" @click="moveLevel(idx, 1)">↓</button>
+              <button type="button" class="btn tiny danger" :disabled="readOnly" @click="removeLevel(lvl.id)">{{ t('remove') }}</button>
             </header>
             <div class="tier-body">
               <div class="layer-rows">
@@ -489,7 +529,8 @@ const stats = computed(() => {
                   variant="tier"
                   :levels="levelsSorted"
                   :pinned-tier="explicitTier[row.key] ?? ''"
-                  @set-color="(c) => (ensureLayerSpec(row.key).color = c)"
+                  :read-only="readOnly"
+                  @set-color="(c) => setLayerColor(row.key, c)"
                   @update-metric="(f, v) => setMetricField(row.key, f, v)"
                   @change-tier="(e) => onMoveTier(row.key, e)"
                   @ensure-metric="ensureMetric(row.key)"
@@ -524,7 +565,8 @@ const stats = computed(() => {
               :resolved="resolvedLevels[row.key]"
               :resolved-label="levelLabel(resolvedLevels[row.key]?.levelId ?? null)"
               :unclassified="isUnclassified(row.key)"
-              @set-color="(c) => (ensureLayerSpec(row.key).color = c)"
+              :read-only="readOnly"
+              @set-color="(c) => setLayerColor(row.key, c)"
               @update-metric="(f, v) => setMetricField(row.key, f, v)"
               @change-tier="(e) => onMoveTier(row.key, e)"
               @ensure-metric="ensureMetric(row.key)"
@@ -540,7 +582,7 @@ const stats = computed(() => {
         <header class="sect-head">
           <h2>{{ t('Logic groups') }}</h2>
           <span class="sec-hint">{{ t('Several layers drawn as one labelled block on a tier (e.g. Self-Observability). Each member keeps its own cube color.') }}</span>
-          <button type="button" class="btn small" @click="addGroup">{{ t('+ add group') }}</button>
+          <button type="button" class="btn small" :disabled="readOnly" @click="addGroup">{{ t('+ add group') }}</button>
         </header>
         <div class="sect-body">
           <div class="groups-grid">
@@ -550,24 +592,25 @@ const stats = computed(() => {
                   type="color"
                   class="color-pick"
                   :value="parseHexColor(g.color)"
-                  @input="(e) => (g.color = (e.target as HTMLInputElement).value)"
+                  :disabled="readOnly"
+                  @input="(e) => setGroupColor(g, (e.target as HTMLInputElement).value)"
                 />
-                <input class="inp group-id mono" v-model="g.id" placeholder="self-observability" />
-                <input class="inp group-label" v-model="g.label" placeholder="Self-Observability" />
+                <input class="inp group-id mono" v-model="g.id" placeholder="self-observability" :disabled="readOnly" />
+                <input class="inp group-label" v-model="g.label" placeholder="Self-Observability" :disabled="readOnly" />
                 <div class="lvl-spacer" />
-                <button type="button" class="btn tiny danger" @click="removeGroup(g.id)">{{ t('remove') }}</button>
+                <button type="button" class="btn tiny danger" :disabled="readOnly" @click="removeGroup(g.id)">{{ t('remove') }}</button>
               </header>
               <div class="group-body">
                 <div class="row-2">
                   <label class="field">
                     <span class="lbl small">{{ t('level') }}</span>
-                    <select class="inp" v-model="g.level">
+                    <select class="inp" v-model="g.level" :disabled="readOnly">
                       <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
                     </select>
                   </label>
                   <label class="field">
                     <span class="lbl small">{{ t('icon') }}</span>
-                    <select class="inp" v-model="g.icon">
+                    <select class="inp" v-model="g.icon" :disabled="readOnly">
                       <option v-for="ic in ICON_NAMES" :key="ic" :value="ic">{{ ic }}</option>
                     </select>
                   </label>
@@ -577,9 +620,9 @@ const stats = computed(() => {
                   <div class="chips">
                     <span v-for="k in g.layers" :key="k" class="chip">
                       {{ k }}
-                      <button class="x" type="button" :title="t('remove from group')" @click="removeLayerFromGroup(g, k)">×</button>
+                      <button class="x" type="button" :title="t('remove from group')" :disabled="readOnly" @click="removeLayerFromGroup(g, k)">×</button>
                     </span>
-                    <select class="add-layer" :value="''" @change="(e) => onAddLayerToGroup(g, e)">
+                    <select class="add-layer" :value="''" :disabled="readOnly" @change="(e) => onAddLayerToGroup(g, e)">
                       <option value="">{{ t('＋ add layer…') }}</option>
                       <option v-for="k in groupCandidates(g)" :key="k" :value="k">{{ k }}</option>
                     </select>
@@ -616,7 +659,7 @@ const stats = computed(() => {
         <div class="sect-body">
           <label class="field">
             <span class="lbl">{{ t('level') }}</span>
-            <select class="inp fallback-level" v-model="draft.unknownLayer.level">
+            <select class="inp fallback-level" v-model="draft.unknownLayer.level" :disabled="readOnly">
               <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
             </select>
           </label>
@@ -819,6 +862,10 @@ export { parseHexColor };
 .inp.small { width: 100px; }
 .inp.search { height: 22px; width: 180px; margin-left: auto; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
+.inp[disabled],
+.add-layer[disabled],
+.color-pick[disabled],
+.chip .x[disabled] { opacity: 0.55; cursor: default; }
 
 .tier-card {
   border: 1px solid var(--sw-line);

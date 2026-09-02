@@ -71,6 +71,10 @@ export interface UseTranslationDraftArgs {
   selectedKind: Ref<'overview' | 'layer'>;
   selectedName: Ref<string>;
   effective: ComputedRef<EffectiveSource | null>;
+  /** The page may not publish — no write verb, OAP admin unreachable, or
+   *  readonly template mode. Decides whether a staged local draft is shown
+   *  (see {@link renderedOverlay}); the page owns the reason. */
+  readOnly: ComputedRef<boolean>;
 }
 
 export interface UseTranslationDraftReturn {
@@ -105,7 +109,7 @@ export interface UseTranslationDraftReturn {
 }
 
 export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslationDraftReturn {
-  const { selectedKind, selectedName, effective } = args;
+  const { selectedKind, selectedName, effective, readOnly } = args;
   const localEdits = useLocalTranslationEdits();
   // `templates.mode`, not the page's broader read-only flag: an
   // unreachable admin port must NOT fall back to the disk catalog either
@@ -188,7 +192,12 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
    *  All of it in ONE pass, because each pass treats what the previous
    *  one wrote as untouchable draft — layering across calls would make
    *  the FIRST source win, silently replacing a staged edit with the
-   *  published value. In-memory typing still beats both. */
+   *  published value. In-memory typing still beats both.
+   *
+   *  A READ-ONLY session skips the staged draft: it cannot discard or
+   *  reset one, so a stale draft would be the only thing it could ever
+   *  read, and it would read it as the published translation. The draft
+   *  stays staged — the session may regain the write verb. */
   async function ensureOverlayFetched(name: string, loc: Locale, eff: EffectiveSource): Promise<void> {
     if (loc === 'en') return;
     const k = overlayKey(name, loc);
@@ -203,7 +212,8 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
       snap = { disk: null, oap: null, unread: true };
     }
     fetchedOverlays.value = { ...fetchedOverlays.value, [k]: snap };
-    applyOverlaysToDraft(name, loc, [renderedOverlay(snap), localEdits.get<unknown>(name, loc)], eff);
+    const staged = readOnly.value ? null : localEdits.get<unknown>(name, loc);
+    applyOverlaysToDraft(name, loc, [renderedOverlay(snap), staged], eff);
   }
 
   // `target` MUST be declared above the `watch(effective, ...)` below
@@ -418,7 +428,7 @@ export function useTranslationDraft(args: UseTranslationDraftArgs): UseTranslati
   // Don't clobber an explicitly-set source (bundled) inside the same
   // locale — the watcher only fires when name/locale changes.
   watch([selectedName, target], () => {
-    editorSource.value = hasStagedLocal.value ? 'local' : 'remote';
+    editorSource.value = hasStagedLocal.value && !readOnly.value ? 'local' : 'remote';
   });
 
   /** Rebuild the draft for one (name, locale) from a specific source,
