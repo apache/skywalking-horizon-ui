@@ -100,15 +100,21 @@ export interface MetricsResponse {
  *  side serialises with `@JsonInclude(NON_NULL)` so any field that
  *  doesn't apply to the scope is omitted from the JSON. */
 export interface MqeEntity {
-  scope: InspectScope;
+  /** Optional, and deprecated upstream since OAP 9.4.0 — the query protocol
+   *  senses the scope from the metric name. It MUST be omitted for relation
+   *  metrics: forcing it explicitly empties the result on some OAP versions,
+   *  which is why every relation query the BFF builds leaves it off. */
+  scope?: InspectScope;
   serviceName?: string;
   normal?: boolean;
   serviceInstanceName?: string;
   endpointName?: string;
+  processName?: string;
   destServiceName?: string;
   destNormal?: boolean;
   destServiceInstanceName?: string;
   destEndpointName?: string;
+  destProcessName?: string;
 }
 
 /** Decoded entity-id payload — scope-dependent shape. For single

@@ -94,6 +94,7 @@ import { PprofApi } from './scopes/pprof';
 import { DslApi } from './scopes/dsl';
 import { LiveDebugApi } from './scopes/live-debug';
 import { InspectApi } from './scopes/inspect';
+import { MqeApi } from './scopes/mqe';
 import { ExploreApi } from './scopes/explore';
 import { OapOpsApi } from './scopes/oap-ops';
 import { AlarmsApi } from './scopes/alarms';
@@ -1027,6 +1028,7 @@ export class BffClient {
   readonly dsl = new DslApi(this);
   readonly liveDebug = new LiveDebugApi(this);
   readonly inspect = new InspectApi(this);
+  readonly mqe = new MqeApi(this);
   readonly explore = new ExploreApi(this);
   readonly oapOps = new OapOpsApi(this);
   readonly alarms = new AlarmsApi(this);

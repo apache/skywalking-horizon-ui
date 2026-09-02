@@ -20,7 +20,7 @@ Six widget types render on per-layer dashboards. Each `widget.type` you set in a
 | `title` | Widget title shown in the card header. |
 | `tip` | Optional hover hint. |
 | `type` | One of `card`, `line`, `top`, `record`, `table`, or `tab`. |
-| `expressions[]` | MQE expressions. `card` typically uses one; `line` one-per-series; `top` one-per-tab; `table` one labeled `latest(…)` metric. |
+| `expressions[]` | MQE expressions. `card` typically uses one; `line` one-per-series; `top` one-per-tab; `table` one labeled `latest(…)` metric. Each one can be run against your OAP from the editor before you publish — see [Trying an expression](../customization/layer-templates.md#trying-an-expression-before-you-publish). |
 | `expressionLabels[]` | Used by `top` for tab labels and by `line` for legend names. |
 | `expressionUnits[]` | Per-expression unit override (mixed-unit charts). |
 | `expressionAxes[]` | `0` = left axis (default), `1` = right axis. |
