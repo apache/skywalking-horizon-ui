@@ -469,5 +469,176 @@
         "title": "Part-sync 字节数 / s"
       }
     ]
+  },
+  "dashboardExtPages": {
+    "service": [
+      {
+        "id": "trace-sampling",
+        "name": "追踪采样",
+        "widgets": [
+          {
+            "id": "sampling_outcomes",
+            "title": "追踪处理结果",
+            "tip": "保留数与丢弃数共同构成已评估追踪。未成熟追踪从未进入评估资格——其分片仍处于成熟边界内，因此并非采样失败。",
+            "expressionLabels": [
+              "已评估",
+              "已保留",
+              "已丢弃",
+              "未成熟"
+            ]
+          },
+          {
+            "id": "sampling_active_kpi",
+            "title": "活跃采样器",
+            "tip": "每个存储 group 已注册的采样器插件。未出现在列表中的 group 没有管道——其追踪永远不会被评估，因此不会有任何丢弃。",
+            "tableHeaders": [
+              "Group",
+              "采样器"
+            ]
+          },
+          {
+            "id": "sampling_drop_ratio_by_group",
+            "title": "各 group 丢弃比例",
+            "tip": "各存储 group 每个时间点已提交的丢弃比例——经过 BanyanDB 安全护栏之后的已丢弃/已评估。刻意按 group 展示而非给出单一集群卡片：集群级卡片会对各时间点的比例做无权重平均，空闲的一分钟与繁忙的一分钟权重相同。某个 group 明显偏低时，通常由下方的安全事件解释，而非其规则本身。"
+          },
+          {
+            "id": "sampling_load_failures",
+            "title": "插件加载失败",
+            "tip": "每分钟插件加载失败次数，按 group、失败插件与原因拆分。配置同步采用失败开放策略，因此出现任何数值都意味着插件链在缺少配置所要求的某个插件的情况下运行——采样并未按配置执行。插件名称与失败原因仅在此面板中展示。"
+          },
+          {
+            "id": "sampling_execution_rate",
+            "title": "各结果 Decide 速率",
+            "tip": "每秒 Decide() 调用次数，按插件与结果拆分。出现 panic、length_mismatch 或 late 应立即告警——它们意味着插件行为异常，或调用超出了合并超时。decide_error 可能是瞬时的。"
+          },
+          {
+            "id": "sampling_decide_latency",
+            "title": "Decide 延迟",
+            "tip": "各插件成功 Decide() 调用的实际耗时——p99 取最差的 group，均值对各 group 取平均。请基于健康基线为每个插件设定 SLO；刻意开销较大的插件并非故障。",
+            "expressionLabels": [
+              "p99",
+              "均值"
+            ]
+          },
+          {
+            "id": "sampling_time_per_trace",
+            "title": "插件耗时 / 追踪",
+            "tip": "每条已评估追踪上整条插件链的实际耗时（按 group），即合并阶段为采样付出的开销随时间的变化。上游 Grafana 面板使用 PromQL 的 group_left 按插件拆分；MAL 无此能力，因此该指标为整条链的合计，按插件的拆分见 Decide 延迟。应明显低于 data 节点的 --trace-pipeline-decide-timeout（默认 5 秒）。"
+          },
+          {
+            "id": "sampling_chain_batches",
+            "title": "插件链批次",
+            "tip": "每秒插件链批次数，按结果拆分。circuit_open 表示该 group 的采样当前被绕过；timeout 属于链级别，因为宿主可能在某个环节返回前就放弃整条链。每批次承载的追踪数见「批次大小 p99」面板。"
+          },
+          {
+            "id": "sampling_batch_size_p99",
+            "title": "批次大小 p99",
+            "tip": "每个成功批次呈现给插件链的追踪数 p99（按 group）。与「插件链批次」对照阅读：批次速率说明链运行的频率，此面板说明每次看到多少内容。"
+          },
+          {
+            "id": "sampling_sampler_rows",
+            "title": "采样器行数",
+            "tip": "已评估追踪所携带的 span / segment 行数，与采样器建议丢弃的行数对照，并按命中的规则拆分。两者单位相同，可直接比较；由此得出的占比见「丢弃行占比」面板。",
+            "expressionLabels": [
+              "行数",
+              "建议丢弃行数"
+            ]
+          },
+          {
+            "id": "sampling_decisions_by_rule",
+            "title": "各规则采样判定",
+            "tip": "第一方采样器所\"建议\"的判定，归属到首个命中的规则——而非存储最终提交的结果。一条追踪可能在多轮合并或终结中被评估，安全护栏也可能保留插件判定为丢弃的追踪，因此请将丢弃判定与\"追踪处理结果\"对照阅读。"
+          },
+          {
+            "id": "sampling_sampler_dropped_ratio",
+            "title": "丢弃行占比",
+            "tip": "采样器建议丢弃的行数占比（按 group）。这是「建议」而非已提交——安全护栏可能保留插件判定为丢弃的追踪。当「行数不可用」非零时，该比例应视为不完整，因为这些追踪不计入分母。"
+          },
+          {
+            "id": "sampling_row_count_unavailable",
+            "title": "行数不可用",
+            "tip": "仅有元数据投影、未暴露行数的追踪评估次数（按 group）。这些追踪不计入行数合计，因此此处非零即意味着「丢弃行占比」的分母不完整。"
+          },
+          {
+            "id": "sampling_guard_work",
+            "title": "护栏与索引开销",
+            "tip": "bloom 过滤器探测是分片护栏在检查待合并分片之外是否存在该追踪的其他分片；已清理条目是确认丢弃后引发的二级索引开销。",
+            "expressionLabels": [
+              "bloom 探测",
+              "sidx 已清理"
+            ]
+          },
+          {
+            "id": "sampling_safety_events",
+            "title": "安全事件",
+            "tip": "此处每条曲线都会保留采样器建议丢弃的数据。丢弃比例低于预期时，应先由这里解释，而不是先归因于插件逻辑。",
+            "expressionLabels": [
+              "超大追踪",
+              "判定不明确",
+              "护栏推迟",
+              "护栏预算耗尽",
+              "发布被拒",
+              "无损重试",
+              "护栏绕过"
+            ]
+          },
+          {
+            "id": "sampling_plugin_errors",
+            "title": "各原因链级错误",
+            "tip": "导致整批数据失败开放保留的链级错误。"
+          },
+          {
+            "id": "sampling_link_bypasses",
+            "title": "环节绕过",
+            "tip": "因 decide_error、length_mismatch 或 panic 而被绕过的单个环节。一个批次可能整体报告 success，同时某个环节被绕过并保留其输入——这正是它与链级错误分开统计的原因。"
+          },
+          {
+            "id": "sampling_reconciliation",
+            "title": "注册与更新",
+            "tip": "管道注册、更新与移除速率。结果为 rejected 表示 OAP 推送了 data 节点拒绝接受的管道配置。",
+            "expressionLabels": [
+              "已注册",
+              "已更新",
+              "已移除"
+            ]
+          },
+          {
+            "id": "sampling_drop_set_pressure",
+            "title": "丢弃集上限影响",
+            "tip": "每次合并的待丢弃追踪 ID 集受内存上限约束。触及上限后合并会保留其余追踪——这正是高负载下丢弃比例趋于平台而不再跟随规则变化的原因。"
+          },
+          {
+            "id": "sampling_drop_set_size",
+            "title": "丢弃集大小 p99",
+            "tip": "每个合并 lane 每次合并持有的丢弃追踪 ID 数 p99。请与「丢弃集预算」面板对照阅读：当该集合超出预算时，合并将停止接受丢弃并保留其余追踪，这会体现为「丢弃集上限影响」。"
+          },
+          {
+            "id": "sampling_drop_set_budget",
+            "title": "丢弃集预算",
+            "tip": "每次合并用于存放已确认丢弃追踪 ID 的内存预算（按 group）——即丢弃集大小所面对的上限。预算按 group 解析，因此各 group 可以不同；预算较小的 group 会先触及上限。除非重新调优 data 节点，否则保持不变。"
+          },
+          {
+            "id": "sampling_finalize_rounds",
+            "title": "终结轮次",
+            "tip": "各 group 冷却分片上观测到的最高终结轮次。分片是否已用尽轮次见「终结态」面板。"
+          },
+          {
+            "id": "sampling_finalize_terminal",
+            "title": "终结态",
+            "tip": "当该 group 中任一冷却分片进入终结态、无法再执行终结轮次时为 1——该部分数据不会再进行追踪采样，已存储的内容即为最终结果；否则为 0。按时间绘制以便看到状态切换的时刻。"
+          },
+          {
+            "id": "sampling_telemetry_safety",
+            "title": "插件遥测宿主保护",
+            "tip": "宿主限制插件可发布的指标量（每个仪表最多 100 个标签值序列）并对其日志限流。非零表示插件\"自身\"的遥测被截断——上方的采样器判定指标因此不完整，但采样本身不受影响。",
+            "expressionLabels": [
+              "序列被拒",
+              "日志丢弃",
+              "遥测 panic"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

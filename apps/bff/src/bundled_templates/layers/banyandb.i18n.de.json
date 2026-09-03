@@ -469,5 +469,176 @@
         "title": "Part-sync-Bytes / s"
       }
     ]
+  },
+  "dashboardExtPages": {
+    "service": [
+      {
+        "id": "trace-sampling",
+        "name": "Trace-Sampling",
+        "widgets": [
+          {
+            "id": "sampling_outcomes",
+            "title": "Trace-Ergebnisse",
+            "tip": "Behalten + verworfen erklären die ausgewerteten Traces. Unreife Traces waren nie zulässig — ihre Fragmente liegen noch innerhalb der Reifegrenze, das ist kein Sampling-Fehler.",
+            "expressionLabels": [
+              "ausgewertet",
+              "behalten",
+              "verworfen",
+              "unreif"
+            ]
+          },
+          {
+            "id": "sampling_active_kpi",
+            "title": "Aktive Sampler",
+            "tip": "Je Speicher-group registrierte Sampler-Plugins. Ein group, das hier fehlt, hat keine Pipeline — seine Traces werden nie ausgewertet, es wird also nichts verworfen.",
+            "tableHeaders": [
+              "Group",
+              "Sampler"
+            ]
+          },
+          {
+            "id": "sampling_drop_ratio_by_group",
+            "title": "Verwerfungsquote je group",
+            "tip": "Bestätigte Verwerfungsquote je Speicher-group, je Schritt — verworfene durch ausgewertete Traces nach BanyanDBs Sicherheitsprüfungen. Absichtlich je group statt als eine Cluster-Kennzahl: eine Cluster-Karte wäre das ungewichtete Mittel der Quoten je Schritt, eine ruhige Minute würde also so viel zählen wie eine geschäftige. Liegt ein group unter den anderen, erklären das meist die Sicherheitsereignisse unten und nicht seine Regeln."
+          },
+          {
+            "id": "sampling_load_failures",
+            "title": "Plugin-Ladefehler",
+            "tip": "Plugin-Ladefehler pro Minute, je group, fehlgeschlagenem Plugin und Ursache. Der Abgleich schlägt offen fehl, jeder Wert hier bedeutet also, dass die Kette OHNE ein von der Konfiguration verlangtes Plugin läuft — das Sampling tut nicht, was es sagt. Plugin-Name und Ursache erscheinen nur in diesem Panel."
+          },
+          {
+            "id": "sampling_execution_rate",
+            "title": "Decide-Rate nach Ergebnis",
+            "tip": "Decide()-Aufrufe pro Sekunde, nach Plugin und Ergebnis. Bei panic, length_mismatch oder late sofort alarmieren: Sie zeigen defektes Plugin-Verhalten oder einen Aufruf, der das Merge-Timeout überlebt hat. decide_error kann vorübergehend sein."
+          },
+          {
+            "id": "sampling_decide_latency",
+            "title": "Decide-Latenz",
+            "tip": "Laufzeit erfolgreicher Decide()-Aufrufe je Plugin — p99 nimmt das schlechteste group, der Mittelwert mittelt sie. Leite je Plugin ein SLO aus einer gesunden Baseline ab; ein absichtlich teures Plugin ist kein Fehler.",
+            "expressionLabels": [
+              "p99",
+              "Mittelwert"
+            ]
+          },
+          {
+            "id": "sampling_time_per_trace",
+            "title": "Plugin-Zeit / Trace",
+            "tip": "Laufzeit der gesamten Plugin-Kette je ausgewertetem Trace, je group — der beim Merge gezahlte Sampling-Aufwand im Zeitverlauf. Das Grafana-Board stromaufwärts teilt dies mit PromQLs `group_left` je Plugin auf; MAL hat kein Äquivalent, daher ist die Metrik die Kettensumme und die Aufteilung je Plugin steht unter Decide-Latenz. Halte sie deutlich unter dem --trace-pipeline-decide-timeout des data-Knotens (Standard 5 s)."
+          },
+          {
+            "id": "sampling_chain_batches",
+            "title": "Ketten-Batches",
+            "tip": "Ketten-Batches pro Sekunde, nach Ergebnis. circuit_open bedeutet, dass das Sampling für dieses group derzeit ÜBERSPRUNGEN wird; timeout ist auf Kettenebene, weil der Host die Kette abbrechen kann, bevor ein Glied antwortet. Wie viele Traces jeder Batch trug, steht im Panel Batch-Größe p99."
+          },
+          {
+            "id": "sampling_batch_size_p99",
+            "title": "Batch-Größe p99",
+            "tip": "p99 der Traces, die der Plugin-Kette je erfolgreichem Batch vorgelegt wurden, je group. Lies es mit Ketten-Batches: Die Rate sagt, wie oft die Kette läuft, dies sagt, wie viel sie jedes Mal sieht."
+          },
+          {
+            "id": "sampling_sampler_rows",
+            "title": "Sampler-Zeilen",
+            "tip": "Von ausgewerteten Traces getragene span-/segment-Zeilen gegen die Zeilen, die die Sampler zum Verwerfen vorgeschlagen haben, aufgeschlüsselt nach der verantwortlichen Regel. Gleiche Einheit, also direkt vergleichbar; der resultierende Anteil steht im Panel Verworfene-Zeilen-Quote.",
+            "expressionLabels": [
+              "Zeilen",
+              "verworfene Zeilen"
+            ]
+          },
+          {
+            "id": "sampling_decisions_by_rule",
+            "title": "Sampler-Entscheidungen nach Regel",
+            "tip": "Was die First-Party-Sampler VORGESCHLAGEN haben, der ersten passenden Regel zugeordnet — nicht, was der Speicher bestätigt hat. Ein Trace kann über mehrere Merge- oder Finalisierungsrunden ausgewertet werden, und die Sicherheitsprüfungen können einen Trace behalten, für den das Plugin auf Verwerfen entschied: Lies Verwerfungs-Entscheidungen zusammen mit den Trace-Ergebnissen."
+          },
+          {
+            "id": "sampling_sampler_dropped_ratio",
+            "title": "Verworfene-Zeilen-Quote",
+            "tip": "Anteil der Zeilen, die die Sampler zum Verwerfen vorgeschlagen haben, je group. Vorgeschlagen, nicht bestätigt — die Sicherheitsprüfungen können einen Trace behalten, für den ein Plugin auf Verwerfen entschied. Behandle sie als unvollständig, wenn „Zeilenzahl nicht verfügbar\" ungleich null ist, da diese Traces im Nenner fehlen."
+          },
+          {
+            "id": "sampling_row_count_unavailable",
+            "title": "Zeilenzahl nicht verfügbar",
+            "tip": "Trace-Auswertungen, deren Nur-Metadaten-Projektion keine Zeilenzahl offenlegte, je group. Diese Traces fehlen in den Zeilensummen, jeder Wert ungleich null bedeutet also, dass die Verworfene-Zeilen-Quote über einen unvollständigen Nenner gebildet wird."
+          },
+          {
+            "id": "sampling_guard_work",
+            "title": "Guard- und Index-Arbeit",
+            "tip": "Bloom-Filter-Prüfungen sind der Fragment-Guard, der nach Trace-Fragmenten außerhalb der zusammengeführten Parts sucht; entfernte Einträge sind die Sekundärindex-Arbeit, die ein bestätigtes Verwerfen verursacht.",
+            "expressionLabels": [
+              "bloom-Prüfungen",
+              "sidx entfernt"
+            ]
+          },
+          {
+            "id": "sampling_safety_events",
+            "title": "Sicherheitsereignisse",
+            "tip": "Jede Reihe hier BEHÄLT Daten, die ein Sampler zum Verwerfen vorgeschlagen hat. Eine Verwerfungsquote unter dem Ziel wird hier erklärt, bevor die Plugin-Logik sie erklärt.",
+            "expressionLabels": [
+              "übergroß",
+              "uneindeutig",
+              "guard verschoben",
+              "guard-Budget erschöpft",
+              "Veröffentlichung abgelehnt",
+              "verlustfreier Retry",
+              "guard übersprungen"
+            ]
+          },
+          {
+            "id": "sampling_plugin_errors",
+            "title": "Kettenfehler nach Ursache",
+            "tip": "Fehler auf Kettenebene, die das Behalten des gesamten Batch im offenen Fehlerfall erzwungen haben."
+          },
+          {
+            "id": "sampling_link_bypasses",
+            "title": "Übersprungene Glieder",
+            "tip": "Einzelne Glieder, die nach decide_error, length_mismatch oder panic übersprungen wurden. Ein Ketten-Batch kann success melden, während ein Glied übersprungen und seine Eingabe behalten wurde — deshalb wird dies getrennt von Kettenfehlern gezählt."
+          },
+          {
+            "id": "sampling_reconciliation",
+            "title": "Registrierungen und Updates",
+            "tip": "Rate von Pipeline-Registrierung, -Update und -Entfernung. Ein Ergebnis rejected bedeutet, dass OAP eine Pipeline-Konfiguration gesendet hat, die der data-Knoten nicht akzeptiert.",
+            "expressionLabels": [
+              "registriert",
+              "aktualisiert",
+              "entfernt"
+            ]
+          },
+          {
+            "id": "sampling_drop_set_pressure",
+            "title": "Auswirkung der Drop-Set-Grenze",
+            "tip": "Die Menge der zu verwerfenden Trace-IDs je Merge ist speicherbegrenzt. Ist die Grenze erreicht, behält der Merge den Rest — deshalb stagniert die Verwerfungsquote unter Last, statt den Regeln zu folgen."
+          },
+          {
+            "id": "sampling_drop_set_size",
+            "title": "Drop-Set-Größe p99",
+            "tip": "p99 der je Merge-lane gehaltenen zu verwerfenden Trace-IDs. Lies sie zusammen mit dem Panel Drop-Set-Budget: Wächst die Menge über das Budget, nimmt der Merge keine Verwerfungen mehr an und behält den Rest — das erscheint als Auswirkung der Drop-Set-Grenze."
+          },
+          {
+            "id": "sampling_drop_set_budget",
+            "title": "Drop-Set-Budget",
+            "tip": "Speicherbudget je Merge für bestätigt verworfene Trace-IDs, je group — die Grenze, auf die die Drop-Set-Größe trifft. Es wird je group aufgelöst, group können also unterschiedliche Budgets tragen; das mit dem kleineren erreicht seine Grenze zuerst. Flach, solange der data-Knoten nicht neu abgestimmt wird."
+          },
+          {
+            "id": "sampling_finalize_rounds",
+            "title": "Finalisierungsrunden",
+            "tip": "Höchste Zahl an Finalisierungsrunden, die über die abgekühlten Shards jedes group beobachtet wurde. Ob einem Shard die Runden ausgegangen sind, steht im Panel Finalisierung terminal."
+          },
+          {
+            "id": "sampling_finalize_terminal",
+            "title": "Finalisierung terminal",
+            "tip": "1, wenn ein abgekühlter Shard des group terminal ist und keine weitere Finalisierungsrunde laufen kann — für diese Daten findet kein Trace-Sampling mehr statt, das Gespeicherte ist endgültig. Sonst 0. Über die Zeit dargestellt, damit der Übergang sichtbar ist."
+          },
+          {
+            "id": "sampling_telemetry_safety",
+            "title": "Host-Schutz der Plugin-Telemetrie",
+            "tip": "Der Host begrenzt, was ein Plugin veröffentlichen darf (100 Label-Wert-Reihen je Instrument), und drosselt seine Logs. Ungleich null bedeutet, dass die EIGENE Telemetrie des Plugins beschnitten wird — die Entscheidungsmetriken oben sind dann unvollständig, das Sampling selbst ist unberührt.",
+            "expressionLabels": [
+              "Reihen abgelehnt",
+              "Logs verworfen",
+              "Telemetrie-panic"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

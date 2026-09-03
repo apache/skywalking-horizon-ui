@@ -18,7 +18,7 @@ limitations under the License.
 
 The **BANYANDB** layer is the self-observability dashboard for [Apache SkyWalking BanyanDB](https://skywalking.apache.org/docs/skywalking-banyandb/next/readme/), the native storage that backs an OAP cluster. It surfaces the health of the storage tier itself — write and query throughput, the liaison front door, the data nodes that hold the shards, the lifecycle sidecar that migrates data between tiers, and the per-group load across the measure / stream / trace / property data models.
 
-In Horizon's sidebar this layer sits under the **Self-Observability** group and is named **BanyanDB**. It maps BanyanDB's own topology onto the standard entity slots: a BanyanDB cluster is a **Cluster** (the service slot), each running container — a `liaison`, `data`, or `lifecycle` process — is a **Container** (the instance slot, badged with its `container_name`), and each storage group is a **Group** (the endpoint slot). The layer enables the Cluster, Container, and Group dashboards plus a layer-specific **Deployment** tab; it ships no service topology, no API-dependency view, and no traces or logs tabs.
+In Horizon's sidebar this layer sits under the **Self-Observability** group and is named **BanyanDB**. It maps BanyanDB's own topology onto the standard entity slots: a BanyanDB cluster is a **Cluster** (the service slot), each running container — a `liaison`, `data`, or `lifecycle` process — is a **Container** (the instance slot, badged with its `container_name`), and each storage group is a **Group** (the endpoint slot). The layer enables the Cluster, Container, and Group dashboards, an extension page under Cluster for **Trace Sampling**, and a layer-specific **Deployment** tab; it ships no service topology, no API-dependency view, and no traces or logs tabs.
 
 This page is the **operator reference** for the bundled BANYANDB dashboard: what you see on each scope and what each widget means.
 
@@ -224,6 +224,82 @@ For one selected group — a BanyanDB storage group, mapped to the endpoint slot
 
 - **Part-sync Bytes / s** — part-sync (file-sync) bytes per second for this group in KB/s (`meter_banyandb_endpoint_publish_bytes`). Only the chunked part-streaming path increments this; regular write / query publishes are not counted.
 
+## Trace Sampling
+
+An **extension page under Cluster**, reached from its own sidebar row directly below the Cluster row (route `/layer/BANYANDB/service/trace-sampling`). It covers BanyanDB **trace tail sampling**: from 0.11 a data node can run an ordered chain of sampler plugins during trace merge and finalization, dropping whole traces after their fragments have already landed. See [Trace Tail Sampling](https://skywalking.apache.org/docs/main/next/en/banyandb/tail-sampling/) for how a trace is judged and how the chain is configured in OAP's `bydb.yml`.
+
+The plugin chain is **optional**, and this page is honest about that. Only the **Active Samplers** table is always shown; every other panel is gated on one shared probe, so on a cluster with no sampler configured the page collapses to that single table reading `no data` — rather than two dozen empty charts — and OAP runs one gate query instead of the whole page's MQE.
+
+**Everything is per storage group.** Every sampling metric is keyed on the group, so each panel charts one series per group and none of them sum across groups. There are deliberately **no headline cards**: a card collapses its series with an unweighted mean of the per-step values, which reads correctly for a rate but distorts a ratio, and summarising a metric a panel already plots earns nothing. Trace Outcomes leads instead, at full width. That is also why this page lives under Cluster rather than under Group — one page covers every group at once.
+
+The recurring distinction to hold on to while reading it: the **sampler plugins propose** drops, and **storage commits** them. A trace can be evaluated across several merge or finalization rounds, and BanyanDB's safety guards can retain a trace a plugin voted to drop — so the two never have to match, and the gap between them is what most of these panels exist to explain.
+
+A panel showing nothing is usually good news rather than a fault. The families behind the failure and edge-case metrics are registered on first use, so a counter that never fired is never exposed; on a healthy cluster that leaves the load-failure, chain-error, link-bypass, drop-set-ceiling, finalization and telemetry-safety panels empty.
+
+### Outcomes
+
+- **Trace Outcomes** — Retained + dropped account for the evaluated traces. Immature traces were never eligible — their fragments are still inside the maturity boundary, so they are not a sampling failure. (`meter_banyandb_trace_sampling_traces_dropped` / `_traces_evaluated` / `_traces_immature` / `_traces_retained`)
+
+- **Active Samplers** — Sampler plugins registered per storage group. A group absent from this list has no pipeline — its traces are never evaluated, so nothing is dropped for it. (`meter_banyandb_trace_sampling_active_samplers`) A table, one row per group.
+
+- **Drop Ratio by Group** — Committed drop ratio per storage group, per step — dropped over evaluated traces after BanyanDB's safety guards. Deliberately per group rather than one cluster headline: a cluster-wide card would be an unweighted mean of the per-step ratios, so a quiet minute would count as much as a busy one. A group below the others is usually explained by the safety events further down rather than by its rules. (`meter_banyandb_trace_sampling_drop_ratio`)
+
+- **Plugin Load Failures** — Plugin load failures per minute, by group, failing plugin and reason. Reconciliation fails open, so any value here means the chain is running WITHOUT a plugin the config asked for — sampling is not doing what it says. The plugin name and reason are only shown here. (`meter_banyandb_trace_sampling_plugin_load_failures`)
+
+### Plugin execution
+
+- **Decide Rate by Result** — Decide() calls per second, per plugin and result. Alert on any panic, length_mismatch or late — they mean broken plugin behaviour or a call that outlived the merge timeout. decide_error may be transient. (`meter_banyandb_trace_sampling_plugin_execution_rate`)
+
+- **Decide Latency** — Successful Decide() wall time per plugin — p99 takes the worst group, mean averages them. Derive a per-plugin SLO from a healthy baseline; an intentionally expensive plugin is not a fault. (`meter_banyandb_trace_sampling_plugin_decide_latency` / `_plugin_decide_latency_p99`)
+
+- **Plugin Time per Trace** — Whole-chain plugin wall time per evaluated trace, per group — the sampling overhead paid on merge, over time. The upstream Grafana board splits this per plugin with PromQL's `group_left`; MAL has no equivalent, so the metric is the chain total and the per-plugin split lives in Decide Latency. Keep it comfortably below the data node's --trace-pipeline-decide-timeout (default 5s). (`meter_banyandb_trace_sampling_plugin_time_per_trace`)
+
+- **Chain Batches** — Chain batches per second by result. circuit_open means sampling is currently BYPASSED for that group; timeout is chain-level because the host can abandon the chain before a link returns. The traces each batch carried is the Batch Size p99 panel. (`meter_banyandb_trace_sampling_chain_batch_rate`)
+
+- **Batch Size p99** — p99 traces presented to the plugin chain per successful batch, per group. Read with Chain Batches: rate tells you how often the chain runs, this tells you how much it sees each time. (`meter_banyandb_trace_sampling_batch_size_p99`)
+
+### Sampler decisions
+
+Published by the first-party `sw-trace-sampler` / `zipkin-trace-sampler` plugins — these are **proposed** drops, so read them against Trace Outcomes.
+
+- **Sampler Decisions by Rule** — What the first-party samplers PROPOSED, attributed to the first matching rule — not what storage committed. A trace can be evaluated over several merge or finalization rounds, and the guards can retain a trace the plugin voted to drop, so read drop verdicts against Trace Outcomes. (`meter_banyandb_trace_sampling_sampler_decisions`)
+
+- **Sampler Rows** — Span / segment rows carried by evaluated traces, against the rows the samplers proposed dropping, broken out by the rule responsible. Same unit, so the two are directly comparable; the resulting share is the Dropped Row Ratio panel. (`meter_banyandb_trace_sampling_sampler_rows` / `_sampler_rows_dropped`)
+
+- **Dropped Row Ratio** — Share of rows the samplers proposed dropping, per group. Proposed, not committed — the safety guards can retain a trace a plugin voted to drop. Treat it as incomplete whenever Row Count Unavailable is non-zero, since those traces are missing from the denominator. (`meter_banyandb_trace_sampling_sampler_dropped_row_ratio`)
+
+- **Row Count Unavailable** — Trace evaluations whose metadata-only projection exposed no row count, per group. These traces are omitted from the row totals, so any non-zero value here means the Dropped Row Ratio is computed over an incomplete denominator. (`meter_banyandb_trace_sampling_sampler_row_count_unavailable`)
+
+### Safety and fail-open
+
+Every panel in this block explains a drop ratio that came in *under* target — each one retains data a sampler proposed dropping.
+
+- **Safety Events** — Every series here RETAINS data a sampler proposed dropping. A drop ratio under target is explained here before it is explained by plugin logic. (`meter_banyandb_trace_sampling_ambiguous` / `_guard_budget_exhausted` / `_guard_bypassed` / `_guard_deferred` / `_guard_lossless_retry` / `_guard_publication_rejected` / `_oversized_traces_bypassed`)
+
+- **Chain Errors by Reason** — Chain-level errors that forced fail-open retention of the whole batch. (`meter_banyandb_trace_sampling_plugin_errors`)
+
+- **Link Bypasses** — Individual links bypassed after decide_error, length_mismatch or panic. A chain batch can report success while one link was bypassed and its input retained — which is why this is separate from chain errors. (`meter_banyandb_trace_sampling_link_bypasses`)
+
+- **Guard & Index Work** — Bloom-filter probes are the fragment guard checking for trace fragments outside the parts being merged; pruned entries are the secondary-index work a confirmed drop causes. (`meter_banyandb_trace_sampling_guard_bloom_probes` / `_sidx_pruned`)
+
+### Drop-set capacity
+
+- **Drop-set Cap Impact** — The per-merge dropped-trace-ID set is memory-bounded. When it hits the ceiling the merge retains the rest — this is what makes a drop ratio plateau under load rather than tracking the rules. (`meter_banyandb_trace_sampling_capped_merges` / `_traces_retained_by_ceiling`)
+
+- **Drop-set Size p99** — p99 dropped trace IDs held per merge lane. Read it against the Drop-set Budget panel: when the set outgrows the budget the merge stops accepting drops and retains the rest, which is what shows up as Drop-set Cap Impact. (`meter_banyandb_trace_sampling_drop_set_entries_p99`)
+
+- **Drop-set Budget** — Resolved per-merge memory budget for confirmed dropped trace IDs, per group — the ceiling the drop-set size runs into. Resolved per group, so groups can carry different budgets; a group with a smaller one reaches its ceiling first. Flat unless the data node is retuned. (`meter_banyandb_trace_sampling_drop_set_budget_bytes`)
+
+### Lifecycle and host limits
+
+- **Registrations & Updates** — Pipeline registration, update and removal rate. A rejected result means OAP pushed a pipeline config the data node would not accept. (`meter_banyandb_trace_sampling_register_rate` / `_remove_rate` / `_update_rate`)
+
+- **Finalization Rounds** — Highest finalization round count observed across each group's cooled shards. Whether a shard has run out of rounds is the Finalization Terminal panel. (`meter_banyandb_trace_sampling_finalize_rounds`)
+
+- **Finalization Terminal** — 1 when any cooled shard in the group is terminal and cannot run another finalization round — no more tail sampling will happen for that data, so whatever is stored is final. 0 otherwise. Charted over time so the transition is visible. (`meter_banyandb_trace_sampling_finalize_terminal`)
+
+- **Plugin Telemetry Host Safety** — The host caps what a plugin may publish (100 label-value series per instrument) and rate-limits its logs. Non-zero means a plugin's OWN telemetry is truncated — the sampler decision metrics above are then incomplete, though sampling itself is unaffected. (`meter_banyandb_trace_sampling_plugin_log_dropped` / `_plugin_telemetry_panic` / `_plugin_telemetry_series_rejected`)
+
 ## Deployment
 
 The BANYANDB layer enables the layer-specific **Deployment** tab — the deployment topology of one cluster's own containers and the intra-cluster calls between them. Pick a cluster from the header and the tab draws its containers as health-ring nodes laid out left → right along the calls between them, with animated edge flow, a per-edge metric panel, and a node popover that opens the container dashboard. For how the Deployment tab is read and navigated in general, see the [Deployment](../customization/layer-templates.md#deployment) section of Layer Dashboard Templates.
@@ -257,5 +333,7 @@ The BANYANDB dashboard is a pure consumer of what OAP reports about its BanyanDB
 - **Group metrics** — the per-data-model `meter_banyandb_endpoint_*` families (measure / stream / trace / property, plus the shared queue counters) for the Group dashboard.
 
 - **Relation metrics** — `meter_banyandb_instance_relation_*` (publish / subscribe / migration throughput, latency, bytes, and error counters) for the Deployment tab's edges.
+
+- **Trace sampling metrics** — `meter_banyandb_trace_sampling_*` for the Trace Sampling page. These exist only while a sampler plugin chain is configured on the cluster, so the page is gated on them and stays collapsed to its Active Samplers card until one is enabled.
 
 Each metric is queried at its own OAP scope; OAP does not roll a metric up across scopes, so a container- or group-scope metric is empty until that level of data is reported, and an entire data model's group widgets stay hidden until that model's group reports.
