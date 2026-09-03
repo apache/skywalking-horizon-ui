@@ -490,21 +490,21 @@
           {
             "id": "sampling_active_kpi",
             "title": "Échantillonneurs actifs",
-            "tip": "Plugins d'échantillonnage enregistrés par group de stockage. Un group absent de cette liste n'a pas de pipeline — ses traces ne sont jamais évaluées, donc rien n'est rejeté.",
+            "tip": "Plugins d'échantillonnage enregistrés par groupe de stockage. Un groupe absent de cette liste n'a pas de pipeline — ses traces ne sont jamais évaluées, donc rien n'est rejeté.",
             "tableHeaders": [
-              "Group",
+              "Groupe",
               "Échantillonneurs"
             ]
           },
           {
             "id": "sampling_drop_ratio_by_group",
-            "title": "Taux de rejet par group",
-            "tip": "Taux de rejet confirmé par group de stockage, par pas — rejetées sur évaluées après les garde-fous de BanyanDB. Délibérément par group plutôt qu'un unique indicateur de cluster : une carte de cluster serait la moyenne non pondérée des taux par pas, une minute calme compterait donc autant qu'une minute chargée. Un group en dessous des autres s'explique généralement par les événements de sécurité ci-dessous, pas par ses règles."
+            "title": "Taux de rejet par groupe",
+            "tip": "Taux de rejet confirmé par groupe de stockage, par pas — rejetées sur évaluées après les garde-fous de BanyanDB. Délibérément par groupe plutôt qu'un unique indicateur de cluster : une carte de cluster serait la moyenne non pondérée des taux par pas, une minute calme compterait donc autant qu'une minute chargée. Un groupe en dessous des autres s'explique généralement par les événements de sécurité ci-dessous, pas par ses règles."
           },
           {
             "id": "sampling_load_failures",
             "title": "Échecs de chargement de plugins",
-            "tip": "Échecs de chargement de plugins par minute, par group, plugin en échec et motif. La réconciliation échoue en mode ouvert : toute valeur ici signifie que la chaîne tourne SANS un plugin demandé par la configuration — l'échantillonnage ne fait pas ce qu'il annonce. Le nom du plugin et le motif n'apparaissent que dans ce panneau."
+            "tip": "Échecs de chargement de plugins par minute, par groupe, plugin en échec et motif. La réconciliation échoue en mode ouvert : toute valeur ici signifie que la chaîne tourne SANS un plugin demandé par la configuration — l'échantillonnage ne fait pas ce qu'il annonce. Le nom du plugin et le motif n'apparaissent que dans ce panneau."
           },
           {
             "id": "sampling_execution_rate",
@@ -514,7 +514,7 @@
           {
             "id": "sampling_decide_latency",
             "title": "Latence de Decide",
-            "tip": "Temps réel des appels Decide() réussis par plugin — le p99 prend le pire group, la moyenne les agrège. Dérivez un SLO par plugin d'une base de référence saine ; un plugin volontairement coûteux n'est pas une panne.",
+            "tip": "Temps réel des appels Decide() réussis par plugin — le p99 prend le pire groupe, la moyenne les agrège. Dérivez un SLO par plugin d'une base de référence saine ; un plugin volontairement coûteux n'est pas une panne.",
             "expressionLabels": [
               "p99",
               "moyenne"
@@ -523,17 +523,17 @@
           {
             "id": "sampling_time_per_trace",
             "title": "Temps de plugin / trace",
-            "tip": "Temps réel de toute la chaîne de plugins par trace évaluée, par group — le coût de l'échantillonnage payé lors de la fusion, dans le temps. Le tableau Grafana en amont le ventile par plugin avec le `group_left` de PromQL ; MAL n'a pas d'équivalent, donc la métrique est le total de la chaîne et la ventilation par plugin se trouve dans Latence de Decide. Gardez-le nettement sous le --trace-pipeline-decide-timeout du nœud data (5 s par défaut)."
+            "tip": "Temps réel de toute la chaîne de plugins par trace évaluée, par groupe — le coût de l'échantillonnage payé lors de la fusion, dans le temps. Le tableau Grafana en amont le ventile par plugin avec le `group_left` de PromQL ; MAL n'a pas d'équivalent, donc la métrique est le total de la chaîne et la ventilation par plugin se trouve dans Latence de Decide. Gardez-le nettement sous le --trace-pipeline-decide-timeout du nœud data (5 s par défaut)."
           },
           {
             "id": "sampling_chain_batches",
             "title": "Lots de la chaîne",
-            "tip": "Lots de la chaîne par seconde, par résultat. circuit_open signifie que l'échantillonnage est actuellement CONTOURNÉ pour ce group ; timeout est au niveau de la chaîne car l'hôte peut l'abandonner avant qu'un maillon réponde. Les traces portées par chaque lot sont dans le panneau Taille de lot p99."
+            "tip": "Lots de la chaîne par seconde, par résultat. circuit_open signifie que l'échantillonnage est actuellement CONTOURNÉ pour ce groupe ; timeout est au niveau de la chaîne car l'hôte peut l'abandonner avant qu'un maillon réponde. Les traces portées par chaque lot sont dans le panneau Taille de lot p99."
           },
           {
             "id": "sampling_batch_size_p99",
             "title": "Taille de lot p99",
-            "tip": "p99 des traces présentées à la chaîne de plugins par lot réussi, par group. À lire avec Lots de la chaîne : le débit dit à quelle fréquence la chaîne s'exécute, ceci dit combien elle voit à chaque fois."
+            "tip": "p99 des traces présentées à la chaîne de plugins par lot réussi, par groupe. À lire avec Lots de la chaîne : le débit dit à quelle fréquence la chaîne s'exécute, ceci dit combien elle voit à chaque fois."
           },
           {
             "id": "sampling_sampler_rows",
@@ -552,12 +552,12 @@
           {
             "id": "sampling_sampler_dropped_ratio",
             "title": "Taux de lignes rejetées",
-            "tip": "Part des lignes que les échantillonneurs ont proposé de rejeter, par group. Proposé, non confirmé — les garde-fous peuvent conserver une trace qu'un plugin a votée rejetée. Traitez-le comme incomplet dès que Compte de lignes indisponible est non nul, car ces traces manquent au dénominateur."
+            "tip": "Part des lignes que les échantillonneurs ont proposé de rejeter, par groupe. Proposé, non confirmé — les garde-fous peuvent conserver une trace qu'un plugin a votée rejetée. Traitez-le comme incomplet dès que Compte de lignes indisponible est non nul, car ces traces manquent au dénominateur."
           },
           {
             "id": "sampling_row_count_unavailable",
             "title": "Compte de lignes indisponible",
-            "tip": "Évaluations de traces dont la projection de métadonnées seules n'exposait aucun compte de lignes, par group. Ces traces sont exclues des totaux, donc toute valeur non nulle signifie que le Taux de lignes rejetées porte sur un dénominateur incomplet."
+            "tip": "Évaluations de traces dont la projection de métadonnées seules n'exposait aucun compte de lignes, par groupe. Ces traces sont exclues des totaux, donc toute valeur non nulle signifie que le Taux de lignes rejetées porte sur un dénominateur incomplet."
           },
           {
             "id": "sampling_guard_work",
@@ -615,17 +615,17 @@
           {
             "id": "sampling_drop_set_budget",
             "title": "Budget de l'ensemble de rejet",
-            "tip": "Budget mémoire par fusion pour les identifiants de traces rejetées confirmées, par group — le plafond que rencontre la taille de l'ensemble. Résolu par group, donc les group peuvent porter des budgets différents ; celui qui en a un plus petit atteint son plafond en premier. Plat sauf réglage du nœud data."
+            "tip": "Budget mémoire par fusion pour les identifiants de traces rejetées confirmées, par groupe — le plafond que rencontre la taille de l'ensemble. Résolu par groupe, donc les groupes peuvent porter des budgets différents ; celui qui en a un plus petit atteint son plafond en premier. Plat sauf réglage du nœud data."
           },
           {
             "id": "sampling_finalize_rounds",
             "title": "Cycles de finalisation",
-            "tip": "Plus grand nombre de cycles de finalisation observé sur les shards refroidis de chaque group. Si un shard n'a plus de cycles, voir le panneau Finalisation terminale."
+            "tip": "Plus grand nombre de cycles de finalisation observé sur les shards refroidis de chaque groupe. Si un shard n'a plus de cycles, voir le panneau Finalisation terminale."
           },
           {
             "id": "sampling_finalize_terminal",
             "title": "Finalisation terminale",
-            "tip": "1 quand un shard refroidi du group est terminal et ne peut plus exécuter de cycle de finalisation — plus aucun échantillonnage de traces n'aura lieu pour ces données, donc ce qui est stocké est définitif. 0 sinon. Tracé dans le temps pour que la transition soit visible."
+            "tip": "1 quand un shard refroidi du groupe est terminal et ne peut plus exécuter de cycle de finalisation — plus aucun échantillonnage de traces n'aura lieu pour ces données, donc ce qui est stocké est définitif. 0 sinon. Tracé dans le temps pour que la transition soit visible."
           },
           {
             "id": "sampling_telemetry_safety",

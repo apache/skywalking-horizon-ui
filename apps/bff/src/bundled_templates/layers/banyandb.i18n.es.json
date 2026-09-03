@@ -490,21 +490,21 @@
           {
             "id": "sampling_active_kpi",
             "title": "Muestreadores activos",
-            "tip": "Plugins de muestreo registrados por group de almacenamiento. Un group ausente de esta lista no tiene pipeline: sus trazas nunca se evalúan, así que no se descarta nada.",
+            "tip": "Plugins de muestreo registrados por grupo de almacenamiento. Un grupo ausente de esta lista no tiene pipeline: sus trazas nunca se evalúan, así que no se descarta nada.",
             "tableHeaders": [
-              "Group",
+              "Grupo",
               "Muestreadores"
             ]
           },
           {
             "id": "sampling_drop_ratio_by_group",
-            "title": "Proporción de descarte por group",
-            "tip": "Proporción de descarte confirmada por group de almacenamiento, por paso: descartadas sobre evaluadas tras las salvaguardas de BanyanDB. Deliberadamente por group en lugar de un único indicador de clúster: una tarjeta de clúster sería la media sin ponderar de las proporciones por paso, así que un minuto tranquilo pesaría igual que uno ocupado. Un group por debajo de los demás suele explicarse por los eventos de seguridad de abajo, no por sus reglas."
+            "title": "Proporción de descarte por grupo",
+            "tip": "Proporción de descarte confirmada por grupo de almacenamiento, por paso: descartadas sobre evaluadas tras las salvaguardas de BanyanDB. Deliberadamente por grupo en lugar de un único indicador de clúster: una tarjeta de clúster sería la media sin ponderar de las proporciones por paso, así que un minuto tranquilo pesaría igual que uno ocupado. Un grupo por debajo de los demás suele explicarse por los eventos de seguridad de abajo, no por sus reglas."
           },
           {
             "id": "sampling_load_failures",
             "title": "Fallos de carga de plugins",
-            "tip": "Fallos de carga de plugins por minuto, por group, plugin fallido y motivo. La reconciliación falla en abierto, así que cualquier valor aquí significa que la cadena funciona SIN un plugin que la configuración pedía: el muestreo no hace lo que dice. El nombre del plugin y el motivo solo aparecen en este panel."
+            "tip": "Fallos de carga de plugins por minuto, por grupo, plugin fallido y motivo. La reconciliación falla en abierto, así que cualquier valor aquí significa que la cadena funciona SIN un plugin que la configuración pedía: el muestreo no hace lo que dice. El nombre del plugin y el motivo solo aparecen en este panel."
           },
           {
             "id": "sampling_execution_rate",
@@ -514,7 +514,7 @@
           {
             "id": "sampling_decide_latency",
             "title": "Latencia de Decide",
-            "tip": "Tiempo real de las llamadas a Decide() correctas por plugin: el p99 toma el peor group, la media los promedia. Deriva un SLO por plugin de una línea base sana; un plugin intencionadamente costoso no es un fallo.",
+            "tip": "Tiempo real de las llamadas a Decide() correctas por plugin: el p99 toma el peor grupo, la media los promedia. Deriva un SLO por plugin de una línea base sana; un plugin intencionadamente costoso no es un fallo.",
             "expressionLabels": [
               "p99",
               "media"
@@ -523,17 +523,17 @@
           {
             "id": "sampling_time_per_trace",
             "title": "Tiempo de plugin / traza",
-            "tip": "Tiempo real de toda la cadena de plugins por traza evaluada, por group — el coste del muestreo pagado en la fusión, a lo largo del tiempo. El panel de Grafana upstream lo divide por plugin con el `group_left` de PromQL; MAL no tiene equivalente, así que la métrica es el total de la cadena y el desglose por plugin está en Latencia de Decide. Manténlo holgadamente por debajo del --trace-pipeline-decide-timeout del nodo data (5 s por omisión)."
+            "tip": "Tiempo real de toda la cadena de plugins por traza evaluada, por grupo — el coste del muestreo pagado en la fusión, a lo largo del tiempo. El panel de Grafana upstream lo divide por plugin con el `group_left` de PromQL; MAL no tiene equivalente, así que la métrica es el total de la cadena y el desglose por plugin está en Latencia de Decide. Manténlo holgadamente por debajo del --trace-pipeline-decide-timeout del nodo data (5 s por omisión)."
           },
           {
             "id": "sampling_chain_batches",
             "title": "Lotes de la cadena",
-            "tip": "Lotes de la cadena por segundo, por resultado. circuit_open significa que el muestreo está OMITIDO ahora mismo para ese group; timeout es de nivel de cadena porque el host puede abandonarla antes de que un eslabón responda. Las trazas que llevó cada lote están en el panel Tamaño de lote p99."
+            "tip": "Lotes de la cadena por segundo, por resultado. circuit_open significa que el muestreo está OMITIDO ahora mismo para ese grupo; timeout es de nivel de cadena porque el host puede abandonarla antes de que un eslabón responda. Las trazas que llevó cada lote están en el panel Tamaño de lote p99."
           },
           {
             "id": "sampling_batch_size_p99",
             "title": "Tamaño de lote p99",
-            "tip": "p99 de trazas presentadas a la cadena de plugins por lote correcto, por group. Léelo con Lotes de la cadena: la tasa dice con qué frecuencia se ejecuta la cadena, esto dice cuánto ve cada vez."
+            "tip": "p99 de trazas presentadas a la cadena de plugins por lote correcto, por grupo. Léelo con Lotes de la cadena: la tasa dice con qué frecuencia se ejecuta la cadena, esto dice cuánto ve cada vez."
           },
           {
             "id": "sampling_sampler_rows",
@@ -552,12 +552,12 @@
           {
             "id": "sampling_sampler_dropped_ratio",
             "title": "Proporción de filas descartadas",
-            "tip": "Proporción de filas que los muestreadores propusieron descartar, por group. Propuesta, no confirmada: las salvaguardas pueden retener una traza que un plugin votó descartar. Trátala como incompleta cuando Recuento de filas no disponible sea distinto de cero, ya que esas trazas faltan en el denominador."
+            "tip": "Proporción de filas que los muestreadores propusieron descartar, por grupo. Propuesta, no confirmada: las salvaguardas pueden retener una traza que un plugin votó descartar. Trátala como incompleta cuando Recuento de filas no disponible sea distinto de cero, ya que esas trazas faltan en el denominador."
           },
           {
             "id": "sampling_row_count_unavailable",
             "title": "Recuento de filas no disponible",
-            "tip": "Evaluaciones de trazas cuya proyección de solo metadatos no expuso recuento de filas, por group. Esas trazas se omiten de los totales, así que cualquier valor distinto de cero significa que la Proporción de filas descartadas se calcula sobre un denominador incompleto."
+            "tip": "Evaluaciones de trazas cuya proyección de solo metadatos no expuso recuento de filas, por grupo. Esas trazas se omiten de los totales, así que cualquier valor distinto de cero significa que la Proporción de filas descartadas se calcula sobre un denominador incompleto."
           },
           {
             "id": "sampling_guard_work",
@@ -615,17 +615,17 @@
           {
             "id": "sampling_drop_set_budget",
             "title": "Presupuesto del conjunto de rechazo",
-            "tip": "Presupuesto de memoria por fusión para los identificadores de trazas descartadas confirmadas, por group: el techo con el que choca el tamaño del conjunto. Se resuelve por group, así que los group pueden llevar presupuestos distintos; el que tenga uno menor alcanza su techo antes. Plano salvo que se reajuste el nodo data."
+            "tip": "Presupuesto de memoria por fusión para los identificadores de trazas descartadas confirmadas, por grupo: el techo con el que choca el tamaño del conjunto. Se resuelve por grupo, así que los grupos pueden llevar presupuestos distintos; el que tenga uno menor alcanza su techo antes. Plano salvo que se reajuste el nodo data."
           },
           {
             "id": "sampling_finalize_rounds",
             "title": "Rondas de finalización",
-            "tip": "Mayor número de rondas de finalización observado en los shards enfriados de cada group. Si un shard se ha quedado sin rondas está en el panel Finalización terminal."
+            "tip": "Mayor número de rondas de finalización observado en los shards enfriados de cada grupo. Si un shard se ha quedado sin rondas está en el panel Finalización terminal."
           },
           {
             "id": "sampling_finalize_terminal",
             "title": "Finalización terminal",
-            "tip": "1 cuando algún shard enfriado del group es terminal y no puede ejecutar otra ronda de finalización: no habrá más muestreo de trazas para esos datos, así que lo almacenado es definitivo. 0 en caso contrario. Se grafica en el tiempo para que la transición sea visible."
+            "tip": "1 cuando algún shard enfriado del grupo es terminal y no puede ejecutar otra ronda de finalización: no habrá más muestreo de trazas para esos datos, así que lo almacenado es definitivo. 0 en caso contrario. Se grafica en el tiempo para que la transición sea visible."
           },
           {
             "id": "sampling_telemetry_safety",

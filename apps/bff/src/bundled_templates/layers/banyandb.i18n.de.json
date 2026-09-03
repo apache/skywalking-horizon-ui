@@ -490,21 +490,21 @@
           {
             "id": "sampling_active_kpi",
             "title": "Aktive Sampler",
-            "tip": "Je Speicher-group registrierte Sampler-Plugins. Ein group, das hier fehlt, hat keine Pipeline — seine Traces werden nie ausgewertet, es wird also nichts verworfen.",
+            "tip": "Je Speichergruppe registrierte Sampler-Plugins. Eine Gruppe, die hier fehlt, hat keine Pipeline — seine Traces werden nie ausgewertet, es wird also nichts verworfen.",
             "tableHeaders": [
-              "Group",
+              "Gruppe",
               "Sampler"
             ]
           },
           {
             "id": "sampling_drop_ratio_by_group",
-            "title": "Verwerfungsquote je group",
-            "tip": "Bestätigte Verwerfungsquote je Speicher-group, je Schritt — verworfene durch ausgewertete Traces nach BanyanDBs Sicherheitsprüfungen. Absichtlich je group statt als eine Cluster-Kennzahl: eine Cluster-Karte wäre das ungewichtete Mittel der Quoten je Schritt, eine ruhige Minute würde also so viel zählen wie eine geschäftige. Liegt ein group unter den anderen, erklären das meist die Sicherheitsereignisse unten und nicht seine Regeln."
+            "title": "Verwerfungsquote nach Gruppe",
+            "tip": "Bestätigte Verwerfungsquote je Speichergruppe, je Schritt — verworfene durch ausgewertete Traces nach BanyanDBs Sicherheitsprüfungen. Absichtlich je Gruppe statt als eine Cluster-Kennzahl: eine Cluster-Karte wäre das ungewichtete Mittel der Quoten je Schritt, eine ruhige Minute würde also so viel zählen wie eine geschäftige. Liegt eine Gruppe unter den anderen, erklären das meist die Sicherheitsereignisse unten und nicht seine Regeln."
           },
           {
             "id": "sampling_load_failures",
             "title": "Plugin-Ladefehler",
-            "tip": "Plugin-Ladefehler pro Minute, je group, fehlgeschlagenem Plugin und Ursache. Der Abgleich schlägt offen fehl, jeder Wert hier bedeutet also, dass die Kette OHNE ein von der Konfiguration verlangtes Plugin läuft — das Sampling tut nicht, was es sagt. Plugin-Name und Ursache erscheinen nur in diesem Panel."
+            "tip": "Plugin-Ladefehler pro Minute, je Gruppe, fehlgeschlagenem Plugin und Ursache. Der Abgleich schlägt offen fehl, jeder Wert hier bedeutet also, dass die Kette OHNE ein von der Konfiguration verlangtes Plugin läuft — das Sampling tut nicht, was es sagt. Plugin-Name und Ursache erscheinen nur in diesem Panel."
           },
           {
             "id": "sampling_execution_rate",
@@ -514,7 +514,7 @@
           {
             "id": "sampling_decide_latency",
             "title": "Decide-Latenz",
-            "tip": "Laufzeit erfolgreicher Decide()-Aufrufe je Plugin — p99 nimmt das schlechteste group, der Mittelwert mittelt sie. Leite je Plugin ein SLO aus einer gesunden Baseline ab; ein absichtlich teures Plugin ist kein Fehler.",
+            "tip": "Laufzeit erfolgreicher Decide()-Aufrufe je Plugin — p99 nimmt die schlechteste Gruppe, der Mittelwert mittelt sie. Leite je Plugin ein SLO aus einer gesunden Baseline ab; ein absichtlich teures Plugin ist kein Fehler.",
             "expressionLabels": [
               "p99",
               "Mittelwert"
@@ -523,17 +523,17 @@
           {
             "id": "sampling_time_per_trace",
             "title": "Plugin-Zeit / Trace",
-            "tip": "Laufzeit der gesamten Plugin-Kette je ausgewertetem Trace, je group — der beim Merge gezahlte Sampling-Aufwand im Zeitverlauf. Das Grafana-Board stromaufwärts teilt dies mit PromQLs `group_left` je Plugin auf; MAL hat kein Äquivalent, daher ist die Metrik die Kettensumme und die Aufteilung je Plugin steht unter Decide-Latenz. Halte sie deutlich unter dem --trace-pipeline-decide-timeout des data-Knotens (Standard 5 s)."
+            "tip": "Laufzeit der gesamten Plugin-Kette je ausgewertetem Trace, je Gruppe — der beim Merge gezahlte Sampling-Aufwand im Zeitverlauf. Das Grafana-Board stromaufwärts teilt dies mit PromQLs `group_left` je Plugin auf; MAL hat kein Äquivalent, daher ist die Metrik die Kettensumme und die Aufteilung je Plugin steht unter Decide-Latenz. Halte sie deutlich unter dem --trace-pipeline-decide-timeout des data-Knotens (Standard 5 s)."
           },
           {
             "id": "sampling_chain_batches",
             "title": "Ketten-Batches",
-            "tip": "Ketten-Batches pro Sekunde, nach Ergebnis. circuit_open bedeutet, dass das Sampling für dieses group derzeit ÜBERSPRUNGEN wird; timeout ist auf Kettenebene, weil der Host die Kette abbrechen kann, bevor ein Glied antwortet. Wie viele Traces jeder Batch trug, steht im Panel Batch-Größe p99."
+            "tip": "Ketten-Batches pro Sekunde, nach Ergebnis. circuit_open bedeutet, dass das Sampling für diese Gruppe derzeit ÜBERSPRUNGEN wird; timeout ist auf Kettenebene, weil der Host die Kette abbrechen kann, bevor ein Glied antwortet. Wie viele Traces jeder Batch trug, steht im Panel Batch-Größe p99."
           },
           {
             "id": "sampling_batch_size_p99",
             "title": "Batch-Größe p99",
-            "tip": "p99 der Traces, die der Plugin-Kette je erfolgreichem Batch vorgelegt wurden, je group. Lies es mit Ketten-Batches: Die Rate sagt, wie oft die Kette läuft, dies sagt, wie viel sie jedes Mal sieht."
+            "tip": "p99 der Traces, die der Plugin-Kette je erfolgreichem Batch vorgelegt wurden, je Gruppe. Lies es mit Ketten-Batches: Die Rate sagt, wie oft die Kette läuft, dies sagt, wie viel sie jedes Mal sieht."
           },
           {
             "id": "sampling_sampler_rows",
@@ -552,12 +552,12 @@
           {
             "id": "sampling_sampler_dropped_ratio",
             "title": "Verworfene-Zeilen-Quote",
-            "tip": "Anteil der Zeilen, die die Sampler zum Verwerfen vorgeschlagen haben, je group. Vorgeschlagen, nicht bestätigt — die Sicherheitsprüfungen können einen Trace behalten, für den ein Plugin auf Verwerfen entschied. Behandle sie als unvollständig, wenn „Zeilenzahl nicht verfügbar\" ungleich null ist, da diese Traces im Nenner fehlen."
+            "tip": "Anteil der Zeilen, die die Sampler zum Verwerfen vorgeschlagen haben, je Gruppe. Vorgeschlagen, nicht bestätigt — die Sicherheitsprüfungen können einen Trace behalten, für den ein Plugin auf Verwerfen entschied. Behandle sie als unvollständig, wenn „Zeilenzahl nicht verfügbar\" ungleich null ist, da diese Traces im Nenner fehlen."
           },
           {
             "id": "sampling_row_count_unavailable",
             "title": "Zeilenzahl nicht verfügbar",
-            "tip": "Trace-Auswertungen, deren Nur-Metadaten-Projektion keine Zeilenzahl offenlegte, je group. Diese Traces fehlen in den Zeilensummen, jeder Wert ungleich null bedeutet also, dass die Verworfene-Zeilen-Quote über einen unvollständigen Nenner gebildet wird."
+            "tip": "Trace-Auswertungen, deren Nur-Metadaten-Projektion keine Zeilenzahl offenlegte, je Gruppe. Diese Traces fehlen in den Zeilensummen, jeder Wert ungleich null bedeutet also, dass die Verworfene-Zeilen-Quote über einen unvollständigen Nenner gebildet wird."
           },
           {
             "id": "sampling_guard_work",
@@ -615,17 +615,17 @@
           {
             "id": "sampling_drop_set_budget",
             "title": "Drop-Set-Budget",
-            "tip": "Speicherbudget je Merge für bestätigt verworfene Trace-IDs, je group — die Grenze, auf die die Drop-Set-Größe trifft. Es wird je group aufgelöst, group können also unterschiedliche Budgets tragen; das mit dem kleineren erreicht seine Grenze zuerst. Flach, solange der data-Knoten nicht neu abgestimmt wird."
+            "tip": "Speicherbudget je Merge für bestätigt verworfene Trace-IDs, je Gruppe — die Grenze, auf die die Drop-Set-Größe trifft. Es wird je Gruppe aufgelöst, Gruppen können also unterschiedliche Budgets tragen; das mit dem kleineren erreicht seine Grenze zuerst. Flach, solange der data-Knoten nicht neu abgestimmt wird."
           },
           {
             "id": "sampling_finalize_rounds",
             "title": "Finalisierungsrunden",
-            "tip": "Höchste Zahl an Finalisierungsrunden, die über die abgekühlten Shards jedes group beobachtet wurde. Ob einem Shard die Runden ausgegangen sind, steht im Panel Finalisierung terminal."
+            "tip": "Höchste Zahl an Finalisierungsrunden, die über die abgekühlten Shards jeder Gruppe beobachtet wurde. Ob einem Shard die Runden ausgegangen sind, steht im Panel Finalisierung terminal."
           },
           {
             "id": "sampling_finalize_terminal",
             "title": "Finalisierung terminal",
-            "tip": "1, wenn ein abgekühlter Shard des group terminal ist und keine weitere Finalisierungsrunde laufen kann — für diese Daten findet kein Trace-Sampling mehr statt, das Gespeicherte ist endgültig. Sonst 0. Über die Zeit dargestellt, damit der Übergang sichtbar ist."
+            "tip": "1, wenn ein abgekühlter Shard der Gruppe terminal ist und keine weitere Finalisierungsrunde laufen kann — für diese Daten findet kein Trace-Sampling mehr statt, das Gespeicherte ist endgültig. Sonst 0. Über die Zeit dargestellt, damit der Übergang sichtbar ist."
           },
           {
             "id": "sampling_telemetry_safety",
