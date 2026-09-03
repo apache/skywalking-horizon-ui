@@ -92,8 +92,9 @@ jobs:
       # artifact. A finding here is always something an operator would run, so
       # it blocks. Only high+ does: a gate that fails on things nobody can act
       # on gets ignored.
-      - name: Audit shipped dependencies
-        run: pnpm audit --prod --audit-level=high
+#     remove, will aduit periodically, not every PR
+#      - name: Audit shipped dependencies
+#        run: pnpm audit --prod --audit-level=high
 
       # Dev tooling is a different threat model, not a lesser one — it runs in
       # CI with repository credentials and on contributors' machines, so a

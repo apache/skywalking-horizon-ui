@@ -469,5 +469,176 @@
         "title": "Octets de part-sync / s"
       }
     ]
+  },
+  "dashboardExtPages": {
+    "service": [
+      {
+        "id": "trace-sampling",
+        "name": "Échantillonnage de traces",
+        "widgets": [
+          {
+            "id": "sampling_outcomes",
+            "title": "Devenir des traces",
+            "tip": "Conservées + rejetées expliquent les traces évaluées. Les traces immatures n'ont jamais été éligibles : leurs fragments sont encore dans la limite de maturité, ce n'est donc pas un échec de l'échantillonnage.",
+            "expressionLabels": [
+              "évaluées",
+              "conservées",
+              "rejetées",
+              "immatures"
+            ]
+          },
+          {
+            "id": "sampling_active_kpi",
+            "title": "Échantillonneurs actifs",
+            "tip": "Plugins d'échantillonnage enregistrés par groupe de stockage. Un groupe absent de cette liste n'a pas de pipeline — ses traces ne sont jamais évaluées, donc rien n'est rejeté.",
+            "tableHeaders": [
+              "Groupe",
+              "Échantillonneurs"
+            ]
+          },
+          {
+            "id": "sampling_drop_ratio_by_group",
+            "title": "Taux de rejet par groupe",
+            "tip": "Taux de rejet confirmé par groupe de stockage, par pas — rejetées sur évaluées après les garde-fous de BanyanDB. Délibérément par groupe plutôt qu'un unique indicateur de cluster : une carte de cluster serait la moyenne non pondérée des taux par pas, une minute calme compterait donc autant qu'une minute chargée. Un groupe en dessous des autres s'explique généralement par les événements de sécurité ci-dessous, pas par ses règles."
+          },
+          {
+            "id": "sampling_load_failures",
+            "title": "Échecs de chargement de plugins",
+            "tip": "Échecs de chargement de plugins par minute, par groupe, plugin en échec et motif. La réconciliation échoue en mode ouvert : toute valeur ici signifie que la chaîne tourne SANS un plugin demandé par la configuration — l'échantillonnage ne fait pas ce qu'il annonce. Le nom du plugin et le motif n'apparaissent que dans ce panneau."
+          },
+          {
+            "id": "sampling_execution_rate",
+            "title": "Débit de Decide par résultat",
+            "tip": "Appels à Decide() par seconde, par plugin et résultat. Alertez immédiatement sur panic, length_mismatch ou late : ils signalent un comportement cassé du plugin ou un appel ayant survécu au délai de fusion. decide_error peut être transitoire."
+          },
+          {
+            "id": "sampling_decide_latency",
+            "title": "Latence de Decide",
+            "tip": "Temps réel des appels Decide() réussis par plugin — le p99 prend le pire groupe, la moyenne les agrège. Dérivez un SLO par plugin d'une base de référence saine ; un plugin volontairement coûteux n'est pas une panne.",
+            "expressionLabels": [
+              "p99",
+              "moyenne"
+            ]
+          },
+          {
+            "id": "sampling_time_per_trace",
+            "title": "Temps de plugin / trace",
+            "tip": "Temps réel de toute la chaîne de plugins par trace évaluée, par groupe — le coût de l'échantillonnage payé lors de la fusion, dans le temps. Le tableau Grafana en amont le ventile par plugin avec le `group_left` de PromQL ; MAL n'a pas d'équivalent, donc la métrique est le total de la chaîne et la ventilation par plugin se trouve dans Latence de Decide. Gardez-le nettement sous le --trace-pipeline-decide-timeout du nœud data (5 s par défaut)."
+          },
+          {
+            "id": "sampling_chain_batches",
+            "title": "Lots de la chaîne",
+            "tip": "Lots de la chaîne par seconde, par résultat. circuit_open signifie que l'échantillonnage est actuellement CONTOURNÉ pour ce groupe ; timeout est au niveau de la chaîne car l'hôte peut l'abandonner avant qu'un maillon réponde. Les traces portées par chaque lot sont dans le panneau Taille de lot p99."
+          },
+          {
+            "id": "sampling_batch_size_p99",
+            "title": "Taille de lot p99",
+            "tip": "p99 des traces présentées à la chaîne de plugins par lot réussi, par groupe. À lire avec Lots de la chaîne : le débit dit à quelle fréquence la chaîne s'exécute, ceci dit combien elle voit à chaque fois."
+          },
+          {
+            "id": "sampling_sampler_rows",
+            "title": "Lignes de l'échantillonneur",
+            "tip": "Lignes span / segment portées par les traces évaluées, face aux lignes que les échantillonneurs ont proposé de rejeter, ventilées par la règle responsable. Même unité, donc directement comparables ; le taux qui en résulte est dans le panneau Taux de lignes rejetées.",
+            "expressionLabels": [
+              "lignes",
+              "lignes rejetées"
+            ]
+          },
+          {
+            "id": "sampling_decisions_by_rule",
+            "title": "Décisions de l'échantillonneur par règle",
+            "tip": "Ce que les échantillonneurs de première partie ont PROPOSÉ, attribué à la première règle correspondante — et non ce que le stockage a confirmé. Une trace peut être évaluée sur plusieurs cycles de fusion ou de finalisation, et les garde-fous peuvent conserver une trace que le plugin a votée rejetée : lisez les décisions de rejet en regard du devenir des traces."
+          },
+          {
+            "id": "sampling_sampler_dropped_ratio",
+            "title": "Taux de lignes rejetées",
+            "tip": "Part des lignes que les échantillonneurs ont proposé de rejeter, par groupe. Proposé, non confirmé — les garde-fous peuvent conserver une trace qu'un plugin a votée rejetée. Traitez-le comme incomplet dès que Compte de lignes indisponible est non nul, car ces traces manquent au dénominateur."
+          },
+          {
+            "id": "sampling_row_count_unavailable",
+            "title": "Compte de lignes indisponible",
+            "tip": "Évaluations de traces dont la projection de métadonnées seules n'exposait aucun compte de lignes, par groupe. Ces traces sont exclues des totaux, donc toute valeur non nulle signifie que le Taux de lignes rejetées porte sur un dénominateur incomplet."
+          },
+          {
+            "id": "sampling_guard_work",
+            "title": "Travail de guard et index",
+            "tip": "Les sondes de filtre bloom sont le guard de fragments vérifiant s'il existe des fragments de la trace hors des parts fusionnées ; les entrées purgées sont le travail sur l'index secondaire qu'entraîne un rejet confirmé.",
+            "expressionLabels": [
+              "sondes bloom",
+              "sidx purgé"
+            ]
+          },
+          {
+            "id": "sampling_safety_events",
+            "title": "Événements de sécurité",
+            "tip": "Chaque série ici CONSERVE des données qu'un échantillonneur a proposé de rejeter. Un taux de rejet sous l'objectif s'explique ici avant de s'expliquer par la logique du plugin.",
+            "expressionLabels": [
+              "surdimensionnées",
+              "ambiguës",
+              "guard différé",
+              "budget de guard épuisé",
+              "publication refusée",
+              "reprise sans perte",
+              "guard contourné"
+            ]
+          },
+          {
+            "id": "sampling_plugin_errors",
+            "title": "Erreurs de chaîne par motif",
+            "tip": "Erreurs au niveau de la chaîne ayant forcé la conservation en mode ouvert de tout le lot."
+          },
+          {
+            "id": "sampling_link_bypasses",
+            "title": "Maillons contournés",
+            "tip": "Maillons individuels contournés après decide_error, length_mismatch ou panic. Un lot peut rapporter success alors qu'un maillon a été contourné et son entrée conservée — d'où un comptage séparé des erreurs de chaîne."
+          },
+          {
+            "id": "sampling_reconciliation",
+            "title": "Enregistrements et mises à jour",
+            "tip": "Débit d'enregistrement, de mise à jour et de suppression du pipeline. Un résultat rejected signifie qu'OAP a envoyé une configuration de pipeline que le nœud data refuse.",
+            "expressionLabels": [
+              "enregistrés",
+              "mis à jour",
+              "supprimés"
+            ]
+          },
+          {
+            "id": "sampling_drop_set_pressure",
+            "title": "Impact du plafond de l'ensemble de rejet",
+            "tip": "L'ensemble des identifiants de traces à rejeter par fusion est borné en mémoire. Au plafond, la fusion conserve le reste — c'est pourquoi le taux de rejet plafonne sous charge au lieu de suivre les règles."
+          },
+          {
+            "id": "sampling_drop_set_size",
+            "title": "Taille p99 de l'ensemble de rejet",
+            "tip": "p99 des identifiants de traces à rejeter par lane de fusion. À lire avec le panneau Budget de l'ensemble de rejet : quand l'ensemble dépasse le budget, la fusion cesse d'accepter les rejets et conserve le reste, ce qui apparaît dans Impact du plafond."
+          },
+          {
+            "id": "sampling_drop_set_budget",
+            "title": "Budget de l'ensemble de rejet",
+            "tip": "Budget mémoire par fusion pour les identifiants de traces rejetées confirmées, par groupe — le plafond que rencontre la taille de l'ensemble. Résolu par groupe, donc les groupes peuvent porter des budgets différents ; celui qui en a un plus petit atteint son plafond en premier. Plat sauf réglage du nœud data."
+          },
+          {
+            "id": "sampling_finalize_rounds",
+            "title": "Cycles de finalisation",
+            "tip": "Plus grand nombre de cycles de finalisation observé sur les shards refroidis de chaque groupe. Si un shard n'a plus de cycles, voir le panneau Finalisation terminale."
+          },
+          {
+            "id": "sampling_finalize_terminal",
+            "title": "Finalisation terminale",
+            "tip": "1 quand un shard refroidi du groupe est terminal et ne peut plus exécuter de cycle de finalisation — plus aucun échantillonnage de traces n'aura lieu pour ces données, donc ce qui est stocké est définitif. 0 sinon. Tracé dans le temps pour que la transition soit visible."
+          },
+          {
+            "id": "sampling_telemetry_safety",
+            "title": "Sécurité hôte de la télémétrie des plugins",
+            "tip": "L'hôte plafonne ce qu'un plugin peut publier (100 séries de valeurs d'étiquette par instrument) et limite le débit de ses logs. Une valeur non nulle signifie que la télémétrie PROPRE du plugin est tronquée — les métriques de décision ci-dessus sont alors incomplètes, sans que l'échantillonnage lui-même soit affecté.",
+            "expressionLabels": [
+              "séries refusées",
+              "logs abandonnés",
+              "panic de télémétrie"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

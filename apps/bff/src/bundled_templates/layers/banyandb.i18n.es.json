@@ -469,5 +469,176 @@
         "title": "Bytes de part-sync / s"
       }
     ]
+  },
+  "dashboardExtPages": {
+    "service": [
+      {
+        "id": "trace-sampling",
+        "name": "Muestreo de trazas",
+        "widgets": [
+          {
+            "id": "sampling_outcomes",
+            "title": "Resultados de trazas",
+            "tip": "Retenidas + descartadas explican las trazas evaluadas. Las inmaduras nunca fueron elegibles: sus fragmentos siguen dentro del límite de madurez, así que no son un fallo del muestreo.",
+            "expressionLabels": [
+              "evaluadas",
+              "retenidas",
+              "descartadas",
+              "inmaduras"
+            ]
+          },
+          {
+            "id": "sampling_active_kpi",
+            "title": "Muestreadores activos",
+            "tip": "Plugins de muestreo registrados por grupo de almacenamiento. Un grupo ausente de esta lista no tiene pipeline: sus trazas nunca se evalúan, así que no se descarta nada.",
+            "tableHeaders": [
+              "Grupo",
+              "Muestreadores"
+            ]
+          },
+          {
+            "id": "sampling_drop_ratio_by_group",
+            "title": "Proporción de descarte por grupo",
+            "tip": "Proporción de descarte confirmada por grupo de almacenamiento, por paso: descartadas sobre evaluadas tras las salvaguardas de BanyanDB. Deliberadamente por grupo en lugar de un único indicador de clúster: una tarjeta de clúster sería la media sin ponderar de las proporciones por paso, así que un minuto tranquilo pesaría igual que uno ocupado. Un grupo por debajo de los demás suele explicarse por los eventos de seguridad de abajo, no por sus reglas."
+          },
+          {
+            "id": "sampling_load_failures",
+            "title": "Fallos de carga de plugins",
+            "tip": "Fallos de carga de plugins por minuto, por grupo, plugin fallido y motivo. La reconciliación falla en abierto, así que cualquier valor aquí significa que la cadena funciona SIN un plugin que la configuración pedía: el muestreo no hace lo que dice. El nombre del plugin y el motivo solo aparecen en este panel."
+          },
+          {
+            "id": "sampling_execution_rate",
+            "title": "Tasa de Decide por resultado",
+            "tip": "Llamadas a Decide() por segundo, por plugin y resultado. Alerta de inmediato ante panic, length_mismatch o late: indican un comportamiento roto del plugin o una llamada que sobrevivió al tiempo límite de la fusión. decide_error puede ser transitorio."
+          },
+          {
+            "id": "sampling_decide_latency",
+            "title": "Latencia de Decide",
+            "tip": "Tiempo real de las llamadas a Decide() correctas por plugin: el p99 toma el peor grupo, la media los promedia. Deriva un SLO por plugin de una línea base sana; un plugin intencionadamente costoso no es un fallo.",
+            "expressionLabels": [
+              "p99",
+              "media"
+            ]
+          },
+          {
+            "id": "sampling_time_per_trace",
+            "title": "Tiempo de plugin / traza",
+            "tip": "Tiempo real de toda la cadena de plugins por traza evaluada, por grupo — el coste del muestreo pagado en la fusión, a lo largo del tiempo. El panel de Grafana upstream lo divide por plugin con el `group_left` de PromQL; MAL no tiene equivalente, así que la métrica es el total de la cadena y el desglose por plugin está en Latencia de Decide. Manténlo holgadamente por debajo del --trace-pipeline-decide-timeout del nodo data (5 s por omisión)."
+          },
+          {
+            "id": "sampling_chain_batches",
+            "title": "Lotes de la cadena",
+            "tip": "Lotes de la cadena por segundo, por resultado. circuit_open significa que el muestreo está OMITIDO ahora mismo para ese grupo; timeout es de nivel de cadena porque el host puede abandonarla antes de que un eslabón responda. Las trazas que llevó cada lote están en el panel Tamaño de lote p99."
+          },
+          {
+            "id": "sampling_batch_size_p99",
+            "title": "Tamaño de lote p99",
+            "tip": "p99 de trazas presentadas a la cadena de plugins por lote correcto, por grupo. Léelo con Lotes de la cadena: la tasa dice con qué frecuencia se ejecuta la cadena, esto dice cuánto ve cada vez."
+          },
+          {
+            "id": "sampling_sampler_rows",
+            "title": "Filas del muestreador",
+            "tip": "Filas de span / segment que llevan las trazas evaluadas, frente a las filas que los muestreadores propusieron descartar, desglosadas por la regla responsable. Misma unidad, así que son directamente comparables; la proporción resultante está en el panel Proporción de filas descartadas.",
+            "expressionLabels": [
+              "filas",
+              "filas descartadas"
+            ]
+          },
+          {
+            "id": "sampling_decisions_by_rule",
+            "title": "Decisiones del muestreador por regla",
+            "tip": "Lo que los muestreadores de primera parte PROPUSIERON, atribuido a la primera regla coincidente, no lo que el almacenamiento confirmó. Una traza puede evaluarse en varias rondas de fusión o finalización, y las salvaguardas pueden retener una traza que el plugin votó descartar: lee las decisiones de descarte junto a Resultados de trazas."
+          },
+          {
+            "id": "sampling_sampler_dropped_ratio",
+            "title": "Proporción de filas descartadas",
+            "tip": "Proporción de filas que los muestreadores propusieron descartar, por grupo. Propuesta, no confirmada: las salvaguardas pueden retener una traza que un plugin votó descartar. Trátala como incompleta cuando Recuento de filas no disponible sea distinto de cero, ya que esas trazas faltan en el denominador."
+          },
+          {
+            "id": "sampling_row_count_unavailable",
+            "title": "Recuento de filas no disponible",
+            "tip": "Evaluaciones de trazas cuya proyección de solo metadatos no expuso recuento de filas, por grupo. Esas trazas se omiten de los totales, así que cualquier valor distinto de cero significa que la Proporción de filas descartadas se calcula sobre un denominador incompleto."
+          },
+          {
+            "id": "sampling_guard_work",
+            "title": "Trabajo de guard e índice",
+            "tip": "Las sondas de filtro bloom son el guard de fragmentos comprobando si hay fragmentos de la traza fuera de las partes que se fusionan; las entradas purgadas son el trabajo en el índice secundario que causa un descarte confirmado.",
+            "expressionLabels": [
+              "sondas bloom",
+              "sidx purgado"
+            ]
+          },
+          {
+            "id": "sampling_safety_events",
+            "title": "Eventos de seguridad",
+            "tip": "Cada serie aquí RETIENE datos que un muestreador propuso descartar. Una proporción de descarte por debajo del objetivo se explica aquí antes que por la lógica del plugin.",
+            "expressionLabels": [
+              "sobredimensionadas",
+              "ambiguas",
+              "guard diferido",
+              "presupuesto de guard agotado",
+              "publicación rechazada",
+              "reintento sin pérdida",
+              "guard omitido"
+            ]
+          },
+          {
+            "id": "sampling_plugin_errors",
+            "title": "Errores de cadena por motivo",
+            "tip": "Errores de nivel de cadena que forzaron la retención en abierto de todo el lote."
+          },
+          {
+            "id": "sampling_link_bypasses",
+            "title": "Eslabones omitidos",
+            "tip": "Eslabones individuales omitidos tras decide_error, length_mismatch o panic. Un lote puede informar success mientras un eslabón fue omitido y su entrada retenida: por eso se cuenta aparte de los errores de cadena."
+          },
+          {
+            "id": "sampling_reconciliation",
+            "title": "Registros y actualizaciones",
+            "tip": "Tasa de registro, actualización y eliminación del pipeline. Un resultado rejected significa que OAP envió una configuración de pipeline que el nodo data no aceptó.",
+            "expressionLabels": [
+              "registrados",
+              "actualizados",
+              "eliminados"
+            ]
+          },
+          {
+            "id": "sampling_drop_set_pressure",
+            "title": "Impacto del tope del conjunto de descarte",
+            "tip": "El conjunto de IDs de trazas a descartar por fusión está limitado en memoria. Al alcanzar el tope, la fusión retiene el resto: por eso la proporción de descarte se estanca bajo carga en lugar de seguir las reglas."
+          },
+          {
+            "id": "sampling_drop_set_size",
+            "title": "Tamaño p99 del conjunto de rechazo",
+            "tip": "p99 de identificadores de trazas a descartar por lane de fusión. Léelo junto al panel Presupuesto del conjunto de rechazo: cuando el conjunto supera el presupuesto, la fusión deja de aceptar descartes y retiene el resto, lo que aparece como Impacto del tope."
+          },
+          {
+            "id": "sampling_drop_set_budget",
+            "title": "Presupuesto del conjunto de rechazo",
+            "tip": "Presupuesto de memoria por fusión para los identificadores de trazas descartadas confirmadas, por grupo: el techo con el que choca el tamaño del conjunto. Se resuelve por grupo, así que los grupos pueden llevar presupuestos distintos; el que tenga uno menor alcanza su techo antes. Plano salvo que se reajuste el nodo data."
+          },
+          {
+            "id": "sampling_finalize_rounds",
+            "title": "Rondas de finalización",
+            "tip": "Mayor número de rondas de finalización observado en los shards enfriados de cada grupo. Si un shard se ha quedado sin rondas está en el panel Finalización terminal."
+          },
+          {
+            "id": "sampling_finalize_terminal",
+            "title": "Finalización terminal",
+            "tip": "1 cuando algún shard enfriado del grupo es terminal y no puede ejecutar otra ronda de finalización: no habrá más muestreo de trazas para esos datos, así que lo almacenado es definitivo. 0 en caso contrario. Se grafica en el tiempo para que la transición sea visible."
+          },
+          {
+            "id": "sampling_telemetry_safety",
+            "title": "Seguridad del host de telemetría de plugins",
+            "tip": "El host limita lo que un plugin puede publicar (100 series de valores de etiqueta por instrumento) y aplica límite de tasa a sus logs. Un valor distinto de cero significa que la telemetría PROPIA del plugin está truncada: las métricas de decisión de arriba quedan incompletas, aunque el muestreo en sí no se ve afectado.",
+            "expressionLabels": [
+              "series rechazadas",
+              "logs descartados",
+              "panic de telemetría"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
