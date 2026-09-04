@@ -19,6 +19,7 @@ import type {
   EvaluationRecordFacetsResponse,
   EvaluationRecordQueryRequest,
   EvaluationRecordsResponse,
+  EvaluationCallerService,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
 
@@ -42,5 +43,9 @@ export class EvaluationRecordApi {
       `/api/layer/${encodeURIComponent(layerKey)}/evaluation-records/facets`,
       body,
     );
+  }
+
+  callerServices(): Promise<{ reachable: boolean; services: EvaluationCallerService[]; error?: string }> {
+    return this.bff.request('GET', '/api/evaluation-record/caller-services');
   }
 }

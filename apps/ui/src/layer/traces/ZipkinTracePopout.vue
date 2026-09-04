@@ -36,8 +36,11 @@ import type { ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 const { t } = useI18n({ useScope: 'global' });
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
+import { useRoute } from 'vue-router';
+import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 
 const { openTraceId, closeTrace } = useZipkinTracePopout();
+const route = useRoute();
 const traceIdRef = computed(() => openTraceId.value);
 const { spans, isLoading, error } = useZipkinTrace(traceIdRef);
 
@@ -124,7 +127,13 @@ function clearSpan(): void {
   selectedSpanId.value = null;
 }
 // Drop the selection when the trace changes.
-watch(traceIdRef, () => { selectedSpanId.value = null; });
+watch([traceIdRef, spans], () => {
+  selectedSpanId.value = null;
+  const spanId = String(route.query[TRACE_POPOUT_SPAN] ?? '');
+  const spanIndex = Number(route.query[TRACE_POPOUT_SPAN_INDEX] ?? '');
+  if (spanId) selectedSpanId.value = spans.value.find((s) => s.id === spanId)?.id ?? null;
+  if (!selectedSpanId.value && Number.isInteger(spanIndex) && spanIndex >= 0) selectedSpanId.value = spans.value[spanIndex]?.id ?? null;
+}, { immediate: true });
 
 const spanDetailRef = ref<HTMLElement | null>(null);
 function onSpanDetailDocClick(e: MouseEvent): void {

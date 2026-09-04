@@ -156,6 +156,15 @@ export class ServiceLayerCatalog {
     this.lastFetchAt = 0;
   }
 
+  async allServices(): Promise<Array<ServiceRow & { layer: string }>> {
+    const snapshot = await this.get();
+    const rows: Array<ServiceRow & { layer: string }> = [];
+    for (const [layer, services] of snapshot.byLayer) {
+      for (const service of services) rows.push({ ...service, layer });
+    }
+    return rows;
+  }
+
   private async refresh(): Promise<ServiceCatalog> {
     const cfg = this.deps.config.current;
     const opts = buildOapOpts(cfg, this.deps.fetch);

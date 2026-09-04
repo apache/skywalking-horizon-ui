@@ -181,6 +181,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/instances':                 'metrics:read',
   'GET /api/layer/:key/endpoints':                 'metrics:read',
   'GET /api/layer/:key/services':                  'metrics:read',
+  'GET /api/evaluation-record/caller-services':   'logs:read',
 
   // Profiling reads — task-creation is operator (profile:enable) below.
   'GET /api/layer/:key/profile/tasks':             'profile:read',

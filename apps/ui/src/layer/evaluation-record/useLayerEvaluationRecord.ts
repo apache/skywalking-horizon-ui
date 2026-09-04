@@ -45,6 +45,9 @@ export interface GenAIEvaluationRecordStreamRow {
   endpointId: string | null;
   traceId: string | null;
   traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  traceSegmentId: string | null;
+  traceSpanIndex: number | null;
+  traceSpanId: string | null;
   timestamp: number;
   contentType: string;
   content: string;
@@ -182,6 +185,9 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       endpointId: null,
       traceId: row.traceId,
       traceType: row.traceRef?.type ?? null,
+      traceSegmentId: row.traceRef?.segmentId ?? null,
+      traceSpanIndex: row.traceRef?.spanIndex ?? null,
+      traceSpanId: row.traceRef?.spanId ?? null,
       timestamp: row.evaluationTime,
       contentType: 'text/plain',
       content: displayValue(row),

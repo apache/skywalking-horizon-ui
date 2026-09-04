@@ -306,6 +306,20 @@ interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
 export function registerEvaluationRecordRoute(app: FastifyInstance, deps: EvaluationRecordRouteDeps): void {
   const auth = requireAuth(deps);
   const catalog = serviceLayerCatalog({ config: deps.config, fetch: deps.fetch });
+  app.get(
+      '/api/evaluation-record/caller-services',
+      { preHandler: auth },
+      async (_req: FastifyRequest, reply: FastifyReply) => {
+        const snapshot = await catalog.get();
+        return reply.send({
+          reachable: snapshot.unreachable !== true,
+          services: (await catalog.allServices()).map((service) => ({
+            id: service.id, name: service.name, normal: service.normal,
+            group: service.group, layer: service.layer,
+          })),
+        });
+      },
+  );
   app.post(
       '/api/layer/:key/evaluation-records',
       { preHandler: auth },
@@ -326,10 +340,12 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
 
         let resolvedServiceId = body.serviceId ?? null;
         if (!resolvedServiceId && body.service) {
-          const services = (await catalog.get()).byLayer.get(layerKey.toUpperCase()) ?? [];
-          const match = services.find((s) => s.id === body.service || s.name === body.service);
-          if (!match) return reply.code(400).send({ error: 'service not found in layer' });
-          resolvedServiceId = match.id;
+          const services = await catalog.allServices();
+          const matches = services.filter((s) => s.id === body.service || s.name === body.service);
+          const ids = [...new Set(matches.map((s) => s.id))];
+          if (ids.length === 0) return reply.code(400).send({ error: 'caller service not found' });
+          if (ids.length > 1) return reply.code(400).send({ error: 'caller service name is ambiguous' });
+          resolvedServiceId = ids[0];
         }
 
         // Resolve a service NAME to an id if the caller used one.
@@ -392,10 +408,12 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         if ('error' in window) return reply.code(400).send({ error: window.error });
         let resolvedServiceId = body.serviceId ?? null;
         if (!resolvedServiceId && body.service) {
-          const services = (await catalog.get()).byLayer.get(layerKey.toUpperCase()) ?? [];
-          const match = services.find((s) => s.id === body.service || s.name === body.service);
-          if (!match) return reply.code(400).send({ error: 'service not found in layer' });
-          resolvedServiceId = match.id;
+          const services = await catalog.allServices();
+          const matches = services.filter((s) => s.id === body.service || s.name === body.service);
+          const ids = [...new Set(matches.map((s) => s.id))];
+          if (ids.length === 0) return reply.code(400).send({ error: 'caller service not found' });
+          if (ids.length > 1) return reply.code(400).send({ error: 'caller service name is ambiguous' });
+          resolvedServiceId = ids[0];
         }
         const minScore = body.valueType === 'SCORE'
           ? scoreBoundToStoredValue(optionalFiniteNumber(body.minScore), true) : null;

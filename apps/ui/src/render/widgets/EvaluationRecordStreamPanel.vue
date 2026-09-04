@@ -26,7 +26,7 @@ defineProps<{
 const auth = useAuthStore();
 const emit = defineEmits<{
   (e: 'select', payload: { row: GenAIEvaluationRecordStreamRow; key: string }): void;
-  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; ts: number }): void;
+  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
 }>();
 
 type Level = 'fail' | 'warning' | 'good' | 'excellent' | 'undefined';
@@ -90,7 +90,7 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
       <span
         v-if="r.traceId && auth.hasVerb('traces:read')"
         class="lg-trace mono"
-        @click.stop="emit('jump-trace', { traceId: r.traceId, traceType: r.traceType, ts: r.timestamp })"
+        @click.stop="emit('jump-trace', { traceId: r.traceId, traceType: r.traceType, traceSegmentId: r.traceSegmentId, traceSpanIndex: r.traceSpanIndex, traceSpanId: r.traceSpanId, ts: r.timestamp })"
       >trace</span>
       <span v-else class="lg-trace-spacer" aria-hidden="true"></span>
       <span class="lg-content mono">

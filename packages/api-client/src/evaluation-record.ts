@@ -89,3 +89,11 @@ export interface EvaluationRecordFacetsResponse {
   reachable: boolean;
   error?: string;
 }
+
+export interface EvaluationCallerService {
+  id: string;
+  name: string;
+  normal: boolean | null;
+  group: string;
+  layer: string;
+}

@@ -26,7 +26,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { LayerDef } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
@@ -42,17 +42,16 @@ import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { useTracePopout } from '@/layer/traces/useTracePopout';
-import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
+import { useResultTracePopout } from '@/layer/traces/useResultTracePopout';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
-const { openTrace } = useTracePopout();
-const { openTrace: openZipkinTrace } = useZipkinTracePopout();
+const { openResultTrace } = useResultTracePopout();
 
 function queryString(name: string): string | null {
   const value = route.query[name];
@@ -132,18 +131,31 @@ watch([modelIdParam, instanceList], ([modelId, instances]) => {
 }, { immediate: true });
 
 // ── Query state ────────────────────────────────────────────────────
-// Trace ID rides either from `?traceId=` in the URL (e.g. log row's
-// "??trace" link landing back on this tab) or from the operator's
-// explicit input on the conditions bar. The URL takes precedence so
-// shared / bookmarked URLs always restore the same view.
+// Trace ID is seeded by the route and remains editable in the condition bar.
 const traceIdParam = computed(() => {
   const v = route.query.evaluationTraceId;
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
-// Trace ID ??bound directly to the input. Each keystroke updates the
-// query (no Pin/Clear button). URL `?traceId=` still wins so the
-// trace→log roundtrip keeps the pinned value.
-const traceIdInput = ref('');
+const traceTypeParam = computed<'SKYWALKING_NATIVE' | 'OTLP'>(() => {
+  const value = queryString('evaluationTraceType');
+  return value === 'OTLP' ? 'OTLP' : 'SKYWALKING_NATIVE';
+});
+// Keep the route-provided value visible and editable. Updating or clearing
+// the field updates the route-provided condition as well.
+const traceIdInput = ref(queryString('evaluationTraceId') ?? '');
+watch(traceIdParam, (next) => {
+  const value = next ?? '';
+  if (traceIdInput.value !== value) traceIdInput.value = value;
+}, { immediate: true });
+watch(traceIdInput, (value) => {
+  const next = value.trim();
+  if (next === (traceIdParam.value ?? '')) return;
+  const query = { ...route.query };
+  if (next) query.evaluationTraceId = next;
+  else delete query.evaluationTraceId;
+  page.value = 1;
+  void router.replace({ path: route.path, query });
+});
 // Free-text content search is intentionally NOT exposed. OAP's
 // content-keyword filter is opt-in per storage backend (off on the
 // stock H2 store) and indexing across full log bodies has surprising
@@ -163,11 +175,20 @@ const judgeModel = ref('');
 const sortField = ref<'EVALUATION_TIME' | 'SCORE_VALUE'>('EVALUATION_TIME');
 const sortOrder = ref<'ASC' | 'DES'>('DES');
 const traceIdRef = computed<string | null>(() => {
-  if (traceIdParam.value) return traceIdParam.value;
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-const traceTypeRef = computed<'SKYWALKING_NATIVE' | 'OTLP' | null>(() => 'SKYWALKING_NATIVE');
+const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>(traceTypeParam.value);
+watch(traceTypeParam, (next) => {
+  if (traceTypeRef.value !== next) traceTypeRef.value = next;
+}, { immediate: true });
+watch(traceTypeRef, (next) => {
+  if (next === queryString('evaluationTraceType')) return;
+  void router.replace({
+    path: route.path,
+    query: { ...route.query, evaluationTraceType: next },
+  });
+});
 const serviceId = ref('');
 const providerIdRef = computed<string | null>(() => selectedId.value);
 const modelIdRef = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
@@ -450,12 +471,14 @@ function fmtAxisTime(ts: number): string {
  *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
  *  window ??without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
-function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null): void {
-  if (traceType === 'OTLP') {
-    openZipkinTrace(traceId);
-    return;
-  }
-  openTrace(traceId, ts, traceType);
+function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null, traceSegmentId?: string | null, traceSpanIndex?: number | null, traceSpanId?: string | null): void {
+  openResultTrace({
+    type: traceType ?? 'SKYWALKING_NATIVE',
+    traceId,
+    segmentId: traceSegmentId,
+    spanIndex: traceSpanIndex,
+    spanId: traceSpanId,
+  }, ts);
 }
 </script>
 
@@ -551,6 +574,13 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
               class="cf-input mono"
               placeholder="paste trace id..."
           />
+        </label>
+        <label class="cf">
+          <span>Trace source</span>
+          <select v-model="traceTypeRef" class="cf-input">
+            <option value="SKYWALKING_NATIVE">SkyWalking Native</option>
+            <option value="OTLP">OTLP</option>
+          </select>
         </label>
         <!-- Time range ??presets + Custom??that swaps to two
              datetime-local inputs (matches the trace tab). -->
@@ -683,7 +713,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             v-else
             :rows="filteredGenAIEvaluationRecordRows"
             @select="onRowClick($event.row)"
-            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType)"
+            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType, $event.traceSegmentId, $event.traceSpanIndex, $event.traceSpanId)"
         />
         <div class="lg-pager">
           <span class="hint">
@@ -708,7 +738,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     <EvaluationRecordDetailPopout
         :row="popoutRow"
         @close="popoutRow = null"
-            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType)"
+            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType, $event.traceSegmentId, $event.traceSpanIndex, $event.traceSpanId)"
     />
   </div>
 </template>

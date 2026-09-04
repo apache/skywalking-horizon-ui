@@ -21,6 +21,7 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
+import { withTraceFocus, clearTraceFocus } from './tracePopoutQuery';
 
 // Native vs Zipkin keys on the trace source, not the ID shape — native IDs
 // can be bare hex, same as Zipkin. An explicit `?source=` (written by the
@@ -30,6 +31,8 @@ export function useTraceSourceIsZipkin() {
   const route = useRoute();
   const { layers } = useLayers();
   return computed<boolean>(() => {
+    if (route.query.traceType === 'OTLP') return true;
+    if (route.query.traceType === 'SKYWALKING_NATIVE') return false;
     const src = route.query.source;
     if (src === 'zipkin') return true;
     if (src === 'native') return false;
@@ -49,22 +52,23 @@ export function useZipkinTracePopout() {
     return typeof v === 'string' && v.length > 0 && sourceIsZipkin.value ? v : null;
   });
 
-  function openTrace(id: string): void {
+  function openTrace(id: string, focus?: { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null }): void {
     if (!id) return;
     // Force the shared trace-id popout coordinator to select the Zipkin
     // renderer even when the current layer's default source is native.
+    const query = withTraceFocus({ ...route.query, traceId: id, traceType: 'OTLP' as const }, focus);
     void router.replace({
       path: route.path,
-      query: { ...route.query, traceId: id, source: 'zipkin' },
+      query,
     });
   }
 
   function closeTrace(): void {
     if (!openTraceId.value) return;
-    const next = { ...route.query };
+    const next = clearTraceFocus({ ...route.query });
     delete next.traceId;
     delete next.traceAt;
-    if (next.source === 'zipkin') delete next.source;
+    if (next.traceType === 'OTLP') delete next.traceType;
     void router.replace({ path: route.path, query: next });
   }
 

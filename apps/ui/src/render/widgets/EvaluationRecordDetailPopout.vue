@@ -36,7 +36,7 @@ const props = withDefaults(defineProps<{
 });
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; ts: number }): void;
+  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
 }>();
 
 type LogFormat = 'json' | 'yaml' | 'text';
@@ -108,6 +108,9 @@ function onJumpTrace(): void {
       const value = props.row.tags.find((tag) => tag.key.toLowerCase() === 'trace_type')?.value;
       return value === 'OTLP' || value === 'SKYWALKING_NATIVE' ? value : null;
     })(),
+    traceSegmentId: props.row.tags.find((tag) => tag.key.toLowerCase() === 'segment_id')?.value ?? null,
+    traceSpanIndex: Number(props.row.tags.find((tag) => tag.key.toLowerCase() === 'span_index')?.value ?? '') || null,
+    traceSpanId: props.row.tags.find((tag) => tag.key.toLowerCase() === 'span_id')?.value ?? null,
     ts: props.row.timestamp,
   });
 }

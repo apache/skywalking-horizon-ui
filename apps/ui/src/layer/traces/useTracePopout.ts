@@ -33,6 +33,8 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTraceSourceIsZipkin } from './useZipkinTracePopout';
+export { TRACE_POPOUT_QUERY, TRACE_POPOUT_AT, TRACE_POPOUT_TYPE, TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN_INDEX, TRACE_POPOUT_SPAN } from './tracePopoutQuery';
+import { TRACE_POPOUT_QUERY, TRACE_POPOUT_AT, TRACE_POPOUT_TYPE, TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN_INDEX, TRACE_POPOUT_SPAN } from './tracePopoutQuery';
 
 /** Query-string keys. Any URL with TRACE_POPOUT_QUERY auto-opens the
  *  trace popout — shareable. TRACE_POPOUT_AT carries the trace's
@@ -42,9 +44,6 @@ import { useTraceSourceIsZipkin } from './useZipkinTracePopout';
  *  link on a 12d-old log row with the Cold pill on). Callers without
  *  a timestamp hint (paste-the-ID-in-the-URL flows) omit it; the
  *  popout falls back to the default 1-day search. */
-export const TRACE_POPOUT_QUERY = 'traceId';
-export const TRACE_POPOUT_AT = 'traceAt';
-export const TRACE_POPOUT_TYPE = 'traceType';
 
 export function useTracePopout() {
   const route = useRoute();
@@ -62,7 +61,7 @@ export function useTracePopout() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null): void {
+  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null, focus?: { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null }): void {
     if (!id) return;
     const next: Record<string, string | (string | null)[] | null | undefined> = {
       ...route.query,
@@ -75,6 +74,9 @@ export function useTracePopout() {
     }
     if (traceType) next[TRACE_POPOUT_TYPE] = traceType;
     else delete next[TRACE_POPOUT_TYPE];
+    if (focus?.segmentId) next[TRACE_POPOUT_SEGMENT] = focus.segmentId; else delete next[TRACE_POPOUT_SEGMENT];
+    if (focus?.spanIndex != null) next[TRACE_POPOUT_SPAN_INDEX] = String(focus.spanIndex); else delete next[TRACE_POPOUT_SPAN_INDEX];
+    if (focus?.spanId) next[TRACE_POPOUT_SPAN] = focus.spanId; else delete next[TRACE_POPOUT_SPAN];
     void router.push({ path: route.path, query: next });
   }
 
@@ -83,6 +85,9 @@ export function useTracePopout() {
     delete q[TRACE_POPOUT_QUERY];
     delete q[TRACE_POPOUT_AT];
     delete q[TRACE_POPOUT_TYPE];
+    delete q[TRACE_POPOUT_SEGMENT];
+    delete q[TRACE_POPOUT_SPAN_INDEX];
+    delete q[TRACE_POPOUT_SPAN];
     void router.replace({ path: route.path, query: q });
   }
 
