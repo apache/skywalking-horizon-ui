@@ -433,7 +433,9 @@ const levelFacet = computed<Record<Level, number>>(() => {
 // Since the level filter now goes to OAP, the visible logs already
 // reflect it ??no client-side narrowing needed.
 const filteredGenAIEvaluationRecordRows = computed<GenAIEvaluationRecordStreamRow[]>(
-  () => genAIEvaluationRecordStreamRows.value,
+  () => genAIEvaluationRecordStreamRows.value.filter((row) =>
+    !traceTypeRef.value || row.traceType === traceTypeRef.value,
+  ),
 );
 
 // ── Evaluation-record payload popout ??a row click opens the dedicated

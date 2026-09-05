@@ -30,6 +30,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
@@ -39,6 +40,7 @@ import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
 
 const { t } = useI18n({ useScope: 'global' });
+const route = useRoute();
 const { openTraceId, openTraceAtMs, openTrace, closeTrace } = useTracePopout();
 
 const sourceRef = computed<'native'>(() => 'native');

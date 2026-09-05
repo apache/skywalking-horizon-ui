@@ -266,7 +266,12 @@ export async function fetchEvaluationRecords(
       evaluationRecordCondition,
       paging,
     );
-    const records = page.rows.map(mapEvaluationRecordRow);
+    const records = page.rows
+      .map(mapEvaluationRecordRow)
+      // OAP only accepts relatedTrace.type together with a trace id. When
+      // the user selects a source without an id, enforce that source on the
+      // returned rows so the list never mixes Native and OTLP records.
+      .filter((record) => !scope.traceType || record.traceRef?.type === scope.traceType);
     return {
       generatedAt: Date.now(),
       query: {},
@@ -441,7 +446,8 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           const env = await graphqlPost<{
             data: { genAIEvaluationRecordList: OapEvaluationRecordRow[] } | null;
           }>(opts, QUERY_EVALUATION_RECORD_FACETS, { evaluationRecordCondition });
-          const rows = env.data?.genAIEvaluationRecordList ?? [];
+          const rows = (env.data?.genAIEvaluationRecordList ?? [])
+            .filter((row) => !body.traceType || row.traceRef?.type === body.traceType);
           const level: EvaluationRecordFacetsResponse['level'] = {
             fail: 0,
             warning: 0,
