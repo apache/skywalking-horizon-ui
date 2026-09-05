@@ -45,6 +45,8 @@ export interface OapCapabilities {
    *  Decided by the storage, not the OAP version — ElasticSearch yes, the
    *  others no — so two OAPs on the same build can disagree. */
   logKeywords: boolean;
+  /** `Query.listConversations` — AI agent conversations (OAP 11.1.0+). */
+  aiConversations: boolean;
 }
 
 const INTROSPECTION_QUERY = /* GraphQL */ `
@@ -135,7 +137,7 @@ async function probeCapabilities(
       INTROSPECTION_QUERY,
     );
   } catch {
-    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false };
+    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false, aiConversations: false };
     cache = { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS };
     return conservative;
   }
@@ -163,6 +165,7 @@ async function probeCapabilities(
   const result: OapCapabilities = {
     queryAlarms: fieldSet.has('queryAlarms'),
     logKeywords,
+    aiConversations: fieldSet.has('listConversations'),
   };
   // A false that came from a TIMEOUT expires on the short TTL, not the long
   // one: caching it for the full window would hide content search on a

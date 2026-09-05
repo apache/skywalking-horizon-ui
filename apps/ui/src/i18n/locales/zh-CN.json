@@ -2921,5 +2921,7 @@
   "JSON": "JSON",
   "(empty — type an expression to run it)": "（为空 —— 输入一个表达式即可运行）",
   "Could not read the instances of this service.": "无法读取该服务的实例列表。",
-  "Could not read the endpoints of this service.": "无法读取该服务的端点列表。"
+  "Could not read the endpoints of this service.": "无法读取该服务的端点列表。",
+  "See AI agent conversations": "查看 AI 智能体对话",
+  "AI agent conversations": "AI 智能体对话"
 }

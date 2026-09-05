@@ -174,6 +174,18 @@ export type {
 } from './events.js';
 export type { OapInfo, OapCapabilities, OapBackend } from './oap-info.js';
 export type {
+  AiConversationRow,
+  AiConversationsQueryRequest,
+  AiConversationsResponse,
+  AiConversationProblem,
+} from './ai-conversation.js';
+export {
+  ASZ_VIEW_FORMAT,
+  ASZ_VIEW_MAJOR_VERSION,
+  ASZ_VIEW_JSON_MEDIA_TYPE,
+  ASZ_VIEW_YAML_MEDIA_TYPE,
+} from './ai-conversation.js';
+export type {
   RecordsTTL,
   MetricsTTL,
   OapTtlResponse,

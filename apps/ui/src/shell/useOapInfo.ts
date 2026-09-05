@@ -93,6 +93,7 @@ export function useOapInfo() {
   const capabilities = computed<OapCapabilities>(() => ({
     queryAlarms: info.value?.capabilities?.queryAlarms ?? false,
     logKeywords: info.value?.capabilities?.logKeywords ?? false,
+    aiConversations: info.value?.capabilities?.aiConversations ?? false,
   }));
 
   /** Storage backend probed via TTL response shape. `unknown` until the

@@ -2921,5 +2921,7 @@
   "JSON": "JSON",
   "(empty — type an expression to run it)": "(비어 있음 — 실행할 표현식을 입력하세요)",
   "Could not read the instances of this service.": "이 서비스의 인스턴스를 읽을 수 없습니다.",
-  "Could not read the endpoints of this service.": "이 서비스의 엔드포인트를 읽을 수 없습니다."
+  "Could not read the endpoints of this service.": "이 서비스의 엔드포인트를 읽을 수 없습니다.",
+  "See AI agent conversations": "AI 에이전트 대화 보기",
+  "AI agent conversations": "AI 에이전트 대화"
 }

@@ -165,6 +165,9 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   'POST /api/events':                              'events:read',
 
+  'POST /api/layer/:key/ai-conversations':         'ai-conversation:read',
+  'GET /api/ai-conversation/:conversation/view':   'ai-conversation:read',
+
   'POST /api/explore/query':                       'inspect:read',
 
   'GET /api/layer/:key/topology':                  'topology:read',

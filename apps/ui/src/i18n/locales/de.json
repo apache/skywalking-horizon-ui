@@ -2921,5 +2921,7 @@
   "JSON": "JSON",
   "(empty — type an expression to run it)": "(leer – geben Sie einen Ausdruck ein, um ihn auszuführen)",
   "Could not read the instances of this service.": "Die Instanzen dieses Services konnten nicht gelesen werden.",
-  "Could not read the endpoints of this service.": "Die Endpunkte dieses Services konnten nicht gelesen werden."
+  "Could not read the endpoints of this service.": "Die Endpunkte dieses Services konnten nicht gelesen werden.",
+  "See AI agent conversations": "KI-Agenten-Konversationen ansehen",
+  "AI agent conversations": "KI-Agenten-Konversationen"
 }

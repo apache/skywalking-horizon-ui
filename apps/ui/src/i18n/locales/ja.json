@@ -2921,5 +2921,7 @@
   "JSON": "JSON",
   "(empty — type an expression to run it)": "（空欄 — 実行する式を入力してください）",
   "Could not read the instances of this service.": "このサービスのインスタンスを取得できませんでした。",
-  "Could not read the endpoints of this service.": "このサービスのエンドポイントを取得できませんでした。"
+  "Could not read the endpoints of this service.": "このサービスのエンドポイントを取得できませんでした。",
+  "See AI agent conversations": "AI エージェントの会話を表示",
+  "AI agent conversations": "AI エージェントの会話"
 }
