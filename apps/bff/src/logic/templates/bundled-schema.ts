@@ -118,6 +118,7 @@ export const componentsSchema = z
     topology: z.boolean().optional(),
     traces: z.boolean().optional(),
     logs: z.boolean().optional(),
+    evaluationRecord: z.boolean().optional(),
     browserErrors: z.boolean().optional(),
     traceProfiling: z.boolean().optional(),
     ebpfProfiling: z.boolean().optional(),

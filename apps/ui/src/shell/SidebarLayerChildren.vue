@@ -33,11 +33,13 @@ import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { layerMenuRows } from '@/shell/useLayers';
 import { useRouteActive } from '@/shell/useSidebarActive';
+import { useAuthStore } from '@/state/auth';
 
 const props = defineProps<{ layer: LayerDef; inGroup?: boolean }>();
 
 const { t } = useI18n({ useScope: 'global' });
 const { route, isActive, isActiveExact } = useRouteActive();
+const auth = useAuthStore();
 
 const L = computed(() => props.layer);
 
@@ -54,6 +56,7 @@ function labelFor(path: string): string {
     case 'trace': return t('Traces');
     case 'zipkin-trace': return t('OTel & Zipkin Traces');
     case 'logs': return t('Logs');
+    case 'evaluation-record': return t('Evaluation records');
     case 'browser-errors': return t('Browser Logs');
     case 'pod-logs': return t('Pod Logs');
     case 'trace-profiling': return t('Trace Profiling');
@@ -67,7 +70,7 @@ function labelFor(path: string): string {
 }
 
 const rows = computed(() =>
-  layerMenuRows(L.value).map((r) => ({
+  layerMenuRows(L.value).filter((r) => r.path !== 'evaluation-record' || auth.hasVerb('logs:read')).map((r) => ({
     ...r,
     to: `/layer/${L.value.key}/${r.path}`,
     // The page's own name when it has one; otherwise the component's

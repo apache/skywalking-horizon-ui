@@ -154,6 +154,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',
+  'POST /api/layer/:key/evaluation-records':       'logs:read',
+  'POST /api/layer/:key/evaluation-records/facets':'logs:read',
   'GET /api/log-tags/keys':                        'logs:read',
   'GET /api/log-tags/values':                      'logs:read',
   'GET /api/layer/:key/pod-logs/containers':       'logs:read',
@@ -183,6 +185,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/instances':                 'metrics:read',
   'GET /api/layer/:key/endpoints':                 'metrics:read',
   'GET /api/layer/:key/services':                  'metrics:read',
+  'GET /api/evaluation-record/caller-services':   'logs:read',
 
   // Profiling reads — task-creation is operator (profile:enable) below.
   'GET /api/layer/:key/profile/tasks':             'profile:read',

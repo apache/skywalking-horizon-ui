@@ -33,6 +33,7 @@ const TIME_RANGE_OPT_OUT = [
   // Logs carry their own time picker (the condition bar); the level /
   // keyword filters make rolling-window refresh awkward mid-investigation.
   /^\/layer\/[^/]+\/logs$/,
+  /^\/layer\/[^/]+\/evaluation-record$/,
   // Browser Logs has its own Time range picker — auto-refresh would shift
   // the visible window mid-investigation.
   /^\/layer\/[^/]+\/browser-errors$/,

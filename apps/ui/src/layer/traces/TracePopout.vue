@@ -30,14 +30,17 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
 
 const { t } = useI18n({ useScope: 'global' });
+const route = useRoute();
 const { openTraceId, openTraceAtMs, openTrace, closeTrace } = useTracePopout();
 
 const sourceRef = computed<'native'>(() => 'native');
@@ -53,7 +56,14 @@ const spans = computed<NativeSpan[]>(() => nativeDetail.value?.spans ?? []);
 
 // Reset selected span when the trace changes (cross-trace ref jump).
 const selectedSpan = ref<NativeSpan | null>(null);
-watch(traceIdRef, () => { selectedSpan.value = null; });
+watch([traceIdRef, spans], () => {
+  selectedSpan.value = null;
+  const segmentId = String(route.query[TRACE_POPOUT_SEGMENT] ?? '');
+  const spanId = Number(route.query[TRACE_POPOUT_SPAN] ?? '');
+  const spanIndex = Number(route.query[TRACE_POPOUT_SPAN_INDEX] ?? '');
+  if (segmentId && Number.isFinite(spanId)) selectedSpan.value = spans.value.find((s) => s.segmentId === segmentId && s.spanId === spanId) ?? null;
+  if (!selectedSpan.value && Number.isInteger(spanIndex) && spanIndex >= 0) selectedSpan.value = spans.value[spanIndex] ?? null;
+}, { immediate: true });
 
 interface WaterfallRow {
   span: NativeSpan;

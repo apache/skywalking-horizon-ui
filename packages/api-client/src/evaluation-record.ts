@@ -1,0 +1,99 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Wire types for the Virtual GenAI evaluation-record page.
+ *
+ * This is intentionally generic today: the current BFF endpoint is
+ * backed by OAP's standard record read path, so the UI only receives
+ * the generic `Record` fields. The dedicated page exists so the
+ * backend can later grow a richer evaluation-specific query without
+ * changing the route again.
+ */
+
+export interface EvaluationRecordQueryRequest {
+  service?: string;
+  serviceId?: string | null;
+  providerId?: string | null;
+  modelId?: string | null;
+  valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
+  minScore?: number | null;
+  maxScore?: number | null;
+  booleanValue?: boolean | null;
+  taskName?: string | null;
+  evaluationLevel?: string | null;
+  judgeModel?: string | null;
+  sortField?: 'EVALUATION_TIME' | 'SCORE_VALUE' | null;
+  sortOrder?: 'ASC' | 'DES' | null;
+  traceId?: string | null;
+  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  page?: number;
+  pageSize?: number;
+  windowMinutes?: number;
+  /** Absolute epoch milliseconds; the BFF formats these in OAP's timezone. */
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface EvaluationRecordRow {
+  traceRef: { type: 'SKYWALKING_NATIVE' | 'OTLP'; traceId: string; segmentId: string | null; spanIndex: number | null; spanId: string | null } | null;
+  traceId: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  modelId: string | null;
+  modelName: string | null;
+  operationName: string | null;
+  scoreValue: number | null;
+  booleanValue: boolean | null;
+  stringValue: string | null;
+  taskName: string | null;
+  valueType: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
+  evaluationLevel: string | null;
+  reason: string | null;
+  judgeModel: string | null;
+  evaluationTime: number;
+}
+
+export interface EvaluationRecordsResponse {
+  generatedAt: number;
+  query: EvaluationRecordQueryRequest;
+  /** OAP does not expose a total count for this record query. */
+  total: number | null;
+  records: EvaluationRecordRow[];
+  reachable: boolean;
+  hasNext?: boolean;
+  error?: string;
+}
+
+export interface EvaluationRecordFacetsResponse {
+  generatedAt: number;
+  sampled: number;
+  level: Record<'fail' | 'warning' | 'good' | 'excellent' | 'undefined', number>;
+  services: Array<{ name: string; count: number }>;
+  reachable: boolean;
+  error?: string;
+}
+
+export interface EvaluationCallerService {
+  id: string;
+  name: string;
+  normal: boolean | null;
+  group: string;
+  layer: string;
+}

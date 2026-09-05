@@ -82,6 +82,7 @@ import { LayerApi } from './scopes/layer';
 import { TraceApi } from './scopes/trace';
 import { ZipkinApi } from './scopes/zipkin';
 import { LogApi } from './scopes/log';
+import { EvaluationRecordApi } from './scopes/evaluation-record';
 import { BrowserErrorsApi } from './scopes/browser-errors';
 import { EventsApi } from './scopes/events';
 import { ProfileApi } from './scopes/profile';
@@ -180,6 +181,9 @@ export type {
   LogQueryRequest,
   LogsResponse,
   LogFacetsResponse,
+  EvaluationRecordFacetsResponse,
+  EvaluationRecordRow,
+  EvaluationRecordsResponse,
   BrowserErrorCategory,
   BrowserErrorRow,
   BrowserErrorsQueryRequest,
@@ -354,6 +358,7 @@ export interface AdminLayerTemplate {
     deployment?: boolean;
     traces?: boolean;
     logs?: boolean;
+    evaluationRecord?: boolean;
     browserErrors?: boolean;
     podLogs?: boolean;
     profiling?: boolean;
@@ -1011,6 +1016,7 @@ export class BffClient {
   readonly trace = new TraceApi(this);
   readonly zipkin = new ZipkinApi(this);
   readonly log = new LogApi(this);
+  readonly evaluationRecord = new EvaluationRecordApi(this);
   readonly browserErrors = new BrowserErrorsApi(this);
   readonly events = new EventsApi(this);
   readonly profile = new ProfileApi(this);
