@@ -28,21 +28,32 @@ Known verbs are grouped into areas:
 | `inspect:read` | The read-only inspect tools: Metrics Inspect (`/operate/inspect`), Trace Inspect (`/operate/trace-inspect`), Log Inspect (`/operate/log-inspect`). |
 | `topology:read` | Topology tab, topology widgets on overviews. |
 | `profile:read` | Profiling tab (results read-only) and the continuous-profiling policy list. |
-| `overview:read` | Public overview dashboards. The template-administration pages read their sync status through it too, so a role built to edit only layer dashboards needs it alongside `dashboard:read`. |
+| `overview:read` | Public overview dashboards. Only the rendered pages — the stored templates behind them are gated separately, under Dashboard setup below. |
 | `infra-3d:read` | 3D Infrastructure Map — the map's config + live traffic metrics. |
 | `ai:read` | [AI assistant](../operate/ai-assistant.md): send a chat message. Grants no data access by itself — each of the assistant's data tools re-checks its own read verb, so the assistant never reads more than the session could. |
 | `mcp:read` | Connect an external agent over [MCP](../operate/mcp.md) (`POST /api/mcp`). Grants no data access by itself, for the same reason as `ai:read` — the agent's tools re-check their own read verbs. Kept separate from `ai:read` because the two differ in where the model runs: the assistant sends the conversation to the provider this Horizon is configured with, while MCP leaves the model on the caller's side, so a deployment can reasonably allow one and not the other. |
+
+### Dashboard setup — the six configuration pages
+
+Each page in the sidebar's **Dashboard setup** section has its own read/write pair. The **read** verb decides whether the page's row appears and whether it opens; the **write** verb decides whether it can publish. Holding only the read verb opens the page in **read-only**: the configuration is fully visible, every editing control is disabled, and the banner says which permission publishing needs. Horizon refuses the write server-side either way, so the read verb is safe to grant on its own.
+
+| Verb pair | Page |
+|---|---|
+| `overview-template:read` / `overview-template:write` | Overview templates (`/admin/overview-templates`). |
+| `layer-template:read` / `layer-template:write` | Layer dashboards (`/admin/layer-dashboards`). |
+| `translation:read` / `translation:write` | Translations (`/admin/translations`) — the per-locale overlays for any template, whatever kind it translates. `translation:read` also reads the source templates being translated, since the page shows each translation beside the English it replaces; it does not let you change one. A translation may only replace the template's text fields — a title, an alias, a label — never a metric expression, a widget type or a layer key. |
+| `alarm-setup:read` / `alarm-setup:write` | Alert page setup (`/admin/alert-page-setup`). |
+| `infra-3d-setup:read` / `infra-3d-setup:write` | 3D Infra Map setup (`/admin/3d-map`). Distinct from `infra-3d:read`, which is the map itself. |
+| `setup:read` / `setup:write` | Global defaults (`/admin/global-defaults`) — default theme and time window. |
+
+None of these is granted to `viewer` or `maintainer`. Those roles read the dashboards; the stored templates behind them are an operator's to change.
 
 ### Operate — dashboards, rules, diagnostics
 
 | Verb | Gates |
 |---|---|
-| `overview:write` | Overview templates (`/admin/overview-templates`), the 3D-map config (`/admin/3d-map`), the Translations editor (`/admin/translations`), and publishing edits from the Alert page (`/admin/alert-page-setup`) and Global defaults (`/admin/global-defaults`) pages. |
-| `dashboard:read` / `dashboard:write` | Layer dashboard templates admin page: list / edit. |
-| `alarm-setup:read` | Shows the Alert page setup entry (`/admin/alert-page-setup`). Publishing an edit there requires `overview:write`, like every other template write. |
 | `alarm-rule:read` | Alarm Rule catalog: list (read-only — alarm-rule edits go through the OAP alarm-rule YAML, not this page). |
 | `alarm-rule:write` | **Reserved** — OAP's alarm-rule catalog is read-only, so there is no write for Horizon to gate. |
-| `setup:read` | Shows the Global defaults entry (`/admin/global-defaults`) — default theme and time defaults. Publishing an edit there requires `overview:write`, like every other template write. |
 | `rule:read` | DSL Management — list rules, read a rule body, and download a runtime-rule dump. |
 | `rule:write` | DSL Management — save a rule whose change is not structural, and inactivate a rule. |
 | `rule:write:structural` | DSL Management — save an edit that moves a metric's storage identity (scope, downsampling, single ↔ labeled ↔ histogram), force a re-apply to recover a degraded rule, and revert a rule to its bundled version. |
@@ -91,7 +102,7 @@ A user's grant string is matched against a required verb using these rules:
 |---|---|
 | `*` or `admin` | Any verb. |
 | `area:verb` (exact) | The exact required verb (case-sensitive). |
-| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. |
+| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. The `*` is the whole second segment — `rule:*:anything` is not a narrower form of this, it is malformed, and grants nothing. |
 | `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`), and does **not** match `audit:read` — see below. |
 
 Effective verbs for a session are the **union** of all grants from all roles.
@@ -122,11 +133,13 @@ Configures observability. Inherits maintainer's reads + write access to dashboar
 
 ```
 maintainer baseline +
-overview:write,
 source-map:write,
-setup:read,
-dashboard:read, dashboard:write,
-alarm-setup:read,
+overview-template:read, overview-template:write,
+layer-template:read, layer-template:write,
+translation:read, translation:write,
+alarm-setup:read, alarm-setup:write,
+infra-3d-setup:read, infra-3d-setup:write,
+setup:read, setup:write,
 alarm-rule:read,
 rule:read, rule:write, rule:write:structural, rule:delete,
 live-debug:read, live-debug:write,
@@ -240,4 +253,4 @@ landingByRole:
   alarm-triage: /alarms
 ```
 
-Reads operational data plus the alarm rule behind each firing alarm, and can open the Alert page setup to see how the alarm overview is composed. It cannot change any of it: publishing an Alert page edit needs `overview:write`, and alarm rules are read-only for every role.
+Reads operational data plus the alarm rule behind each firing alarm, and can open the Alert page setup to see how the alarm overview is composed. It cannot change any of it: publishing an Alert page edit needs `alarm-setup:write`, and alarm rules are read-only for every role.

@@ -28,6 +28,8 @@ import { TokenStore } from './user/tokens.js';
 import { LdapHealth } from './user/ldap-health.js';
 import { UserSeenCache } from './user/seen-cache.js';
 import { loadConfig, type ConfigSource, BootstrapError } from './config/loader.js';
+import type { HorizonConfig } from './config/schema.js';
+import { isGrantRecognised } from './rbac/verbs.js';
 import { makeRouteAuthHook } from './rbac/route-policy.js';
 // User
 import { registerAuthRoutes } from './http/user.js';
@@ -135,6 +137,11 @@ logger.info(
     configPath: source.path,
     backend: source.current.auth.backend,
     templatesMode: source.current.templates.mode,
+    // Under `builtinRoles: keep` the effective set is not what the file
+    // lists, so say what it resolved to rather than leaving an operator to
+    // infer it from a 403.
+    builtinRoles: source.current.rbac.builtinRoles,
+    roles: Object.keys(source.current.rbac.roles),
   },
   'config loaded',
 );
@@ -145,6 +152,22 @@ logger.info(
 // warn if the file later changes it.
 const bootTemplatesMode = source.current.templates.mode;
 setTemplateReadOnly(bootTemplatesMode === 'readonly');
+// A grant naming no known verb matches nothing and is otherwise invisible:
+// the role still loads, the Roles board renders only verbs the server knows,
+// and the page 403s at the button. Say so once at boot, and again on reload —
+// `rbac.roles` is read per request, so an edit takes effect without a restart.
+function warnUnrecognisedGrants(cfg: HorizonConfig): void {
+  const unknown: string[] = [];
+  for (const [role, grants] of Object.entries(cfg.rbac.roles))
+    for (const g of grants) if (!isGrantRecognised(g)) unknown.push(`${role}: ${g}`);
+  if (unknown.length > 0) {
+    logger.warn(
+      { grants: unknown },
+      'rbac.roles names verbs this build does not know; they grant nothing — check for a typo or a verb retired by an upgrade',
+    );
+  }
+}
+warnUnrecognisedGrants(source.current);
 if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.length > 0) {
   logger.warn(
     { users: source.current.auth.local.users.length },
@@ -153,6 +176,7 @@ if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.le
 }
 source.onChange((cfg) => {
   logger.info({ backend: cfg.auth.backend, templatesMode: cfg.templates.mode }, 'config reloaded');
+  warnUnrecognisedGrants(cfg);
   if (cfg.templates.mode !== bootTemplatesMode) {
     logger.warn(
       { from: bootTemplatesMode, to: cfg.templates.mode },

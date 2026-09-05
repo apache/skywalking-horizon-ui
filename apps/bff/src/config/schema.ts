@@ -20,6 +20,7 @@ import { isIP } from 'node:net';
 import { auditSchema } from './audit.js';
 export { isHttpsOrLoopback, isLoopbackHostname } from '../util/loopback.js';
 import { isHttpsOrLoopback } from '../util/loopback.js';
+import { BUILTIN_ROLES, BUILTIN_LANDING_BY_ROLE } from './builtin-roles.js';
 
 // Env-var-overridable bind defaults. The Docker image sets
 // `HORIZON_SERVER_HOST=0.0.0.0` so a zero-config `docker run -p 8081:8081
@@ -512,106 +513,42 @@ function matchesEveryAddress(value: string): boolean {
   return bits !== undefined && Number(bits) === 0 && isIP(addr ?? '') !== 0;
 }
 
+
 const rbacSchema = z
   .object({
     /** When false, every authenticated session is granted `*`. */
     enabled: z.boolean().default(true),
-    roles: z
-      .record(z.string(), z.array(z.string().min(1)))
-      .default({
-        // Data catalog + the read-only inspect tools (metric / trace / log
-        // inspect, all `inspect:read`). Deliberately NOT `*:read` so a viewer
-        // can't see rule definitions, live-debug sessions, setup screens, or
-        // cluster / TTL / config internals.
-        viewer: [
-          'metrics:read',
-          'alarms:read',
-          'events:read',
-          'traces:read',
-          'logs:read',
-          'browser-errors:read',
-          'inspect:read',
-          'topology:read',
-          'profile:read',
-          'overview:read',
-          'infra-3d:read',
-          'ai:read',
-          'mcp:read',
-        ],
-        // Viewer baseline plus the platform-monitoring reads (cluster
-        // health + OAP internals). Maintainer's whole job is watching
-        // SkyWalking itself.
-        maintainer: [
-          'metrics:read',
-          'alarms:read',
-          'events:read',
-          'traces:read',
-          'logs:read',
-          'browser-errors:read',
-          'topology:read',
-          'profile:read',
-          'overview:read',
-          'cluster:read',
-          'inspect:read',
-          'ttl:read',
-          'config:read',
-          'infra-3d:read',
-          'ai:read',
-          'mcp:read',
-        ],
-        // Configures observability: dashboards, alarm rules, DSL/OAL,
-        // diagnostics. Inherits viewer + platform reads so operators
-        // can verify their changes against live data. No reserved verb is
-        // granted here (see RESERVED_VERBS): granting one promises a
-        // capability now and silently confers it the day something enforces it.
-        operator: [
-          'metrics:read',
-          'alarms:read',
-          'events:read',
-          'traces:read',
-          'logs:read',
-          'browser-errors:read',
-          'source-map:write',
-          'topology:read',
-          'profile:read',
-          'cluster:read',
-          'inspect:read',
-          'ttl:read',
-          'config:read',
-          'overview:read',
-          'overview:write',
-          'setup:read',
-          'dashboard:read',
-          'dashboard:write',
-          'alarm-setup:read',
-          'alarm-rule:read',
-          'infra-3d:read',
-          'rule:read',
-          'rule:write',
-          'rule:write:structural',
-          'rule:delete',
-          'live-debug:read',
-          'live-debug:write',
-          'profile:enable',
-          'ai:read',
-          'mcp:read',
-        ],
-        admin: ['*'],
-      }),
-    /** Landing route per role; the UI uses this to send users to the
-     *  page that fits their job after login. Cluster status lives at
-     *  `/operate/cluster` (operator tooling against OAP). */
-    landingByRole: z
-      .record(z.string(), z.string())
-      .default({
-        viewer: '/',
-        maintainer: '/operate/cluster',
-        operator: '/',
-        admin: '/operate/cluster',
-      }),
+    /**
+     * What a configured `roles` block does to the built-in roles.
+     *
+     * `replace` (the default) — the block IS the role set; anything not listed
+     * ceases to exist. `keep` — the built-ins are the base, a listed name
+     * overrides that one role wholesale, and a new name is added.
+     *
+     * The default cannot be `keep`: a deployment that trimmed its block to
+     * REMOVE a role would silently get it back on upgrade, and one of the
+     * roles it would get back is `admin: ["*"]`. Widening access is not
+     * something an upgrade may do on its own.
+     *
+     * Under `keep` a built-in can no longer be dropped by omission — omission
+     * is what keeps it. Grant it nothing instead (`admin: []`): the role still
+     * exists and confers no verb.
+     */
+    builtinRoles: z.enum(['replace', 'keep']).default('replace'),
+    roles: z.record(z.string(), z.array(z.string().min(1))).default(BUILTIN_ROLES),
+    landingByRole: z.record(z.string(), z.string()).default(BUILTIN_LANDING_BY_ROLE),
   })
   .strict()
-  .default({});
+  .default({})
+  .transform((rbac) =>
+    rbac.builtinRoles === 'keep'
+      ? {
+          ...rbac,
+          roles: { ...BUILTIN_ROLES, ...rbac.roles },
+          landingByRole: { ...BUILTIN_LANDING_BY_ROLE, ...rbac.landingByRole },
+        }
+      : rbac,
+  );
 
 const sessionSchema = z
   .object({

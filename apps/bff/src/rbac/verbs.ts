@@ -38,12 +38,27 @@ export const VERBS = {
   ruleWrite: 'rule:write',
   ruleWriteStructural: 'rule:write:structural',
   ruleDelete: 'rule:delete',
-  dashboardRead: 'dashboard:read',
-  dashboardWrite: 'dashboard:write',
+  /** See a RENDERED overview dashboard. Deliberately not a template verb:
+   *  the overview pages an operator reads are not the stored rows the editor
+   *  writes, and a viewer needs the former without the latter. */
   overviewRead: 'overview:read',
-  overviewWrite: 'overview:write',
-  setupRead: 'setup:read',
+
+  // One read/write pair per "Dashboard setup" page. The pairs are per-page
+  // rather than one `template:*` area because the pages are independently
+  // grantable: an operator may curate translations without touching layer
+  // dashboards. The stored row's KIND selects the pair on every write.
+  overviewTemplateRead: 'overview-template:read',
+  overviewTemplateWrite: 'overview-template:write',
+  layerTemplateRead: 'layer-template:read',
+  layerTemplateWrite: 'layer-template:write',
+  translationRead: 'translation:read',
+  translationWrite: 'translation:write',
   alarmSetupRead: 'alarm-setup:read',
+  alarmSetupWrite: 'alarm-setup:write',
+  infra3dSetupRead: 'infra-3d-setup:read',
+  infra3dSetupWrite: 'infra-3d-setup:write',
+  setupRead: 'setup:read',
+  setupWrite: 'setup:write',
   alarmRuleRead: 'alarm-rule:read',
   alarmRuleWrite: 'alarm-rule:write',
   liveDebugRead: 'live-debug:read',
@@ -128,14 +143,83 @@ export const RESERVED_VERBS: readonly Verb[] = [
  */
 export const WILDCARD_EXEMPT_VERBS: ReadonlySet<Verb> = new Set<Verb>(['audit:read']);
 
+/**
+ * Verbs retired by the per-page Dashboard-setup split, mapped to what they
+ * used to gate. An unrecognised verb grants nothing silently, so without this
+ * an upgraded `horizon.yaml` naming a retired verb would quietly stop working
+ * — the role would still load, the buttons would still render, and the save
+ * would 403.
+ *
+ * `overview:write` gated five of the six setup pages, so it expands to both
+ * halves of each: whoever could edit those pages could necessarily read them.
+ * `overview:read` is NOT here — it survives as the render verb, and expanding
+ * it to the template reads would hand every viewer the editor content the
+ * split exists to withhold.
+ */
+export const VERB_ALIASES: Readonly<Record<string, readonly Verb[]>> = {
+  'dashboard:read': ['layer-template:read'],
+  'dashboard:write': ['layer-template:write'],
+  'overview:write': [
+    'overview-template:read',
+    'overview-template:write',
+    'translation:read',
+    'translation:write',
+    'alarm-setup:read',
+    'alarm-setup:write',
+    'infra-3d-setup:read',
+    'infra-3d-setup:write',
+    'setup:read',
+    'setup:write',
+  ],
+};
+
+/**
+ * Retired AREA wildcards. `overview:*` and `dashboard:*` used to reach the
+ * setup pages through the retired verbs; with those gone the wildcard still
+ * parses (both areas still exist) so nothing would report the loss — it would
+ * simply stop granting. Expanded like an exact alias.
+ */
+const RETIRED_AREA_ALIASES: Readonly<Record<string, readonly Verb[]>> = {
+  'dashboard:*': ['layer-template:read', 'layer-template:write'],
+  'overview:*': VERB_ALIASES['overview:write'] ?? [],
+};
+
+/** What one configured grant additionally confers, retired names included. */
+function aliasesFor(grant: string): readonly Verb[] {
+  if (Object.hasOwn(VERB_ALIASES, grant)) return VERB_ALIASES[grant]!;
+  if (Object.hasOwn(RETIRED_AREA_ALIASES, grant)) return RETIRED_AREA_ALIASES[grant]!;
+  return [];
+}
+
+/** True for a grant the verb grammar accepts even though it names no known
+ *  verb: the wildcards, and any retired name still expanded by VERB_ALIASES.
+ *  Used by the boot-time warning so it does not flag the stock `admin` role. */
+export function isGrantRecognised(grant: string): boolean {
+  if (grant === '*' || grant === 'admin') return true;
+  if (aliasesFor(grant).length > 0) return true;
+  // Ask the matcher itself rather than re-deriving the grammar beside it: a
+  // second parser drifts, and this one drifted three ways — it missed the
+  // retired area wildcards, ignored sub-actions (`*:read:typo` passed), and
+  // did not know about WILDCARD_EXEMPT_VERBS (`audit:*` passed while granting
+  // nothing). Recognised means "grants at least one verb this build has".
+  return (Object.values(VERBS) as Verb[]).some((v) => matchOne(grant, v));
+}
+
 function matchOne(grant: Verb, required: Verb): boolean {
   if (grant === '*' || grant === 'admin') return true;
   if (grant === required) return true;
   if (WILDCARD_EXEMPT_VERBS.has(required)) return false;
+  // The grammar is at most three segments. `split(':', 3)` TRUNCATES rather
+  // than failing, so without this a fourth segment is silently dropped and
+  // `rule:write:structural:typo` grants `rule:write:structural` — a typo that
+  // confers authority instead of none.
+  if (grant.split(':').length > 3) return false;
   // `area:*` matches any verb in that area (and any sub-action — `rule:*` covers `rule:write:structural`)
   const [grantArea, grantAction, grantSub] = grant.split(':', 3);
   const [reqArea, reqAction, reqSub] = required.split(':', 3);
-  if (grantArea === reqArea && grantAction === '*') return true;
+  // `grantSub` must be absent: `rule:*:typo` is not a narrower `rule:*`, it is
+  // malformed, and reading it as the area wildcard grants the whole area.
+  if (grantArea === reqArea && grantAction === '*' && grantSub === undefined) return true;
   // `*:action` matches that action in any area
   if (grantArea === '*' && grantAction === reqAction && (grantSub ?? '') === (reqSub ?? '')) return true;
   // Sub-action exact match (e.g. grant `rule:write:structural` only matches itself)
@@ -156,6 +240,10 @@ export function resolveVerbsForRoles(
 ): Verb[] {
   if (!rbacEnabled) return ['*'];
   const set = new Set<Verb>();
-  for (const r of userRoles) for (const v of rolePolicy[r] ?? []) set.add(v);
+  for (const r of userRoles)
+    for (const v of rolePolicy[r] ?? []) {
+      set.add(v);
+      for (const a of aliasesFor(v)) set.add(a);
+    }
   return [...set];
 }

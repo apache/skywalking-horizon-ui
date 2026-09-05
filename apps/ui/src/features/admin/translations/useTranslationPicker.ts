@@ -47,8 +47,8 @@ export interface UseTranslationPickerReturn {
 export function useTranslationPicker(selectedKind: Ref<'overview' | 'layer'>): UseTranslationPickerReturn {
   const overviewSources = useTemplateSources('overview');
   const layerSources = useTemplateSources('layer');
-  const layerSync = useTemplateSync({ kind: 'layer' });
-  const overviewSync = useTemplateSync({ kind: 'overview' });
+  const layerSync = useTemplateSync({ kind: 'layer', writeVerb: 'translation:write' });
+  const overviewSync = useTemplateSync({ kind: 'overview', writeVerb: 'translation:write' });
   const localEdits = useLocalTranslationEdits();
 
   // Bundled-only entries (overview / layer rows the operator may not

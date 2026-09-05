@@ -162,11 +162,13 @@ const activePageAlias = computed(() =>
 
 /** One writer for both targets, so the two cannot drift apart. */
 function writeFilter(which: 'service' | 'instance', value: string): void {
+  if (readOnly.value) return;
   const id = activePage.value;
   if (id) extPages.setEntityFilter(which, id, value);
   else extPages.setDefaultEntityFilter(which, value);
 }
 function writeAttributes(attributes: InstanceAttributePredicate[]): void {
+  if (readOnly.value) return;
   const id = activePage.value;
   if (id) extPages.setInstanceAttributes(id, attributes);
   else extPages.setDefaultInstanceAttributes(attributes);
@@ -212,6 +214,7 @@ const COMPONENT_LABEL: Record<string, () => string> = {
 const componentLabel = (key: string): string => COMPONENT_LABEL[key]?.() ?? key;
 
 function onConfirmDisable(key: string): void {
+  if (readOnly.value) return;
   const tpl = selectedTpl.value;
   const block = COMPONENT_TO_OWNED_BLOCK[key];
   if (tpl && block) {
@@ -278,6 +281,7 @@ function onConfirmDisable(key: string): void {
 /** Deleting a page destroys its widgets, so it asks first — the widgets
  *  are not recoverable from the editor once the draft is saved. */
 function confirmDeletePage(id: string): void {
+  if (readOnly.value) return;
   const page = extPages.pages.value.find((p) => p.id === id);
   if (!page) return;
   const count = page.widgets.length;
@@ -349,7 +353,7 @@ type TraceSource = 'native' | 'zipkin' | 'both';
 const traceSource = computed<TraceSource>({
   get: () => draft.template?.traces?.source ?? 'both',
   set: (v: TraceSource) => {
-    if (!draft.template) return;
+    if (readOnly.value || !draft.template) return;
     if (draft.template.traces) draft.template.traces.source = v;
     else draft.template.traces = { source: v };
   },
@@ -390,7 +394,7 @@ const serviceNoun = computed(() => scopeLabel('service'));
 const instanceNoun = computed(() => scopeLabel('instance'));
 
 function setVisibility(v: 'public' | 'operate'): void {
-  if (!draft.template) return;
+  if (readOnly.value || !draft.template) return;
   // `public` is the implicit default — drop the field rather than
   // emit a redundant value, so saved JSON stays minimal.
   if (v === 'public') {
@@ -420,11 +424,11 @@ function namingDefault(): NamingRule {
   };
 }
 function enableNaming(): void {
-  if (!draft.template) return;
+  if (readOnly.value || !draft.template) return;
   draft.template.naming = namingDefault();
 }
 function disableNaming(): void {
-  if (!draft.template) return;
+  if (readOnly.value || !draft.template) return;
   draft.template.naming = undefined;
 }
 
@@ -494,7 +498,6 @@ const namingTest = computed<NamingTestResult>(() => {
         :local-count="localCount"
         :unconfigured-count="unconfiguredCount"
         :refreshing="refreshingFromRemote"
-        :read-only="sync.readOnly.value"
         :badge-for="sync.badgeFor"
         :conflict-ids-for="conflictIdsFor"
         :is-diverged="isDivergedRow"
@@ -547,6 +550,7 @@ const namingTest = computed<NamingTestResult>(() => {
              activeScope write + scroll via jumpToComponent. -->
         <LayerSetupEditor
           v-model:template="selectedTpl"
+          :read-only="readOnly"
           :active-scope="activeScope"
           :active-page="activePage"
           :instance-topology-enabled="instanceTopologyEnabled"
@@ -562,6 +566,7 @@ const namingTest = computed<NamingTestResult>(() => {
           v-model:config="selectedTpl.metrics"
           :service-label="serviceNoun"
           :layer-key="selectedKey"
+          :read-only="readOnly"
         />
 
         <ScopeTabsBar
@@ -601,12 +606,14 @@ const namingTest = computed<NamingTestResult>(() => {
               v-if="!selectedTpl.naming"
               class="sw-btn add"
               type="button"
+              :disabled="readOnly"
               @click="enableNaming"
             >{{ t('＋ Enable rule') }}</button>
             <button
               v-else
               class="sw-btn small ghost danger"
               type="button"
+              :disabled="readOnly"
               @click="disableNaming"
             >{{ t('Remove rule') }}</button>
           </div>
@@ -623,6 +630,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   type="text"
                   spellcheck="false"
                   placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
+                  :disabled="readOnly"
                 />
               </label>
               <label class="mf mf-narrow" :title="t('JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.')">
@@ -633,6 +641,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   type="text"
                   spellcheck="false"
                   :placeholder="t('(empty)')"
+                  :disabled="readOnly"
                 />
               </label>
             </div>
@@ -647,6 +656,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   class="mf-input mono"
                   type="text"
                   placeholder="service"
+                  :disabled="readOnly"
                 />
               </label>
               <label class="mf">
@@ -656,6 +666,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   class="mf-input mono"
                   type="text"
                   placeholder="namespace"
+                  :disabled="readOnly"
                 />
               </label>
               <label class="mf">
@@ -665,6 +676,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   class="mf-input"
                   type="text"
                   placeholder="namespace"
+                  :disabled="readOnly"
                 />
               </label>
             </div>
@@ -709,6 +721,7 @@ const namingTest = computed<NamingTestResult>(() => {
           :service-noun="serviceNoun"
           :instance-noun="instanceNoun"
           :layer-key="selectedKey"
+          :read-only="readOnly"
         />
 
         <DeploymentConfigEditor
@@ -716,18 +729,21 @@ const namingTest = computed<NamingTestResult>(() => {
           v-model:config="selectedTpl.deployment"
           :instance-noun="instanceNoun"
           :layer-key="selectedKey"
+          :read-only="readOnly"
         />
 
         <DependencyConfigSection
           v-else-if="activeScope === 'dependency'"
           v-model:config="selectedTpl.endpointDependency"
           :layer-key="selectedKey"
+          :read-only="readOnly"
         />
 
         <ProcessConfigEditor
           v-else-if="activeScope === 'networkProfiling'"
           v-model:config="selectedTpl.processTopology"
           :layer-key="selectedKey"
+          :read-only="readOnly"
         />
 
         <!-- Trace + Logs are built-in views with no per-layer config
@@ -760,6 +776,7 @@ const namingTest = computed<NamingTestResult>(() => {
                     name="trace-source"
                     :value="o.value"
                     :checked="traceSource === o.value"
+                    :disabled="readOnly"
                     @change="traceSource = o.value"
                   />
                   <span class="ts-label">{{ o.label }}</span>
@@ -816,6 +833,7 @@ const namingTest = computed<NamingTestResult>(() => {
           <WidgetEditorCanvas
             :draft="draft"
             :active-scope="activeScope"
+            :read-only="readOnly"
             :active-page="activePage"
             @update:active-page="activePage = $event"
           />
@@ -834,7 +852,7 @@ const namingTest = computed<NamingTestResult>(() => {
       </div>
       <template #footer>
         <button class="sw-btn" type="button" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
-        <button class="sw-btn is-primary" type="button" :disabled="isSaving" @click="pushToOap">
+        <button class="sw-btn is-primary" type="button" :disabled="readOnly || isSaving" @click="pushToOap">
           {{ isSaving ? t('Pushing…') : t('Confirm push') }}
         </button>
       </template>
@@ -845,7 +863,7 @@ const namingTest = computed<NamingTestResult>(() => {
       <p class="confirm-msg">{{ confirmMessage }}</p>
       <template #footer>
         <button class="sw-btn" type="button" @click="deleteOpen = false">{{ t('Cancel') }}</button>
-        <button class="sw-btn" :class="{ danger: confirmIsDanger, 'is-primary': !confirmIsDanger }" type="button" :disabled="isSaving" @click="runConfirm">
+        <button class="sw-btn" :class="{ danger: confirmIsDanger, 'is-primary': !confirmIsDanger }" type="button" :disabled="readOnly || isSaving" @click="runConfirm">
           {{ confirmLabel }}
         </button>
       </template>

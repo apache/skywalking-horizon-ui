@@ -545,7 +545,7 @@ When set, the layer's service list groups by `cluster`. Without it, services are
 
 ## Admin Editor
 
-Layer templates are editable at runtime via **Dashboard setup → Layer dashboards** (`/admin/layer-dashboards`, opened with `dashboard:read`; publishing a layer requires `dashboard:write`). The picker lists **every layer your OAP reports**, not just the ones with a shipped template — a layer with no template yet opens on a blank default you can configure and publish on first save. Pick a layer from the filterable dropdown (alias + key + sync status), then edit its service / instance / endpoint / topology / trace / log / profiling views. A live menu preview sits beside the Alias / Components / Menu-labels editor; clicking a menu item jumps to that component's config.
+Layer templates are editable at runtime via **Dashboard setup → Layer dashboards** (`/admin/layer-dashboards`, opened with `layer-template:read`; publishing a layer requires `layer-template:write`). The picker lists **every layer your OAP reports**, not just the ones with a shipped template — a layer with no template yet opens on a blank default you can configure and publish on first save. Pick a layer from the filterable dropdown (alias + key + sync status), then edit its service / instance / endpoint / topology / trace / log / profiling views. A live menu preview sits beside the Alias / Components / Menu-labels editor; clicking a menu item jumps to that component's config.
 
 ### How edits flow: draft → preview → publish
 

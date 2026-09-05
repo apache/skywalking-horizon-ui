@@ -72,13 +72,15 @@ import {
   findOverlayRow,
   type TemplateRow,
 } from '../../logic/templates/sync.js';
-import type { TemplateKind } from '../../logic/templates/names.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
 import { resync as resyncTemplates } from '../../logic/templates/sync.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
+import type { VerbSubject } from '../../rbac/policy.js';
+import { canReadTemplateRow } from '../../rbac/template-verbs.js';
+import type { TemplateKind } from '../../logic/templates/names.js';
 
 export interface ConfigBundleDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
@@ -162,7 +164,7 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
       const force = (req.query as { force?: string }).force === 'true';
       if (force) resyncTemplates();
       const locale = localeFromRequest(req);
-      const body = await buildBundle(deps, preferLocal, locale);
+      const body = await buildBundle(deps, preferLocal, locale, req.session);
       const inm = req.headers['if-none-match'];
       if (typeof inm === 'string' && inm === body.etag) {
         return reply.code(304).send();
@@ -182,6 +184,7 @@ async function buildBundle(
   deps: ConfigBundleDeps,
   preferLocal = false,
   locale: Locale = 'en',
+  session?: VerbSubject,
 ): Promise<ConfigBundle> {
   const sync = await getSyncStatus({
     client: deps.uiTemplateClient(),
@@ -277,6 +280,9 @@ async function buildBundle(
     overviews.push(localizeContent(dash, oapOverlayFor('overview', dash.id), locale));
   }
 
+  // The same question the admin surface asks — see `canReadTemplateRow`.
+  const readable = (r: { kind: TemplateKind; locale?: string }): boolean =>
+    canReadTemplateRow(deps.config.current, session, r);
   const syncStatus: BundleSyncStatus = {
     mode: sync.mode,
     unreachable: sync.unreachable,
@@ -288,15 +294,15 @@ async function buildBundle(
     // sync banners. Translations have their own admin page; they must
     // not count toward overview or layer dashboard status.
     badges: sync.rows
-      .filter((r) => r.locale === undefined)
+      .filter((r) => r.locale === undefined && readable(r))
       .map((r) => ({
         name: r.name,
         kind: r.kind,
         key: r.key,
         status: r.status,
       })),
-    conflicts: sync.conflicts ?? [],
-    unreadable: sync.unreadable ?? [],
+    conflicts: (sync.conflicts ?? []).filter(readable),
+    unreadable: (sync.unreadable ?? []).filter(readable),
   };
 
   const body = {
@@ -310,6 +316,10 @@ async function buildBundle(
   // the previous etag and never re-render localized content.
   const etag = createHash('md5')
     .update(locale)
+    .update('\0')
+    // The admin metadata above is filtered per session, so two roles must not
+    // share an etag — one would 304 onto the other's view.
+    .update((session?.roles ?? []).join(','))
     .update('\0')
     .update(JSON.stringify(body))
     .digest('hex');

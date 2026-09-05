@@ -202,5 +202,5 @@ The defaults are tuned for a typical deployment; only revisit these if the loadi
 Viewing the map needs read access (`infra-3d:read`, held by the built-in
 viewer role and above). A role without it does not get the topbar entry to
 the map at all. Editing and publishing the configuration needs
-`overview:write` (operators and admins by default). See
+`infra-3d-setup:read` to open, `infra-3d-setup:write` to publish (operators and admins hold both by default). See
 [Roles and Permissions](../access-control/rbac.md).

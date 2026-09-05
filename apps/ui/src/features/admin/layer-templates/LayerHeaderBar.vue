@@ -34,7 +34,7 @@ import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vu
 
 type EditorSource = 'local' | 'bundled' | 'remote';
 
-defineProps<{
+const props = defineProps<{
   selectedTpl: AdminLayerTemplate;
   badge: TemplateStatus | null;
   readOnly: boolean;
@@ -71,6 +71,7 @@ const { t } = useI18n();
 const resetDropdownOpen = ref(false);
 const previewDropdownOpen = ref(false);
 function reset(src: 'bundled' | 'remote'): void {
+  if (props.readOnly) return;
   emit('reset', src);
   resetDropdownOpen.value = false;
 }
@@ -91,7 +92,16 @@ function preview(src: EditorSource): void {
         <code>{{ selectedTpl.key }}</code>
         <!-- Same sync status the picker shows, so the editor and the
              dropdown agree (e.g. both read DISABLED, not one BUNDLED). -->
-        <span v-if="hasLocalDraft" class="local-badge" :title="t('Unpublished local draft in this browser')">{{ t('local') }}</span>
+        <!-- Read-only sessions are shown the OAP-live content, not the
+             draft — the badge has to say the draft is there but hidden,
+             since nothing on the page can reload or discard it. -->
+        <span
+          v-if="hasLocalDraft"
+          class="local-badge"
+          :title="readOnly
+            ? t('Unpublished local draft in this browser — not shown while read-only.')
+            : t('Unpublished local draft in this browser')"
+        >{{ t('local') }}</span>
         <TemplateStatusBadge :status="badge" />
       </div>
       <!-- Disable / Reactivate. Sits by the title, away from the
@@ -104,7 +114,7 @@ function preview(src: EditorSource): void {
           type="button"
           :disabled="isSaving || readOnly"
           :title="readOnly
-            ? t('OAP unreachable — cannot reactivate')
+            ? t('You can view this configuration but not change it.')
             : t('Reactivate the {key} layer (re-enable on OAP)', { key: selectedTpl.key })"
           @click="emit('reactivate')"
         >
@@ -114,9 +124,9 @@ function preview(src: EditorSource): void {
           v-else
           class="sw-btn danger"
           type="button"
-          :disabled="isSaving || (readOnly && (remoteAvailable || bundledExists))"
-          :title="(readOnly && (remoteAvailable || bundledExists))
-            ? t('OAP unreachable — cannot delete')
+          :disabled="isSaving || readOnly"
+          :title="readOnly
+            ? t('You can view this configuration but not change it.')
             : bundledExists
               ? t('Disable the built-in {key} layer (hidden from the sidebar; Reactivate to bring it back)', { key: selectedTpl.key })
               : remoteAvailable
@@ -165,11 +175,20 @@ function preview(src: EditorSource): void {
         <button
           class="sw-btn"
           type="button"
-          :title="t('Import a layer dashboard JSON file as a local draft — preview, then publish.')"
+          :disabled="readOnly"
+          :title="readOnly
+            ? t('You can view this configuration but not change it.')
+            : t('Import a layer dashboard JSON file as a local draft — preview, then publish.')"
           @click="emit('import')"
         >{{ t('Import') }}</button>
         <div class="reset-dd">
-          <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
+          <button
+            class="sw-btn"
+            type="button"
+            :disabled="readOnly"
+            :title="readOnly ? t('You can view this configuration but not change it.') : undefined"
+            @click="resetDropdownOpen = !resetDropdownOpen"
+          >
             {{ t('Reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
           </button>
           <template v-if="resetDropdownOpen">
@@ -233,8 +252,10 @@ function preview(src: EditorSource): void {
         <button
           class="sw-btn is-primary"
           type="button"
-          :disabled="(!dirty && !editorDiffersFromRemote) || isSaving"
-          :title="t('Save the editor to your browser (local). Publish later with “Push local → OAP”.')"
+          :disabled="readOnly || (!dirty && !editorDiffersFromRemote) || isSaving"
+          :title="readOnly
+            ? t('You can view this configuration but not change it.')
+            : t('Save the editor to your browser (local). Publish later with “Push local → OAP”.')"
           @click="emit('save')"
         >
           {{ isSaving ? t('Saving…') : t('Save (local)') }}
@@ -264,6 +285,7 @@ function preview(src: EditorSource): void {
             name="visibility"
             value="public"
             :checked="(selectedTpl.visibility ?? 'public') === 'public'"
+            :disabled="readOnly"
             @change="emit('set-visibility', 'public')"
           />
           <span class="vis-opt-body">
@@ -280,6 +302,7 @@ function preview(src: EditorSource): void {
             name="visibility"
             value="operate"
             :checked="selectedTpl.visibility === 'operate'"
+            :disabled="readOnly"
             @change="emit('set-visibility', 'operate')"
           />
           <span class="vis-opt-body">

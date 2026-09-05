@@ -148,7 +148,7 @@ Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}`
 - `server` — host / port.
 - `oap` — `queryUrl`, `adminUrl`, `zipkinUrl`, `timeoutMs`, and optional outbound basic-auth.
 - `auth` — backend `local` or `ldap` (with LDAP bind / user-filter / group-mapping and an optional break-glass local admin), plus single sign-on and API tokens.
-- `rbac` — four built-in roles (viewer / maintainer / operator / admin) over fine-grained, verb-namespaced permissions (e.g. `dashboard:write`, `rule:write:structural`, `source-map:write`).
+- `rbac` — four built-in roles (viewer / maintainer / operator / admin) over fine-grained, verb-namespaced permissions (e.g. `layer-template:write`, `rule:write:structural`, `source-map:write`), plus any role you add beside them.
 - `templates` — `live` (default: bundled templates seed through OAP 11's REST API and stay editable) or `readonly` (render from the local bundle; required for OAP 10 because Horizon does not consume its legacy GraphQL template API).
 - `ai` — the AI assistant: `enabled` (off by default), provider (`openai-compatible` or `bedrock`), model, base URL, and an env-only API key.
 - `performance` — how hard the BFF fans metric queries out to OAP (per-route bulk sizes and concurrency) plus protective caps (topology render valve, the largest page a list may display).

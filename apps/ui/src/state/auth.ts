@@ -108,9 +108,12 @@ export const useAuthStore = defineStore('auth', () => {
       // BEFORE both wildcard branches, so `*:read` and `audit:*` are equally
       // denied.
       if (WILDCARD_EXEMPT_VERBS.has(verb)) continue;
+      // Both as the BFF: a fourth segment is malformed rather than truncated,
+      // and `area:*` carries no sub-segment.
+      if (g.split(':').length > 3) continue;
       const [ga, gact, gsub] = g.split(':', 3);
       const [ra, ract, rsub] = verb.split(':', 3);
-      if (ga === ra && gact === '*') return true;
+      if (ga === ra && gact === '*' && gsub === undefined) return true;
       if (ga === '*' && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
       if (ga === ra && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
     }

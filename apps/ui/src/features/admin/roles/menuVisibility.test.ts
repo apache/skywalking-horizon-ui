@@ -69,12 +69,16 @@ const GATES: ReadonlyArray<{ verb: string; rows: string[]; paths: string[] }> = 
     rows: ['Metrics inspect', 'Trace inspect', 'Log inspect'],
     paths: ['/operate/inspect', '/operate/trace-inspect', '/operate/log-inspect'],
   },
+  // One read verb per Dashboard-setup page: each row appears on its own, and
+  // the page it opens renders read-only until the matching write verb is held.
   {
-    verb: 'overview:write',
-    rows: ['Overview templates', 'Translations', '3D Infra Map setup'],
-    paths: ['/admin/overview-templates', '/admin/translations', '/admin/3d-map'],
+    verb: 'overview-template:read',
+    rows: ['Overview templates'],
+    paths: ['/admin/overview-templates'],
   },
-  { verb: 'dashboard:read', rows: ['Layer dashboards'], paths: ['/admin/layer-dashboards'] },
+  { verb: 'translation:read', rows: ['Translations'], paths: ['/admin/translations'] },
+  { verb: 'infra-3d-setup:read', rows: ['3D Infra Map setup'], paths: ['/admin/3d-map'] },
+  { verb: 'layer-template:read', rows: ['Layer dashboards'], paths: ['/admin/layer-dashboards'] },
   { verb: 'alarm-setup:read', rows: ['Alert page'], paths: ['/admin/alert-page-setup'] },
   { verb: 'setup:read', rows: ['Global defaults'], paths: ['/admin/global-defaults'] },
   { verb: 'user:read', rows: ['Users'], paths: ['/admin/users'] },

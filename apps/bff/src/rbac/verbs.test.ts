@@ -17,7 +17,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { SCOPE_VERBS } from '../oauth/scopes.js';
-import { WILDCARD_EXEMPT_VERBS, hasVerb, resolveVerbsForRoles } from './verbs.js';
+import {
+  WILDCARD_EXEMPT_VERBS,
+  hasVerb,
+  isGrantRecognised,
+  resolveVerbsForRoles,
+} from './verbs.js';
+import { configSchema } from '../config/schema.js';
+import { BUILTIN_ROLES, BUILTIN_LANDING_BY_ROLE } from '../config/builtin-roles.js';
 
 describe('hasVerb', () => {
   it('grants everything for "*"', () => {
@@ -84,6 +91,132 @@ describe('resolveVerbsForRoles', () => {
     expect(resolveVerbsForRoles(policy, ['operator', 'unknown-role'], true)).toEqual(
       expect.arrayContaining(['*:read', 'rule:write', 'profile:enable']),
     );
+  });
+});
+
+/** Grant → required → expected. Shared with `apps/ui/src/state/auth.test.ts`,
+ *  which runs the SAME table through the UI's copy of this matcher: three
+ *  copies exist (BFF, auth store, Roles board) and they diverged together
+ *  once, so they are pinned to one answer rather than to one another. */
+export const MATCHER_CASES: ReadonlyArray<[string, string, boolean]> = [
+  // A malformed grant confers nothing — it must never be read as a shorter
+  // one it happens to start with.
+  ['rule:*:typo', 'rule:delete', false],
+  ['rule:*:typo', 'rule:write:structural', false],
+  ['rule:write:structural:extra', 'rule:write:structural', false],
+  ['metrics:read:typo', 'metrics:read', false],
+  ['*:read:typo', 'metrics:read', false],
+  // The documented grammar, unchanged.
+  ['rule:*', 'rule:delete', true],
+  ['rule:*', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write:structural', true],
+  ['rule:write:structural', 'rule:write', false],
+  ['*:read', 'metrics:read', true],
+  ['metrics:*', 'metrics:read', true],
+  ['metrics:read', 'metrics:read', true],
+  // Wildcard-exempt: only a bare `*`, `admin`, or the verb itself.
+  ['*:read', 'audit:read', false],
+  ['audit:*', 'audit:read', false],
+  ['audit:read', 'audit:read', true],
+  ['*', 'audit:read', true],
+  ['admin', 'audit:read', true],
+];
+
+describe('the verb grammar, including what is NOT it', () => {
+  it.each(MATCHER_CASES)('%s grants %s → %s', (grant, required, expected) => {
+    expect(hasVerb([grant], required)).toBe(expected);
+  });
+
+  it('a malformed grant is reported at startup rather than quietly granting', () => {
+    // `split(':', 3)` truncates instead of failing, so `rule:*:typo` used to
+    // read as `rule:*` and hand over the whole area.
+    for (const g of ['rule:*:typo', 'rule:write:structural:extra', 'metrics:read:typo']) {
+      expect(isGrantRecognised(g), g).toBe(false);
+    }
+  });
+});
+
+describe('retired verbs still granted by an upgraded horizon.yaml', () => {
+  const R = (grants: string[]): string[] =>
+    resolveVerbsForRoles({ r: grants }, ['r'], true).sort();
+
+  it('expands the exact retired names', () => {
+    expect(R(['dashboard:read'])).toContain('layer-template:read');
+    expect(R(['dashboard:write'])).toContain('layer-template:write');
+    // `overview:write` reached five of the six setup pages, so it expands to
+    // both halves of each — whoever could edit them could read them.
+    const ov = R(['overview:write']);
+    for (const v of [
+      'overview-template:read', 'overview-template:write',
+      'translation:read', 'translation:write',
+      'alarm-setup:read', 'alarm-setup:write',
+      'infra-3d-setup:read', 'infra-3d-setup:write',
+      'setup:read', 'setup:write',
+    ]) expect(ov, v).toContain(v);
+  });
+
+  it('expands a retired AREA wildcard, which would otherwise fail silently', () => {
+    // Both areas still exist, so `overview:*` still parses and the boot warning
+    // has nothing to report — it would simply stop granting the setup pages.
+    expect(R(['dashboard:*'])).toContain('layer-template:write');
+    expect(R(['overview:*'])).toContain('overview-template:write');
+    expect(hasVerb(R(['overview:*']), 'setup:write')).toBe(true);
+  });
+
+  it('does not expand a live verb into template reads', () => {
+    // `overview:read` survives as the RENDER verb. Expanding it would hand
+    // every viewer the editor content the split exists to withhold.
+    const v = R(['overview:read']);
+    expect(hasVerb(v, 'overview-template:read')).toBe(false);
+    expect(hasVerb(v, 'layer-template:read')).toBe(false);
+  });
+
+  it('a grant named after a prototype member grants nothing and does not throw', () => {
+    // `in` / bare indexing would have found Object.prototype.toString here and
+    // thrown `function is not iterable` inside the authorization path.
+    for (const g of ['toString', 'constructor', 'hasOwnProperty', 'valueOf']) {
+      expect(() => R([g])).not.toThrow();
+      expect(R([g])).toEqual([g]);
+    }
+  });
+});
+
+describe('builtinRoles: how a configured block meets the built-ins', () => {
+  const parse = (rbac: object) => configSchema.parse({ rbac }).rbac;
+
+  it('replaces by default — the block IS the role set', () => {
+    expect(Object.keys(parse({ roles: { tv: ['setup:read'] } }).roles)).toEqual(['tv']);
+  });
+
+  it('keeps the built-ins and appends under `keep`', () => {
+    const r = parse({ builtinRoles: 'keep', roles: { tv: ['setup:read'] } }).roles;
+    expect(Object.keys(r)).toEqual(['viewer', 'maintainer', 'operator', 'admin', 'tv']);
+    expect(r.viewer).toEqual(BUILTIN_ROLES.viewer);
+  });
+
+  it('a listed name overrides that ONE role, wholesale', () => {
+    const r = parse({ builtinRoles: 'keep', roles: { operator: ['rule:read'] } }).roles;
+    expect(r.operator).toEqual(['rule:read']);
+    expect(r.viewer).toEqual(BUILTIN_ROLES.viewer);
+  });
+
+  it('merges landingByRole too, or a kept role has no landing route', () => {
+    const l = parse({ builtinRoles: 'keep', roles: { tv: ['setup:read'] }, landingByRole: { tv: '/' } })
+      .landingByRole;
+    expect(l).toEqual({ ...BUILTIN_LANDING_BY_ROLE, tv: '/' });
+  });
+
+  it('a built-in cannot be dropped by omission under `keep` — grant it nothing instead', () => {
+    const r = parse({ builtinRoles: 'keep', roles: { admin: [] } }).roles;
+    expect(r.admin).toEqual([]);
+    expect(hasVerb(resolveVerbsForRoles(r, ['admin'], true), 'user:read')).toBe(false);
+  });
+
+  it('never merges silently: the default must not hand back a role a deployment removed', () => {
+    // `admin: ["*"]` is one of the roles `keep` restores. An upgrade that
+    // flipped this default would widen access on its own.
+    expect(parse({}).builtinRoles).toBe('replace');
+    expect(Object.keys(parse({ roles: { onlyOne: ['metrics:read'] } }).roles)).not.toContain('admin');
   });
 });
 

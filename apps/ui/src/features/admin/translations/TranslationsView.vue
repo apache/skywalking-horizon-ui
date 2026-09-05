@@ -152,6 +152,13 @@ const effective = computed<EffectiveSource | null>(() => {
   return { source: rest };
 });
 
+// Declared HERE, above `useTranslationDraft`: that composable takes it as an
+// argument and its seeding watch runs during setup, so a later declaration
+// would leave it in the TDZ at that moment.
+const readOnly = computed<boolean>(() =>
+  selectedKind.value === 'overview' ? overviewSync.readOnly.value : layerSync.readOnly.value,
+);
+
 const {
   target,
   targetLocales,
@@ -177,7 +184,7 @@ const {
   buildOverlayContent,
   rebuildDraftForLocale,
   clearDraftLocale,
-} = useTranslationDraft({ selectedKind, selectedName, effective });
+} = useTranslationDraft({ selectedKind, selectedName, effective, readOnly });
 
 const scopeOptions = computed<Array<{ value: DashboardScope; label: string }>>(() => {
   const eff = effective.value;
@@ -205,10 +212,8 @@ interface PanelState {
 const panel = ref<PanelState>({ open: false, anchor: null, point: null, fields: [], label: '' });
 
 function openPanel(fields: TranslatableField[], label: string, el: HTMLElement, point: { x: number; y: number }): void {
-  // Read-only mode (templates.mode=readonly or admin unreachable): the canvas
-  // stays viewable but the editor never opens — no edit can start that could
-  // only end in a server 409. Sibling admin pages gate the same way.
-  if (readOnly.value) return;
+  // Read-only opens the panel too — it renders `:read-only` and is the only
+  // way to READ a translation beside its source string.
   // Leftover entries block editing for the same reason they block the push:
   // whatever is typed here can only leave the browser through a push, and a
   // push would take the leftovers with it.
@@ -323,7 +328,7 @@ const resetDropdownOpen = ref(false);
 function resetTo(src: 'remote' | 'bundled'): void {
   const name = selectedName.value;
   const loc = target.value;
-  if (!name) return;
+  if (!name || readOnly.value) return;
   localEdits.remove(name, loc);
   rebuildDraftForLocale(name, loc, src);
   editorSource.value = src;
@@ -337,7 +342,7 @@ function stageLocal(): void {
   const name = selectedName.value;
   const loc = target.value;
   const overlay = draftOverlayForTarget.value;
-  if (!name) return;
+  if (!name || readOnly.value) return;
   if (overlay === null) localEdits.remove(name, loc);
   else localEdits.set(name, loc, overlay);
   editorSource.value = 'local';
@@ -555,10 +560,15 @@ async function publishOverlay(): Promise<void> {
   }
 }
 
+function onUpdateField(path: string, value: string): void {
+  if (readOnly.value) return;
+  setDraftValue(path, value);
+}
+
 function discardLocal(): void {
   const name = selectedName.value;
   const loc = target.value;
-  if (!name) return;
+  if (!name || readOnly.value) return;
   localEdits.remove(name, loc);
   rebuildDraftForLocale(name, loc, 'remote');
   editorSource.value = 'remote';
@@ -566,10 +576,6 @@ function discardLocal(): void {
   closePanel();
   setTimeout(() => (saveMsg.value = null), 3000);
 }
-
-const readOnly = computed<boolean>(() =>
-  selectedKind.value === 'overview' ? overviewSync.readOnly.value : layerSync.readOnly.value,
-);
 
 // Translations are their own OAP rows on their own page, so their
 // import/export is separate from the source-template pages. Both act on
@@ -594,6 +600,7 @@ function onExport(): void {
 // envelope targets its own (template, locale) — switching the picker to
 // it; a bare overlay object goes into the current selection.
 async function onImportFile(): Promise<void> {
+  if (readOnly.value || staleBlocked.value) return;
   const text = await pickJsonFile();
   if (text === null) return;
   const res = parseOverlayImport(text);
@@ -681,7 +688,6 @@ async function onImportFile(): Promise<void> {
         <TypeaheadSelect
           :model-value="selectedKind"
           :options="[{ value: 'overview', label: t('Overview') }, { value: 'layer', label: t('Layer') }]"
-          :disabled="readOnly"
           :min-panel-width="180"
           @update:model-value="(v) => (selectedKind = v as 'overview' | 'layer')"
         />
@@ -692,7 +698,7 @@ async function onImportFile(): Promise<void> {
           :model-value="selectedName"
           :entries="activeEntries"
           :kind-label="selectedKind === 'overview' ? 'dashboards' : 'layers'"
-          :disabled="readOnly || activeEntries.length === 0"
+          :disabled="activeEntries.length === 0"
           :refreshing="refreshing"
           @update:model-value="(v) => (selectedName = v)"
           @refresh="onRefreshTemplates"
@@ -703,7 +709,6 @@ async function onImportFile(): Promise<void> {
         <TypeaheadSelect
           :model-value="scope"
           :options="scopeOptions"
-          :disabled="readOnly"
           :min-panel-width="220"
           @update:model-value="(v) => (scope = v as DashboardScope)"
         />
@@ -715,7 +720,6 @@ async function onImportFile(): Promise<void> {
         <TypeaheadSelect
           :model-value="page ?? ''"
           :options="pageOptions"
-          :disabled="readOnly"
           :min-panel-width="220"
           @update:model-value="(v) => (page = (v as string) || null)"
         />
@@ -725,7 +729,6 @@ async function onImportFile(): Promise<void> {
         <TypeaheadSelect
           :model-value="target"
           :options="targetLocales.map((l) => ({ value: l, label: `${LOCALE_NATIVE_LABEL[l]} (${l})` }))"
-          :disabled="readOnly"
           :min-panel-width="220"
           @update:model-value="(v) => (target = v as Locale)"
         />
@@ -733,6 +736,14 @@ async function onImportFile(): Promise<void> {
       <span class="tv__progress">{{ t('{filled} / {total} translated', { filled: filledCount, total: allFields.length }) }}</span>
 
       <div class="tv__actions">
+        <!-- A read-only session is shown the OAP-live overlay, not the
+             staged draft — this says the draft is there but hidden, since
+             nothing on the page can reload or discard it. -->
+        <span
+          v-if="readOnly && hasStagedLocal"
+          class="tv__src is-local"
+          :title="t('Unpublished local draft in this browser — not shown while read-only.')"
+        >{{ t('local') }}</span>
         <!-- Source pill — sits at the right edge next to the
              "reset to" dropdown so the operator's eye reads
              `state pill → reset to source` left-to-right. Per-state
@@ -806,7 +817,7 @@ async function onImportFile(): Promise<void> {
           v-if="hasStagedLocal"
           type="button"
           class="sw-btn"
-          :disabled="saving"
+          :disabled="saving || readOnly"
           @click="discardLocal"
         >{{ t('Discard local') }}</button>
         <button
@@ -862,8 +873,9 @@ async function onImportFile(): Promise<void> {
       :saving="saving"
       :dirty="dirty"
       :draft-value="draftValue"
+      :read-only="readOnly"
       @close="closePanel"
-      @update-field="setDraftValue"
+      @update-field="onUpdateField"
       @stage="stageLocal"
     />
 
@@ -899,13 +911,13 @@ async function onImportFile(): Promise<void> {
           v-if="sweepOthers.length > 0"
           class="sw-btn"
           type="button"
-          :disabled="sweepScanning || saving"
+          :disabled="sweepScanning || saving || readOnly"
           @click="cleanLocales([target])"
         >{{ t('Only {locale}', { locale: LOCALE_NATIVE_LABEL[target] }) }}</button>
         <button
           class="sw-btn is-primary"
           type="button"
-          :disabled="sweepScanning || saving || sweepResults.length === 0"
+          :disabled="sweepScanning || saving || readOnly || sweepResults.length === 0"
           @click="cleanLocales(sweepResults.map((r) => r.locale))"
         >{{ t('All languages ({n})', { n: sweepResults.length }) }}</button>
       </template>

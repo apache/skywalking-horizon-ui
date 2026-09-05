@@ -18,6 +18,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { WILDCARD_EXEMPT_VERBS } from '@/state/wildcardExempt';
+import { aliasesFor } from '@/state/verbAliases';
 import { bff } from '@/api/client';
 import type { AuthStatus } from '@/api/scopes/admin-auth';
 
@@ -48,16 +49,21 @@ onMounted(load);
 
 /** Matcher mirroring the server's verb resolution. */
 function hasVerb(grants: readonly string[], required: string): boolean {
-  for (const g of grants) {
+  // Raw policy grants, so retired names must be expanded here the way
+  // `resolveVerbsForRoles` expands them server-side.
+  for (const g of [...grants, ...grants.flatMap(aliasesFor)]) {
     if (g === '*' || g === 'admin') return true;
     if (g === required) return true;
     // Before the wildcard branches, exactly as the BFF places it — otherwise
     // this board draws a check mark for a grant the server denies, on the row
     // whose own hint says a wildcard does not include it.
     if (WILDCARD_EXEMPT_VERBS.has(required)) continue;
+    // Both as the BFF: a fourth segment is malformed rather than truncated,
+    // and `area:*` carries no sub-segment.
+    if (g.split(':').length > 3) continue;
     const gp = g.split(':', 3);
     const rp = required.split(':', 3);
-    if (gp[0] === rp[0] && gp[1] === '*') return true;
+    if (gp[0] === rp[0] && gp[1] === '*' && gp[2] === undefined) return true;
     if (gp[0] === '*' && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
     if (gp[0] === rp[0] && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
   }
@@ -118,11 +124,11 @@ const MENU_GATES = computed<readonly MenuGate[]>(() => [
   { label: t('Metrics inspect'), verb: 'inspect:read', covers: ['/operate/inspect'] },
   { label: t('Trace inspect'), verb: 'inspect:read', covers: ['/operate/trace-inspect'] },
   { label: t('Log inspect'), verb: 'inspect:read', covers: ['/operate/log-inspect'] },
-  { label: t('Overview templates'), verb: 'overview:write', covers: ['/admin/overview-templates'] },
-  { label: t('Layer dashboards'), verb: 'dashboard:read', covers: ['/admin/layer-dashboards'] },
-  { label: t('Translations'), verb: 'overview:write', covers: ['/admin/translations'] },
+  { label: t('Overview templates'), verb: 'overview-template:read', covers: ['/admin/overview-templates'] },
+  { label: t('Layer dashboards'), verb: 'layer-template:read', covers: ['/admin/layer-dashboards'] },
+  { label: t('Translations'), verb: 'translation:read', covers: ['/admin/translations'] },
   { label: t('Alert page'), verb: 'alarm-setup:read', covers: ['/admin/alert-page-setup'] },
-  { label: t('3D Infra Map setup'), verb: 'overview:write', covers: ['/admin/3d-map'] },
+  { label: t('3D Infra Map setup'), verb: 'infra-3d-setup:read', covers: ['/admin/3d-map'] },
   { label: t('Global defaults'), verb: 'setup:read', covers: ['/admin/global-defaults'] },
   { label: t('Users'), verb: 'user:read', covers: ['/admin/users'] },
   { label: t('Auth status'), verb: 'auth:read', covers: ['/admin/auth-status'] },
@@ -171,11 +177,17 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'infra-3d:read':          { label: t('See the 3D infrastructure map') },
   'cluster:read':           { label: t('See OAP cluster status') },
   'inspect:read':           { label: t('Inspect OAP internals (catalog, MQE)') },
-  'overview:read':          { label: t('See overview templates') },
-  'overview:write':         { label: t('Edit overview templates') },
-  'dashboard:read':         { label: t('See layer dashboard templates') },
-  'dashboard:write':        { label: t('Edit layer dashboard templates') },
+  'overview:read':          { label: t('See overview dashboards') },
+  'overview-template:read': { label: t('See overview templates') },
+  'overview-template:write': { label: t('Edit overview templates') },
+  'layer-template:read':    { label: t('See layer dashboard templates') },
+  'layer-template:write':   { label: t('Edit layer dashboard templates') },
+  'translation:read':       { label: t('See template translations') },
+  'translation:write':      { label: t('Edit template translations') },
+  'infra-3d-setup:read':    { label: t('See 3D Infra Map setup') },
+  'infra-3d-setup:write':   { label: t('Edit 3D Infra Map setup') },
   'setup:read':             { label: t('See Global defaults') },
+  'setup:write':            { label: t('Edit Global defaults') },
   'ttl:read':               { label: t('See data retention settings') },
   'config:read':            { label: t('See the OAP runtime configuration') },
   'browser-errors:read':    { label: t('See browser error logs') },
@@ -185,6 +197,7 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'alarm-rule:read':        { label: t('See alarm rules') },
   'alarm-rule:write':       { label: t('Edit alarm rules') },
   'alarm-setup:read':       { label: t('See Alert page setup') },
+  'alarm-setup:write':      { label: t('Edit Alert page setup') },
   'rule:read':              { label: t('See DSL / OAL / MQE rules') },
   'rule:write':             { label: t('Edit existing rules') },
   'rule:write:structural':  { label: t('Apply a rule edit that changes storage, or revert a rule'), hint: t('schema-breaking edits') },
@@ -273,7 +286,7 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
     scope: [
       { label: t('Overview templates editor'), icon: '◧' },
     ],
-    verbs: ['overview:read', 'overview:write'],
+    verbs: ['overview:read', 'overview-template:read', 'overview-template:write'],
   },
   {
     title: t('Layer dashboards'),
@@ -282,7 +295,24 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('Layer dashboard editor'), icon: '▥' },
       { label: t('Per-layer setup'), icon: '⚙' },
     ],
-    verbs: ['dashboard:read', 'dashboard:write', 'setup:read'],
+    verbs: ['layer-template:read', 'layer-template:write'],
+  },
+  {
+    title: t('Org-wide setup'),
+    blurb: t('The wording, map and defaults every dashboard inherits: template translations, the 3D Infrastructure Map, and the org theme and default time window.'),
+    scope: [
+      { label: t('Translations'), icon: '⛭' },
+      { label: t('3D Infra Map setup'), icon: '◳' },
+      { label: t('Global defaults'), icon: '⚙' },
+    ],
+    verbs: [
+      'translation:read',
+      'translation:write',
+      'infra-3d-setup:read',
+      'infra-3d-setup:write',
+      'setup:read',
+      'setup:write',
+    ],
   },
   {
     title: t('Alarms'),
@@ -291,7 +321,7 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('Alarm rules'), icon: '!' },
       { label: t('Alarm page setup'), icon: '⚙' },
     ],
-    verbs: ['alarm-rule:read', 'alarm-rule:write', 'alarm-setup:read'],
+    verbs: ['alarm-rule:read', 'alarm-rule:write', 'alarm-setup:read', 'alarm-setup:write'],
   },
   {
     title: t('DSL management'),

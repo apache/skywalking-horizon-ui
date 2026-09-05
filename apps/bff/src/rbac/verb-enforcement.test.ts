@@ -51,6 +51,11 @@ const ROLES_VIEW = join(UI_SRC, 'features/admin/roles/RolesView.vue');
 const SIDEBAR_MENU = join(UI_SRC, 'shell/useSidebarMenu.ts');
 /** The nav entries the shell builds itself instead of from that registry. */
 const APP_SIDEBAR = join(UI_SRC, 'shell/AppSidebar.vue');
+/** One URL serves all six Dashboard-setup pages, so those routes are gated
+ *  'auth' and pick the verb from the ROW's kind through this table. The verb
+ *  never appears as a literal at the call site, so the scan below would read
+ *  the table's entries as unenforced — they are the enforcement. */
+const TEMPLATE_VERB_TABLE = join(BFF_SRC, 'rbac/template-verbs.ts');
 
 /** `admin` is a grant sentinel, not a required verb: no request asks for it,
  *  it is what `matchOne` honors to mean "everything". Asserted separately. */
@@ -140,6 +145,12 @@ function checkedVerbs(src: string, opts: { ui: boolean }): Set<string> {
 function enforcementSites(verb: string, policyVerbs: ReadonlySet<string> = POLICY_VERBS): string[] {
   const sites: string[] = [];
   if (policyVerbs.has(verb)) sites.push('ROUTE_POLICY');
+  for (const q of code(readFileSync(TEMPLATE_VERB_TABLE, 'utf8')).matchAll(QUOTED)) {
+    if ((q[1] ?? q[2]) === verb) {
+      sites.push('rbac/template-verbs.ts');
+      break;
+    }
+  }
   for (const dir of ['http', 'ai']) {
     for (const file of walk(join(BFF_SRC, dir))) {
       if (checkedVerbs(readFileSync(file, 'utf8'), { ui: false }).has(verb)) {

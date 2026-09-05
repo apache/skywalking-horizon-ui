@@ -34,7 +34,7 @@ import type { MqeSiteScope } from '@/features/admin/_shared/mqeEntity';
 const { t } = useI18n();
 
 const metric = defineModel<DeploymentMetricDef>('metric', { required: true });
-defineProps<{
+const props = defineProps<{
   roleOptions?: ReadonlyArray<{ value: DeploymentMetricDef['role'] | ''; label: string }>;
   showRole?: boolean;
   showAlias?: boolean;
@@ -48,10 +48,12 @@ defineProps<{
   unitPlaceholder?: string;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  readOnly?: boolean;
 }>();
 defineEmits<{ moveUp: []; moveDown: []; remove: [] }>();
 
 function toggleThresholds(m: DeploymentMetricDef): void {
+  if (props.readOnly) return;
   m.thresholds = m.thresholds ? undefined : { ok: 0.1, warn: 1, danger: 5 };
 }
 </script>
@@ -59,33 +61,33 @@ function toggleThresholds(m: DeploymentMetricDef): void {
 <template>
   <article class="metric-row">
     <div class="metric-row-head">
-      <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" /></label>
-      <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" /></label>
-      <label v-if="showAlias" class="mf mf-narrow"><span>{{ t('alias') }}</span><input v-model="metric.alias" type="text" class="mf-input mono" placeholder="W" :title="t('Short prefix on the edge, e.g. W / R')" /></label>
-      <label class="mf mf-wide"><span>{{ t('MQE') }}</span><MqeExpressionInput v-model="metric.mqe" :placeholder="mqePlaceholder" :title="mqeTitle" :layer-key="layerKey" :site-scope="siteScope" /></label>
-      <label class="mf mf-narrow"><span>{{ t('unit') }}</span><input v-model="metric.unit" type="text" class="mf-input" :placeholder="unitPlaceholder" /></label>
+      <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+      <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" :disabled="readOnly" /></label>
+      <label v-if="showAlias" class="mf mf-narrow"><span>{{ t('alias') }}</span><input v-model="metric.alias" type="text" class="mf-input mono" placeholder="W" :title="t('Short prefix on the edge, e.g. W / R')" :disabled="readOnly" /></label>
+      <label class="mf mf-wide"><span>{{ t('MQE') }}</span><MqeExpressionInput v-model="metric.mqe" :placeholder="mqePlaceholder" :title="mqeTitle" :layer-key="layerKey" :site-scope="siteScope" :readonly="readOnly" /></label>
+      <label class="mf mf-narrow"><span>{{ t('unit') }}</span><input v-model="metric.unit" type="text" class="mf-input" :placeholder="unitPlaceholder" :disabled="readOnly" /></label>
       <label v-if="showRole" class="mf"><span>{{ t('role') }}</span>
-        <select v-model="metric.role" class="mf-input">
+        <select v-model="metric.role" class="mf-input" :disabled="readOnly">
           <option v-for="o in roleOptions" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
         </select>
       </label>
       <label class="mf mf-narrow"><span>{{ t('agg') }}</span>
-        <select v-model="metric.aggregation" class="mf-input"><option value="avg">{{ t('avg') }}</option><option value="sum">{{ t('sum') }}</option></select>
+        <select v-model="metric.aggregation" class="mf-input" :disabled="readOnly"><option value="avg">{{ t('avg') }}</option><option value="sum">{{ t('sum') }}</option></select>
       </label>
       <div class="metric-row-actions">
-        <button class="sw-btn small ghost" type="button" :disabled="!canMoveUp" :title="t('Move up')" @click="$emit('moveUp')">↑</button>
-        <button class="sw-btn small ghost" type="button" :disabled="!canMoveDown" :title="t('Move down')" @click="$emit('moveDown')">↓</button>
-        <button class="sw-btn small ghost danger" type="button" :title="t('Remove')" @click="$emit('remove')">×</button>
+        <button class="sw-btn small ghost" type="button" :disabled="readOnly || !canMoveUp" :title="t('Move up')" @click="$emit('moveUp')">↑</button>
+        <button class="sw-btn small ghost" type="button" :disabled="readOnly || !canMoveDown" :title="t('Move down')" @click="$emit('moveDown')">↓</button>
+        <button class="sw-btn small ghost danger" type="button" :disabled="readOnly" :title="t('Remove')" @click="$emit('remove')">×</button>
       </div>
     </div>
     <div v-if="showThresholds" class="metric-thresholds">
-      <button class="sw-btn small ghost" type="button" @click="toggleThresholds(metric)">{{ metric.thresholds ? t('− Thresholds') : t('＋ Thresholds') }}</button>
+      <button class="sw-btn small ghost" type="button" :disabled="readOnly" @click="toggleThresholds(metric)">{{ metric.thresholds ? t('− Thresholds') : t('＋ Thresholds') }}</button>
       <template v-if="metric.thresholds">
-        <label class="mf mf-narrow"><span>{{ t('ok ≤') }}</span><input v-model.number="metric.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
-        <label class="mf mf-narrow"><span>{{ t('warn ≤') }}</span><input v-model.number="metric.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
-        <label class="mf mf-narrow"><span>{{ t('danger ≤') }}</span><input v-model.number="metric.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
-        <label class="mf mf-checkbox"><input v-model="metric.thresholds.invertHealth" type="checkbox" /><span>{{ t('invert (higher = better)') }}</span></label>
-        <label v-if="metric.thresholds.invertHealth" class="mf mf-narrow"><span>{{ t('base') }}</span><input v-model.number="metric.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
+        <label class="mf mf-narrow"><span>{{ t('ok ≤') }}</span><input v-model.number="metric.thresholds.ok" type="number" step="0.1" class="mf-input" :disabled="readOnly" /></label>
+        <label class="mf mf-narrow"><span>{{ t('warn ≤') }}</span><input v-model.number="metric.thresholds.warn" type="number" step="0.1" class="mf-input" :disabled="readOnly" /></label>
+        <label class="mf mf-narrow"><span>{{ t('danger ≤') }}</span><input v-model.number="metric.thresholds.danger" type="number" step="0.1" class="mf-input" :disabled="readOnly" /></label>
+        <label class="mf mf-checkbox"><input v-model="metric.thresholds.invertHealth" type="checkbox" :disabled="readOnly" /><span>{{ t('invert (higher = better)') }}</span></label>
+        <label v-if="metric.thresholds.invertHealth" class="mf mf-narrow"><span>{{ t('base') }}</span><input v-model.number="metric.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" :disabled="readOnly" /></label>
       </template>
     </div>
   </article>

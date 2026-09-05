@@ -48,6 +48,9 @@ const props = defineProps<{
    *  segment, e.g. `GENERAL`, `services`, `page-setup`. */
   confirmKey: string;
   open: boolean;
+  /** Hide the reset action. The diff itself stays readable — seeing how the
+   *  stored config differs from the shipped default is a read. */
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{ close: []; reset: [] }>();
@@ -152,7 +155,10 @@ async function onReset(): Promise<void> {
         <MonacoDiff :original="bundledPretty" :modified="remotePretty" language="json" />
       </div>
 
-      <div class="tdm__reset">
+      <!-- Hidden with the reset action itself: the diff stays readable, but
+           typing the key toward a button that isn't there is an invitation
+           to an action this session cannot take. -->
+      <div v-if="!readOnly" class="tdm__reset">
         <h4>{{ t('Reset to bundled') }}</h4>
         <p class="tdm__reset-lede">
           {{ t('This overwrites') }} <code>{{ name }}</code> {{ t("on OAP with the bundled JSON shown on the left. The operator's edits on OAP are lost. The bundle is considered the source of truth after this action.") }}
@@ -174,7 +180,7 @@ async function onReset(): Promise<void> {
     <template #footer>
       <Btn @click="emit('close')">{{ t('close') }}</Btn>
       <Btn
-        v-if="row"
+        v-if="row && !readOnly"
         kind="danger"
         :disabled="!armed || resetBusy"
         @click="onReset"

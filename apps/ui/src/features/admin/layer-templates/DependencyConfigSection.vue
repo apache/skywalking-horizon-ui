@@ -34,23 +34,28 @@ import { rowKey } from './row-key';
 const { t } = useI18n();
 
 const config = defineModel<EndpointDependencyConfig | undefined>('config');
-defineProps<{ layerKey?: string }>();
+const props = defineProps<{ layerKey?: string; readOnly?: boolean }>();
 
 // Seed an empty block on open (mirrors the legacy ensureEndpointDep, which
 // auto-created it on first render) so both metric sections render their
-// add affordance even before the operator touches the JSON.
+// add affordance even before the operator touches the JSON. Skipped while
+// read-only: seeding is a draft mutation, and a session that cannot save
+// must not leave one behind.
 function ensure(): EndpointDependencyConfig {
   if (!config.value) config.value = { nodeMetrics: [], linkMetrics: [] };
   if (!config.value.linkMetrics) config.value.linkMetrics = [];
   return config.value;
 }
-onMounted(ensure);
+onMounted(() => {
+  if (!props.readOnly) ensure();
+});
 
 const nodeMetrics = computed(() => config.value?.nodeMetrics ?? []);
 const linkMetrics = computed(() => config.value?.linkMetrics ?? []);
 const showGroup = computed(() => Boolean(config.value?.showGroup));
 
 function toggleShowGroup(): void {
+  if (props.readOnly) return;
   const c = ensure();
   c.showGroup = !c.showGroup;
 }
@@ -59,17 +64,21 @@ function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
   return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
 function addNode(): void {
+  if (props.readOnly) return;
   ensure().nodeMetrics.push(blankMetric(nodeMetrics.value));
 }
 function addLink(): void {
+  if (props.readOnly) return;
   ensure().linkMetrics!.push(blankMetric(linkMetrics.value));
 }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
 }
 function remove(list: TopologyMetricDef[], i: number): void {
+  if (props.readOnly) return;
   list.splice(i, 1);
 }
 </script>
@@ -82,7 +91,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
     </div>
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
-        <input type="checkbox" :checked="showGroup" @change="toggleShowGroup" />
+        <input type="checkbox" :checked="showGroup" :disabled="readOnly" @change="toggleShowGroup" />
         <!-- One key, not three fragments: ja and ko put the prefix and the
              verb in a different order, which a split sentence cannot express
              and which left `Show` translated as a mid-sentence clause. -->
@@ -97,7 +106,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Node metrics') }}</h5>
           <span class="sub">{{ t('drives endpoint box center number + SLA-coloured border') }}</span>
-          <button class="sw-btn add" type="button" @click="addNode">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addNode">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics.') }}</div>
         <div v-else class="metric-list">
@@ -110,6 +119,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             show-thresholds
             mqe-placeholder="endpoint_cpm"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="endpoint"
             :can-move-up="i > 0"
             :can-move-down="i < nodeMetrics.length - 1"
@@ -124,7 +134,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <header class="topo-cfg-head">
           <h5>{{ t('Link metrics (server-side)') }}</h5>
           <span class="sub">{{ t('edge metrics queried as') }} <code>endpoint_relation_*</code></span>
-          <button class="sw-btn add" type="button" @click="addLink">{{ t('＋ Add') }}</button>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addLink">{{ t('＋ Add') }}</button>
         </header>
         <div v-if="linkMetrics.length === 0" class="topo-cfg-empty">{{ t('No link metrics.') }}</div>
         <div v-else class="metric-list">
@@ -133,6 +143,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
             :key="rowKey(m)"
             v-model:metric="linkMetrics[i]"
             :layer-key="layerKey"
+            :read-only="readOnly"
             site-scope="endpoint-relation"
             :can-move-up="i > 0"
             :can-move-down="i < linkMetrics.length - 1"
