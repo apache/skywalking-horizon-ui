@@ -26,7 +26,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { AiConversationRow, LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
@@ -35,6 +35,7 @@ import { useLayerConversations } from '@/layer/ai-conversation/useLayerConversat
 import { formatDuration, timestampLabel } from '@/utils/formatters';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
@@ -119,6 +120,20 @@ watch(serviceName, () => {
 
 function spanOf(r: AiConversationRow): string {
   return formatDuration(Math.max(0, r.to - r.from) / 1000, true);
+}
+
+
+// A conversation opens in its own tab: the document is tens of megabytes and
+// the reader keeps the list. `noopener` because the new page needs nothing
+// from this one; the URL carries the conversation, its runtime and sender.
+function openConversation(r: AiConversationRow): void {
+  if (!serviceName.value) return;
+  const href = router.resolve({
+    name: 'ai-conversation',
+    params: { conversation: r.conversation },
+    query: { service: serviceName.value, instance: r.serviceInstanceName },
+  }).href;
+  window.open(href, '_blank', 'noopener');
 }
 </script>
 
@@ -206,7 +221,15 @@ function spanOf(r: AiConversationRow): string {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in visibleRows" :key="`${r.serviceInstanceId}/${r.conversation}`">
+              <tr
+                v-for="r in visibleRows"
+                :key="`${r.serviceInstanceId}/${r.conversation}`"
+                class="cv-row"
+                tabindex="0"
+                :title="t('Open the conversation in a new tab')"
+                @click="openConversation(r)"
+                @keydown.enter.prevent="openConversation(r)"
+              >
                 <td class="left">
                   <span class="cv-title" :class="{ untitled: !r.title }">{{ r.title || t('(untitled)') }}</span>
                   <span class="cv-id">{{ r.conversation }}</span>
@@ -272,7 +295,10 @@ function spanOf(r: AiConversationRow): string {
 .cv-table th.left,
 .cv-table td.left { text-align: left; }
 .cv-table td.left:first-child { white-space: normal; min-width: 260px; }
-.cv-table tbody tr:hover td { background: var(--sw-bg-3); }
+.cv-table tbody tr.cv-row { cursor: pointer; }
+.cv-table tbody tr:hover td,
+.cv-table tbody tr:focus-visible td { background: var(--sw-bg-3); }
+.cv-table tbody tr:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: -2px; }
 .cv-title { display: block; color: var(--sw-fg-0); font-weight: var(--sw-fw-medium); }
 .cv-title.untitled { color: var(--sw-fg-3); font-weight: var(--sw-fw-regular); }
 .cv-id { display: block; margin-top: 2px; color: var(--sw-fg-3); font-family: var(--sw-mono); font-size: var(--sw-fs-xs); }

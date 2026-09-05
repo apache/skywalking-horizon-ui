@@ -177,8 +177,13 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     overviewOpen: false,
   };
 
+  // A host applying a position (from its URL) must hear one change, the final
+  // one: opening the talk on the way to the step emits the talk's default step
+  // first, and a host that wrote that to its URL would then read it back and
+  // move the reader off the step it was asked for.
+  let muted = 0;
   const emit = (): void => {
-    opts.onStateChange?.(getState());
+    if (muted === 0) opts.onStateChange?.(getState());
   };
   const getState = (): PublicState => ({
     ...(state.talk ? { talk: state.talk.id } : {}),
@@ -375,10 +380,16 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
    *  opened first; switching stream alone would land on a stream whose talk
    *  is not the one in focus. */
   function goToOpener(stream: string, step: string, talk: string | null): void {
-    if (talk && state.talk?.id !== talk) openTalk(talk, true);
-    else if (stream !== state.stream) switchStream(stream);
-    state.folder = null;
-    select(step, true);
+    muted++;
+    try {
+      if (talk && state.talk?.id !== talk) openTalk(talk, true);
+      else if (stream !== state.stream) switchStream(stream);
+      state.folder = null;
+      select(step, true);
+    } finally {
+      muted--;
+    }
+    emit();
   }
 
   function showTab(tab: InspectorTab): void {
@@ -475,6 +486,16 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
 
   // ---- first position ----
   function setState(pub: PublicState): void {
+    muted++;
+    try {
+      applyState(pub);
+    } finally {
+      muted--;
+    }
+    emit();
+  }
+
+  function applyState(pub: PublicState): void {
     const step = pub.step ? model.step(pub.step) : null;
     if (step) {
       const talk = step.talk ?? model.talksOf(step.stream)[0]?.id;

@@ -149,6 +149,9 @@ importers:
       '@skywalking-horizon-ui/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@skywalking-horizon-ui/conversation-view':
+        specifier: workspace:*
+        version: link:../../packages/conversation-view
       '@skywalking-horizon-ui/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens

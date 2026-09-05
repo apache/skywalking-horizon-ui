@@ -123,6 +123,17 @@ describe('mounting the fixture', () => {
     expect(last.step).toBeTruthy();
   });
 
+  it('mounted on a step from the URL, lands on that step and reports the position once', () => {
+    const m = new ConversationModel(fixture);
+    const inject = [...m.stepById.values()].find((s) => s.kind !== 'message.external' && s.talk)!;
+    const states: PublicState[] = [];
+    const { root } = mount({ step: inject.id }, (s) => states.push(s));
+    expect(view!.getState().step).toBe(inject.id);
+    expect(view!.getState().talk).toBe(inject.talk);
+    expect(root.querySelector('.acv-clip.selected')?.getAttribute('data-node')).toBe(inject.id);
+    expect(states).toEqual([view!.getState()]);
+  });
+
   it('opens a fold to the talk’s steps, selects a tool, and answers its relations', () => {
     const { root } = mount();
     const fold = root.querySelector<HTMLButtonElement>('.acv-fold[data-work]')!;

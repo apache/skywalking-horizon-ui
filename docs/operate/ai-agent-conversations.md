@@ -55,8 +55,32 @@ The counts come from the conversation's newest round as the Sessionizer wrote it
 
 **One conversation, one row, per sender.** The same conversation pushed by two Sessionizers, or by one that was renamed between pushes, appears once per sender name.
 
+## Reading a conversation
+
+Click a row, or press Enter on it, and the conversation opens in a **new browser tab** of its own. The page reads the whole conversation from OAP in one document and shows the bytes as they arrive; OAP assembles the chain before it sends the first byte, so a long conversation is quiet for a few seconds first. A conversation of a thousand talks and fifty thousand steps is tens of megabytes and opens in well under a second once the document has arrived.
+
+The page's address is the thing to share. It carries the conversation, its agent runtime and sender, and the reader's position — the talk, the selected step and the stream being read — and it is updated in place as you move, so copying the address bar hands a colleague the same step. Opening it needs a Horizon sign-in and the `ai-conversation:read` permission; a signed-out reader is sent to the login page and back.
+
+The page has three parts, and a header with the conversation's title, runtime, sender and id, a link back to the list, and the theme chip (the page follows your Horizon theme, the light one included):
+
+- **Transcript** — the talks of one execution stream in reading order. What came from outside sits on the right; the agent's replies sit on the left; the work between an input and its reply (model calls, reasoning, tool uses, agent launches, context resets) is folded under a *show what the agent did* row so a long run reads as a conversation until you open it. Long pauses are marked. Steps the Sessionizer could not place under any talk are listed in their own *Outside any talk* section rather than dropped.
+- **Flow timeline** — the same stream on a time axis, one lane per kind of activity (external input, responses, context put in, model calls, tools, agent activity, runtime notices, nested streams). Busy stretches take the width; a long pause is cut to a marked gap. Selecting a step draws the relations that touch it: a solid line is an exact join, a dashed one was inferred, a faint curve is ownership (the model call that produced a step). A child agent appears as a nested stream you can select, then **dive into**; the header offers the way back to the step that opened it. `j` and `k` move through the steps, `Enter` dives in, `Escape` clears the selection.
+- **Inspector** — the selected step's **Details** (kind, lane, stream, segment, run, parent, time, token counts, request-to-result interval where the runtime recorded it), its **Relations** (what it opened, what opened it, what it joined with and how well), and its **Evidence**: the landed positions of the record the step came from and the text as the document carries it, with a note when the document clipped it.
+
+The status strip at the top states the document's integrity — *verified* when every round's digest chained, *incomplete* when rounds are missing, *mismatch* when a digest did not match — and lists the problems the Sessionizer recorded when it is not verified. The **Overview** button opens the summary cells and a filterable list of every talk in the conversation.
+
+What the page shows is exactly what the Sessionizer's own viewer shows for the same conversation: the two draw the same document with the same renderer. The words the runtime uses for things — node kinds such as `message.external`, relation types, join qualities — are shown as the document carries them, in every locale.
+
+### Limits
+
+- **One document, all at once.** OAP sends the whole conversation, and its `viewTimeoutMs` budget (120 s by default, see [Configuration File](../setup/horizon-yaml.md)) covers the wait for the first byte. A conversation OAP cannot assemble within that time reports a timeout; try again, or raise the budget on both sides.
+- **Records are not on OAP.** The Sessionizer's own viewer can open the raw landed record behind a step; OAP stores the assembled document only, so this page shows the text the document carries and says when it was clipped.
+
 ## Troubleshooting
 
 - **The layer is missing from the sidebar.** OAP reports no `AI_AGENT` layer: either it is older than 11.1.0, or nothing has been pushed yet. Check the Sessionizer's push output for its receiver address and errors.
 - **The runtime is listed but the query returns nothing.** The window may be too narrow for a conversation's last activity, or every round in the window may belong to other conversations (see above). Try 90 days, and check the sender filter is not set.
 - **A conversation you know exists is not there.** Its newest round may lie outside the round budget, or the conversation may be older than OAP's retention. The Sessionizer's own list page shows what it holds locally; compare the two.
+- **The conversation page says OAP holds no round for this runtime.** The link names a runtime OAP has no round of this conversation for — the Sessionizer was renamed between pushes, or the sender in the link is not the one that pushed it. Open the conversation from the list again.
+- **The page waits a long time, then reports a timeout.** OAP assembles the whole chain before answering, and a very long conversation can exceed the time budget. Try again; if it keeps happening, raise `performance.aiConversation.viewTimeoutMs` in Horizon and the matching `viewRequestTimeout` on OAP.
+- **A row does nothing when clicked.** The browser blocked the new tab as a pop-up. Allow pop-ups for Horizon's address, or open the row with Enter after focusing it.

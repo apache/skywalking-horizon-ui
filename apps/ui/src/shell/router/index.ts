@@ -388,6 +388,16 @@ const router = createRouter({
       name: 'ai',
       component: () => import('@/ai/AiFullPageView.vue'),
     },
+    // One AI agent conversation, full page, OUTSIDE the AppShell. The document is
+    // tens of megabytes and a reader keeps it open beside the list, so the list
+    // opens it in its own tab; the URL carries the position (talk / step /
+    // stream) and is the thing to share. Requires auth via the global guard; the
+    // BFF enforces `ai-conversation:read` on the document route itself.
+    {
+      path: '/ai-conversation/:conversation',
+      name: 'ai-conversation',
+      component: () => import('@/layer/ai-conversation/ConversationPageView.vue'),
+    },
     {
       path: '/',
       component: () => import('@/shell/AppShell.vue'),
