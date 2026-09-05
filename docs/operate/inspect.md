@@ -13,6 +13,8 @@ Common scenarios:
 - **"What's the right scope for this metric?"** — the catalog row shows the metric's scope (Service / ServiceInstance / Endpoint / Process / All); this is load-bearing when authoring widgets.
 - **"Which analysis rule defines this metric?"** — rule-source attribution, when available, surfaces the DSL rule file (OAL, MAL·OTEL, MAL·Telegraf, MAL·Meter, LAL→MAL, …) that defines the metric.
 
+Once you know the metric and its scope, the expression you build from it can be run where you author it: every MQE field in the layer template editor has a run button — see [Trying an expression](../customization/layer-templates.md#trying-an-expression-before-you-publish).
+
 ## Prerequisites
 
 - OAP 11.x.

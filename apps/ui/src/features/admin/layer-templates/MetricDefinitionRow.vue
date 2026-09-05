@@ -25,6 +25,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { TopologyMetricDef } from '@/api/client';
+import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
+import type { MqeSiteScope } from '@/features/admin/_shared/mqeEntity';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -34,6 +36,11 @@ defineProps<{
   showRole?: boolean;
   showThresholds?: boolean;
   mqePlaceholder?: string;
+  /** Layer being edited, and how this bucket's MQE is really evaluated.
+   *  Both are needed before the row offers to run the expression — the same
+   *  MQE means a different query at node vs relation scope. */
+  layerKey?: string;
+  siteScope?: MqeSiteScope;
   unitPlaceholder?: string;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -50,7 +57,16 @@ function toggleThresholds(m: TopologyMetricDef): void {
     <div class="metric-row-head">
       <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" /></label>
       <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" /></label>
-      <label class="mf mf-wide"><span>{{ t('MQE') }}</span><input v-model="metric.mqe" type="text" class="mf-input mono" :placeholder="mqePlaceholder" /></label>
+      <label class="mf mf-wide">
+        <span>{{ t('MQE') }}</span>
+        <MqeExpressionInput
+          v-model="metric.mqe"
+          :placeholder="mqePlaceholder"
+          :title="metric.label || metric.id"
+          :layer-key="layerKey"
+          :site-scope="siteScope"
+        />
+      </label>
       <label class="mf mf-narrow"><span>{{ t('unit') }}</span><input v-model="metric.unit" type="text" class="mf-input" :placeholder="unitPlaceholder" /></label>
       <label v-if="showRole" class="mf">
         <span>{{ t('role') }}</span>

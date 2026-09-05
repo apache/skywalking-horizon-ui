@@ -355,6 +355,11 @@ export {
   type ForeignMetricInput,
 } from './inspect.js';
 export type {
+  MqeExecStep,
+  MqeExecRequest,
+  MqeExecResponse,
+} from './mqe-exec.js';
+export type {
   ExploreKind,
   ExploreTraceSource,
   ExploreLogSource,

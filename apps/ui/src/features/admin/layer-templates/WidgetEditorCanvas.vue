@@ -55,6 +55,7 @@ import TopList from '@/components/charts/TopList.vue';
 import { fmtMetric } from '@/utils/formatters';
 import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './widget-mock';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
+import type { MqeSiteScope } from '@/features/admin/_shared/mqeEntity';
 
 // `draft` is the parent's shared reactive wrapper around the live template;
 // every edit here mutates it IN PLACE (the draft is shared by reference — never
@@ -67,6 +68,16 @@ const props = defineProps<{
   activePage?: string | null;
 }>();
 const emit = defineEmits<{ (e: 'update:activePage', v: string | null): void }>();
+
+/** Context for running an expression from this canvas. The widget grid only
+ *  renders for the three entity scopes, so anything else leaves the run
+ *  affordance off rather than guessing. */
+const runLayerKey = computed(() => props.draft.template?.key ?? '');
+const runScope = computed<MqeSiteScope | undefined>(() =>
+  props.activeScope === 'service' || props.activeScope === 'instance' || props.activeScope === 'endpoint'
+    ? props.activeScope
+    : undefined,
+);
 
 const { t } = useI18n();
 
@@ -1072,6 +1083,8 @@ onBeforeUnmount(() => {
                       :model-value="expr"
                       placeholder="instance_jvm_cpu"
                       :title="t('Expression {n}', { n: i + 1 })"
+                      :layer-key="runLayerKey"
+                      :site-scope="runScope"
                       @update:model-value="updateExpr(i, $event)"
                     />
                     <input
@@ -1152,6 +1165,8 @@ onBeforeUnmount(() => {
                       v-model="vwTarget"
                       placeholder="instance_jvm_cpu"
                       :title="t('Gate expression')"
+                      :layer-key="runLayerKey"
+                      :site-scope="runScope"
                     />
                     <select class="mono" v-model="vwOp">
                       <option value="exists">{{ t('has value') }}</option>

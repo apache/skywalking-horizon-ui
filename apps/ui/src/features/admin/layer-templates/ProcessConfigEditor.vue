@@ -32,6 +32,7 @@ import { rowKey } from './row-key';
 const { t } = useI18n({ useScope: 'global' });
 
 const config = defineModel<ProcessTopologyConfig | undefined>('config');
+defineProps<{ layerKey?: string }>();
 
 function ensure(): ProcessTopologyConfig {
   if (!config.value) config.value = { edgeClientMetrics: [], edgeServerMetrics: [] };
@@ -83,6 +84,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in clientMetrics"
             :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="process-relation"
             mqe-placeholder="process_relation_client_write_cpm"
             :can-move-up="i > 0"
             :can-move-down="i < clientMetrics.length - 1"
@@ -105,6 +108,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             v-for="(m, i) in serverMetrics"
             :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
+            :layer-key="layerKey"
+            site-scope="process-relation"
             mqe-placeholder="process_relation_server_write_cpm"
             :can-move-up="i > 0"
             :can-move-down="i < serverMetrics.length - 1"
