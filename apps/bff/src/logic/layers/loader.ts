@@ -84,6 +84,9 @@ export interface LayerComponentFlags {
    *  within one service. Opt-in; the tab also requires a
    *  `deployment` config block. */
   deployment?: boolean;
+  /** AI agent conversations — the conversations the AI Sessionizer pushed
+   *  under this layer (`AI_AGENT`), listed per agent runtime. */
+  aiConversations?: boolean;
 }
 
 export interface LayerSlotsConfig {

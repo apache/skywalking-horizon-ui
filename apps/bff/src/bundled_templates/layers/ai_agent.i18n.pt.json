@@ -1,0 +1,7 @@
+{
+  "alias": "Agentes de IA",
+  "slots": {
+    "services": "Runtimes de agente",
+    "instances": "Remetentes"
+  }
+}

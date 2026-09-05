@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10 — the commit on the ASF allow-list; a version tag is refused
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -258,7 +258,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10 — the commit on the ASF allow-list; a version tag is refused
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

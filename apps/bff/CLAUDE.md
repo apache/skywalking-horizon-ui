@@ -112,6 +112,7 @@ it empties it. A Cold toggle would blank the alarm list and the entity pickers.
 | `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
 | `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
 | `mqe-exec.ts` — one metric expression, run from the template editor | |
+| `ai-conversation.ts` — the conversation LIST (`recordsAIAgent` is a record group with a cold stage) | `ai-conversation.ts` — the conversation VIEW relay: no `Duration` to carry a flag on |
 | `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |
 | | `ebpf.ts` — network profiling |
 | | `trace-tag.ts` — tag key/value autocomplete |
@@ -251,6 +252,19 @@ Things worth remembering:
   alarmed/related entity, not the firing instance. Disambiguate composite keys
   with timestamp before using `id` as a row key.
 - **Paging is `pageNum`/`pageSize`, never a cursor**, and no total is returned.
+- **`listConversations.limit` counts ROUNDS, not conversations.** OAP reads the
+  newest `limit` rounds in the window and folds them to one row per
+  conversation, so one long conversation starves the short ones — measured: at
+  OAP's default of 1,000, an 865-round conversation hid a 19-round one. Send the
+  ceiling (10,000) and say so on screen; there is no truncation signal to relay.
+- **The conversation view is relayed with `node:http`, not `fetch`.** Node's
+  fetch decompresses gzip on the way in and keeps the `Content-Encoding` header,
+  so a relay built on it forwards a header that lies about the bytes. The raw
+  client hands the compressed bytes through unchanged (a 61 MB document as
+  13 MB), which also means this one call is outside the wire log. The first
+  byte arrives only after OAP has folded the whole chain (8.5 s on the largest
+  real conversation), so it runs under `performance.aiConversation.viewTimeoutMs`,
+  never `oap.timeoutMs`.
 
 ## Do not invent fields
 

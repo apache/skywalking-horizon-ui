@@ -76,6 +76,10 @@ export interface OapCapabilities {
    *  OAP accepts the filter and ignores it, so a client that offers the
    *  search anyway returns an unfiltered page that reads as a match. */
   logKeywords: boolean;
+  /** `Query.listConversations` — AI agent conversations (OAP 11.1.0+). An OAP
+   *  without it lists no `AI_AGENT` layer either, so the sidebar row disappears
+   *  on its own; this is what lets a bookmarked conversation page say why. */
+  aiConversations: boolean;
 }
 
 /** Storage backend the connected OAP runs on, as far as the BFF can

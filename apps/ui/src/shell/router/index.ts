@@ -92,6 +92,14 @@ function layerRoute(): RouteRecordRaw {
       // On-demand pod logs (live tail). Instance-pinned; only K8s-
       // deployed layers (caps.podLogs) surface the tab in the sidebar.
       { path: 'pod-logs', component: () => import('@/layer/pod-logs/LayerPodLogsView.vue') },
+      // AI agent conversations (AI_AGENT layer). The tab owns its runtime and
+      // sender pickers: the layer has no metrics, so the shell's metric-ranked
+      // service picker has nothing to rank by.
+      {
+        path: 'conversations',
+        component: () => import('@/layer/ai-conversation/LayerConversationsView.vue'),
+        meta: { ownsServiceSelector: true },
+      },
       { path: 'trace-profiling', component: () => import('@/layer/profiling/LayerTraceProfilingView.vue') },
       { path: 'ebpf-profiling', component: () => import('@/layer/profiling/LayerEBPFProfilingView.vue') },
       { path: 'async-profiling', component: () => import('@/layer/profiling/LayerAsyncProfilingView.vue') },
@@ -379,6 +387,16 @@ const router = createRouter({
       path: '/ai',
       name: 'ai',
       component: () => import('@/ai/AiFullPageView.vue'),
+    },
+    // One AI agent conversation, full page, OUTSIDE the AppShell. The document is
+    // tens of megabytes and a reader keeps it open beside the list, so the list
+    // opens it in its own tab; the URL carries the position (talk / step /
+    // stream) and is the thing to share. Requires auth via the global guard; the
+    // BFF enforces `ai-conversation:read` on the document route itself.
+    {
+      path: '/ai-conversation/:conversation',
+      name: 'ai-conversation',
+      component: () => import('@/layer/ai-conversation/ConversationPageView.vue'),
     },
     {
       path: '/',

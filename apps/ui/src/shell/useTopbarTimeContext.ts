@@ -36,6 +36,8 @@ const TIME_RANGE_OPT_OUT = [
   // Browser Logs has its own Time range picker — auto-refresh would shift
   // the visible window mid-investigation.
   /^\/layer\/[^/]+\/browser-errors$/,
+  // AI agent conversations: own range in days, fired on Run query.
+  /^\/layer\/[^/]+\/conversations$/,
   // Pod Logs is a live tail driven by its own interval poll — the global
   // ticker would double-fire and there's no rolling window to refresh.
   /^\/layer\/[^/]+\/pod-logs$/,

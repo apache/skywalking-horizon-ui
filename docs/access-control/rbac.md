@@ -25,6 +25,7 @@ Known verbs are grouped into areas:
 | `traces:read` | Traces tab on any layer, trace detail page. |
 | `logs:read` | Logs tab on any layer, log detail page. |
 | `browser-errors:read` | Browser Logs tab (BROWSER layer): list JS error logs, list source maps, resolve a stack. |
+| `ai-conversation:read` | AI agent conversations (AI_AGENT layer): list the conversations the AI Sessionizer pushed and open one. Distinct from `ai:read`, which is the AI assistant. |
 | `inspect:read` | The read-only inspect tools: Metrics Inspect (`/operate/inspect`), Trace Inspect (`/operate/trace-inspect`), Log Inspect (`/operate/log-inspect`). |
 | `topology:read` | Topology tab, topology widgets on overviews. |
 | `profile:read` | Profiling tab (results read-only) and the continuous-profiling policy list. |
@@ -116,7 +117,7 @@ Default definitions (used when `rbac.roles` is not overridden):
 Read-only data catalog, the read-only inspect tools, and the AI assistant. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals.
 
 ```
-metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read, mcp:read
+metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, ai-conversation:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read, mcp:read
 ```
 
 ### `maintainer`
