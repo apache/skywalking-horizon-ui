@@ -2,7 +2,7 @@
   "key": "AI_AGENT",
   "alias": "AI Agents",
   "color": "var(--sw-purple)",
-  "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/ai-agent-conversation/",
+  "documentLink": "https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/readme/",
   "aliases": {
     "services": "Agent runtimes",
     "instances": "Senders"

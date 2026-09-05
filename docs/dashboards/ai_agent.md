@@ -23,7 +23,7 @@ In Horizon's sidebar this layer is named **AI Agents**. Its top-level entities a
 
 The layer has no metric dashboards yet, so it has no Service, Instance or Endpoint page; its one tab is **Conversations**. See [AI Agent Conversations](../operate/ai-agent-conversations.md) for what that tab shows and how to read it.
 
-> The layer appears only when OAP reports it, which needs OAP 11.1.0 or later with at least one conversation pushed. The OAP side — receiving, verifying and storing the files, and its retention — is documented in the [OAP setup](https://skywalking.apache.org/docs/main/next/en/setup/backend/ai-agent-conversation/).
+> The layer appears only when OAP reports it, which needs OAP 11.1.0 or later with at least one conversation pushed. The OAP side — receiving, verifying and storing the files, and its retention — is documented with the other [OAP backend setup pages](https://github.com/apache/skywalking/tree/master/docs/en/setup/backend) in the SkyWalking repository.
 
 ## Bundled template
 
