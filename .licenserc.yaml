@@ -82,3 +82,4 @@ dependency:
     - apps/bff/package.json
     - packages/api-client/package.json
     - packages/design-tokens/package.json
+    - packages/conversation-view/package.json

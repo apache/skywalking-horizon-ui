@@ -72,3 +72,5 @@ export const chartPalette = [
   tokens.semantic.err,
   tokens.accent.light,
 ] as const;
+
+export { THEMES, DEFAULT_THEME, type ThemeEntry, type ThemeId } from './themes.js';
