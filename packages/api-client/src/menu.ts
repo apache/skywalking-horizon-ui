@@ -87,6 +87,9 @@ export interface LayerCaps {
    *  fetched on demand from the K8s API (never persisted). Gates the
    *  per-layer "Pod Logs" tab; only K8s-deployed layers set it. */
   podLogs?: boolean;
+  /** Per-layer "Conversations" tab — the AI agent conversations the AI
+   *  Sessionizer pushed under the layer (`AI_AGENT`). */
+  aiConversations?: boolean;
   events?: boolean;
 }
 

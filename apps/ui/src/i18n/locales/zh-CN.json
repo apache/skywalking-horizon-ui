@@ -2923,5 +2923,22 @@
   "Could not read the instances of this service.": "无法读取该服务的实例列表。",
   "Could not read the endpoints of this service.": "无法读取该服务的端点列表。",
   "See AI agent conversations": "查看 AI 智能体对话",
-  "AI agent conversations": "AI 智能体对话"
+  "AI agent conversations": "AI 智能体对话",
+  "Conversations": "对话",
+  "Agent runtime": "智能体运行时",
+  "Sender": "发送方",
+  "No services in this layer": "此层中没有服务",
+  "Filter by title or conversation id": "按标题或对话 ID 筛选",
+  "The service list could not be read.": "无法读取服务列表。",
+  "Pick an agent runtime and a time range, then click Run query.": "选择智能体运行时和时间范围，然后点击“运行查询”。",
+  "The conversation list could not be read.": "无法读取对话列表。",
+  "{n} conversations": "{n} 个对话",
+  "Listed from the newest {n} rounds in the window; a conversation whose newest round is older than that is not shown.": "仅列出时间范围内最新 {n} 个 round 折叠出的对话；最新 round 早于此范围的对话不会显示。",
+  "No conversations in this window.": "此时间范围内没有对话。",
+  "Talks": "对话轮次",
+  "Steps": "步骤",
+  "Streams": "执行流",
+  "Unresolved": "未解析",
+  "Last activity": "最后活动",
+  "(untitled)": "（无标题）"
 }

@@ -2923,5 +2923,22 @@
   "Could not read the instances of this service.": "このサービスのインスタンスを取得できませんでした。",
   "Could not read the endpoints of this service.": "このサービスのエンドポイントを取得できませんでした。",
   "See AI agent conversations": "AI エージェントの会話を表示",
-  "AI agent conversations": "AI エージェントの会話"
+  "AI agent conversations": "AI エージェントの会話",
+  "Conversations": "会話",
+  "Agent runtime": "エージェントランタイム",
+  "Sender": "送信元",
+  "No services in this layer": "このレイヤーにサービスはありません",
+  "Filter by title or conversation id": "タイトルまたは会話 ID で絞り込む",
+  "The service list could not be read.": "サービス一覧を読み取れませんでした。",
+  "Pick an agent runtime and a time range, then click Run query.": "エージェントランタイムと時間範囲を選び、「クエリを実行」をクリックしてください。",
+  "The conversation list could not be read.": "会話一覧を読み取れませんでした。",
+  "{n} conversations": "{n} 件の会話",
+  "Listed from the newest {n} rounds in the window; a conversation whose newest round is older than that is not shown.": "期間内の最新 {n} ラウンドから一覧化しています。最新ラウンドがそれより古い会話は表示されません。",
+  "No conversations in this window.": "この期間に会話はありません。",
+  "Talks": "トーク",
+  "Steps": "ステップ",
+  "Streams": "ストリーム",
+  "Unresolved": "未解決",
+  "Last activity": "最終アクティビティ",
+  "(untitled)": "（無題）"
 }

@@ -2923,5 +2923,22 @@
   "Could not read the instances of this service.": "Die Instanzen dieses Services konnten nicht gelesen werden.",
   "Could not read the endpoints of this service.": "Die Endpunkte dieses Services konnten nicht gelesen werden.",
   "See AI agent conversations": "KI-Agenten-Konversationen ansehen",
-  "AI agent conversations": "KI-Agenten-Konversationen"
+  "AI agent conversations": "KI-Agenten-Konversationen",
+  "Conversations": "Konversationen",
+  "Agent runtime": "Agent-Laufzeit",
+  "Sender": "Absender",
+  "No services in this layer": "Keine Services in dieser Ebene",
+  "Filter by title or conversation id": "Nach Titel oder Konversations-ID filtern",
+  "The service list could not be read.": "Die Service-Liste konnte nicht gelesen werden.",
+  "Pick an agent runtime and a time range, then click Run query.": "Wählen Sie eine Agent-Laufzeit und einen Zeitraum und klicken Sie dann auf „Abfrage ausführen“.",
+  "The conversation list could not be read.": "Die Konversationsliste konnte nicht gelesen werden.",
+  "{n} conversations": "{n} Konversationen",
+  "Listed from the newest {n} rounds in the window; a conversation whose newest round is older than that is not shown.": "Aus den neuesten {n} Runden im Zeitraum aufgelistet; eine Konversation, deren neueste Runde älter ist, wird nicht angezeigt.",
+  "No conversations in this window.": "Keine Konversationen in diesem Zeitraum.",
+  "Talks": "Gespräche",
+  "Steps": "Schritte",
+  "Streams": "Streams",
+  "Unresolved": "Ungelöst",
+  "Last activity": "Letzte Aktivität",
+  "(untitled)": "(ohne Titel)"
 }

@@ -41,7 +41,7 @@ import type { LayerCaps, LayerSlots } from './menu.js';
 /** The `Icon` names a layer row can carry. Spelled out rather than typed
  *  as `string` so the sidebar's `IconName` prop still checks — the UI's
  *  icon union is the real constraint, and this must stay a subset of it. */
-export type LayerMenuRowIcon = 'svc' | 'prof' | 'ep' | 'topo' | 'trace' | 'log' | 'web' | 'flame' | 'set';
+export type LayerMenuRowIcon = 'svc' | 'prof' | 'ep' | 'topo' | 'trace' | 'log' | 'web' | 'flame' | 'set' | 'ai';
 
 /** One navigable row under a layer. */
 export interface LayerMenuRow {
@@ -145,6 +145,7 @@ export const DEFAULT_LAYER_ROW_ORDER = [
   'logs',
   'browser-errors',
   'pod-logs',
+  'conversations',
   'trace-profiling',
   'ebpf-profiling',
   'network-profiling',
@@ -177,6 +178,7 @@ const ROW_DEFS: Record<BuiltInLayerRow, { icon: LayerMenuRowIcon; when: (L: Laye
   logs: { icon: 'log', when: (L) => Boolean(L.caps?.logs) },
   'browser-errors': { icon: 'web', when: (L) => Boolean(L.caps?.browserErrors) },
   'pod-logs': { icon: 'log', when: (L) => Boolean(L.caps?.podLogs) },
+  conversations: { icon: 'ai', when: (L) => Boolean(L.caps?.aiConversations) },
   'trace-profiling': { icon: 'flame', when: (L) => Boolean(L.caps?.traceProfiling) },
   'ebpf-profiling': { icon: 'flame', when: (L) => Boolean(L.caps?.ebpfProfiling) },
   'network-profiling': { icon: 'prof', when: (L) => Boolean(L.caps?.networkProfiling) },

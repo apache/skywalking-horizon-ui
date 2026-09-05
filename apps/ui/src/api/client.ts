@@ -83,6 +83,7 @@ import { TraceApi } from './scopes/trace';
 import { ZipkinApi } from './scopes/zipkin';
 import { LogApi } from './scopes/log';
 import { BrowserErrorsApi } from './scopes/browser-errors';
+import { AiConversationApi } from './scopes/ai-conversation';
 import { EventsApi } from './scopes/events';
 import { ProfileApi } from './scopes/profile';
 import { EbpfApi } from './scopes/ebpf';
@@ -106,6 +107,11 @@ import { AdminUsersApi } from './scopes/admin-users';
 import { TemplateSyncApi } from './scopes/template-sync';
 import { AiApi } from './scopes/ai';
 export type { AiConfigResponse } from './scopes/ai';
+export type {
+  AiConversationRow,
+  AiConversationsQueryRequest,
+  AiConversationsResponse,
+} from '@skywalking-horizon-ui/api-client';
 export type { ConsentRequest } from './scopes/oauth';
 export type { SsoProvider } from './scopes/oidc';
 
@@ -1012,6 +1018,7 @@ export class BffClient {
   readonly zipkin = new ZipkinApi(this);
   readonly log = new LogApi(this);
   readonly browserErrors = new BrowserErrorsApi(this);
+  readonly aiConversation = new AiConversationApi(this);
   readonly events = new EventsApi(this);
   readonly profile = new ProfileApi(this);
   readonly continuousProfiling = new ContinuousProfilingApi(this);

@@ -63,7 +63,7 @@ Expanding a layer shows one row per enabled component, plus any extension pages 
 
 ```text
 service -> instance -> endpoint -> topology -> deployment -> dependency
--> trace -> zipkin-trace -> logs -> browser-errors -> pod-logs
+-> trace -> zipkin-trace -> logs -> browser-errors -> pod-logs -> conversations
 -> trace-profiling -> ebpf-profiling -> network-profiling
 -> continuous-profiling -> pprof -> async-profiling
 ```
