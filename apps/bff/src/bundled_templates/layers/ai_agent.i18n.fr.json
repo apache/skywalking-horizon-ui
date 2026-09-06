@@ -1,0 +1,7 @@
+{
+  "alias": "Agents IA",
+  "slots": {
+    "services": "Environnements d'agent",
+    "instances": "Expéditeurs"
+  }
+}

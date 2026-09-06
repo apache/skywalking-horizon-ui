@@ -206,6 +206,8 @@ const LAYER_DEFAULTS: Record<string, { color: string; slots: LayerSlots; caps: L
   VIRTUAL_CACHE: { color: 'var(--sw-warn)', slots: { services: 'Caches' }, caps: { dashboards: true } },
   VIRTUAL_MQ: { color: 'var(--sw-ok)', slots: { services: 'Queues' }, caps: { dashboards: true } },
   VIRTUAL_GENAI: { color: 'var(--sw-purple)', slots: { services: 'Providers', instances: 'Models' }, caps: { dashboards: true } },
+  // No metrics yet, so no Service page: the layer is its Conversations tab.
+  AI_AGENT: { color: 'var(--sw-purple)', slots: { services: 'Agent runtimes', instances: 'Senders' }, caps: { aiConversations: true } },
 };
 
 const DEFAULT_FOR_UNKNOWN_LAYER = {

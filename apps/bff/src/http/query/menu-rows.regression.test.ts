@@ -115,13 +115,22 @@ function bundledLayers(): Array<{ key: string; legacy: Legacy; def: LayerDef }> 
   });
 }
 
+/**
+ * Layers added AFTER the transcript, on a component the deleted code never
+ * knew. They have no "before" to compare against: the oracles resolve no row
+ * for them, which says nothing about a regression. Each is pinned on its own
+ * below, and a layer may only be added here together with that pin.
+ */
+const POST_TRANSCRIPT_LAYERS: ReadonlySet<string> = new Set(['AI_AGENT']);
+
 describe('layer menu rows — bundled-template regression', () => {
   it('covers every bundled layer', () => {
-    expect(bundledLayers().length).toBe(44);
+    expect(bundledLayers().length).toBe(45);
   });
 
   it('resolves the same rows, in the same order, as the sidebar did', () => {
     const diffs = bundledLayers()
+      .filter(({ key }) => !POST_TRANSCRIPT_LAYERS.has(key))
       .map(({ key, legacy, def }) => ({
         key,
         was: oracleSidebarRows(legacy),
@@ -133,6 +142,7 @@ describe('layer menu rows — bundled-template regression', () => {
 
   it('lands every layer on the tab it landed on before', () => {
     const diffs = bundledLayers()
+      .filter(({ key }) => !POST_TRANSCRIPT_LAYERS.has(key))
       .map(({ key, legacy, def }) => ({ key, was: oracleFirstTab(legacy), now: firstLayerMenuRow(def) }))
       .filter((d) => d.was !== d.now);
     expect(diffs).toEqual([]);
@@ -191,8 +201,8 @@ describe('default order vs. the component list', () => {
     return resolveLayerMenuRows({ caps, slots: {}, traces: t.traces }).map((r) => r.path);
   }
 
-  it('covers all 16 components', () => {
-    expect(COMPONENT_KEYS).toHaveLength(16);
+  it('covers all 17 components', () => {
+    expect(COMPONENT_KEYS).toHaveLength(17);
   });
 
   it('gives every component at least one row', () => {
@@ -206,12 +216,29 @@ describe('default order vs. the component list', () => {
   });
 
   it('is one row per component, plus the second trace row', () => {
-    // 16 components → 17 rows: `traces` is the only one that resolves to
+    // 17 components → 18 rows: `traces` is the only one that resolves to
     // two (native and Zipkin span formats get their own tabs).
     expect(DEFAULT_LAYER_ROW_ORDER).toHaveLength(COMPONENT_KEYS.length + 1);
     const multi = COMPONENT_KEYS.filter((k) => rowsForComponent(k).length > 1);
     expect(multi).toEqual(['traces']);
     expect(rowsForComponent('traces')).toEqual(['trace', 'zipkin-trace']);
+  });
+});
+
+describe('layers added after the transcript', () => {
+  it('lists exactly the post-transcript layers, so an addition here is deliberate', () => {
+    const keys = bundledLayers().map((l) => l.key);
+    for (const k of POST_TRANSCRIPT_LAYERS) expect(keys).toContain(k);
+  });
+
+  it('AI_AGENT is its Conversations tab: one row, the landing, and a direct link', () => {
+    const ai = bundledLayers().find((l) => l.key === 'AI_AGENT')!;
+    // The frozen sidebar had no row for it at all — which is why it is not a
+    // regression subject above.
+    expect(oracleSidebarRows(ai.legacy)).toEqual([]);
+    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['conversations']);
+    expect(firstLayerMenuRow(ai.def)).toBe('conversations');
+    expect(isSingleFeatureLayer(ai.def)).toBe(true);
   });
 });
 

@@ -1,0 +1,7 @@
+{
+  "alias": "AI エージェント",
+  "slots": {
+    "services": "エージェントランタイム",
+    "instances": "送信元"
+  }
+}

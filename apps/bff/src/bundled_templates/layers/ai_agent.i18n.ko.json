@@ -1,0 +1,7 @@
+{
+  "alias": "AI 에이전트",
+  "slots": {
+    "services": "에이전트 런타임",
+    "instances": "발신자"
+  }
+}

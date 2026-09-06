@@ -56,6 +56,7 @@ function labelFor(path: string): string {
     case 'logs': return t('Logs');
     case 'browser-errors': return t('Browser Logs');
     case 'pod-logs': return t('Pod Logs');
+    case 'conversations': return t('Conversations');
     case 'trace-profiling': return t('Trace Profiling');
     case 'ebpf-profiling': return t('eBPF Profiling');
     case 'network-profiling': return t('Network Profiling');

@@ -228,6 +228,14 @@ describe('LayerApi.endpoints / instances — entity query params', () => {
     expect(qs.get('serviceId')).toBe(REVIEWS.id);
     expect(qs.get('service')).toBe(REVIEWS.name);
   });
+
+  it('instances carries the window a tab owns, and nothing when none is given', async () => {
+    const { bff, calls } = makeStub();
+    await new LayerApi(bff).instances('ai_agent', REVIEWS, { windowMinutes: 129600 });
+    expect(String(calls[0][1])).toContain('windowMinutes=129600');
+    await new LayerApi(bff).instances('ai_agent', REVIEWS);
+    expect(String(calls[1][1])).not.toContain('windowMinutes');
+  });
 });
 
 describe('LayerApi.topology / endpointDependency', () => {

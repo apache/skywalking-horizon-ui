@@ -127,6 +127,7 @@ export const componentsSchema = z
     continuousProfiling: z.boolean().optional(),
     podLogs: z.boolean().optional(),
     deployment: z.boolean().optional(),
+    aiConversations: z.boolean().optional(),
   })
   .strict();
 

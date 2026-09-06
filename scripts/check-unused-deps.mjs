@@ -36,7 +36,7 @@ import { join, extname } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname;
 
 /** Workspaces whose `dependencies` are shipped and therefore checkable. */
-const WORKSPACES = ['apps/ui', 'apps/bff', 'packages/api-client', 'packages/design-tokens'];
+const WORKSPACES = ['apps/ui', 'apps/bff', 'packages/api-client', 'packages/design-tokens', 'packages/conversation-view'];
 
 /** Text a reference can legitimately live in. `src/` is the bulk, but a build
  *  plugin is imported by the workspace's own config — `@tresjs/core` is only

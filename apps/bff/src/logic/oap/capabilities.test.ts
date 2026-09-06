@@ -57,6 +57,7 @@ describe('OAP capability probe', () => {
     await expect(getOapCapabilities(config, oap.fetch)).resolves.toEqual({
       queryAlarms: true,
       logKeywords: true,
+      aiConversations: false,
     });
   });
 
@@ -83,6 +84,7 @@ describe('OAP capability probe', () => {
     await expect(getOapCapabilities(config, fetch)).resolves.toEqual({
       queryAlarms: false,
       logKeywords: false,
+      aiConversations: false,
     });
   });
 
@@ -95,7 +97,7 @@ describe('OAP capability probe', () => {
     const all = await Promise.all(
       Array.from({ length: 6 }, () => getOapCapabilities(config, oap.fetch)),
     );
-    for (const caps of all) expect(caps).toEqual({ queryAlarms: true, logKeywords: true });
+    for (const caps of all) expect(caps).toEqual({ queryAlarms: true, logKeywords: true, aiConversations: false });
     expect(oap.asks(), 'each caller ran its own keyword probe').toBe(1);
   });
 
@@ -110,6 +112,7 @@ describe('OAP capability probe', () => {
     await expect(getOapCapabilities(config, oap.fetch)).resolves.toEqual({
       queryAlarms: true,
       logKeywords: true,
+      aiConversations: false,
     });
   });
 
