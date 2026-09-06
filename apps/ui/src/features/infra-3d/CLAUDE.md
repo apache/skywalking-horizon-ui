@@ -232,6 +232,8 @@ Implementation:
 
 ### Materials and color
 
+The scene's NEUTRALS (canvas clear colour, tier slab and rim, ghost box, cube edges, cluster frames, hierarchy lines) come from the theme tokens through `useScenePalette` — read at mount and re-applied on a theme change, since WebGL cannot read a CSS variable. Never put a literal dark colour back on one of those: the light theme is drawn from the same code. Layer colours and alarm reds are signals, not surfaces, and stay as they are.
+
 Every layer carries a **tint** (`ZoneTint`) — a category drawn from
 `tintForLayer()`. The tint resolves to a CSS custom property via
 `tintCssVar()`, which is read once into a Three `Color`. This keeps

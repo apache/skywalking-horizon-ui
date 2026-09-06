@@ -56,6 +56,7 @@ import {
 } from './useLayerIconTexture';
 import { colorForLayer } from './useInfra3dConfig';
 import { readTintColor, type ZoneTint } from './useScenePlacement';
+import { readScenePalette, type ScenePalette } from './useScenePalette';
 
 /** Resolve the per-layer icon glyph. Routed through the same helper
  *  the sidebar uses (`shell/icons.layerIcon`) so the two surfaces
@@ -169,6 +170,8 @@ export interface SceneMaterials {
   iconStampMaterial: (layerKey: string, tint: ZoneTint) => MeshBasicMaterial;
   groupStampMaterial: (icon: string, hex: string) => MeshBasicMaterial;
   clusterLabel: (text: string, hex: string) => { mat: MeshBasicMaterial; aspect: number };
+  /** Recolour the surface materials for another theme, in place. */
+  applyPalette: (palette: ScenePalette) => void;
   dispose: () => void;
 }
 
@@ -178,7 +181,7 @@ export interface SceneMaterials {
  * the Scene's `onUnmounted`. Per-batch geometries (tubes, cluster frames)
  * are owned by `useSceneEdges` / the Scene template, not here.
  */
-export function useSceneMaterials(): SceneMaterials {
+export function useSceneMaterials(palette: ScenePalette = readScenePalette()): SceneMaterials {
   const colorCache = new Map<string, Color>();
   function colorByHex(hex: string): Color {
     let c = colorCache.get(hex);
@@ -211,7 +214,7 @@ export function useSceneMaterials(): SceneMaterials {
   // Transparent slate glass tier slab; depthWrite off so cubes/zones
   // blend through cleanly. Backface culling off so the slab looks solid.
   const planeMaterial = new MeshBasicMaterial({
-    color: new Color('#151a23'),
+    color: new Color(palette.slab),
     transparent: true,
     opacity: 0.4,
     side: DoubleSide,
@@ -221,7 +224,7 @@ export function useSceneMaterials(): SceneMaterials {
     polygonOffsetUnits: 1,
   });
   const planeEdgeMaterial = new LineBasicMaterial({
-    color: new Color('#3a4658'),
+    color: new Color(palette.slabRim),
     transparent: true,
     opacity: 0.8,
   });
@@ -245,18 +248,18 @@ export function useSceneMaterials(): SceneMaterials {
   });
   const crossPacketMat = new MeshBasicMaterial({ color: new Color('#ffd9b0') });
   const hierarchyMat = new MeshBasicMaterial({
-    color: new Color('#8b95a3'),
+    color: new Color(palette.edge),
     transparent: true,
     opacity: 0.7,
   });
   const ghostMat = new MeshBasicMaterial({
-    color: new Color('#1b2433'),
+    color: new Color(palette.ghost),
     transparent: true,
     opacity: 0.5,
     depthWrite: false,
   });
   const cubeEdgeMat = new LineBasicMaterial({
-    color: new Color('#7d8ba3'),
+    color: new Color(palette.edge),
     transparent: true,
     opacity: 0.9,
   });
@@ -276,7 +279,7 @@ export function useSceneMaterials(): SceneMaterials {
     depthWrite: false,
   });
   const clusterFrameMat = new LineBasicMaterial({
-    color: new Color('#5a6b86'),
+    color: new Color(palette.frame),
     transparent: true,
     opacity: 0.85,
   });
@@ -398,6 +401,15 @@ export function useSceneMaterials(): SceneMaterials {
     return e;
   }
 
+  function applyPalette(next: ScenePalette): void {
+    planeMaterial.color.set(next.slab);
+    planeEdgeMaterial.color.set(next.slabRim);
+    ghostMat.color.set(next.ghost);
+    cubeEdgeMat.color.set(next.edge);
+    hierarchyMat.color.set(next.edge);
+    clusterFrameMat.color.set(next.frame);
+  }
+
   function dispose(): void {
     nodeGeometry.dispose();
     packetGeometry.dispose();
@@ -458,6 +470,7 @@ export function useSceneMaterials(): SceneMaterials {
     iconStampMaterial,
     groupStampMaterial,
     clusterLabel,
+    applyPalette,
     dispose,
   };
 }
