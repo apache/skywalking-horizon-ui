@@ -38,9 +38,14 @@ import {
   type ZonePlacement,
 } from './composables/useScenePlacement';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
+import { AVAILABLE_THEMES, useThemeStore } from '@/state/theme';
 import { useInfra3dConfig } from './composables/useInfra3dConfig';
 import { useInfra3dLoader } from './composables/useInfra3dLoader';
 
+// The shipped logo is white-fill; a light theme gets the blue one, as the topbar does.
+const themeStoreForLogo = useThemeStore();
+const logoSwBlue = logoSw.replace(/fill="#fff"/g, 'fill="#1368B3"');
+const isLightAppearance = computed(() => AVAILABLE_THEMES.find((t) => t.id === themeStoreForLogo.active)?.appearance === 'light');
 const { t } = useI18n({ useScope: 'global' });
 
 /** Imperative handle on the scene's camera-control methods. The
@@ -502,7 +507,7 @@ function onPanelZoneFocus(zoneKey: string): void {
            sub-path. router-link prepends the base and stays in-SPA. -->
       <router-link class="sw-brand" to="/" :title="t('Back to Horizon')">
         <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
-        <span class="sw-brand-logo" v-html="logoSw" />
+        <span class="sw-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
         <span class="sw-brand-text">
           <span class="sw-brand-line1">Apache SkyWalking</span>
           <span class="sw-brand-line2">{{ t('Horizon · 3D Infra Map') }}</span>
