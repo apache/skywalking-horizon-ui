@@ -177,7 +177,7 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
   max-height: calc(100% - 120px);
   display: flex;
   flex-direction: column;
-  background: rgba(15, 19, 26, 0.88);
+  background: color-mix(in srgb, var(--sw-bg-1) 88%, transparent);
   border: 1px solid var(--sw-line-2);
   border-radius: 8px;
   backdrop-filter: blur(6px);
@@ -246,7 +246,7 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
 .tier-block:last-child { border-bottom: none; }
 .tier-block.hidden { opacity: 0.5; }
 .tier-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--sw-fg-0) 4%, transparent);
   color: var(--sw-fg-0);
 }
 .layer-sublist { list-style: none; margin: 0; padding: 2px 0 6px; }
@@ -259,7 +259,7 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
   font-size: 11px;
   color: var(--sw-fg-2);
 }
-.layer-row:hover { background: rgba(255, 255, 255, 0.04); color: var(--sw-fg-0); }
+.layer-row:hover { background: color-mix(in srgb, var(--sw-fg-0) 4%, transparent); color: var(--sw-fg-0); }
 .layer-row.is-group .lr-name { font-weight: 700; }
 .lr-dot { width: 7px; height: 7px; border-radius: 2px; flex: 0 0 7px; background: var(--sw-fg-3); }
 .lr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -297,7 +297,7 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
   margin-left: 2px;
 }
 .eye-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--sw-fg-0) 8%, transparent);
   color: var(--sw-fg-0);
 }
 </style>
