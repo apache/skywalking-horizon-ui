@@ -29,10 +29,21 @@ import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
 import type { ServiceRef } from '@/utils/serviceRef';
 
-export function useLayerInstances(layerKey: Ref<string>, service: Ref<ServiceRef | null>) {
+export function useLayerInstances(
+  layerKey: Ref<string>,
+  service: Ref<ServiceRef | null>,
+  /** A tab that owns a range of days passes it, so the list covers what the
+   *  tab can show; omitted means the BFF's recent default. */
+  windowMinutes?: Ref<number>,
+) {
   const q = useQuery({
-    queryKey: ['layer-instances', layerKey, service],
-    queryFn: () => bffClient.layer.instances(layerKey.value, service.value!),
+    queryKey: ['layer-instances', layerKey, service, windowMinutes ?? null],
+    queryFn: () =>
+      bffClient.layer.instances(
+        layerKey.value,
+        service.value!,
+        windowMinutes?.value ? { windowMinutes: windowMinutes.value } : {},
+      ),
     enabled: computed(() => layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
   });

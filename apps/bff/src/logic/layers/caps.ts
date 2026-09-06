@@ -60,6 +60,7 @@ export function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     pprofProfiling: !!components.pprofProfiling,
     continuousProfiling: !!components.continuousProfiling,
     podLogs: !!components.podLogs,
+    aiConversations: !!components.aiConversations,
     events: false,
   };
 }

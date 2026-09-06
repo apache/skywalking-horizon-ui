@@ -77,6 +77,7 @@ const EVERY_ROW: LayerMenuInput = {
     logs: true,
     browserErrors: true,
     podLogs: true,
+    aiConversations: true,
     traceProfiling: true,
     ebpfProfiling: true,
     networkProfiling: true,
@@ -90,7 +91,11 @@ const EVERY_ROW: LayerMenuInput = {
 
 describe('DEFAULT_LAYER_ROW_ORDER', () => {
   it('is exactly the order the sidebar rendered before centralisation', () => {
-    expect([...DEFAULT_LAYER_ROW_ORDER]).toEqual(SIDEBAR_ORDER_BEFORE);
+    // Rows added since the transcript (`conversations`) are allowed; what must
+    // not move is the relative order of every row the transcript knew.
+    expect(DEFAULT_LAYER_ROW_ORDER.filter((p) => SIDEBAR_ORDER_BEFORE.includes(p))).toEqual(
+      SIDEBAR_ORDER_BEFORE,
+    );
   });
 
   it('lists every row once — no duplicate, no omission', () => {

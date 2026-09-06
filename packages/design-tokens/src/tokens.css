@@ -51,6 +51,18 @@
   --sw-pink:  #ec4899;
   --sw-cyan:  #22d3ee;
 
+  /* Categorical series — for things that are kinds, not statuses: chart
+     series, the kinds of step in an agent conversation. Every theme sets its
+     own eight, so the same kind reads in the theme's character. */
+  --sw-series-1: #22c55e;
+  --sw-series-2: #22d3ee;
+  --sw-series-3: #38bdf8;
+  --sw-series-4: #eab308;
+  --sw-series-5: #a855f7;
+  --sw-series-6: #ec4899;
+  --sw-series-7: #f97316;
+  --sw-series-8: #ef4444;
+
   --sw-ok-soft:   rgba(34,197,94,0.14);
   --sw-warn-soft: rgba(234,179,8,0.16);
   --sw-err-soft:  rgba(239,68,68,0.16);

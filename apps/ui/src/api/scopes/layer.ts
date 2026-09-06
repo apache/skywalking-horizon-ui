@@ -196,6 +196,9 @@ export class LayerApi {
   instances(
     layerKey: string,
     service: ServiceRef,
+    /** How far back an instance may have been active, in minutes. Omitted
+     *  means the BFF's recent default. */
+    opts: { windowMinutes?: number } = {},
   ): Promise<{
     layer: string;
     service: string;
@@ -210,6 +213,7 @@ export class LayerApi {
     error?: string;
   }> {
     const qs = new URLSearchParams(serviceRefFields(service));
+    if (opts.windowMinutes) qs.set('windowMinutes', String(opts.windowMinutes));
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/instances?${qs.toString()}`,

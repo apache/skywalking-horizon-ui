@@ -98,7 +98,7 @@ Per-tab feature toggles. A `false` value hides the tab.
 }
 ```
 
-The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available. Only the **service** dashboard is on when its key is omitted; every other tab is **off unless explicitly set `true`** — the bundled templates enable each tab they want (`general.json` sets every flag `true` for exactly this reason). The row a layer opens on is the **first enabled** in the order `service → instances → endpoints → topology → deployment → endpointDependency → traces → logs → profiling`. See [Menu and layers](menu-structure.md) for the full row order and how to change it.
+The keys are the per-layer sub-tabs. `networkProfiling`, `podLogs` and `aiConversations` (the AI agent conversations list of the `AI_AGENT` layer) are also available. Only the **service** dashboard is on when its key is omitted; every other tab is **off unless explicitly set `true`** — the bundled templates enable each tab they want (`general.json` sets every flag `true` for exactly this reason). The row a layer opens on is the **first enabled** in the order `service → instances → endpoints → topology → deployment → endpointDependency → traces → logs → profiling`. See [Menu and layers](menu-structure.md) for the full row order and how to change it.
 
 `deployment` is the exception: it is **off by default** and only appears when the layer also carries a [`deployment`](#deployment) config block — see [Deployment](#deployment) below.
 

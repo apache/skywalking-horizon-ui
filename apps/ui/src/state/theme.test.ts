@@ -25,7 +25,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { bff } from '@/api/client';
-import { useThemeStore } from './theme';
+import { THEMES } from '@skywalking-horizon-ui/design-tokens';
+import { AVAILABLE_THEMES, useThemeStore } from './theme';
+
+describe('theme table — one list, two readers', () => {
+  it('the picker describes exactly the shared themes, with the same appearance', () => {
+    expect(AVAILABLE_THEMES.map((t) => ({ id: t.id, label: t.label, appearance: t.appearance }))).toEqual([...THEMES]);
+  });
+});
 
 describe('theme store — org default', () => {
   beforeEach(() => {

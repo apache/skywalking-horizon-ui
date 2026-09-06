@@ -191,6 +191,7 @@ const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>((
   'ttl:read':               { label: t('See data retention settings') },
   'config:read':            { label: t('See the OAP runtime configuration') },
   'browser-errors:read':    { label: t('See browser error logs') },
+  'ai-conversation:read':   { label: t('See AI agent conversations') },
   'source-map:write':       { label: t('Upload and remove source maps') },
   'ai:read':                { label: t('Use the AI assistant') },
   'mcp:read':               { label: t('Connect an external agent over MCP') },
@@ -256,8 +257,9 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('3D infrastructure map'), icon: '⬡' },
       { label: t('Alarms'), icon: '!' },
       { label: t('Service events'), icon: '◔' },
+      { label: t('AI agent conversations'), icon: '◍' },
     ],
-    verbs: ['metrics:read', 'alarms:read', 'events:read', 'traces:read', 'logs:read', 'topology:read', 'profile:read', 'infra-3d:read'],
+    verbs: ['metrics:read', 'alarms:read', 'events:read', 'traces:read', 'logs:read', 'topology:read', 'profile:read', 'infra-3d:read', 'ai-conversation:read'],
   },
   {
     title: t('Platform monitoring'),
