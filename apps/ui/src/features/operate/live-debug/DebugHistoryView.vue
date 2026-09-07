@@ -452,8 +452,9 @@ function clearAll(): void {
 
 .dh__col--meta {
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
 }
 
 .dh__col--actions {
