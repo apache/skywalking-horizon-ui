@@ -106,7 +106,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       params.sortField ?? computed(() => 'EVALUATION_TIME'),
       params.sortOrder ?? computed(() => 'DES'),
       params.traceId ?? computed(() => null),
-      params.traceType ?? computed(() => null),
+      computed(() => params.traceId?.value ? params.traceType?.value ?? null : null),
       params.page,
       params.pageSize,
       params.windowMinutes ?? computed(() => 0),
@@ -128,7 +128,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
         ...(params.sortField?.value ? { sortField: params.sortField.value } : {}),
         ...(params.sortOrder?.value ? { sortOrder: params.sortOrder.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
-        ...(params.traceType?.value ? { traceType: params.traceType.value } : {}),
+        ...(params.traceId?.value && params.traceType?.value ? { traceType: params.traceType.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }
@@ -268,7 +268,7 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
       params.taskName ?? computed(() => null),
       params.judgeModel ?? computed(() => null),
       params.traceId ?? computed(() => null),
-      params.traceType ?? computed(() => null),
+      computed(() => params.traceId?.value ? params.traceType?.value ?? null : null),
       params.keywords ?? computed(() => []),
       params.windowMinutes ?? computed(() => 0),
       params.startTime ?? computed(() => null),
@@ -286,7 +286,7 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
         ...(params.taskName?.value ? { taskName: params.taskName.value } : {}),
         ...(params.judgeModel?.value ? { judgeModel: params.judgeModel.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
-        ...(params.traceType?.value ? { traceType: params.traceType.value } : {}),
+        ...(params.traceId?.value && params.traceType?.value ? { traceType: params.traceType.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }

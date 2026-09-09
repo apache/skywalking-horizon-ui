@@ -84,7 +84,7 @@ beforeEach(() => resetServiceLayerCatalog());
 describe('evaluation-record paging', () => {
   it('keeps page 2 at the requested size and probes page 3 without skipping a row', async () => {
     const rows = Array.from({ length: 101 }, (_, i) => ({
-      traceRef: { type: 'SKYWALKING_NATIVE', traceId: `trace-${i}` },
+      traceRef: { type: i % 2 === 0 ? 'SKYWALKING_NATIVE' : 'OTLP', traceId: `trace-${i}` },
       valueType: 'SCORE',
       scoreValue: i,
       evaluationTime: i,
@@ -105,55 +105,22 @@ describe('evaluation-record paging', () => {
 
     const result = await fetchEvaluationRecords(
       { queryUrl: 'http://oap.invalid', timeoutMs: 1_000, fetch },
-      {},
+      { traceType: 'OTLP' },
       { start: '2026-01-01 000000', end: '2026-01-01 010000' },
       { pageNum: 2, pageSize: 50 },
       false,
     );
 
+    expect(variables.condition).not.toHaveProperty('relatedTrace');
+    expect(variables.probe).not.toHaveProperty('relatedTrace');
+    expect(result.records).toHaveLength(50);
+    expect(new Set(result.records.map((row) => row.traceRef?.type)).size).toBe(2);
     expect(variables.condition.paging).toEqual({ pageNum: 2, pageSize: 50 });
     expect(variables.probe.paging).toEqual({ pageNum: 101, pageSize: 1 });
     expect(result.records[0]?.traceId).toBe('trace-50');
     expect(result.records.at(-1)?.traceId).toBe('trace-99');
     expect(result.hasNext).toBe(true);
   });
-
-  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)(
-    'filters %s before paging and probing without a trace ID', async (type) => {
-      const rows = Array.from({ length: 7 }, (_, i) => ({
-        traceRef: { type: i % 2 === 0 ? 'SKYWALKING_NATIVE' : 'OTLP', traceId: `trace-${i}` },
-      }));
-      const fetch: FetchLike = async (_url, init) => {
-        const { variables } = JSON.parse(String(init?.body)) as {
-          variables: Record<string, { paging: Paging; relatedTrace?: { type: string }; queryDuration?: unknown }>;
-        };
-        for (const condition of Object.values(variables)) {
-          expect(condition.relatedTrace).toEqual({ type });
-          expect(condition.queryDuration).toBeDefined();
-        }
-        const select = (condition: typeof variables.condition) =>
-          slice(rows.filter((row) => row.traceRef.type === condition.relatedTrace?.type), condition.paging);
-        return json({ data: {
-          data: { genAIEvaluationRecordList: select(variables.condition) },
-          probe: { genAIEvaluationRecordList: variables.probe ? select(variables.probe) : [] },
-        } });
-      };
-      for (const pageNum of [1, 2]) {
-        const result = await fetchEvaluationRecords(
-          { queryUrl: 'http://oap.invalid', timeoutMs: 1_000, fetch },
-          { traceType: type },
-          { start: '2026-01-01 000000', end: '2026-01-01 010000' },
-          { pageNum, pageSize: 2 }, false,
-        );
-        expect(result.reachable).toBe(true);
-        expect(result.records.map((row) => row.traceId)).toEqual(
-          slice(rows.filter((row) => row.traceRef.type === type), { pageNum, pageSize: 2 })
-            .map((row) => row.traceRef.traceId),
-        );
-        expect(result.hasNext).toBe(pageNum === 1);
-      }
-    },
-  );
 
   it('soft-fails when OAP cannot be reached', async () => {
     const fetch: FetchLike = async () => { throw new Error('network down'); };
@@ -235,7 +202,7 @@ describe('evaluation-record route scope and time window', () => {
     expect(res.json()).not.toHaveProperty('total');
   });
 
-  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)('scopes facets to %s without a trace ID', async (type) => {
+  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)('ignores standalone %s type in facets without a trace ID', async (type) => {
     const oap = fakeRouteOap();
     const { app, sid } = await buildRoute(oap.fetch);
     try {
@@ -246,7 +213,7 @@ describe('evaluation-record route scope and time window', () => {
       expect(res.statusCode).toBe(200);
       const call = oap.calls.find((c) => c.query.includes('QueryGenAIEvaluationRecordFacets'));
       const condition = call?.variables.evaluationRecordCondition as Record<string, unknown>;
-      expect(condition.relatedTrace).toEqual({ type });
+      expect(condition).not.toHaveProperty('relatedTrace');
       expect(condition.queryDuration).toBeDefined();
       expect(condition).not.toHaveProperty('traceType');
       expect(res.json()).toMatchObject({ sampled: 1 });

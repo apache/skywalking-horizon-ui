@@ -40,6 +40,7 @@ export interface EvaluationRecordQueryRequest {
   sortField?: 'EVALUATION_TIME' | 'SCORE_VALUE' | null;
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
+  /** Addressing scheme for traceId; ignored when traceId is absent. */
   traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
   page?: number;
   pageSize?: number;

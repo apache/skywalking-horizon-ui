@@ -115,10 +115,6 @@ const traceIdParam = computed(() => {
   const v = route.query.evaluationTraceId;
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
-const traceTypeParam = computed<'SKYWALKING_NATIVE' | 'OTLP'>(() => {
-  const value = queryString('evaluationTraceType');
-  return value === 'OTLP' ? 'OTLP' : 'SKYWALKING_NATIVE';
-});
 // Keep the route-provided value visible and editable. Updating or clearing
 // the field updates the route-provided condition as well.
 const traceIdInput = ref(queryString('evaluationTraceId') ?? '');
@@ -157,17 +153,8 @@ const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>(traceTypeParam.value);
-watch(traceTypeParam, (next) => {
-  if (traceTypeRef.value !== next) traceTypeRef.value = next;
-}, { immediate: true });
-watch(traceTypeRef, (next) => {
-  if (next === queryString('evaluationTraceType')) return;
-  void router.replace({
-    path: route.path,
-    query: { ...route.query, evaluationTraceType: next },
-  });
-});
+// The addressing scheme is only needed when locating a specific trace.
+const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>('SKYWALKING_NATIVE');
 const serviceId = ref('');
 const providerIdRef = computed<string | null>(() => selectedId.value);
 const modelIdRef = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
@@ -548,8 +535,8 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
               placeholder="paste trace id..."
           />
         </label>
-        <label class="cf">
-          <span>Trace source</span>
+        <label v-if="traceIdRef" class="cf">
+          <span>Trace ID type</span>
           <select v-model="traceTypeRef" class="cf-input">
             <option value="SKYWALKING_NATIVE">SkyWalking Native</option>
             <option value="OTLP">OTLP</option>

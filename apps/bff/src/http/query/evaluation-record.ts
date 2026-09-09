@@ -250,10 +250,10 @@ export async function fetchEvaluationRecords(
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
     ...(scope.sortField ? { sortBy: scope.sortField } : {}),
     ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
-    ...(scope.traceType || scope.traceId ? {
+    ...(scope.traceId ? {
       relatedTrace: {
         type: scope.traceType ?? 'SKYWALKING_NATIVE',
-        ...(scope.traceId ? { traceId: scope.traceId } : {}),
+        traceId: scope.traceId,
       },
     } : {}),
     queryDuration: {
@@ -434,10 +434,10 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           ...(body.valueType === 'BOOLEAN' && body.booleanValue != null ? { booleanValue: body.booleanValue } : {}),
           ...(body.taskName ? { taskName: body.taskName } : {}),
           ...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),
-          ...(body.traceType || body.traceId ? {
+          ...(body.traceId ? {
             relatedTrace: {
               type: body.traceType ?? 'SKYWALKING_NATIVE',
-              ...(body.traceId ? { traceId: body.traceId } : {}),
+              traceId: body.traceId,
             },
           } : {}),
           // Facet sample intentionally ignores level/tag filters so the
