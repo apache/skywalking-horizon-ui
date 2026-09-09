@@ -602,8 +602,7 @@ export function computePlacement(
   const planes: PlanePlacement[] = [];
   const zones: ZonePlacement[] = [];
   const nodes = new Map<string, NodePlacement>();
-  let maxPlaneW = 0;
-  let maxPlaneD = 0;
+  const populated: Array<{ y: number; width: number; depth: number }> = [];
 
   for (const spec of order) {
     const id = spec.id;
@@ -683,8 +682,7 @@ export function computePlacement(
     const planeW = Math.max(totalW + 4, 14);
     const planeD = maxD + 2;
     planes.push({ id, name: spec.label, y: planeY, width: planeW, depth: planeD });
-    maxPlaneW = Math.max(maxPlaneW, planeW);
-    maxPlaneD = Math.max(maxPlaneD, planeD);
+    if (ordered.length > 0) populated.push({ y: planeY, width: planeW, depth: planeD });
 
     let cursor = -totalW / 2;
     for (const u of ordered) {
@@ -718,10 +716,14 @@ export function computePlacement(
     }
   }
 
-  const minY = 0;
-  const maxY = (order.length - 1) * PLANE_VGAP;
-  const halfX = maxPlaneW / 2;
-  const halfZ = maxPlaneD / 2;
+  // The bounds frame what is there to see: the tiers that hold a zone, not
+  // the whole stack. A deployment with one populated tier otherwise had the
+  // camera aimed between empty planes, with its one slab at the top edge.
+  const framed = populated.length > 0 ? populated : planes.map((p) => ({ y: p.y, width: p.width, depth: p.depth }));
+  const minY = Math.min(...framed.map((p) => p.y));
+  const maxY = Math.max(...framed.map((p) => p.y));
+  const halfX = Math.max(...framed.map((p) => p.width)) / 2;
+  const halfZ = Math.max(...framed.map((p) => p.depth)) / 2;
   return {
     planes,
     zones,

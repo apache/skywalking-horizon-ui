@@ -894,6 +894,18 @@ const performanceSchema = z
       })
       .strict()
       .default({}),
+    // AI agent conversations. `listLimit` counts the newest ROUNDS the list
+    // folds into rows, not rows — a smaller value lets one long conversation
+    // hide the short ones, so the default is OAP's ceiling (`maxListLimit`).
+    // `viewTimeoutMs` matches OAP's `viewRequestTimeout`: the first byte of a
+    // document arrives only after OAP has folded the whole chain.
+    aiConversation: z
+      .object({
+        listLimit: z.number().int().min(1).max(10_000).default(10_000),
+        viewTimeoutMs: z.number().int().positive().max(600_000).default(120_000),
+      })
+      .strict()
+      .default({}),
   })
   .strict()
   .default({});

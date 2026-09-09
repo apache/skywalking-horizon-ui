@@ -96,6 +96,7 @@ performance:
     topologyMaxEdges?: number
     headerWarmupMaxServices?: number
     maxPageSize: { traces?, logs?, browserLogs?, events? }
+  aiConversation: { listLimit?, viewTimeoutMs? }
 
 layers:  { excluded?: [{ key, reason? }] }
 ```
@@ -233,6 +234,9 @@ performance:
     topologyMaxEdges: 15000
     headerWarmupMaxServices: 200
     maxPageSize: { traces: 100, logs: 100, browserLogs: 100, events: 200 }
+  aiConversation:
+    listLimit: 10000
+    viewTimeoutMs: 120000
 ```
 
 The `performance` block tunes how hard Horizon drives your OAP and storage backend. **Every default equals the built-in value, so the whole block is optional** — omit it and Horizon behaves exactly as it does without it. Every value is also **clamped to a hard ceiling**: a number above the ceiling is pulled back down to it (config can only lower the load below a built-in limit, never raise it past one). Hot-reloadable — a change takes effect on the next request of that kind.
@@ -268,6 +272,15 @@ These govern how Horizon batches and parallelizes its metric queries to OAP. Eac
 
 - **`topologyMaxNodes` / `topologyMaxEdges`** are a readability and safety valve, not a data limit — if your deployment legitimately has a graph this large, raising them lets it render (at the cost of a denser scene and a heavier draw). Lower them if you'd rather force operators to scope down sooner.
 - **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events page shows, and with it how much each list read pulls from storage (one record beyond the page — that extra row is how the list knows another page exists). Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per page.
+
+### `performance.aiConversation` — AI agent conversations
+
+| Key | Meaning | Default |
+|---|---|---|
+| `listLimit` | How many of the newest **rounds** the conversation list reads in the chosen time range before folding them into one row per conversation. It is not a row count: a conversation that ran for days has hundreds of rounds, and every one of them spends this budget, so a small value lets one long conversation hide the short ones entirely. The default is the OAP ceiling. Lower it only if the list is slow on your storage. | `10000` |
+| `viewTimeoutMs` | How long Horizon waits for OAP to send a conversation document. OAP assembles the whole conversation before the first byte leaves — several seconds for a conversation with tens of thousands of steps — and runs the request under its own timeout (`viewRequestTimeout`, 120 s by default), which this should match. | `120000` |
+
+A conversation document is relayed exactly as OAP sends it, compressed, so these two are the only knobs; there is no page size.
 
 ## Excluded layers
 

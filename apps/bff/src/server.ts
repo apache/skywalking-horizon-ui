@@ -52,6 +52,7 @@ import { registerLogRoute } from './http/query/log.js';
 import { registerEvaluationRecordRoute } from './http/query/evaluation-record.js';
 import { registerBrowserErrorsRoute } from './http/query/browser-errors.js';
 import { registerEventsRoute } from './http/query/events.js';
+import { registerAiConversationRoutes } from './http/query/ai-conversation.js';
 import { registerExploreRoutes } from './http/query/explore.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
@@ -361,6 +362,7 @@ registerLogRoute(app, { ...authDeps });
 registerEvaluationRecordRoute(app, { ...authDeps });
 registerBrowserErrorsRoute(app, { ...authDeps });
 registerEventsRoute(app, { ...authDeps });
+registerAiConversationRoutes(app, { ...authDeps });
 registerExploreRoutes(app, { ...authDeps });
 registerPodLogRoutes(app, { ...authDeps });
 registerDashboardQueryRoute(app, {

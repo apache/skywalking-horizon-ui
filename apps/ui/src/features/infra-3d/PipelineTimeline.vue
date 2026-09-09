@@ -250,7 +250,7 @@ const openStageState = computed<ROStageState | null>(() => {
 .pl {
   display: flex;
   flex-direction: column;
-  background: rgba(15, 19, 26, 0.92);
+  background: color-mix(in srgb, var(--sw-bg-1) 92%, transparent);
   border-top: 1px solid var(--sw-line);
   backdrop-filter: blur(6px);
   /* Above the bottom-left brand mark (z 70) so the stage-detail drawer,
@@ -296,10 +296,10 @@ const openStageState = computed<ROStageState | null>(() => {
   text-overflow: ellipsis;
 }
 .step.s-idle    .step-icon { color: var(--sw-fg-3); }
-.step.s-running .step-icon { color: #fcc419; animation: pulse 1.2s infinite ease-in-out; }
-.step.s-ok      .step-icon { color: #4ade80; }
-.step.s-warn    .step-icon { color: #f0a04b; }
-.step.s-error   .step-icon { color: #f87171; }
+.step.s-running .step-icon { color: var(--sw-warn); animation: pulse 1.2s infinite ease-in-out; }
+.step.s-ok      .step-icon { color: var(--sw-ok); }
+.step.s-warn    .step-icon { color: var(--sw-warn); }
+.step.s-error   .step-icon { color: var(--sw-err); }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 .spacer { flex: 1; }
@@ -314,7 +314,7 @@ const openStageState = computed<ROStageState | null>(() => {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.next-refresh.running { color: #fcc419; }
+.next-refresh.running { color: var(--sw-warn); }
 .refresh {
   width: 28px;
   border: 1px solid var(--sw-line-2);
@@ -353,10 +353,10 @@ const openStageState = computed<ROStageState | null>(() => {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.drawer-status[data-status='ok']    { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
-.drawer-status[data-status='warn']  { background: rgba(240, 160, 75, 0.15); color: #f0a04b; }
-.drawer-status[data-status='error'] { background: rgba(248, 113, 113, 0.15); color: #f87171; }
-.drawer-status[data-status='running'] { background: rgba(252, 196, 25, 0.15); color: #fcc419; }
+.drawer-status[data-status='ok']    { background: color-mix(in srgb, var(--sw-ok) 15%, transparent); color: var(--sw-ok); }
+.drawer-status[data-status='warn']  { background: color-mix(in srgb, var(--sw-warn) 15%, transparent); color: var(--sw-warn); }
+.drawer-status[data-status='error'] { background: color-mix(in srgb, var(--sw-err) 15%, transparent); color: var(--sw-err); }
+.drawer-status[data-status='running'] { background: color-mix(in srgb, var(--sw-warn) 15%, transparent); color: var(--sw-warn); }
 .drawer-status[data-status='idle']   { background: var(--sw-bg-3); color: var(--sw-fg-3); }
 .drawer-x {
   margin-left: auto;
@@ -408,6 +408,6 @@ details summary { font-size: 10.5px; color: var(--sw-fg-3); cursor: pointer; mar
 .probes th { font-weight: 600; color: var(--sw-fg-3); }
 .probes tr[data-status='ok']     td { color: var(--sw-fg-1); }
 .probes tr[data-status='empty']  td { color: var(--sw-fg-3); }
-.probes tr[data-status='failed'] td { color: #f87171; }
+.probes tr[data-status='failed'] td { color: var(--sw-err); }
 .mono { font-family: var(--sw-mono-font, monospace); }
 </style>

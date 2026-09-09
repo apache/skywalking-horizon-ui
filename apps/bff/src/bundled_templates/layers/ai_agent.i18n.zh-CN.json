@@ -1,0 +1,7 @@
+{
+  "alias": "AI 智能体",
+  "slots": {
+    "services": "智能体运行时",
+    "instances": "发送方"
+  }
+}

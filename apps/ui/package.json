@@ -20,6 +20,7 @@
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@skywalking-horizon-ui/api-client": "workspace:*",
+    "@skywalking-horizon-ui/conversation-view": "workspace:*",
     "@skywalking-horizon-ui/design-tokens": "workspace:*",
     "@tanstack/vue-query": "^5.101.4",
     "@tresjs/cientos": "^5.8.1",

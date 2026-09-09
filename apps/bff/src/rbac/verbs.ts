@@ -29,6 +29,13 @@ export const VERBS = {
   tracesRead: 'traces:read',
   logsRead: 'logs:read',
   browserErrorsRead: 'browser-errors:read',
+  /** AI AGENT conversations — the `AI_AGENT` layer's transcripts, landed by the
+   *  AI Sessionizer. Its own area, not `ai:*`: `ai:read` is the ASSISTANT chat,
+   *  where Horizon sends a conversation to a model provider; this is reading
+   *  stored transcripts of other agents, and a deployment may allow either
+   *  without the other. Under `*:read` like `logs:read`, whose payloads it
+   *  resembles. */
+  aiConversationRead: 'ai-conversation:read',
   eventsRead: 'events:read',
   topologyRead: 'topology:read',
   profileRead: 'profile:read',

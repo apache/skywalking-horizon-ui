@@ -1,0 +1,7 @@
+{
+  "alias": "KI-Agenten",
+  "slots": {
+    "services": "Agent-Laufzeiten",
+    "instances": "Absender"
+  }
+}

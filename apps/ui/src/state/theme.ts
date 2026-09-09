@@ -30,7 +30,8 @@
  * from the org default" affordances. The store keeps the resolved id
  * and reflects it via `<html data-theme="<id>">`; CSS in
  * `themes.css` swaps tokens off that attribute. Adding a theme is
- * one CSS block + one entry in `AVAILABLE_THEMES`.
+ * one CSS block, one entry in the design-tokens `THEMES` list and
+ * one in `AVAILABLE_THEMES`; the unit test keeps the two lists equal.
  */
 
 import { defineStore } from 'pinia';
@@ -38,8 +39,11 @@ import { computed, ref, watch } from 'vue';
 import { useConfigBundle } from '@/controls/configBundle';
 import { debug } from '@/utils/debug';
 import type { TemplateBadge } from '@/api/scopes/configs';
+import type { ThemeId as SharedThemeId } from '@skywalking-horizon-ui/design-tokens';
 
-export type ThemeId = 'horizon' | 'meridian' | 'obsidian' | 'daybreak' | 'aurora';
+/** The id list is shared with hosts outside Horizon (the renderer
+ *  package's `themes.json` is generated from it). */
+export type ThemeId = SharedThemeId;
 
 /** Full per-theme metadata — lifted from the design bundle's
  *  `screens/style-setup.jsx`. The token values here are duplicated

@@ -38,9 +38,14 @@ import {
   type ZonePlacement,
 } from './composables/useScenePlacement';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
+import { AVAILABLE_THEMES, useThemeStore } from '@/state/theme';
 import { useInfra3dConfig } from './composables/useInfra3dConfig';
 import { useInfra3dLoader } from './composables/useInfra3dLoader';
 
+// The shipped logo is white-fill; a light theme gets the blue one, as the topbar does.
+const themeStoreForLogo = useThemeStore();
+const logoSwBlue = logoSw.replace(/fill="#fff"/g, 'fill="#1368B3"');
+const isLightAppearance = computed(() => AVAILABLE_THEMES.find((t) => t.id === themeStoreForLogo.active)?.appearance === 'light');
 const { t } = useI18n({ useScope: 'global' });
 
 /** Imperative handle on the scene's camera-control methods. The
@@ -502,7 +507,7 @@ function onPanelZoneFocus(zoneKey: string): void {
            sub-path. router-link prepends the base and stays in-SPA. -->
       <router-link class="sw-brand" to="/" :title="t('Back to Horizon')">
         <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
-        <span class="sw-brand-logo" v-html="logoSw" />
+        <span class="sw-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
         <span class="sw-brand-text">
           <span class="sw-brand-line1">Apache SkyWalking</span>
           <span class="sw-brand-line2">{{ t('Horizon · 3D Infra Map') }}</span>
@@ -531,7 +536,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: rgba(15, 19, 26, 0.7);
+  background: color-mix(in srgb, var(--sw-bg-1) 70%, transparent);
   border: 1px solid var(--sw-line);
   border-radius: 6px;
   backdrop-filter: blur(8px);
@@ -577,7 +582,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   align-items: center;
   gap: 8px;
   padding: 5px 10px 5px 8px;
-  background: rgba(15, 19, 26, 0.72);
+  background: color-mix(in srgb, var(--sw-bg-1) 72%, transparent);
   border: 1px solid var(--sw-line);
   border-radius: 6px;
   text-decoration: none;
@@ -586,7 +591,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   z-index: 70;
   transition: background 0.15s;
 }
-.sw-brand:hover { background: rgba(15, 19, 26, 0.88); }
+.sw-brand:hover { background: color-mix(in srgb, var(--sw-bg-1) 88%, transparent); }
 .sw-brand-logo {
   display: inline-flex;
   align-items: center;
@@ -651,7 +656,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: rgba(15, 19, 26, 0.88);
+  background: color-mix(in srgb, var(--sw-bg-1) 88%, transparent);
   border: 1px solid var(--sw-line-2);
   border-radius: 8px;
   backdrop-filter: blur(6px);
@@ -671,7 +676,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   align-items: center;
   gap: 7px;
   padding: 7px 11px;
-  background: rgba(15, 19, 26, 0.88);
+  background: color-mix(in srgb, var(--sw-bg-1) 88%, transparent);
   border: 1px solid var(--sw-line-2);
   border-radius: 8px;
   backdrop-filter: blur(6px);
@@ -683,11 +688,11 @@ function onPanelZoneFocus(zoneKey: string): void {
   transition: border-color 0.15s, color 0.15s;
 }
 .beacon-toggle:hover { color: var(--sw-fg-0); border-color: var(--sw-line); }
-.beacon-toggle.is-on { border-color: #ef4444; color: #fca5a5; }
+.beacon-toggle.is-on { border-color: var(--sw-err); color: var(--sw-err); }
 .beacon-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sw-fg-3); }
 .beacon-toggle.is-on .beacon-dot {
-  background: #ef4444;
-  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.8);
+  background: var(--sw-err);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--sw-err) 80%, transparent);
   animation: beacon-pulse 1.4s infinite ease-in-out;
 }
 @keyframes beacon-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

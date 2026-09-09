@@ -46,13 +46,13 @@ import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
 export interface MenuRouteDeps extends AuthDeps {
   fetch?: FetchLike;
-  /** OAP UI-template client — lets the menu honor disabled layer templates
+  /** OAP UI-template client 鈥?lets the menu honor disabled layer templates
    *  (a layer disabled in the admin disappears from the sidebar). Optional
    *  so tests can omit it; without it no layer is filtered as disabled. */
   uiTemplateClient?: () => UITemplateClient;
   /** Server-global service-by-layer index. Single source of truth for
    *  per-layer counts + `normal` flags (shared with the alarms tagger
-   *  and any future surface that needs the service ↔ layer mapping). */
+   *  and any future surface that needs the service 鈫?layer mapping). */
   serviceCatalog: ServiceLayerCatalog;
 }
 
@@ -64,18 +64,18 @@ interface LayerSyncSnapshot {
    *  layer has is ambiguous, so the sidebar hides it rather than navigate
    *  to a dashboard nobody can identify. Byte-identical copies are a
    *  reported duplicate, not an ambiguity, and stay in the menu.
-   *  Detection only — Horizon never retires a record. */
+   *  Detection only 鈥?Horizon never retires a record. */
   conflicted: Set<string>;
   /** Per-name layer rows for the live OAP UI-template state. Lets the
    *  menu prefer the operator's published edits (alias / components /
    *  slots / caps / colour / metrics / overview / log / traces /
-   *  naming) over the disk-bundled defaults — same precedence rule
+   *  naming) over the disk-bundled defaults 鈥?same precedence rule
    *  the config-bundle endpoint already applies via
    *  `pickLayerContent`. Empty when OAP is unreachable; every layer then
    *  resolves to the in-code `LAYER_DEFAULTS`, never the disk bundle. */
   layerRowsByName: Map<string, TemplateRow>;
   /** All sync rows (incl. per-locale overlay rows) so the menu can apply
-   *  the live OAP translation overlay on top of the disk overlay — same
+   *  the live OAP translation overlay on top of the disk overlay 鈥?same
    *  remote-first localization the config-bundle endpoint does. */
   rows: TemplateRow[];
 }
@@ -86,7 +86,7 @@ interface LayerSyncSnapshot {
  *  menu can prefer operator edits over disk-bundled defaults, and all rows
  *  for OAP translation overlays.
  *  Soft-fails to an empty snapshot so the sidebar never breaks because the
- *  template status couldn't be read — every hide needs a POSITIVE signal. */
+ *  template status couldn't be read 鈥?every hide needs a POSITIVE signal. */
 async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot> {
   const empty: LayerSyncSnapshot = {
     disabled: new Set(),
@@ -119,7 +119,7 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
     warnConflictedLayersHidden(sync, conflicted);
     return { disabled, conflicted, layerRowsByName, rows: sync.rows };
   } catch {
-    // Status unavailable — show every layer rather than hide wrongly.
+    // Status unavailable 鈥?show every layer rather than hide wrongly.
   }
   return empty;
 }
@@ -127,7 +127,7 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
 /** Statuses already logged about. `getSyncStatus` hands every caller the
  *  same cached object for ~30s, so keying on it collapses the sidebar poll
  *  (60s per open tab, plus every window focus) down to one line per status
- *  refresh — a menu entry that silently vanished is worse than the
+ *  refresh 鈥?a menu entry that silently vanished is worse than the
  *  duplicate itself, so the reason has to stay greppable without flooding. */
 const conflictWarnedFor = new WeakSet<SyncStatus>();
 
@@ -137,14 +137,14 @@ function warnConflictedLayersHidden(sync: SyncStatus, conflicted: Set<string>): 
   logger.warn(
     { layers: [...conflicted] },
     'Sidebar menu hides these layers: their template name is on more than one enabled OAP record and the ' +
-      'copies differ, so which definition to render is ambiguous. Review them under Dashboard setup → Layer ' +
-      'dashboards (the conflict banner names the record ids) and retire the extra record on OAP — Horizon ' +
+      'copies differ, so which definition to render is ambiguous. Review them under Dashboard setup 鈫?Layer ' +
+      'dashboards (the conflict banner names the record ids) and retire the extra record on OAP 鈥?Horizon ' +
       'never disables one on its own.',
   );
 }
 
-// `listLayers` — active layers in this deployment.
-// `listLayerLevels` — catalog level per layer (sidebar hierarchy).
+// `listLayers` 鈥?active layers in this deployment.
+// `listLayerLevels` 鈥?catalog level per layer (sidebar hierarchy).
 const MENU_QUERY = /* GraphQL */ `
   query HorizonMenu {
     layers: listLayers
@@ -162,8 +162,8 @@ interface MenuRaw {
 
 /**
  * Horizon-side defaults for per-layer term aliases and color. OAP doesn't
- * expose these — they live alongside the UI's sidebar config. Operators can
- * override via the Dashboard setup → Layer dashboards admin page,
+ * expose these 鈥?they live alongside the UI's sidebar config. Operators can
+ * override via the Dashboard setup 鈫?Layer dashboards admin page,
  * which writes to OAP via the UI-template sync surface.
  *
  * Keys match `Layer.name` in OAP's enum (UPPER_SNAKE_CASE).
@@ -210,6 +210,8 @@ const LAYER_DEFAULTS: Record<string, { color: string; slots: LayerSlots; caps: L
     slots: { services: 'Providers', instances: 'Models' },
     caps: { dashboards: true, evaluationRecord: true },
   },
+  // No metrics yet, so no Service page: the layer is its Conversations tab.
+  AI_AGENT: { color: 'var(--sw-purple)', slots: { services: 'Agent runtimes', instances: 'Senders' }, caps: { aiConversations: true } },
 };
 
 const DEFAULT_FOR_UNKNOWN_LAYER = {
@@ -221,14 +223,14 @@ const DEFAULT_FOR_UNKNOWN_LAYER = {
 /** Resolve the layer template the menu should serve for `rawKey`,
  *  matching the bundle endpoint + the per-page routes: REMOTE-only.
  *    1. remote OAP UI-template row, when present, not disabled and readable
- *       as this layer (`effective === 'remote'` — the shared identity rule
+ *       as this layer (`effective === 'remote'` 鈥?the shared identity rule
  *       already decided, so a row holding another layer's template is not one
  *       of this layer's candidates) ;
- *    2. null otherwise — the caller (`deriveLayer`) then renders the
+ *    2. null otherwise 鈥?the caller (`deriveLayer`) then renders the
  *       in-code `LAYER_DEFAULTS`, NOT the disk-bundled template.
  *  Bundled disk content is the seed/reset source (it syncs INTO remote
  *  on boot), never a render-time fallback: when the template store is
- *  unreachable, the snapshot is empty → every layer resolves to its
+ *  unreachable, the snapshot is empty 鈫?every layer resolves to its
  *  hard-coded default here, and the per-page features block. */
 function resolveLayerTemplate(
   rawKey: string,
@@ -253,14 +255,14 @@ function deriveLayer(
   locale: Locale,
   layerRowsByName: Map<string, TemplateRow>,
   /** Live OAP translation overlay content for this (layer, locale), or
-   *  null — applied on top of the disk overlay (remote wins per leaf). */
+   *  null 鈥?applied on top of the disk overlay (remote wins per leaf). */
   oapOverlay: unknown,
 ): LayerDef {
-  // Remote (OAP) wins when present — alias / color / slots / caps /
+  // Remote (OAP) wins when present 鈥?alias / color / slots / caps /
   // components / documentLink follow the operator's published edits.
   // When no remote row is live (not yet synced, OR the template store is
   // unreachable so the snapshot is empty), we fall to the hard-coded
-  // LAYER_DEFAULTS — NOT the disk-bundled template. Bundled is the
+  // LAYER_DEFAULTS 鈥?NOT the disk-bundled template. Bundled is the
   // seed/reset source, never a render-time fallback; the per-page
   // features block in that state while the sidebar still navigates.
   const rawTpl = resolveLayerTemplate(rawKey, layerRowsByName);
@@ -275,7 +277,7 @@ function withMenuRows(def: LayerDef): LayerDef {
   return { ...def, menuRows: resolveLayerMenuRows(def) };
 }
 
-/** The template's extension pages as menu refs — id, localized name, and
+/** The template's extension pages as menu refs 鈥?id, localized name, and
  *  the entity filter the page declares. Widgets stay out: they ride the config
  *  bundle, and the menu is fetched on every page load. */
 function extPageRefs(tpl: LayerTemplate | null): LayerExtPages | undefined {
@@ -375,7 +377,7 @@ function buildLayerDef(
  * value nobody checked.
  *
  * A rejected link is dropped rather than rendered, and logged with its reason
- * — silently serving it is the failure mode that matters.
+ * 鈥?silently serving it is the failure mode that matters.
  */
 function applyLinkPolicy(layers: LayerDef[], trustedDomains: readonly string[]): LayerDef[] {
   return layers.map((layer) => {
@@ -383,12 +385,12 @@ function applyLinkPolicy(layers: LayerDef[], trustedDomains: readonly string[]):
     if (!link) return layer;
     const issue = linkSchemeIssue(link) ?? linkDomainIssue(link, trustedDomains);
     if (!issue) return layer;
-    // The reason names the host or the scheme; the full URL is NOT logged —
+    // The reason names the host or the scheme; the full URL is NOT logged 鈥?
     // a rejected link's query string can carry a token, and the audit/log
     // trail is read by more people than the template store is.
     logger.warn(
       { layer: layer.key, issue },
-      'layer documentLink rejected by link policy — not rendered',
+      'layer documentLink rejected by link policy 鈥?not rendered',
     );
     return { ...layer, documentLink: undefined };
   });
@@ -410,18 +412,18 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
     try {
       const raw = await graphqlPost<MenuRaw>(opts, MENU_QUERY);
 
-      // Active list collapsed by alias (CACHE → VIRTUAL_CACHE, etc.).
+      // Active list collapsed by alias (CACHE 鈫?VIRTUAL_CACHE, etc.).
       const activeCanonical = new Set(raw.layers.map(canonicalLayerKey));
       const levelByCanonical = new Map(raw.levels.map((l) => [canonicalLayerKey(l.layer), l.level]));
 
       // Service counts + first-row `normal` flag come from the
       // server-global catalog (60s TTL, shared with alarms + any other
-      // surface needing the service ↔ layer map). RAW layer names since
+      // surface needing the service 鈫?layer map). RAW layer names since
       // the canonical alias collapse is presentation-only.
       const catalog = await deps.serviceCatalog.get();
       const countByCanonical = new Map<string, number>();
       const normalByCanonical = new Map<string, boolean | null>();
-      // Per-group service counts per canonical layer — drives the optional
+      // Per-group service counts per canonical layer 鈥?drives the optional
       // per-group menu split (`splitByServiceGroup`). Keyed by the OAP
       // `Service.group` ('' = ungrouped).
       const groupsByCanonical = new Map<string, Map<string, number>>();
@@ -435,7 +437,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
           groupsByCanonical.set(key, gm);
         }
         for (const r of rows) gm.set(r.group, (gm.get(r.group) ?? 0) + 1);
-        // First non-null `normal` value wins for the canonical key —
+        // First non-null `normal` value wins for the canonical key 鈥?
         // raw layers that fold into one canonical (e.g. mesh / mesh_cp)
         // share the same `normal` in practice, so collisions are safe.
         const first = rows[0];
@@ -456,7 +458,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // An unreadable row with no bundled sibling contributes no entry: its
       // key is not one anything else in the app addresses, so it would put a
       // sidebar item on screen leading to a layer nobody has. One that DOES
-      // pair with a bundled template keeps its entry — the layer is real and
+      // pair with a bundled template keeps its entry 鈥?the layer is real and
       // renders from the in-code defaults; dropping it would let a single
       // stray record take a working layer out of the nav.
       const ordered: string[] = [];
@@ -476,10 +478,10 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         ordered.push(k);
       }
 
-      // Every layer OAP surfaces in `listLayers` is shown — including
+      // Every layer OAP surfaces in `listLayers` is shown 鈥?including
       // ones with no Horizon template (they render with default caps, a
       // bare Service page). Dropped only when admin-disabled (soft-deleted,
-      // like disabled overviews), duplicated on OAP (ambiguous definition —
+      // like disabled overviews), duplicated on OAP (ambiguous definition 鈥?
       // see `conflicted`), or config-excluded (`layers.excluded`).
       const layers = ordered
         .filter((key) => !disabled.has(key) && !conflicted.has(key) && !excludedLayers.has(key.toUpperCase()))
@@ -494,12 +496,12 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             layerRowsByName,
             oapOverlayContentFromRows(rows, 'layer', key, locale),
           );
-          // Per-group menu split — opt-in per layer via the template. One
+          // Per-group menu split 鈥?opt-in per layer via the template. One
           // level-0 entry per distinct OAP Service.group (sorted; '' =
-          // ungrouped → plain layer name). The composite `<key>~<group>`
+          // ungrouped 鈫?plain layer name). The composite `<key>~<group>`
           // keeps sidebar identity unique while the REAL layer key stays
           // `base.key` (so routes / the BFF still see `general`, with the
-          // group carried separately as `?group=`). Off ⇒ one combined entry.
+          // group carried separately as `?group=`). Off 鈬?one combined entry.
           const tpl = resolveLayerTemplate(key, layerRowsByName);
           const groups = groupsByCanonical.get(key);
           if (!tpl?.splitByServiceGroup || !groups || groups.size === 0) return [base];
@@ -507,21 +509,21 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             .sort((a, b) => a.localeCompare(b))
             .map((g): LayerDef => ({
               // The display NAME carries the group when split (`General
-              // Service · agent`), so every surface — sidebar, page header,
-              // landing KPI tile — reads the group, not just one sidebar
+              // Service 路 agent`), so every surface 鈥?sidebar, page header,
+              // landing KPI tile 鈥?reads the group, not just one sidebar
               // tag. `serviceGroup` still carries the raw value for
               // ordering / data scoping. The composite `<layerKey>~<group>`
               // is the route + sidebar key; the UI api-client splits it on
               // the first `~` into the real layer key + `?group=` for the
-              // BFF (raw group — OAP groups are service-name-shaped,
+              // BFF (raw group 鈥?OAP groups are service-name-shaped,
               // URL-safe; layer keys never contain `~`).
               ...base,
               key: `${base.key}~${g}`,
               serviceGroup: g,
               // Group FIRST so the distinguishing part survives sidebar
-              // truncation (`agent · General Ser…` rather than
-              // `General Service · …`).
-              name: g ? `${g} · ${base.name}` : base.name,
+              // truncation (`agent 路 General Ser鈥 rather than
+              // `General Service 路 鈥).
+              name: g ? `${g} 路 ${base.name}` : base.name,
               serviceCount: groups.get(g) ?? 0,
             }));
         });
@@ -533,7 +535,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       };
       return reply.send(body);
     } catch (err) {
-      // OAP query unreachable — no layer list from OAP. Render a hard-coded
+      // OAP query unreachable 鈥?no layer list from OAP. Render a hard-coded
       // skeleton from the well-known LAYER_DEFAULTS keys so the shell still
       // navigates (each page surfaces its own OAP-down state, and the
       // banner explains). NOT the disk bundle: the runtime never reads

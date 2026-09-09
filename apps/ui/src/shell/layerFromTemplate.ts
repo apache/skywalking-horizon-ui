@@ -113,6 +113,7 @@ export function componentsToCaps(
     networkProfiling: !!c.networkProfiling,
     pprofProfiling: !!c.pprofProfiling,
     continuousProfiling: !!c.continuousProfiling,
+    aiConversations: !!c.aiConversations,
   };
 }
 

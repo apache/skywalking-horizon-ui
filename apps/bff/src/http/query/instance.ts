@@ -81,6 +81,14 @@ export interface InstancesResponse {
   error?: string;
 }
 
+/** The caller's window in minutes, or the default: whole, positive, and at
+ *  most 90 days — the same ceiling the conversation list applies. */
+export function windowMinutesOf(raw: unknown): number {
+  const n = typeof raw === 'string' && raw.trim() ? Number(raw) : Number.NaN;
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_WINDOW_MIN;
+  return Math.min(Math.floor(n), 90 * 24 * 60);
+}
+
 export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteDeps): void {
   const auth = requireAuth(deps);
   app.get(
@@ -106,7 +114,10 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       const signal = clientGone(reply);
       const opts = buildOapOpts(cfgCurrent, deps.fetch, signal);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
-      const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
+      // OAP lists the instances active in the window. A tab that owns a range
+      // of days (AI agent conversations: senders push hours apart) asks for it
+      // here; everyone else gets the recent default.
+      const window = defaultMinuteWindow(offset, windowMinutesOf((req.query as { windowMinutes?: string }).windowMinutes));
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {
           serviceId,

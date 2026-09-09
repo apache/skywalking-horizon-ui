@@ -29,7 +29,7 @@
   per-plane layer geometry and intra-zone call edges only.
 -->
 <script setup lang="ts">
-import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { TresCanvas } from '@tresjs/core';
 import { OrbitControls, Html } from '@tresjs/cientos';
@@ -74,6 +74,8 @@ import {
   RIPPLE_PHASES,
   useSceneMaterials,
 } from './composables/useSceneMaterials';
+import { readScenePalette } from './composables/useScenePalette';
+import { useThemeStore } from '@/state/theme';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -133,7 +135,19 @@ const placement = computePlacement(graph, props.planeOrder, props.groups, props.
 
 // Shared geometries + materials (cache-and-dispose factory). `dispose()`
 // in onUnmounted frees every GL resource owned here.
-const mats = useSceneMaterials();
+// WebGL cannot read a CSS variable: the scene's neutrals come from the theme
+// tokens at mount, and are re-applied when the theme changes.
+const themeStore = useThemeStore();
+const palette = ref(readScenePalette());
+const mats = useSceneMaterials(palette.value);
+watch(
+  () => themeStore.active,
+  async () => {
+    await nextTick();
+    palette.value = readScenePalette();
+    mats.applyPalette(palette.value);
+  },
+);
 const {
   resolveLayerColor,
   zoneMaterial,
@@ -918,7 +932,7 @@ onUnmounted(() => {
     @pointerup="onHostPointerUp"
   >
     <TresCanvas
-      clear-color="#0a0d12"
+      :clear-color="palette.bg0"
       :antialias="true"
       power-preference="high-performance"
       :fps-limit="30"
@@ -1322,7 +1336,7 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #0a0d12;
+  background: var(--sw-bg-0);
 }
 /* Hover tooltip + zone label content lives inside cientos <Html>
    portals — declared in the non-scoped block below since the portal
@@ -1349,7 +1363,7 @@ onUnmounted(() => {
   align-items: baseline;
   gap: 3px;
   padding: 1px 5px;
-  background: rgba(11, 14, 19, 0.88);
+  background: color-mix(in srgb, var(--sw-bg-0) 88%, transparent);
   border: 1px solid;
   border-radius: 8px;
   font-size: 9.5px;
@@ -1385,13 +1399,13 @@ onUnmounted(() => {
    forcing layout. */
 .detail-card {
   width: 244px;
-  background: rgba(15, 19, 26, 0.97);
-  border: 1px solid rgba(249, 115, 22, 0.55);
+  background: color-mix(in srgb, var(--sw-bg-1) 97%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sw-accent) 55%, transparent);
   border-radius: 10px;
   box-shadow:
-    0 0 0 1px rgba(249, 115, 22, 0.15),
+    0 0 0 1px color-mix(in srgb, var(--sw-accent) 15%, transparent),
     0 12px 28px -10px rgba(0, 0, 0, 0.7),
-    0 0 18px -6px rgba(249, 115, 22, 0.35);
+    0 0 18px -6px color-mix(in srgb, var(--sw-accent) 35%, transparent);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -1489,8 +1503,8 @@ onUnmounted(() => {
   gap: 6px;
   width: 100%;
   padding: 8px 12px;
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0.18), rgba(249, 115, 22, 0.08));
-  border: 1px solid rgba(249, 115, 22, 0.55);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 18%, transparent), color-mix(in srgb, var(--sw-accent) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--sw-accent) 55%, transparent);
   border-radius: 6px;
   color: var(--sw-accent-2);
   font-size: 12px;
@@ -1500,9 +1514,9 @@ onUnmounted(() => {
   transition: background 160ms, border-color 160ms, color 160ms;
 }
 .detail-card .d-btn:hover {
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0.32), rgba(249, 115, 22, 0.16));
-  border-color: rgba(249, 115, 22, 0.85);
-  color: #ffe6c8;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 32%, transparent), color-mix(in srgb, var(--sw-accent) 16%, transparent));
+  border-color: color-mix(in srgb, var(--sw-accent) 85%, transparent);
+  color: var(--sw-fg-0);
 }
 .detail-card .d-btn-arrow {
   font-size: 11px;
