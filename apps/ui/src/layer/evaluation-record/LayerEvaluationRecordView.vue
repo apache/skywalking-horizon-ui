@@ -27,22 +27,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useQuery } from '@tanstack/vue-query';
 import { useI18n } from 'vue-i18n';
-import type { LayerDef } from '@/api/client';
-import { useLayerLanding } from '@/layer/useLayerLanding';
-import { useLayerServices } from '@/layer/useLayerServices';
+import { bffClient } from '@/api/client';
 import {
   type GenAIEvaluationRecordStreamRow,
   useLayerEvaluationRecord,
   useLayerEvaluationRecordFacets,
 } from '@/layer/evaluation-record/useLayerEvaluationRecord';
 import { useLayerInstances } from '@/layer/useLayerInstances';
-import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
-import { useSetupStore } from '@/state/setup';
 import { useResultTracePopout } from '@/layer/traces/useResultTracePopout';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
@@ -69,44 +66,26 @@ const startTimeParam = computed(() => queryEpochMs('startTime'));
 const endTimeParam = computed(() => queryEpochMs('endTime'));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
-const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
-const store = useSetupStore();
-const safeLayer = computed<LayerDef>(() => layer.value ?? {
-  key: layerKey.value, name: layerKey.value, color: 'var(--sw-fg-2)',
-  serviceCount: -1, active: false, level: null, slots: {}, caps: {},
+const callerServicesQuery = useQuery({
+  queryKey: ['evaluation-record-caller-services'],
+  queryFn: () => bffClient.evaluationRecord.callerServices(),
+  staleTime: 60_000,
 });
-const safeCfg = computed(() => {
-  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [], style: 'table' as const };
-  return store.ensure(layer.value.key, {
-    slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
-  }).landing;
+const callerServices = computed(() => callerServicesQuery.data.value?.services ?? []);
+const callerServicesFetching = computed(() => callerServicesQuery.isFetching.value);
+const selectedService = computed(() => callerServices.value.find((candidate) => candidate.id === selectedId.value) ?? null);
+const service = computed<ServiceRef | null>(() => {
+  const candidate = selectedService.value;
+  return candidate ? serviceRef(candidate.id, candidate.name, candidate.normal) : null;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
-const { name: serviceName, ref: service } = useLayerServiceName(layerKey, landing);
-const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
-const generalLayerKey = computed(() => 'general');
-const { services: callerServices, isFetching: callerServicesFetching } = useLayerServices(generalLayerKey);
-watch(
-    landingRows,
-    (rows) => {
-      const first = rows[0];
-      if (!first) return;
-      // Auto-pick only when nothing is selected. A valid tail selection
-      // (not in landing's sampled top-N) must NOT be clobbered back to the
-      // first sampled row ??the shell recovers genuinely-stale ids against
-      // the full roster.
-      if (!selectedId.value) {
-        setSelectedService(first.serviceId);
-      }
-    },
-    { immediate: true },
-);
+const serviceName = computed(() => selectedService.value?.name ?? null);
+watch(callerServices, (services) => {
+  if (!selectedId.value && services.length > 0) setSelectedService(services[0].id);
+}, { immediate: true });
 watch(providerIdParam, (providerId) => {
   if (providerId && selectedId.value !== providerId) setSelectedService(providerId);
 }, { immediate: true });
-
-// ── Model picker. Evaluation records currently reuse the instance
+// 闁冲厜鍋撻柍鍏夊亾 Model picker. Evaluation records currently reuse the instance
 // selector plumbing, but the UI labels it by the GenAI domain concept.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const { instances: instanceList } = useLayerInstances(layerKey, service);
@@ -130,7 +109,7 @@ watch([modelIdParam, instanceList], ([modelId, instances]) => {
   if (model && selectedInstance.value !== model.name) setSelectedInstance(model.name);
 }, { immediate: true });
 
-// ── Query state ────────────────────────────────────────────────────
+// 闁冲厜鍋撻柍鍏夊亾 Query state 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾
 // Trace ID is seeded by the route and remains editable in the condition bar.
 const traceIdParam = computed(() => {
   const v = route.query.evaluationTraceId;
@@ -271,11 +250,11 @@ const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,
 );
 
-// ── Tag conditions (booster-style single `key=value` input) ──────
+// 闁冲厜鍋撻柍鍏夊亾 Tag conditions (booster-style single `key=value` input) 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾
 // One text input; Enter commits the tag. Tags accumulate in `customTags`
 // and ride along on the OAP log query as filters. Key/value autocomplete
 // lives in TagInput.
-// ── Level filter goes to OAP as a `level=<UPPER>` tag filter so the
+// 闁冲厜鍋撻柍鍏夊亾 Level filter goes to OAP as a `level=<UPPER>` tag filter so the
 // server-side total + pagination match the visible rows. The filter
 // is single-select (booster-ui uses the same pattern).
 const LEVEL_TAG_VALUES: Record<'fail' | 'warning' | 'good' | 'excellent', string> = {
@@ -295,7 +274,7 @@ watch(
   [
     providerIdRef, modelIdRef, serviceId, valueType, minScore, maxScore,
     booleanValue, taskName, selectedLevel, judgeModel, sortField, sortOrder,
-    traceIdRef, pageSize, windowMinutes, customStart, customEnd,
+    traceIdRef, traceTypeRef, pageSize, windowMinutes, customStart, customEnd,
   ],
   () => { page.value = 1; },
   { flush: 'sync' },
@@ -358,7 +337,7 @@ function runQuery(): void {
   void refetchFacets();
 }
 
-// ── Density histogram (60 bins). Loki/Datadog style: stacked bars
+// 闁冲厜鍋撻柍鍏夊亾 Density histogram (60 bins). Loki/Datadog style: stacked bars
 // per level over the visible page's time window. Counts come from
 // the loaded page only ??total-window density would need a server
 // aggregation we don't have yet. -----------------------------------
@@ -416,7 +395,7 @@ const histogram = computed(() => {
   return { bins, max, t0, t1 };
 });
 
-// ── Facets ??server-side aggregated across a larger window sample
+// 闁冲厜鍋撻柍鍏夊亾 Facets ??server-side aggregated across a larger window sample
 // (default 200 rows). When the facet fetch hasn't returned yet we
 // fall back to counts derived from the visible page so the rail
 // never goes empty.
@@ -438,7 +417,7 @@ const filteredGenAIEvaluationRecordRows = computed<GenAIEvaluationRecordStreamRo
   ),
 );
 
-// ── Evaluation-record payload popout ??a row click opens the dedicated
+// 闁冲厜鍋撻柍鍏夊亾 Evaluation-record payload popout ??a row click opens the dedicated
 // detail modal (format-aware pretty-print + copy + key/value tag table +
 // trace link). The popout owns its own Escape / close + format detection.
 const popoutRow = ref<GenAIEvaluationRecordStreamRow | null>(null);
@@ -593,12 +572,12 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
               <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
               <span class="cf-range-sep">to</span>
               <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
-              <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
+              <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">Back</button>
             </div>
           </template>
           <select v-else v-model.number="windowMinutes" class="cf-input">
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
-            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
+            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom') }}</option>
           </select>
         </label>
         <label class="cf">
@@ -719,7 +698,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         />
         <div class="lg-pager">
           <span class="hint">
-            page {{ page }} · showing {{ filteredGenAIEvaluationRecordRows.length }}
+            page {{ page }} 鐠?showing {{ filteredGenAIEvaluationRecordRows.length }}
             <template v-if="total != null"> of {{ total }} total</template>
           </span>
           <div class="lg-pager-ctrls">

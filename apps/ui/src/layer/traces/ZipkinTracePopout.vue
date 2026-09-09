@@ -130,7 +130,8 @@ function clearSpan(): void {
 watch([traceIdRef, spans], () => {
   selectedSpanId.value = null;
   const spanId = String(route.query[TRACE_POPOUT_SPAN] ?? '');
-  const spanIndex = Number(route.query[TRACE_POPOUT_SPAN_INDEX] ?? '');
+  const spanIndexRaw = route.query[TRACE_POPOUT_SPAN_INDEX];
+  const spanIndex = typeof spanIndexRaw === 'string' && spanIndexRaw.length > 0 ? Number(spanIndexRaw) : NaN;
   if (spanId) selectedSpanId.value = spans.value.find((s) => s.id === spanId)?.id ?? null;
   if (!selectedSpanId.value && Number.isInteger(spanIndex) && spanIndex >= 0) selectedSpanId.value = spans.value[spanIndex]?.id ?? null;
 }, { immediate: true });

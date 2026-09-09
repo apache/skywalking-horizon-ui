@@ -1,3 +1,5 @@
+import type { LocationQuery } from 'vue-router';
+
 export const TRACE_POPOUT_QUERY = 'traceId';
 export const TRACE_POPOUT_AT = 'traceAt';
 export const TRACE_POPOUT_TYPE = 'traceType';
@@ -5,7 +7,7 @@ export const TRACE_POPOUT_SEGMENT = 'traceSegmentId';
 export const TRACE_POPOUT_SPAN_INDEX = 'traceSpanIndex';
 export const TRACE_POPOUT_SPAN = 'traceSpanId';
 
-export type TracePopoutQuery = Record<string, string | string[] | null | undefined>;
+export type TracePopoutQuery = LocationQuery;
 export type TraceFocus = { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null };
 
 export function withTraceFocus(query: TracePopoutQuery, focus?: TraceFocus): TracePopoutQuery {

@@ -155,6 +155,7 @@ export type {
   EvaluationRecordFacetsResponse,
   EvaluationRecordRow,
   EvaluationRecordsResponse,
+  EvaluationCallerService,
 } from './evaluation-record.js';
 export type {
   BrowserErrorCategory,

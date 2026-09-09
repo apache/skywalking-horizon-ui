@@ -156,6 +156,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
   ): GenAIEvaluationRecordStreamRow {
     const rawTags: Array<{ key: string; value: string | null }> = [
       { key: 'segment_id', value: row.traceRef?.segmentId ?? null },
+      { key: 'span_index', value: row.traceRef?.spanIndex == null ? null : String(row.traceRef.spanIndex) },
       { key: 'span_id', value: row.traceRef?.spanId ?? null },
       { key: 'trace_type', value: row.traceRef?.type ?? null },
       { key: 'task_name', value: row.taskName },

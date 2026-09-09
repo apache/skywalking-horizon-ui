@@ -35,7 +35,7 @@ import { requireAuth } from '../user/middleware.js';
 import { isTemplateReadOnly } from '../logic/templates/sync.js';
 import { logger } from '../logger.js';
 
-export type RoutePolicy = 'public' | 'auth' | string | string[];
+export type RoutePolicy = 'public' | 'auth' | string | string[] | { anyOf: readonly string[] };
 
 /** A config-surface write. The template routes push to OAP's ui_template store
  *  (the alert page-setup rides this path too, as the `horizon.alert.page-setup`
@@ -80,6 +80,15 @@ export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
         return void reply.code(403).send({ error: 'permission_denied', verb: v });
       }
     }
+  };
+}
+
+function checkAnyVerb(deps: AuthDeps, verbs: readonly string[]) {
+  return async function anyVerbPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+    const session = req.session;
+    if (!session) return void reply.code(401).send({ error: 'unauthenticated' });
+    if (verbs.some((verb) => sessionHasVerb(deps.config.current, session, verb))) return;
+    return void reply.code(403).send({ error: 'permission_denied', verb: verbs.join(' or ') });
   };
 }
 
@@ -181,8 +190,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // dashboard author can test their own MQE.
   'POST /api/mqe/exec':                            'metrics:read',
   'GET /api/layer/:key/dashboard/config':          'metrics:read',
-  'POST /api/layer/:key/landing':                  'metrics:read',
-  'GET /api/layer/:key/instances':                 'metrics:read',
+  'POST /api/layer/:key/landing':                  { anyOf: ['metrics:read', 'logs:read'] },
+  'GET /api/layer/:key/instances':                 { anyOf: ['metrics:read', 'logs:read'] },
   'GET /api/layer/:key/endpoints':                 'metrics:read',
   'GET /api/layer/:key/services':                  'metrics:read',
   'GET /api/evaluation-record/caller-services':   'logs:read',
@@ -403,7 +412,13 @@ export function makeRouteAuthHook(deps: AuthDeps) {
 
     const newHandlers = [];
     if (!hasAuth) newHandlers.push(requireAuth(deps));
-    if (chosen !== 'auth') newHandlers.push(checkVerb(deps, chosen));
+    if (chosen !== 'auth') {
+      if (typeof chosen === 'object' && !Array.isArray(chosen) && 'anyOf' in chosen) {
+        newHandlers.push(checkAnyVerb(deps, chosen.anyOf));
+      } else {
+        newHandlers.push(checkVerb(deps, chosen as string | readonly string[]));
+      }
+    }
     // readonly-mode backstop on the config-template write routes.
     if (methods.some((m) => isTemplateWriteRoute(String(m).toUpperCase(), route.url))) {
       newHandlers.push(denyTemplateWriteWhenReadOnly);

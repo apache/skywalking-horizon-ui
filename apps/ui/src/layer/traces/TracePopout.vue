@@ -59,10 +59,14 @@ const selectedSpan = ref<NativeSpan | null>(null);
 watch([traceIdRef, spans], () => {
   selectedSpan.value = null;
   const segmentId = String(route.query[TRACE_POPOUT_SEGMENT] ?? '');
-  const spanId = Number(route.query[TRACE_POPOUT_SPAN] ?? '');
-  const spanIndex = Number(route.query[TRACE_POPOUT_SPAN_INDEX] ?? '');
+  const spanIdRaw = route.query[TRACE_POPOUT_SPAN];
+  const spanIndexRaw = route.query[TRACE_POPOUT_SPAN_INDEX];
+  const spanId = typeof spanIdRaw === 'string' && spanIdRaw.length > 0 ? Number(spanIdRaw) : NaN;
+  const spanIndex = typeof spanIndexRaw === 'string' && spanIndexRaw.length > 0 ? Number(spanIndexRaw) : NaN;
   if (segmentId && Number.isFinite(spanId)) selectedSpan.value = spans.value.find((s) => s.segmentId === segmentId && s.spanId === spanId) ?? null;
-  if (!selectedSpan.value && Number.isInteger(spanIndex) && spanIndex >= 0) selectedSpan.value = spans.value[spanIndex] ?? null;
+  if (!selectedSpan.value && segmentId && Number.isInteger(spanIndex) && spanIndex >= 0) {
+    selectedSpan.value = spans.value.find((s) => s.segmentId === segmentId && s.spanId === spanIndex) ?? null;
+  }
 }, { immediate: true });
 
 interface WaterfallRow {

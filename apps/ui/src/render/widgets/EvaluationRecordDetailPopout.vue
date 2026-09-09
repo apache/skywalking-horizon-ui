@@ -109,7 +109,12 @@ function onJumpTrace(): void {
       return value === 'OTLP' || value === 'SKYWALKING_NATIVE' ? value : null;
     })(),
     traceSegmentId: props.row.tags.find((tag) => tag.key.toLowerCase() === 'segment_id')?.value ?? null,
-    traceSpanIndex: Number(props.row.tags.find((tag) => tag.key.toLowerCase() === 'span_index')?.value ?? '') || null,
+    traceSpanIndex: (() => {
+      const value = props.row.tags.find((tag) => tag.key.toLowerCase() === 'span_index')?.value;
+      if (value == null || value === '') return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    })(),
     traceSpanId: props.row.tags.find((tag) => tag.key.toLowerCase() === 'span_id')?.value ?? null,
     ts: props.row.timestamp,
   });

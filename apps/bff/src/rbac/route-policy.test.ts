@@ -181,3 +181,34 @@ describe('denyTemplateWriteWhenReadOnly — the BFF backstop', () => {
     expect(code).not.toHaveBeenCalled();
   });
 });
+describe('evaluation record selector route policies', () => {
+  const config = configSchema.parse({ rbac: { roles: {
+    'metrics-only': ['metrics:read'], 'logs-only': ['logs:read'], empty: [],
+  } } });
+  const deps = { config: { current: config } } as unknown as AuthDeps;
+  type PreHandler = (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  async function run(gate: PreHandler, role: string) {
+    const out: { code?: number; body?: unknown } = {};
+    const reply = { code(c: number) { out.code = c; return { send: (body: unknown) => void (out.body = body) }; } } as unknown as FastifyReply;
+    await gate({ session: { roles: [role] } } as FastifyRequest, reply);
+    return out;
+  }
+  async function decide(route: string, role: string) {
+    const split = route.indexOf(' ');
+    const options = { method: route.slice(0, split), url: route.slice(split + 1) } as RouteOptions;
+    makeRouteAuthHook(deps)(options);
+    const handlers = (Array.isArray(options.preHandler) ? options.preHandler : []) as PreHandler[];
+    const gate = handlers.find((handler) => handler.name === 'anyVerbPreHandler');
+    expect(gate).toBeDefined();
+    return run(gate!, role);
+  }
+  it('allows either metrics:read or logs:read', async () => {
+    for (const route of ['POST /api/layer/:key/landing', 'GET /api/layer/:key/instances']) {
+      expect(await decide(route, 'logs-only')).toEqual({});
+      expect(await decide(route, 'metrics-only')).toEqual({});
+    }
+  });
+  it('denies a role with neither permission', async () => {
+    expect(await decide('POST /api/layer/:key/landing', 'empty')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read or logs:read' } });
+  });
+});

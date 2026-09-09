@@ -16,6 +16,11 @@ describe('trace popout query state', () => {
     expect(query).toEqual({ source: 'local' });
   });
 
+  it('preserves a zero span index instead of treating it as absent', () => {
+    const query = withTraceFocus({ source: 'local' }, { spanIndex: 0 });
+    expect(query.traceSpanIndex).toBe('0');
+  });
+
   it('clears focus fields while retaining trace type and source', () => {
     const query = clearTraceFocus({ source: 'remote', traceType: 'OTLP', traceId: 'abc', traceSpanId: 's' });
     expect(query).toEqual({ source: 'remote', traceType: 'OTLP', traceId: 'abc' });
