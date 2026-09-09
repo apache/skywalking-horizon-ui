@@ -6,6 +6,7 @@ Horizon ships bundled overview templates, and an administrator customizes them i
 
 - **Service Health** — cross-layer service health + Kubernetes capacity summary.
 - **Mesh** — Istio data-plane services + pilot activity + Kubernetes.
+- **AI Agent Overview** — the AI agents reporting to OAP, their token usage, and a day-by-day grid of the last 30 days.
 
 ## Template shape (reference)
 
@@ -43,7 +44,7 @@ Horizon ships bundled overview templates, and an administrator customizes them i
 
 ## Widget types
 
-Six supported `type` values:
+Eight supported `type` values:
 
 | Type | Renders |
 |---|---|
@@ -53,6 +54,8 @@ Six supported `type` values:
 | `kpi-tile` | Compound tile: optional service count + N KPI rows. |
 | `alarms` | Active-alarm rail (60 min window). |
 | `metric-composite` | Mixed KPI grid — number tiles + progress-bar rows. |
+| `calendar-heatmap` | One cell per hour (a window of up to 14 days) or per day (longer) over a fixed window of the last `windowDays` days, with the window total in the footer. The one widget that does not follow the time picker. |
+| `ranking` | The layer's services ranked by one metric over the picked range, busiest first, each with its value and a bar; two or more columns past five rows, as many as the card's height needs. |
 
 See [Components → Overview Widgets](../components/overview-widgets.md) for the per-widget detail.
 
@@ -76,13 +79,15 @@ The 72 px row height is tuned for KPI tile content; widgets that need more verti
 | `title` | Card title (not used by `section-break` — uses `title` as the section header). |
 | `tip` | Optional one-line hover hint next to the title. |
 | `layer` | Layer key (UPPER_SNAKE). Used to scope MQE evaluation. Optional for `section-break` and `alarms` (alarms can scope server-side if the layer is set). |
-| `type` | One of `metric`, `topology`, `section-break`, `kpi-tile`, `alarms`, or `metric-composite`. |
+| `type` | One of `metric`, `topology`, `section-break`, `kpi-tile`, `alarms`, `metric-composite`, `calendar-heatmap`, or `ranking`. |
 | `span` | Column span. Defaults vary per widget type. |
 | `rowSpan` | Row span. Defaults vary per widget type. |
 | `mqe`, `unit`, `aggregation` | Metric-specific fields. |
 | `cols` | Section-break column count for following widgets. |
-| `kpis`, `showCount`, `limit` | Type-specific fields described below. |
+| `kpis`, `showCount`, `limit` | Type-specific fields described below. For `ranking`, `limit` is how many services to list (default 10, at most 20). |
+| `windowDays`, `resolution`, `compareTo` | `calendar-heatmap` only — the fixed window in days (7–93, default 30), the layout (`auto` draws up to 14 days by the hour and longer windows by the day; `hour` or `day` forces one), and whether the footer compares the total to the text of a well-known book (default off). |
 | `aggregateOnPage` | Data widgets only. `false` (default): each KPI's expression already rolls the whole layer up (see *Aggregation modes*). `true`: the KPIs are plain per-service metrics and Horizon aggregates the top-`limit` services itself. |
+| `rangeTotal` | `ranking` widgets, and page-side KPI rows through `OverviewKpi.rangeTotal` — sum a service's buckets over the picked range instead of averaging them, so a counter such as tokens reads as the range total. Default off. |
 
 ## Aggregation modes
 
@@ -90,6 +95,8 @@ An Overview KPI reports one number for a whole layer (e.g. "General services · 
 
 - **Server-side (default, `aggregateOnPage` omitted).** The KPI's `mqe` is written to aggregate the layer itself — `sum(top_n(<metric>,{{topn}},DES[,attr0='<layer>']))` for a sum, `avg(top_n(…))` for an average. `top_n` ranks every service in the layer and the outer `sum`/`avg` collapses them to one value; the `{{topn}}` placeholder is filled from the `HORIZON_QUERY_OVERVIEW_TOPN` setting (default 100). `attr0='<layer>'` narrows a metric that several layers share (e.g. `service_cpm` on both `GENERAL` and `MESH`) to the tile's own layer. This is the right choice for standard service metrics.
 - **Page-side (`aggregateOnPage: true`, with `limit`).** Horizon evaluates the plain metric across the layer's services and sums/averages the top-`limit` of them. Use it for metrics that can't be wrapped in `top_n` — single-entity cluster or meter series, `latest(...)` totals, and ratios (the Kubernetes cluster-capacity and Istio pilot composites). `limit` defaults to `1` (fine for a single-entity cluster); raise it for a multi-instance control plane (the bundled Istio pilot tile uses `5`). The top-`limit` services are ranked by the **first KPI** by default; set **`rankBy`** to control it — `{ "kpi": <index> }` to rank by another KPI, or `{ "mqe": "<expr>" }` to rank by a metric not shown as a KPI. Rank by a `REGULAR_VALUE` (unlabeled) metric — a `LABELED_VALUE` ranks poorly. Only matters when the layer has more than one service.
+
+**Per bucket or over the range.** On the page-side path each service's value is, by default, the average of its buckets over the picked range: the value per interval, which is what a rate or a ratio should read as. `rangeTotal: true` on a KPI row or on a `ranking` widget sums the buckets instead, which is what a counter such as tokens needs. The server-side path cannot do this: `top_n` reports each service's average over the range, so `sum(top_n(meter_ai_agent_tokens,{{topn}},DES))` is tokens per interval summed across runtimes, never the range total.
 
 ## `OverviewKpi`
 
@@ -101,6 +108,7 @@ Used by `kpi-tile` and `metric-composite`:
 | `mqe` | Required when `source === 'mqe'` (the default). |
 | `unit` | Unit suffix. |
 | `aggregation` | Only used by `aggregateOnPage` widgets — `sum` for throughput / count, `avg` for ratios and rates. A server-side KPI carries its aggregation inside the `mqe` instead. |
+| `rangeTotal` | Only used by `aggregateOnPage` widgets — sum the service's buckets over the picked range instead of averaging them, so a counter such as tokens reads as the range total rather than the value per bucket. Default off. |
 | `style` | `number` (default) or `progress-bar`. |
 | `max` | Required when `style === 'progress-bar'` — the 100% value. |
 | `source` | `mqe` (default) or `service-count` — the latter reads the layer's service count from the menu response instead of evaluating MQE. |
@@ -212,6 +220,45 @@ Following widgets render in a **6-column** grid (rather than 12) until the next 
 
 Read-only — Horizon does not support acknowledge / close / silence operations. Alarm recovery is backend-automatic.
 
+### `calendar-heatmap` — one cell per hour or day
+
+```json
+{
+  "id": "daily_tokens",
+  "title": "Daily tokens",
+  "type": "calendar-heatmap",
+  "layer": "AI_AGENT",
+  "mqe": "meter_ai_agent_tokens",
+  "aggregation": "sum",
+  "unit": "tokens",
+  "windowDays": 30,
+  "compareTo": true,
+  "span": 12,
+  "rowSpan": 3
+}
+```
+
+A grid of the last `windowDays` days ending now, each cell shaded by its value, with the window total in the footer. The layout follows the window: up to 14 days is one row per day and one column per hour of the OAP's clock; longer is one row per week and one column per weekday, Monday first; `resolution` forces either, except that `hour` past 14 days still draws days, the longest range OAP serves by the hour. Unlike every other widget it does **not** follow the time picker: the window is fixed by the template, so the grid reads the same whatever range the rest of the page shows. `mqe` is a plain per-service metric (not a `top_n(...)` expression): Horizon evaluates it per service at one bucket per hour or day and sums (`aggregation: sum`, the default) or averages (`avg`) the layer's eight busiest services into each cell. `compareTo` adds the footer line comparing a summed total to a well-known book; see [Overview Widgets](../components/overview-widgets.md#calendar-heatmap) for how the shades and the comparison are worked out.
+
+### `ranking` — the busiest services
+
+```json
+{
+  "id": "top_agents",
+  "title": "Top 20 agents",
+  "type": "ranking",
+  "layer": "AI_AGENT",
+  "mqe": "meter_ai_agent_tokens",
+  "unit": "tokens",
+  "limit": 20,
+  "rangeTotal": true,
+  "span": 8,
+  "rowSpan": 4
+}
+```
+
+The rows are the agents with the most tokens over the picked range, each with its total and a bar against the first; past five rows the list runs in two or more columns, as many as the card's height needs.
+
 ## Sidebar visibility
 
 An overview entry appears in the sidebar only when **at least one of its declared layers is currently reporting services**. Declared layers come from two sources, unioned:
@@ -237,6 +284,7 @@ Overview templates are editable at runtime via **Dashboard setup → Overview te
 | `alarms` | `layer`, `title`, `tip`, `limit`, `span`, `rowSpan` |
 | `kpi-tile` | `layer`, `title`, `tip`, `showCount`, KPI rows (add / remove), `span`, `rowSpan` |
 | `metric-composite` | `layer`, `title`, `tip`, KPI rows (each a stacked card: label / source / MQE / unit / aggr / style / max), `span`, `rowSpan` |
+| `calendar-heatmap` | `layer`, `title`, `tip`, `mqe`, `unit`, `aggregation`, `windowDays`, `resolution`, `compareTo`, `span`, `rowSpan` |
 
 ### How edits flow: draft → preview → publish
 

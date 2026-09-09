@@ -29,7 +29,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { OverviewDashboard, OverviewKpi, OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import { LANDING_TOP_N_MAX,
+  CALENDAR_HEATMAP_HOURLY_MAX_DAYS,
+  CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT,
+  CALENDAR_HEATMAP_WINDOW_DAYS_MAX,
+  CALENDAR_HEATMAP_WINDOW_DAYS_MIN,
+  type OverviewDashboard,
+  type OverviewKpi,
+  type OverviewWidget,
+} from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import { vAutosize } from '@/utils/autosize';
@@ -86,6 +94,54 @@ const rankByHint = computed(() =>
   ),
 );
 
+const heatmapMqeHint = computed(() =>
+  t(
+    'A per-service metric, e.g. meter_ai_agent_tokens — Horizon reads it per service at one bucket per hour or day and sums or averages the layer’s eight busiest. Not a top_n(...) expression.',
+  ),
+);
+const windowDaysHint = computed(() =>
+  t('The last {min}–{max} days ending now. Fixed: this widget does not follow the time picker. Default {default}.', {
+    min: CALENDAR_HEATMAP_WINDOW_DAYS_MIN,
+    max: CALENDAR_HEATMAP_WINDOW_DAYS_MAX,
+    default: CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT,
+  }),
+);
+const resolutionHint = computed(() =>
+  t(
+    'Auto draws a window of up to {max} days as days × 24 hours and a longer one as weeks × weekdays. Hours and Days force one; Hours past {max} days still draws days, the longest range OAP serves by the hour.',
+    { max: CALENDAR_HEATMAP_HOURLY_MAX_DAYS },
+  ),
+);
+
+const rankingMqeHint = computed(() =>
+  t(
+    'A per-service metric, e.g. meter_ai_agent_tokens — Horizon reads it per service over the picked range and lists the highest first. Not a top_n(...) expression.',
+  ),
+);
+const rangeTotalHint = computed(() =>
+  t(
+    'Sum a service’s buckets over the picked range instead of averaging them, so a counter such as tokens reads as the range total. Leave it off for rates and ratios.',
+  ),
+);
+
+/** Absent means off, so only an explicit on is stored. */
+function setRangeTotal(target: { rangeTotal?: boolean }, on: boolean): void {
+  if (props.readOnly) return;
+  target.rangeTotal = on ? true : undefined;
+}
+
+/** Absent means off, so only an explicit on is stored — keeps the template clean. */
+function setCompareTo(w: OverviewWidget, on: boolean): void {
+  if (props.readOnly) return;
+  w.compareTo = on ? true : undefined;
+}
+
+/** Absent means `auto`, so only an explicit choice is stored. */
+function setResolution(w: OverviewWidget, value: string): void {
+  if (props.readOnly) return;
+  w.resolution = value === 'hour' || value === 'day' ? value : undefined;
+}
+
 function setAggMode(w: OverviewWidget, pageSide: boolean): void {
   if (props.readOnly) return;
   w.aggregateOnPage = pageSide;
@@ -127,6 +183,8 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
     case 'topology': return t('Topology');
     case 'alarms': return t('Alarms');
     case 'kpi-tile': return t('KPI tile');
+    case 'calendar-heatmap': return t('Calendar heatmap');
+    case 'ranking': return t('Ranking');
     default: return type;
   }
 }
@@ -271,7 +329,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
                layer-agnostic widgets keep the option. -->
           <select v-model="w.layer" class="ot__in ot__in--narrow" :disabled="readOnly">
             <option
-              v-if="w.type !== 'metric' && w.type !== 'kpi-tile' && w.type !== 'metric-composite'"
+              v-if="w.type !== 'metric' && w.type !== 'kpi-tile' && w.type !== 'metric-composite' && w.type !== 'calendar-heatmap' && w.type !== 'ranking'"
               :value="undefined"
             >{{ t('— any —') }}</option>
             <option v-for="k in layerOptions" :key="k" :value="k">{{ k }}</option>
@@ -312,6 +370,96 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
+      <template v-if="w.type === 'calendar-heatmap'">
+        <div class="ot__row">
+          <label class="ot__field ot__field--wide">
+            <span>{{ t('MQE') }} <WidgetTip :tip="heatmapMqeHint" /></span>
+            <MqeExpressionInput
+              v-model="w.mqe"
+              :readonly="readOnly"
+              placeholder="meter_ai_agent_tokens"
+              :title="t('Widget MQE')"
+            />
+          </label>
+          <label class="ot__field">
+            <span>{{ t('Unit') }}</span>
+            <input v-model="w.unit" type="text" class="ot__in ot__in--narrow" :disabled="readOnly" placeholder="tokens" />
+          </label>
+          <label class="ot__field">
+            <span>{{ t('Aggregation') }}</span>
+            <select v-model="w.aggregation" class="ot__in ot__in--narrow" :disabled="readOnly">
+              <option :value="undefined">sum</option>
+              <option value="sum">sum</option>
+              <option value="avg">avg</option>
+            </select>
+          </label>
+        </div>
+        <div class="ot__row">
+          <label class="ot__field">
+            <span>{{ t('Window (days)') }} <WidgetTip :tip="windowDaysHint" /></span>
+            <input
+              v-model.number="w.windowDays"
+              type="number"
+              :min="CALENDAR_HEATMAP_WINDOW_DAYS_MIN"
+              :max="CALENDAR_HEATMAP_WINDOW_DAYS_MAX"
+              class="ot__in ot__in--num"
+              :disabled="readOnly"
+              :placeholder="String(CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT)"
+            />
+          </label>
+          <label class="ot__field">
+            <span>{{ t('Resolution') }} <WidgetTip :tip="resolutionHint" /></span>
+            <select
+              :value="w.resolution ?? 'auto'"
+              class="ot__in ot__in--narrow"
+              :disabled="readOnly"
+              @change="setResolution(w, ($event.target as HTMLSelectElement).value)"
+            >
+              <option value="auto">{{ t('Auto') }}</option>
+              <option value="hour">{{ t('Hours') }}</option>
+              <option value="day">{{ t('Days') }}</option>
+            </select>
+          </label>
+          <label class="ot__field ot__field--check">
+            <input
+              type="checkbox"
+              :checked="w.compareTo === true"
+              :disabled="readOnly"
+              @change="setCompareTo(w, ($event.target as HTMLInputElement).checked)"
+            />
+            <span>{{ t('Compare the total to a well-known book') }}</span>
+          </label>
+        </div>
+      </template>
+
+      <template v-if="w.type === 'ranking'">
+        <div class="ot__row">
+          <label class="ot__field ot__field--wide">
+            <span>{{ t('MQE') }} <WidgetTip :tip="rankingMqeHint" /></span>
+            <MqeExpressionInput v-model="w.mqe" :readonly="readOnly" placeholder="meter_ai_agent_tokens" :title="t('Widget MQE')" />
+          </label>
+          <label class="ot__field">
+            <span>{{ t('Unit') }}</span>
+            <input v-model="w.unit" type="text" class="ot__in ot__in--narrow" :disabled="readOnly" placeholder="tokens" />
+          </label>
+          <label class="ot__field">
+            <span>{{ t('Rows') }}</span>
+            <input v-model.number="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" placeholder="10" />
+          </label>
+        </div>
+        <div class="ot__row">
+          <label class="ot__field ot__field--check">
+            <input
+              type="checkbox"
+              :checked="w.rangeTotal === true"
+              :disabled="readOnly"
+              @change="setRangeTotal(w, ($event.target as HTMLInputElement).checked)"
+            />
+            <span>{{ t('Sum over the picked range') }} <WidgetTip :tip="rangeTotalHint" /></span>
+          </label>
+        </div>
+      </template>
+
       <div v-if="w.type === 'alarms'" class="ot__row">
         <label class="ot__field">
           <span>{{ t('Row limit') }}</span>
@@ -349,7 +497,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
           <div v-if="w.aggregateOnPage" class="ot__agg-params">
             <label class="ot__field">
               <span>{{ t('Top-N services') }} <WidgetTip :tip="topNServicesHint" /></span>
-              <input v-model.number="w.limit" type="number" min="1" max="8" class="ot__in ot__in--num" :disabled="readOnly" />
+              <input v-model.number="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" />
             </label>
             <label v-if="w.type !== 'metric'" class="ot__field ot__field--wide">
               <span>{{ t('Rank by') }} <WidgetTip :tip="rankByHint" /></span>
@@ -437,6 +585,15 @@ function onKpiStyleChange(k: OverviewKpi): void {
                     <option value="avg">avg</option>
                     <option value="sum">sum</option>
                   </select>
+                </label>
+                <label v-if="w.aggregateOnPage && (k.source ?? 'mqe') === 'mqe'" class="ot__field ot__field--check">
+                  <input
+                    type="checkbox"
+                    :checked="k.rangeTotal === true"
+                    :disabled="readOnly"
+                    @change="setRangeTotal(k, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ t('Range total') }} <WidgetTip :tip="rangeTotalHint" /></span>
                 </label>
                 <label class="ot__field">
                   <span>{{ t('Style') }}</span>

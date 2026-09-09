@@ -44,6 +44,15 @@
  *                         rows) — the Kubernetes capacity + Istio pilot
  *                         blocks. `service-count` is a KPI *source*
  *                         within a tile, not a widget type.
+ *   - `calendar-heatmap`— one cell per day over a FIXED window of the
+ *                         last `windowDays` days, one row per week and
+ *                         a column per weekday, with the window total in the
+ *                         footer. The one widget that does not follow
+ *                         the topbar time range; it fetches on its own.
+ *   - `ranking`         — the layer's services ranked by one per-service
+ *                         metric over the picked range, busiest first: a
+ *                         row per service with its value and a bar, in
+ *                         two columns past five rows.
  *
  * The layout uses the same 12-col / `span` + `rowSpan` model as the
  * per-layer dashboard, so the same renderer can place these widgets
@@ -56,7 +65,26 @@ export type OverviewWidgetType =
   | 'section-break'
   | 'kpi-tile'
   | 'alarms'
-  | 'metric-composite';
+  | 'metric-composite'
+  | 'calendar-heatmap'
+  | 'ranking';
+
+/** `windowDays` bounds for a `calendar-heatmap` widget. The ceiling is the
+ *  DAY-step range limit the time picker enforces (93 days); the floor keeps
+ *  the grid at least one full week wide. */
+export const CALENDAR_HEATMAP_WINDOW_DAYS_MIN = 7;
+export const CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT = 30;
+export const CALENDAR_HEATMAP_WINDOW_DAYS_MAX = 93;
+
+/** How a `calendar-heatmap` lays its window out. `auto` draws a window OAP
+ *  can serve at hour precision as days × 24 hours and a longer one as
+ *  weeks × weekdays; `hour` and `day` force one, though `hour` past the
+ *  HOUR-step limit still draws days. */
+export type CalendarHeatmapResolution = 'auto' | 'hour' | 'day';
+
+/** The longest window drawn by the hour: the HOUR-step range limit the time
+ *  picker enforces (14 days). */
+export const CALENDAR_HEATMAP_HOURLY_MAX_DAYS = 14;
 
 /** Visual style for a KPI row.
  *   - `number`        — value rendered as a right-aligned number with
@@ -84,6 +112,10 @@ export interface OverviewKpi {
   mqe?: string;
   unit?: string;
   aggregation?: 'sum' | 'avg';
+  /** Page-side rows only — sum a service's buckets over the picked range
+   *  instead of averaging them, so a counter such as tokens reads as the
+   *  range total. Default false: the value per bucket. */
+  rangeTotal?: boolean;
   /** Defaults to `'number'`. */
   style?: OverviewKpiStyle;
   /** Required when `style === 'progress-bar'` — the value plotted at
@@ -107,7 +139,11 @@ export interface OverviewWidget {
   layer?: string;
   /** Widget kind. See module docs. */
   type: OverviewWidgetType;
-  /** For `metric` widgets — MQE expression evaluated layer-wide. */
+  /** For `metric` widgets — MQE expression evaluated layer-wide.
+   *  For `calendar-heatmap` — a per-service metric (`meter_ai_agent_tokens`),
+   *  read per service at DAY step and aggregated point-wise across the
+   *  layer's top services. For `ranking` — the per-service metric the
+   *  rows are ranked and valued by. */
   mqe?: string;
   /** Display unit. */
   unit?: string;
@@ -139,7 +175,9 @@ export interface OverviewWidget {
    *  For `aggregateOnPage` widgets — the page-side aggregation window: the
    *  tile sums/averages the layer's top-`limit` services (default 1, which
    *  suits single-entity composites like a K8s cluster; set higher for
-   *  multi-instance control planes, e.g. 5 for a multi-replica istiod). */
+   *  multi-instance control planes, e.g. 5 for a multi-replica istiod).
+   *  For `ranking` — how many services to list (default 10, at most
+   *  `LANDING_TOP_N_MAX`). */
   limit?: number;
   /** For `aggregateOnPage` widgets — how the top-`limit` services are RANKED
    *  before the aggregate. Default (absent): by the FIRST KPI. Set it when
@@ -152,6 +190,17 @@ export interface OverviewWidget {
     /** Rank by a standalone MQE, not shown as a KPI. */
     mqe?: string;
   };
+  /** For `calendar-heatmap` — how many days the grid covers, ending today.
+   *  Default 30; clamped to `CALENDAR_HEATMAP_WINDOW_DAYS_MIN..MAX`. */
+  windowDays?: number;
+  /** For `calendar-heatmap` — the layout: `auto` (default), `hour` or `day`.
+   *  See {@link CalendarHeatmapResolution}. */
+  resolution?: CalendarHeatmapResolution;
+  /** For `calendar-heatmap` — add the footer line comparing the window
+   *  total to the text of a well-known book. Default false. */
+  compareTo?: boolean;
+  /** For `ranking` — see {@link OverviewKpi.rangeTotal}. */
+  rangeTotal?: boolean;
   /** Grid span in 12-col grid. */
   span?: number;
   /** Grid row span. */

@@ -72,6 +72,12 @@ const LIST_QUERY = /* GraphQL */ `
         streams
         segments
         unresolved
+        changes
+        linesAdded
+        linesRemoved
+        llmCalls
+        subagents
+        bashRuns
         from
         to
       }
@@ -84,6 +90,11 @@ interface ListRaw {
     errorReason?: string | null;
     conversations?: Array<Record<string, unknown>> | null;
   } | null;
+}
+
+/** A count the round may not have carried: absent stays null rather than becoming zero. */
+function optNum(v: unknown): number | null {
+  return v === null || v === undefined ? null : num(v);
 }
 
 function num(v: unknown): number {
@@ -107,6 +118,12 @@ function toRow(r: Record<string, unknown>): AiConversationRow {
     streams: num(r.streams),
     segments: num(r.segments),
     unresolved: num(r.unresolved),
+    changes: optNum(r.changes),
+    linesAdded: optNum(r.linesAdded),
+    linesRemoved: optNum(r.linesRemoved),
+    llmCalls: optNum(r.llmCalls),
+    subagents: optNum(r.subagents),
+    bashRuns: optNum(r.bashRuns),
     from: num(r.from),
     to: num(r.to),
   };

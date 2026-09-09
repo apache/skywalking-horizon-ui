@@ -704,6 +704,9 @@ describe('POST /api/admin/templates/save — overview content reaching OAP', () 
           span: 6,
           rowSpan: 2,
         },
+        // "Add widget" → Calendar heatmap: the MQE is still blank and the
+        // window is left to its default.
+        { id: 'w4', title: 'Daily usage', type: 'calendar-heatmap', layer: 'GENERAL', mqe: '', span: 12, rowSpan: 3 },
       ],
     };
 
@@ -714,6 +717,30 @@ describe('POST /api/admin/templates/save — overview content reaching OAP', () 
 
     expect(res.statusCode).toBe(200);
     expect(store.writes).toEqual([{ op: 'create', id: 'horizon.overview.services' }]);
+    await app.close();
+  });
+
+  it('refuses a calendar-heatmap window the grid cannot draw', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validOverview('services');
+    (broken.widgets as Json[]).push({
+      id: 'w9',
+      title: 'Daily usage',
+      type: 'calendar-heatmap',
+      layer: 'GENERAL',
+      mqe: 'service_cpm',
+      windowDays: 400,
+    });
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(/windowDays/);
+    expect(store.writes).toEqual([]);
     await app.close();
   });
 

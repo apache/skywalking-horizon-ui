@@ -17,7 +17,8 @@
 
 import { computed, type Ref } from 'vue';
 import { useQueries, useQuery } from '@tanstack/vue-query';
-import type { LandingConfig, OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import { LANDING_TOP_N_MAX, type LandingConfig, type OverviewDashboard, type OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import type { RankingRow } from '@/render/widgets/ranking';
 import { bffClient } from '@/api/client';
 import { getPreviewContentFor } from '@/controls/configBundle';
 import { overviewEditName } from '@/controls/localTemplateEdits';
@@ -39,6 +40,9 @@ export interface OverviewWidgetValues {
   values: Record<string, number | null>;
   /** Per-KPI values for `kpi-tile` widgets, keyed by widget id then label. */
   kpiValues: Record<string, Record<string, number | null>>;
+  /** The ranked rows of `ranking` widgets, keyed by widget id, with the
+   *  layer's service count so the card can say how many it lists. */
+  rankings: Record<string, { rows: RankingRow[]; total: number }>;
 }
 
 interface MqeRequest {
@@ -52,6 +56,10 @@ interface MqeRequest {
    *  `aggregateOnPage`: self-aggregating unless the widget opts into
    *  page-side aggregation. */
   selfAggregate: boolean;
+  /** Sum the service's buckets over the range rather than averaging them. */
+  rangeTotal?: boolean;
+  /** The widget lists the ranked rows themselves rather than an aggregate. */
+  isRanking?: boolean;
   /** When set, the widget+kpi expects the layer's service count (from
    *  the landing aggregate's `serviceCount`) instead of an MQE
    *  result. The `mqe` field is filled with a placeholder so the
@@ -95,8 +103,11 @@ function resolveRank(w: OverviewWidget): LayerGroup['rank'] {
  * Group data-bound widgets into landing calls. Self-aggregating columns
  * batch by layer (they fire once and ignore topN/ranking). Each page-side
  * (`aggregateOnPage`) widget gets its OWN call — it carries its own `limit`
- * AND ranking, which a shared per-layer call couldn't honour. Section-
- * breaks, alarms, and topology widgets are skipped (no aggregate).
+ * AND ranking, which a shared per-layer call couldn't honour; so does a
+ * `ranking` widget, which keeps the rows of its call. Section-
+ * breaks, alarms, topology and calendar-heatmap widgets are skipped: the
+ * first has no data, the other three read on their own (the heatmap over a
+ * fixed DAY window of its own, not the topbar's).
  */
 function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
   const selfByLayer = new Map<string, LayerGroup>();
@@ -104,7 +115,9 @@ function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
   for (const w of widgets) {
     const layer = w.layer;
     if (!layer) continue;
-    if (w.type === 'section-break' || w.type === 'alarms' || w.type === 'topology') continue;
+    if (w.type === 'section-break' || w.type === 'alarms' || w.type === 'topology' || w.type === 'calendar-heatmap') {
+      continue;
+    }
     // Self-aggregating unless the widget opts into page-side (fan-out)
     // aggregation. Service-count rows never fire an MQE, so the flag is
     // moot for them.
@@ -129,12 +142,16 @@ function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
           unit: k.unit,
           isServiceCount: isCount,
           selfAggregate: selfAggregate && !isCount,
+          rangeTotal: k.rangeTotal,
         });
       }
+    } else if (w.type === 'ranking' && w.mqe) {
+      reqs.push({ widgetId: w.id, mqe: w.mqe, aggregation: 'sum', unit: w.unit, selfAggregate: false, rangeTotal: w.rangeTotal, isRanking: true });
     }
     if (reqs.length === 0) continue;
-    if (w.aggregateOnPage) {
-      pageGroups.push({ layer, limit: Math.min(8, Math.max(1, w.limit ?? 1)), reqs, rank: resolveRank(w) });
+    if (w.aggregateOnPage || w.type === 'ranking') {
+      const limit = Math.min(LANDING_TOP_N_MAX, Math.max(1, w.limit ?? (w.type === 'ranking' ? 10 : 1)));
+      pageGroups.push({ layer, limit, reqs, rank: resolveRank(w) });
     } else {
       const g = selfByLayer.get(layer) ?? { layer, limit: 1, reqs: [] };
       g.reqs.push(...reqs);
@@ -232,6 +249,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
             aggregation: r.aggregation,
             unit: r.unit,
             selfAggregate: r.selfAggregate,
+            rangeTotal: r.rangeTotal,
           }));
           // Ranking basis for the page-side top-N slice (default: first
           // column). `rank.column` sorts by an existing KPI column; `rank.mqe`
@@ -256,6 +274,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
             layer: g.layer,
             reqs: g.reqs,
             mqeReqs,
+            rows: res.rows,
             aggregates: res.aggregates,
             // A group that aggregates page-side fans out per service, so a lost
             // batch makes its rollup quietly LOW rather than absent. Carried
@@ -295,7 +314,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
   );
 
   const values = computed<OverviewWidgetValues>(() => {
-    const out: OverviewWidgetValues = { values: {}, kpiValues: {} };
+    const out: OverviewWidgetValues = { values: {}, kpiValues: {}, rankings: {} };
     // metric / kpi-tile / metric-composite read their MQE
     // values out of the layer aggregate keyed by `w_<idx>`. KPI rows
     // with `source: 'service-count'` instead pick up the landing
@@ -303,13 +322,22 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     for (const q of layerQueries.value) {
       const data = q.data;
       if (!data) continue;
-      const { reqs, mqeReqs, aggregates } = data;
+      const { reqs, mqeReqs, rows, aggregates } = data;
       /* MQE rows map by position in `mqeReqs` (which is the only set
        * the BFF actually evaluated). Service-count rows below pick
        * up the count regardless of position. */
       mqeReqs.forEach((r, i) => {
         const v = aggregates.metrics[`w_${i}`] ?? null;
-        if (r.kpiLabel) {
+        if (r.isRanking) {
+          out.rankings[r.widgetId] = {
+            rows: rows.map((row) => ({
+              serviceId: row.serviceId,
+              name: row.shortName ?? row.serviceName,
+              value: row.metrics[`w_${i}`] ?? null,
+            })),
+            total: aggregates.serviceCount,
+          };
+        } else if (r.kpiLabel) {
           if (!out.kpiValues[r.widgetId]) out.kpiValues[r.widgetId] = {};
           out.kpiValues[r.widgetId][r.kpiLabel] = v;
         } else {
@@ -355,6 +383,8 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     isLoading: dash.isLoading,
     isLoadingData,
     isError: dash.isError,
+    /** A live read failed, so a widget still without rows is failed, not reading. */
+    dataError: computed(() => layerQueries.value.some((q) => q.error !== null)),
     dashboard,
     widgets,
     values,

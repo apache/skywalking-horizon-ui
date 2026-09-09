@@ -20,6 +20,10 @@
  * service rollup the Overview cards render.
  */
 
+/** The most services one landing read ranks and returns. The fan-out reads
+ *  the whole layer either way; this only bounds the rows sent back. */
+export const LANDING_TOP_N_MAX = 20;
+
 export interface LandingServiceRow {
   /** OAP service id. */
   serviceId: string;

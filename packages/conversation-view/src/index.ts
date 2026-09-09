@@ -35,7 +35,18 @@ import { EN_US_FORMATTER, type TimeFormatter } from './format.js';
 import { ConversationModel, type Step } from './model.js';
 import { ENGLISH, fill, type ViewStrings } from './strings.js';
 import type { AszRef, AszViewDocument, Glossary, LandedRecord } from './types.js';
-import { drawOverview, drawStatus, drawStreamTabs, drawTalkList, setOverviewOpen, setProblemsOpen } from './view/chrome.js';
+import { drawChangesPanel, symbolDefs } from './view/changes.js';
+import {
+  drawOverview,
+  drawStatus,
+  drawStreamTabs,
+  drawTalkList,
+  setChangesOpen,
+  setInspectorPopped,
+  trapFocus,
+  setOverviewOpen,
+  setProblemsOpen,
+} from './view/chrome.js';
 import type { InspectorTab, ViewContext, ViewState } from './view/context.js';
 import { drawInspector } from './view/inspector.js';
 import { setupPanels } from './view/panels.js';
@@ -75,11 +86,15 @@ export interface ConversationView {
 }
 
 function skeleton(s: ViewStrings): string {
-  return `
+  return `${symbolDefs()}
   <div class="acv-strip"><div class="acv-status"></div>
     <div class="acv-problems acv-explain" hidden>
       <div class="acv-explain-head"><span class="acv-explain-title acv-problems-title"></span><button type="button" class="acv-explain-close acv-problems-close" aria-label="${esc(s.close)}">×</button></div>
       <div class="acv-problems-body"></div>
+    </div>
+    <div class="acv-changes acv-explain" id="acv-changes" hidden>
+      <div class="acv-explain-head"><span class="acv-explain-title acv-changes-title"></span><button type="button" class="acv-explain-close acv-changes-close" aria-label="${esc(s.close)}">×</button></div>
+      <div class="acv-changes-body"></div>
     </div>
     <div class="acv-overview" id="acv-overview" hidden>
       <section class="acv-summary" aria-label="${esc(s.overview)}"></section>
@@ -99,15 +114,20 @@ function skeleton(s: ViewStrings): string {
         <div class="acv-transcript-list"></div>
       </section>
       <div class="acv-splitter acv-split-inspector" role="separator" aria-orientation="vertical" tabindex="0"></div>
+      <div class="acv-scrim" hidden></div>
       <aside class="acv-inspector">
         <div class="acv-inspector-head">
-          <div class="acv-heading"><span class="acv-kicker">${esc(s.inspector)}</span><h2 class="acv-inspector-title">—</h2></div>
+          <div class="acv-inspector-headrow">
+            <div class="acv-heading"><span class="acv-kicker">${esc(s.inspector)}</span><h2 class="acv-inspector-title">—</h2></div>
+            <button type="button" class="acv-btn acv-pop-btn" aria-pressed="false" title="${esc(s.popOutInspector)}">⤢</button>
+          </div>
           <div class="acv-inspector-meta"></div>
         </div>
         <div class="acv-tablist" role="tablist">
           <button class="acv-tab" type="button" role="tab" data-tab="details" aria-selected="true">${esc(s.details)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="relations" aria-selected="false">${esc(s.relations)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="evidence" aria-selected="false">${esc(s.evidence)}</button>
+          <button class="acv-tab" type="button" role="tab" data-tab="changes" aria-selected="false" hidden>${esc(s.changes)}</button>
         </div>
         <div class="acv-inspector-body" role="tabpanel"></div>
       </aside>
@@ -179,6 +199,12 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     autoOpen: new Set(),
     explain: null,
     overviewOpen: false,
+    changesOpen: false,
+    openChanges: new Set(),
+    openChangeFiles: new Set(),
+    openTexts: new Set(),
+    inspectorPopped: false,
+    fullDiffs: new Set(),
   };
 
   // A host applying a position (from its URL) must hear one change, the final
@@ -225,6 +251,7 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     drawInspector: () => drawInspector(ctx),
     drawStreamTabs: () => drawStreamTabs(ctx),
     drawTalkList: () => drawTalkList(ctx),
+    drawChangesPanel: () => drawChangesPanel(ctx),
     centerOn,
     announce: (text) => {
       ctx.q('.acv-sr').textContent = text;
@@ -252,6 +279,7 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     state.autoOpen.clear();
     const ev = model.stepsOfTalk(t.id);
     state.sel = ev[0]?.id ?? model.steps(t.stream)[0]?.id ?? null;
+    state.rawRef = null;
     drawTalkList(ctx);
     renderAll(true);
   }
@@ -274,6 +302,7 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
       op = steps.find((e) => e.kind === 'message.external') ?? steps[0];
     }
     if (op) state.sel = op.id;
+    state.rawRef = null;
     drawStreamTabs(ctx);
     drawTimeline(ctx);
     drawTranscript(ctx);
@@ -287,7 +316,10 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     if (!model.streamByName.has(name)) return;
     state.stream = name;
     const ev = model.steps(name);
-    if (ev.length && !ev.some((e) => e.id === state.sel)) state.sel = ev[0]!.id;
+    if (ev.length && !ev.some((e) => e.id === state.sel)) {
+      state.sel = ev[0]!.id;
+      state.rawRef = null;
+    }
     // The talk belongs to the stream being read: the selected step's, else the
     // stream's first. Keeping the parent's would caption a child with the
     // parent's counts.
@@ -381,6 +413,7 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     if (!t) return;
     state.stream = t.stream;
     state.sel = t.sel;
+    state.rawRef = null;
     state.talk = t.talk ? (model.talkById.get(t.talk) ?? null) : null;
     renderAll(true);
   }
@@ -456,6 +489,8 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     drawTimeline(ctx);
   };
   ctx.q('.acv-fit').onclick = () => centerOn(state.sel, 'smooth');
+  ctx.q('.acv-pop-btn').onclick = () => setInspectorPopped(ctx, !state.inspectorPopped);
+  ctx.q('.acv-scrim').onclick = () => setInspectorPopped(ctx, false);
   ctx.q<HTMLButtonElement>('.acv-tl-back').onclick = () => {
     const b = ctx.q<HTMLButtonElement>('.acv-tl-back');
     if (b.dataset.upStream && b.dataset.upStep) goToOpener(b.dataset.upStream, b.dataset.upStep, b.dataset.upTalk || null);
@@ -478,6 +513,7 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     if (!help.hidden && !(t && (t.closest('.acv-dock-help') || t.closest('.acv-dock-help-btn')))) help.hidden = true;
     const problems = ctx.q('.acv-problems');
     if (!problems.hidden && !(t && (t.closest('.acv-problems') || t.closest('.acv-integrity')))) setProblemsOpen(ctx, false);
+    if (state.changesOpen && !(t && (t.closest('.acv-changes') || t.closest('.acv-changes-toggle')))) setChangesOpen(ctx, false);
   };
   document.addEventListener('pointerdown', onPointerDown);
 
@@ -485,6 +521,14 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
   // a host's own inputs and shortcuts keep theirs.
   const onKey = (e: KeyboardEvent): void => {
     const active = document.activeElement as HTMLElement | null;
+    if (e.key === 'Escape' && state.inspectorPopped) {
+      setInspectorPopped(ctx, false);
+      return;
+    }
+    if (e.key === 'Tab' && state.inspectorPopped) {
+      trapFocus(ctx, e);
+      return;
+    }
     if (e.key === 'Escape' && state.overviewOpen) {
       setOverviewOpen(ctx, false);
       return;
@@ -495,6 +539,10 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     }
     if (e.key === 'Escape' && !ctx.q('.acv-problems').hidden) {
       setProblemsOpen(ctx, false);
+      return;
+    }
+    if (e.key === 'Escape' && state.changesOpen) {
+      setChangesOpen(ctx, false);
       return;
     }
     if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return;

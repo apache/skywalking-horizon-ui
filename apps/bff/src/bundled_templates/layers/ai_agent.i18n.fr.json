@@ -1,7 +1,131 @@
 {
   "alias": "Agents IA",
   "slots": {
-    "services": "Environnements d'agent",
-    "instances": "Expéditeurs"
+    "services": "Agents",
+    "instances": "Runtimes d’agent"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Tokens"
+      },
+      {
+        "label": "Part de lecture du cache"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens par type",
+        "tip": "Chaque point est le total de son intervalle (une minute, une heure ou un jour, selon la plage de temps), compté à la minute où un appel s'est terminé. Les lectures du cache forment l'essentiel du total, donc chaque type a sa propre ligne plutôt qu'un empilement."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Agent principal et sous-agents",
+        "tip": "auxiliary ne vient que de l'exportateur propre de Claude Code ; l'AI Sessionizer ne voit que main et subagent."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens par modèle"
+      },
+      {
+        "id": "cache_share",
+        "title": "Part de lecture du cache",
+        "tip": "cacheRead rapporté à tous les types sauf output, calculé par lot reçu puis moyenné."
+      },
+      {
+        "id": "cost",
+        "title": "Coût par modèle",
+        "tip": "Uniquement depuis l'exportateur propre de Claude Code ; l'AI Sessionizer n'estime jamais le coût."
+      },
+      {
+        "id": "active_time",
+        "title": "Temps actif",
+        "tip": "user est l'interaction au clavier, cli l'exécution des outils et les réponses. Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions démarrées",
+        "tip": "Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Lignes de code",
+        "tip": "Lignes ajoutées et supprimées par les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits faits pendant que l’agent tournait. Uniquement depuis l’exportateur propre de Claude Code."
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull requests",
+        "tip": "Pull requests ouverts pendant que l’agent tournait. Uniquement depuis l’exportateur propre de Claude Code."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Décisions de permission d'édition",
+        "tip": "Demandes de permission acceptées et refusées sur les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens par type",
+        "tip": "Chaque point est le total de son intervalle (une minute, une heure ou un jour, selon la plage de temps), compté à la minute où un appel s'est terminé. Les lectures du cache forment l'essentiel du total, donc chaque type a sa propre ligne plutôt qu'un empilement."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Agent principal et sous-agents",
+        "tip": "auxiliary ne vient que de l'exportateur propre de Claude Code ; l'AI Sessionizer ne voit que main et subagent."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens par modèle"
+      },
+      {
+        "id": "cache_share",
+        "title": "Part de lecture du cache",
+        "tip": "cacheRead rapporté à tous les types sauf output, calculé par lot reçu puis moyenné."
+      },
+      {
+        "id": "cost",
+        "title": "Coût par modèle",
+        "tip": "Uniquement depuis l'exportateur propre de Claude Code ; l'AI Sessionizer n'estime jamais le coût."
+      },
+      {
+        "id": "active_time",
+        "title": "Temps actif",
+        "tip": "user est l'interaction au clavier, cli l'exécution des outils et les réponses. Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions démarrées",
+        "tip": "Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Lignes de code",
+        "tip": "Lignes ajoutées et supprimées par les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits faits pendant que l’agent tournait. Uniquement depuis l’exportateur propre de Claude Code."
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull requests",
+        "tip": "Pull requests ouverts pendant que l’agent tournait. Uniquement depuis l’exportateur propre de Claude Code."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Décisions de permission d'édition",
+        "tip": "Demandes de permission acceptées et refusées sur les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      }
+    ]
   }
 }

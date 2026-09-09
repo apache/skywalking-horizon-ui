@@ -115,9 +115,9 @@ function describe(err: unknown): { title: string; detail: string | null } {
     const detail = err.detail;
     switch (err.kind) {
       case 'bad_request':
-        return { title: t('The link is incomplete: it names no agent runtime.'), detail };
+        return { title: t('The link is incomplete: it names no agent.'), detail };
       case 'not_found':
-        return { title: t('OAP holds no round of this conversation for this runtime.'), detail };
+        return { title: t('OAP holds no round of this conversation for this agent.'), detail };
       case 'not_served':
         return { title: t('This OAP does not serve conversation documents; the AI agent conversation module needs OAP 11.1.0 or later.'), detail: null };
       case 'forbidden':

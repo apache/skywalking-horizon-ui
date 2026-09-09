@@ -417,6 +417,50 @@ describe('validateBundledTemplates — overview dashboards', () => {
     });
     expect(messages(findings)).toContain('requires a `layer`');
   });
+
+  const heatmap = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'daily',
+    title: 'Daily tokens',
+    type: 'calendar-heatmap',
+    layer: 'DEMO',
+    mqe: 'service_cpm',
+    aggregation: 'sum',
+    unit: 'tokens',
+    windowDays: 30,
+    compareTo: false,
+    span: 12,
+    rowSpan: 3,
+    ...overrides,
+  });
+
+  it('accepts a calendar-heatmap widget with every field it reads', () => {
+    expect(run({ layers: { demo: layer() }, overviews: { demo: overview({ widgets: [heatmap()] }) } })).toEqual([]);
+  });
+
+  it('rejects a calendar-heatmap widget with no mqe — it would draw an empty grid for ever', () => {
+    const findings = run({
+      layers: { demo: layer() },
+      overviews: { demo: overview({ widgets: [heatmap({ mqe: undefined })] }) },
+    });
+    expect(messages(findings)).toContain('a "calendar-heatmap" widget requires an `mqe`');
+  });
+
+  it.each([6, 94, 30.5])('rejects windowDays %s — outside the DAY-step window the editor offers', (windowDays) => {
+    const findings = run({
+      layers: { demo: layer() },
+      overviews: { demo: overview({ widgets: [heatmap({ windowDays })] }) },
+    });
+    expect(findings.map((f) => f.path)).toContain('widgets.0.windowDays');
+  });
+
+  it('accepts an explicit resolution and refuses one the widget cannot draw', () => {
+    expect(run({ layers: { demo: layer() }, overviews: { demo: overview({ widgets: [heatmap({ resolution: 'hour' })] }) } })).toEqual([]);
+    const findings = run({
+      layers: { demo: layer() },
+      overviews: { demo: overview({ widgets: [heatmap({ resolution: 'weekly' })] }) },
+    });
+    expect(findings.map((f) => f.path)).toContain('widgets.0.resolution');
+  });
 });
 
 // Every singleton loader hardcodes its filename and THROWS when the file is

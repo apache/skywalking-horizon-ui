@@ -6,6 +6,10 @@ No framework, no network. The host parses and version-checks the document and ha
 
 Horizon's conversation page wraps this in one small Vue component. The AI Sessionizer's own viewer embeds the same build, made from a pinned Horizon commit, so the two hosts draw a conversation identically.
 
+A document that carries `workspace_changes` (Sessionizer 0.3.0 and later) also gets the changes drawn: a mark on each tool card that changed files, or an eye for a shell command the asz plugin classed read-only and did not scan, opening inline to the changed files and their diffs; a **Changes** tab in the inspector with each record's provenance; and a panel over the whole conversation grouped by workspace root and file. Records are grouped by root and producer and never merged, and the counts are of unique files, since two overlapping windows each net their own span. A document without the key draws as before.
+
+A tool call's input and result are drawn as the fields they hold when they are a JSON object, with the encoder's escapes decoded and a note where the Sessionizer's 2,000-byte clip fell; any other text is drawn as it is. Fields carry a copy button, a result that is one text has one on its label, an edit's old and new text are drawn as one diff, and the inspector can pop out into a panel over the whole page, four fifths of it, behind a scrim that docks it again.
+
 ## Using it
 
 ```ts

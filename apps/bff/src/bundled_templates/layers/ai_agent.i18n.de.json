@@ -1,7 +1,131 @@
 {
   "alias": "KI-Agenten",
   "slots": {
-    "services": "Agent-Laufzeiten",
-    "instances": "Absender"
+    "services": "Agenten",
+    "instances": "Agent-Laufzeiten"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Tokens"
+      },
+      {
+        "label": "Cache-Lese-Anteil"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens nach Typ",
+        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich), gezählt in der Minute, in der ein Aufruf endete. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Hauptagent und Subagenten",
+        "tip": "auxiliary kommt nur vom eigenen Exporter von Claude Code; der AI Sessionizer sieht nur main und subagent."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens nach Modell"
+      },
+      {
+        "id": "cache_share",
+        "title": "Cache-Lese-Anteil",
+        "tip": "cacheRead geteilt durch alle Typen außer output, pro empfangenem Batch gebildet und gemittelt."
+      },
+      {
+        "id": "cost",
+        "title": "Kosten nach Modell",
+        "tip": "Nur vom eigenen Exporter von Claude Code; der AI Sessionizer schätzt Kosten nie."
+      },
+      {
+        "id": "active_time",
+        "title": "Aktive Zeit",
+        "tip": "user ist Tastatureingabe, cli ist Werkzeugausführung und Antworten. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "sessions",
+        "title": "Gestartete Sitzungen",
+        "tip": "Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Codezeilen",
+        "tip": "Von den Bearbeitungswerkzeugen hinzugefügte und entfernte Zeilen. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits, die während des Agentenlaufs gemacht wurden. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull Requests",
+        "tip": "Pull Requests, die während des Agentenlaufs geöffnet wurden. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Berechtigungsentscheidungen bei Bearbeitungen",
+        "tip": "Angenommene und abgelehnte Berechtigungsabfragen der Bearbeitungswerkzeuge. Nur vom eigenen Exporter von Claude Code."
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens nach Typ",
+        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich), gezählt in der Minute, in der ein Aufruf endete. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Hauptagent und Subagenten",
+        "tip": "auxiliary kommt nur vom eigenen Exporter von Claude Code; der AI Sessionizer sieht nur main und subagent."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens nach Modell"
+      },
+      {
+        "id": "cache_share",
+        "title": "Cache-Lese-Anteil",
+        "tip": "cacheRead geteilt durch alle Typen außer output, pro empfangenem Batch gebildet und gemittelt."
+      },
+      {
+        "id": "cost",
+        "title": "Kosten nach Modell",
+        "tip": "Nur vom eigenen Exporter von Claude Code; der AI Sessionizer schätzt Kosten nie."
+      },
+      {
+        "id": "active_time",
+        "title": "Aktive Zeit",
+        "tip": "user ist Tastatureingabe, cli ist Werkzeugausführung und Antworten. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "sessions",
+        "title": "Gestartete Sitzungen",
+        "tip": "Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Codezeilen",
+        "tip": "Von den Bearbeitungswerkzeugen hinzugefügte und entfernte Zeilen. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits, die während des Agentenlaufs gemacht wurden. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull Requests",
+        "tip": "Pull Requests, die während des Agentenlaufs geöffnet wurden. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Berechtigungsentscheidungen bei Bearbeitungen",
+        "tip": "Angenommene und abgelehnte Berechtigungsabfragen der Bearbeitungswerkzeuge. Nur vom eigenen Exporter von Claude Code."
+      }
+    ]
   }
 }

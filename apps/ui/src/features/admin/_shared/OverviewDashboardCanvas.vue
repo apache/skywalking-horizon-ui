@@ -18,7 +18,7 @@
   Read-only overview-dashboard canvas. Renders the dashboard's section-
   broken widget grid the same way the OverviewTemplatesAdmin editor
   does (same real widget components — MetricWidget, KpiTileWidget,
-  MetricCompositeWidget, AlarmsWidget — with deterministic mock data)
+  MetricCompositeWidget, CalendarHeatmapWidget — with deterministic mock data)
   but without drag / resize affordances.
 
   Used by the Translations page so the operator sees a real preview of
@@ -29,12 +29,20 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import { LANDING_TOP_N_MAX,
+  CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT,
+  type OverviewDashboard,
+  type OverviewWidget,
+} from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
 import MetricWidget from '@/render/widgets/MetricWidget.vue';
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
+import CalendarHeatmapWidget from '@/render/widgets/CalendarHeatmapWidget.vue';
+import RankingWidget from '@/render/widgets/RankingWidget.vue';
+import { DAY_MS, HOUR_MS, formatDay, formatHour, resolutionFor, weekdayIndex, type CalendarHeatmapSeries } from '@/render/widgets/calendarHeatmap';
+import type { RankingRow } from '@/render/widgets/ranking';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 
 const props = defineProps<{
@@ -100,6 +108,29 @@ function mockKpiValues(w: OverviewWidget): Record<string, number | null> {
   return out;
 }
 
+function mockCalendarSeries(w: OverviewWidget): CalendarHeatmapSeries {
+  const days = w.windowDays ?? CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT;
+  if (resolutionFor(days, w.resolution) === 'hour') {
+    const start = Date.now() - (days * 24 - 1) * HOUR_MS;
+    return {
+      resolution: 'hour',
+      start: formatHour(start),
+      values: Array.from({ length: days * 24 }, (_, i) => {
+        const hour = new Date(start + i * HOUR_MS).getUTCHours();
+        return (hour >= 9 && hour < 19 ? 4 : hour < 6 ? 0 : 1) * mockNumber(`${w.id}#${i}`);
+      }),
+    };
+  }
+  const start = Date.now() - (days - 1) * DAY_MS;
+  return {
+    resolution: 'day',
+    start: formatDay(start),
+    values: Array.from({ length: days }, (_, i) =>
+      (weekdayIndex(start + i * DAY_MS) >= 5 ? 1 : 4) * mockNumber(`${w.id}#${i}`),
+    ),
+  };
+}
+
 function mockAlarmRows(): Array<{ msg: string; scope: string; since: string; firing: boolean }> {
   return [
     { msg: t('Response time of service mesh-svr::cart is more than 20ms.'), scope: `${t('Service')} · mesh-svr::cart`, since: '2m', firing: true },
@@ -124,6 +155,17 @@ function onCellClick(e: MouseEvent, w: OverviewWidget): void {
 
 function onHeaderClick(e: MouseEvent): void {
   emit('select-header', { el: e.currentTarget as HTMLElement, event: e });
+}
+
+/** Ranked rows for a `ranking` widget preview, falling from the top. */
+function mockRanking(w: OverviewWidget): RankingRow[] {
+  const n = Math.min(LANDING_TOP_N_MAX, Math.max(1, w.limit ?? 10));
+  const layer = (w.layer ?? 'service').toLowerCase();
+  return Array.from({ length: n }, (_, i) => ({
+    serviceId: `${w.id}#${i}`,
+    name: `${layer}-${i + 1}`,
+    value: (mockNumber(`${w.id}#${i}`, 400) + 600) * (n - i),
+  }));
 }
 </script>
 
@@ -177,6 +219,28 @@ function onHeaderClick(e: MouseEvent): void {
             :layer="w.layer"
             :kpis="w.kpis ?? []"
             :kpi-values="mockKpiValues(w)"
+          />
+          <CalendarHeatmapWidget
+            v-else-if="w.type === 'calendar-heatmap'"
+            :title="w.title"
+            :tip="w.tip"
+            :layer="w.layer"
+            :mqe="w.mqe"
+            :unit="w.unit"
+            :aggregation="w.aggregation"
+            :window-days="w.windowDays"
+            :resolution="w.resolution"
+            :compare-to="w.compareTo"
+            :mock="mockCalendarSeries(w)"
+          />
+          <RankingWidget
+            v-else-if="w.type === 'ranking'"
+            :title="w.title"
+            :tip="w.tip"
+            :layer="w.layer"
+            :unit="w.unit"
+            :rows="mockRanking(w)"
+            :total="mockRanking(w).length"
           />
           <article v-else class="odc__pv">
             <div class="odc__pv-head">

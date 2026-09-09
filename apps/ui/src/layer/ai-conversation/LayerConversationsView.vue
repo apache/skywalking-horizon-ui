@@ -23,6 +23,7 @@
   query conditions OAP applies. A row opens the conversation in a new tab.
 -->
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -43,7 +44,7 @@ const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
-const senderLabel = computed(() => layer.value?.slots.instances ?? t('Sender'));
+const senderLabel = computed(() => layer.value?.slots.instances ?? t('Agent runtime'));
 
 // The runtime is the shell's picked service, resolved to the NAME the OAP
 // list keys on — sample first, then the full roster, as the other tabs do.
@@ -238,9 +239,10 @@ function openConversation(r: AiConversationRow): void {
                 <th class="left">{{ t('Title') }}</th>
                 <th class="left">{{ senderLabel }}</th>
                 <th>{{ t('Talks') }}</th>
-                <th>{{ t('Steps') }}</th>
-                <th>{{ t('Streams') }}</th>
-                <th>{{ t('Segments (activity windows)') }}</th>
+                <th>{{ t('Model calls') }}</th>
+                <th>{{ t('Subagents') }}</th>
+                <th>{{ t('Bash runs') }}</th>
+                <th>{{ t('Changes') }}</th>
                 <th>{{ t('Unresolved') }}</th>
                 <th>{{ t('Span (elapsed)') }}</th>
                 <th class="left">{{ t('Last activity') }}</th>
@@ -262,9 +264,18 @@ function openConversation(r: AiConversationRow): void {
                 </td>
                 <td class="left cv-mono">{{ r.serviceInstanceName }}</td>
                 <td>{{ r.talks }}</td>
-                <td>{{ r.steps }}</td>
-                <td>{{ r.streams }}</td>
-                <td>{{ r.segments }}</td>
+                <td v-if="r.llmCalls === null" class="cv-dim" :title="t('Not reported by this Sessionizer version.')">—</td>
+                <td v-else>{{ r.llmCalls }}</td>
+                <td v-if="r.subagents === null" class="cv-dim" :title="t('Not reported by this Sessionizer version.')">—</td>
+                <td v-else>{{ r.subagents }}</td>
+                <td v-if="r.bashRuns === null" class="cv-dim" :title="t('Not reported by this Sessionizer version.')">—</td>
+                <td v-else>{{ r.bashRuns }}</td>
+                <td v-if="r.changes === null" class="cv-dim" :title="t('Not reported by this Sessionizer version.')">—</td>
+                <td v-else :class="{ 'cv-changes': r.changes > 0 }">
+                  <Icon v-if="r.changes > 0" name="changes" :size="11" />
+                  {{ r.changes }}
+                  <span v-if="r.changes > 0 && r.linesAdded !== null && r.linesRemoved !== null" class="cv-lines"><span class="cv-add">+{{ r.linesAdded }}</span> <span class="cv-del">−{{ r.linesRemoved }}</span></span>
+                </td>
                 <td :class="{ 'cv-warn': r.unresolved > 0 }">{{ r.unresolved }}</td>
                 <td>{{ spanOf(r) }}</td>
                 <td class="left">{{ timestampLabel(r.to) }}</td>
@@ -347,5 +358,11 @@ function openConversation(r: AiConversationRow): void {
 .cv-title.untitled { color: var(--sw-fg-3); font-style: italic; }
 .cv-id { display: block; color: var(--sw-fg-3); font-family: var(--sw-mono); font-size: var(--sw-fs-xs); }
 .cv-mono { font-family: var(--sw-mono); font-size: var(--sw-fs-xs); }
+.cv-changes { color: var(--sw-fg-0); white-space: nowrap; }
+.cv-lines { margin-left: 6px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.cv-add { color: var(--sw-ok); }
+.cv-del { color: var(--sw-err); }
+.cv-changes svg { vertical-align: -1px; margin-right: 3px; color: var(--sw-accent); }
+.cv-dim { color: var(--sw-fg-3); }
 .cv-warn { color: var(--sw-warn); }
 </style>

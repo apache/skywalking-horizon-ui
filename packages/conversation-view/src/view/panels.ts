@@ -34,6 +34,8 @@ interface Panel {
   fallback: number | null;
   measure: (root: HTMLElement, e: PointerEvent) => number;
   current: (root: HTMLElement) => number;
+  /** The panel is not at its docked size, so a measurement is not a preference. */
+  floating?: (ctx: ViewContext) => boolean;
 }
 
 const PANELS: Panel[] = [
@@ -47,6 +49,7 @@ const PANELS: Panel[] = [
     fallback: 350,
     measure: (root, e) => root.querySelector('.acv-workbench')!.getBoundingClientRect().right - e.clientX,
     current: (root) => root.querySelector('.acv-inspector')!.getBoundingClientRect().width,
+    floating: (ctx) => ctx.state.inspectorPopped,
   },
   {
     key: 'acv.dock',
@@ -86,7 +89,7 @@ export function setupPanels(ctx: ViewContext): () => void {
     return v;
   };
   const onResize = (): void => {
-    for (const p of PANELS) set(p, p.current(root));
+    for (const p of PANELS) if (!p.floating?.(ctx)) set(p, p.current(root));
   };
   for (const p of PANELS) {
     const stored = read(p.key);

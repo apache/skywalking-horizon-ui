@@ -37,10 +37,14 @@ const fixture = JSON.parse(readFileSync(resolve('test/fixtures/asz-view-example.
 let view: ConversationView | null = null;
 let host: HTMLElement | null = null;
 
-function mount(state?: PublicState, onStateChange?: (s: PublicState) => void): { root: HTMLElement; view: ConversationView } {
+function mount(
+  state?: PublicState,
+  onStateChange?: (s: PublicState) => void,
+  doc: AszViewDocument = fixture,
+): { root: HTMLElement; view: ConversationView } {
   host = document.createElement('div');
   document.body.appendChild(host);
-  view = mountConversationView(host, { document: fixture, state, onStateChange });
+  view = mountConversationView(host, { document: doc, state, onStateChange });
   return { root: host, view };
 }
 
@@ -275,5 +279,164 @@ describe('the stylesheet', () => {
     expect(body.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
     expect(body.match(/\brgba?\(/g) ?? []).toEqual([]);
     expect(body).toContain('var(--sw-bg-0)');
+  });
+});
+
+describe('tool inputs and results', () => {
+  const clipped = JSON.parse(readFileSync(resolve('test/fixtures/clipped-bash-input.json'), 'utf8')) as { text: string; bytes: number };
+  const ID = 'tool/tool-run-make-build';
+  const CARD = `[data-card="${ID}"]`;
+
+  /** The example with the make-build call's input replaced. */
+  function withInput(text: string, bytes: number): AszViewDocument {
+    const doc = JSON.parse(JSON.stringify(fixture)) as AszViewDocument;
+    const walk = (o: unknown): void => {
+      if (Array.isArray(o)) o.forEach(walk);
+      else if (o && typeof o === 'object') {
+        const n = o as Record<string, unknown>;
+        if (n.id === ID) Object.assign(n, { text, bytes });
+        Object.values(n).forEach(walk);
+      }
+    };
+    walk(doc);
+    return doc;
+  }
+
+  function openWork(root: HTMLElement): void {
+    root.querySelector<HTMLButtonElement>('.acv-fold[data-work="talk/main/s1-cycle"]')!.click();
+  }
+
+  it("draws a tool call's input as the fields it holds", () => {
+    const { root } = mount();
+    openWork(root);
+    const card = root.querySelector(CARD)!;
+    expect([...card.querySelectorAll('.acv-field-key')].map((k) => k.textContent)).toEqual(['command', 'description']);
+    expect([...card.querySelectorAll('.acv-field-value')].map((k) => k.textContent)).toEqual(['make build', 'build the project']);
+    expect(card.querySelector('.acv-text.result')!.textContent).toBe('build succeeded');
+    expect(card.querySelector('[data-text-toggle]')).toBeNull();
+  });
+
+  it('clamps a long command, opens it in place, and says where the document clipped it', () => {
+    const { root } = mount(undefined, undefined, withInput(clipped.text, clipped.bytes));
+    openWork(root);
+    let card = root.querySelector<HTMLElement>(CARD)!;
+    expect(card.querySelector('.acv-text.clamped')).not.toBeNull();
+    expect(card.querySelector('.acv-field.block .acv-field-text')!.textContent).toContain("cat > probe.ts <<'EOF'\n");
+    card.querySelector<HTMLButtonElement>('[data-text-toggle]')!.click();
+    card = root.querySelector<HTMLElement>(CARD)!;
+    expect(card.querySelector('.acv-text.open')).not.toBeNull();
+    expect(card.querySelector('[data-text-toggle]')).toBeNull();
+    expect(card.querySelector('.acv-clip-note')!.textContent).toMatch(/^clipped: 2,?000 of 2,?021 bytes$/);
+    card.click();
+    const details = root.querySelector('.acv-inspector-body')!;
+    expect(details.querySelector('.acv-block .acv-field-text')!.textContent).toContain('EOF');
+    expect(details.querySelector('.acv-clip-note')).not.toBeNull();
+  });
+});
+
+describe('the inspector popped out', () => {
+  it('lays over the page behind a scrim on the button and docks again on Escape', () => {
+    const { root } = mount();
+    const btn = root.querySelector<HTMLButtonElement>('.acv-pop-btn')!;
+    const scrim = root.querySelector<HTMLElement>('.acv-scrim')!;
+    expect(scrim.hidden).toBe(true);
+    btn.click();
+    expect(root.querySelector('.acv-workbench')!.classList.contains('acv-popped')).toBe(true);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+    expect(scrim.hidden).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(root.querySelector('.acv-workbench')!.classList.contains('acv-popped')).toBe(false);
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    expect(scrim.hidden).toBe(true);
+  });
+
+  it('is a modal dialog while popped: the rest is inert and Tab wraps inside it', () => {
+    const { root } = mount();
+    const inspector = root.querySelector<HTMLElement>('.acv-inspector')!;
+    root.querySelector<HTMLButtonElement>('.acv-pop-btn')!.click();
+    expect(inspector.getAttribute('role')).toBe('dialog');
+    expect(inspector.getAttribute('aria-modal')).toBe('true');
+    expect(root.querySelector<HTMLElement>('.acv-transcript')!.hasAttribute('inert')).toBe(true);
+    expect(root.querySelector<HTMLElement>('.acv-dock')!.hasAttribute('inert')).toBe(true);
+    const tabs = Array.from(inspector.querySelectorAll<HTMLElement>('button:not([hidden])'));
+    tabs[tabs.length - 1]!.focus();
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    document.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    root.querySelector<HTMLButtonElement>('.acv-pop-btn')!.click();
+    expect(inspector.hasAttribute('role')).toBe(false);
+    expect(root.querySelector<HTMLElement>('.acv-transcript')!.hasAttribute('inert')).toBe(false);
+  });
+
+  it('docks on a click on the scrim, before Escape reaches anything under it', () => {
+    const { root } = mount();
+    root.querySelector<HTMLButtonElement>('.acv-overview-toggle')!.click();
+    root.querySelector<HTMLButtonElement>('.acv-pop-btn')!.click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(root.querySelector('.acv-workbench')!.classList.contains('acv-popped')).toBe(false);
+    expect(root.querySelector<HTMLElement>('.acv-overview')!.hidden).toBe(false);
+    root.querySelector<HTMLButtonElement>('.acv-pop-btn')!.click();
+    root.querySelector<HTMLElement>('.acv-scrim')!.click();
+    expect(root.querySelector('.acv-workbench')!.classList.contains('acv-popped')).toBe(false);
+  });
+
+  it('keeps a copy button from selecting the card it sits in', () => {
+    const { root } = mount();
+    root.querySelector<HTMLButtonElement>('.acv-fold[data-work="talk/main/s1-cycle"]')!.click();
+    const card = root.querySelector<HTMLElement>('[data-card="tool/tool-run-make-build"]')!;
+    card.querySelector<HTMLButtonElement>('[data-copy]')!.click();
+    expect(root.querySelector('[data-card="tool/tool-run-make-build"]')!.classList.contains('selected')).toBe(false);
+  });
+});
+
+describe('copying a whole result', () => {
+  const ID = 'tool/tool-run-make-build';
+
+  it('offers a copy on the result label of the card and of the Details tab, for a result that is one text', async () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t: string) => (written.push(t), Promise.resolve()) }, configurable: true });
+    const { root, view } = mount();
+    root.querySelector<HTMLButtonElement>('.acv-fold[data-work="talk/main/s1-cycle"]')!.click();
+    const label = root.querySelector<HTMLElement>(`[data-card="${ID}"] .acv-result-block .acv-result-label`)!;
+    expect(label.textContent).toContain('result');
+    const onCard = label.querySelector<HTMLButtonElement>('[data-copy]')!;
+    expect(onCard.title).toBe('copy result');
+    onCard.click();
+    await Promise.resolve();
+    expect(written).toEqual(['build succeeded']);
+    view.setState({ step: ID });
+    const kicker = root.querySelector<HTMLElement>('.acv-inspector-body .acv-kicker[style]')!;
+    expect(kicker.textContent).toContain('result');
+    kicker.querySelector<HTMLButtonElement>('[data-copy]')!.click();
+    await Promise.resolve();
+    expect(written).toEqual(['build succeeded', 'build succeeded']);
+  });
+
+  it('leaves a result drawn as fields to their own copy buttons', () => {
+    const doc = structuredClone(fixture) as AszViewDocument;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const o = n as Record<string, unknown>;
+      if (o.id === ID && typeof o.result === 'string') o.result = '{"stdout":"ok","stderr":""}';
+      for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v);
+    };
+    walk(doc);
+    const { root } = mount(undefined, undefined, doc);
+    root.querySelector<HTMLButtonElement>('.acv-fold[data-work="talk/main/s1-cycle"]')!.click();
+    const block = root.querySelector<HTMLElement>(`[data-card="${ID}"] .acv-result-block`)!;
+    expect(block.querySelector('.acv-result-label [data-copy]')).toBeNull();
+    expect(block.querySelectorAll('.acv-field [data-copy]').length).toBe(2);
+  });
+});
+
+describe('the Details tab names where a step sits', () => {
+  it('reads by activity window, agent, talk, run and step, keeping the ids in the tooltip', () => {
+    const { root, view } = mount();
+    view.setState({ step: 'tool/tool-run-make-build' });
+    const path = root.querySelector<HTMLElement>('.acv-inspector-body .acv-path')!;
+    expect(path.textContent).toMatch(/^Segment \d+\/\d+ › Main agent › Talk \d+\/\d+ · .+ › Run \d+\/\d+ › .*Bash$/);
+    expect(path.textContent).not.toContain('tool/tool-run-make-build');
+    expect(path.getAttribute('title')).toContain('tool/tool-run-make-build');
+    expect(path.getAttribute('title')).toContain('talk/main/s1-cycle');
   });
 });

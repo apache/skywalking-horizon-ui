@@ -1,7 +1,131 @@
 {
   "alias": "AI 에이전트",
   "slots": {
-    "services": "에이전트 런타임",
-    "instances": "발신자"
+    "services": "에이전트",
+    "instances": "에이전트 런타임"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "토큰"
+      },
+      {
+        "label": "캐시 읽기 비율"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "유형별 토큰",
+        "tip": "각 점은 해당 구간(시간 범위에 따라 1분, 1시간 또는 1일)의 합계이며, 호출이 끝난 분에 집계됩니다. 캐시 읽기가 전체의 대부분이므로 누적 대신 유형별로 별도의 선으로 표시합니다."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "메인 에이전트와 서브에이전트",
+        "tip": "auxiliary는 Claude Code 자체 익스포터에서만 들어옵니다. AI Sessionizer는 main과 subagent만 봅니다."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "모델별 토큰"
+      },
+      {
+        "id": "cache_share",
+        "title": "캐시 읽기 비율",
+        "tip": "output을 제외한 모든 유형에 대한 cacheRead의 비율로, 수신한 배치별로 계산한 뒤 평균합니다."
+      },
+      {
+        "id": "cost",
+        "title": "모델별 비용",
+        "tip": "Claude Code 자체 익스포터에서만 제공됩니다. AI Sessionizer는 비용을 추정하지 않습니다."
+      },
+      {
+        "id": "active_time",
+        "title": "활동 시간",
+        "tip": "user는 키보드 입력, cli는 도구 실행과 응답 시간입니다. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "sessions",
+        "title": "시작된 세션",
+        "tip": "Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "코드 라인 수",
+        "tip": "편집 도구가 추가하고 제거한 라인 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "commits",
+        "title": "커밋",
+        "tip": "에이전트 실행 중 만들어진 커밋 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "pull_requests",
+        "title": "풀 리퀘스트",
+        "tip": "에이전트 실행 중 열린 풀 리퀘스트 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "편집 권한 결정",
+        "tip": "편집 도구의 권한 요청에 대한 승인과 거절 횟수. Claude Code 자체 익스포터에서만 제공됩니다."
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "유형별 토큰",
+        "tip": "각 점은 해당 구간(시간 범위에 따라 1분, 1시간 또는 1일)의 합계이며, 호출이 끝난 분에 집계됩니다. 캐시 읽기가 전체의 대부분이므로 누적 대신 유형별로 별도의 선으로 표시합니다."
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "메인 에이전트와 서브에이전트",
+        "tip": "auxiliary는 Claude Code 자체 익스포터에서만 들어옵니다. AI Sessionizer는 main과 subagent만 봅니다."
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "모델별 토큰"
+      },
+      {
+        "id": "cache_share",
+        "title": "캐시 읽기 비율",
+        "tip": "output을 제외한 모든 유형에 대한 cacheRead의 비율로, 수신한 배치별로 계산한 뒤 평균합니다."
+      },
+      {
+        "id": "cost",
+        "title": "모델별 비용",
+        "tip": "Claude Code 자체 익스포터에서만 제공됩니다. AI Sessionizer는 비용을 추정하지 않습니다."
+      },
+      {
+        "id": "active_time",
+        "title": "활동 시간",
+        "tip": "user는 키보드 입력, cli는 도구 실행과 응답 시간입니다. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "sessions",
+        "title": "시작된 세션",
+        "tip": "Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "lines_of_code",
+        "title": "코드 라인 수",
+        "tip": "편집 도구가 추가하고 제거한 라인 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "commits",
+        "title": "커밋",
+        "tip": "에이전트 실행 중 만들어진 커밋 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "pull_requests",
+        "title": "풀 리퀘스트",
+        "tip": "에이전트 실행 중 열린 풀 리퀘스트 수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "edit_decisions",
+        "title": "편집 권한 결정",
+        "tip": "편집 도구의 권한 요청에 대한 승인과 거절 횟수. Claude Code 자체 익스포터에서만 제공됩니다."
+      }
+    ]
   }
 }

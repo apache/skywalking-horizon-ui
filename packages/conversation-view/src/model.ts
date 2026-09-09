@@ -26,7 +26,18 @@
  * is lazy.
  */
 
-import type { AszEdge, AszNode, AszRef, AszSegment, AszStream, AszViewDocument, AszUsage, AszDrop } from './types.js';
+import type {
+  AszEdge,
+  AszFileChange,
+  AszNode,
+  AszRef,
+  AszSegment,
+  AszStream,
+  AszViewDocument,
+  AszUsage,
+  AszDrop,
+  AszWorkspaceChange,
+} from './types.js';
 import { CONTAINER_KINDS, kindOf, type KindType, type Track } from './vocabulary.js';
 
 /** One step as the transcript and the timeline draw it: the node flattened,
@@ -61,9 +72,127 @@ export interface Step {
   flags?: string[];
   dropped?: AszDrop[];
   edges: AszEdge[];
+  /** Whether workspace change records join to this step (the node's `changes`). */
+  hasChanges: boolean;
   /** Position in the flattened document, for ties and for nodes without a ref. */
   order: number;
   depth: number;
+}
+
+/** The records of one step that share a workspace root; the runtime's own
+ *  record, when there is one, is `preferred` and the others are one line
+ *  away. Records are never merged: two producers can report one call with
+ *  different context lines. */
+export interface ChangeGroup {
+  root: string;
+  records: AszWorkspaceChange[];
+  preferred: AszWorkspaceChange;
+}
+
+/** What a record observed, from its basis and its counts: `skipped` says
+ *  the call was not looked at, `unknown` that the count is null, `none`
+ *  that a complete observation found nothing, `files` that it found some. */
+export type Observation = 'skipped' | 'unknown' | 'none' | 'files';
+
+export function observationOf(r: AszWorkspaceChange): Observation {
+  if (r.basis === 'skipped_read_only') return 'skipped';
+  if (r.changes && r.changes.length > 0) return 'files';
+  // A scan that stopped early and found nothing has not found "nothing".
+  if (r.changed_files === null || r.coverage === 'partial') return 'unknown';
+  return 'none';
+}
+
+/** Whether a record's list of files may be short of what happened: a scan
+ *  that stopped early, or a count the record does not carry. */
+export function incompleteObservation(r: AszWorkspaceChange): boolean {
+  return r.basis !== 'skipped_read_only' && (r.coverage === 'partial' || (r.changed_files === null && !(r.changes && r.changes.length > 0 && r.captured_by === CAPTURED_BY_RUNTIME)));
+}
+
+export const CAPTURED_BY_RUNTIME = 'claude-code';
+
+export function groupChanges(records: AszWorkspaceChange[]): ChangeGroup[] {
+  const groups = new Map<string, AszWorkspaceChange[]>();
+  for (const r of records) push(groups, r.root?.path ?? '', r);
+  return [...groups.entries()].map(([root, list]) => ({
+    root,
+    records: list,
+    preferred: list.find((r) => r.captured_by === CAPTURED_BY_RUNTIME) ?? list[0]!,
+  }));
+}
+
+/** Files counted once by root and path across every record of a step. The
+ *  line counts are per record: two windows on one root each net their own
+ *  span, so their counts can neither be summed nor deduplicated — they are
+ *  carried only when a single record covers the step. */
+export interface ChangeTally {
+  files: number;
+  /** The file count is a floor: a record's scan stopped early or its count is unknown. */
+  incomplete: boolean;
+  additions: number | null;
+  deletions: number | null;
+  observation: Observation;
+}
+
+export function tallyChanges(records: AszWorkspaceChange[]): ChangeTally {
+  const seen = new Set<string>();
+  let observation: Observation = 'skipped';
+  let incomplete = false;
+  const rank: Record<Observation, number> = { skipped: 0, none: 1, unknown: 2, files: 3 };
+  for (const r of records) {
+    const o = observationOf(r);
+    if (rank[o] > rank[observation]) observation = o;
+    if (incompleteObservation(r)) incomplete = true;
+    for (const c of r.changes ?? []) seen.add(`${r.root?.path ?? ''}|${c.path}`);
+  }
+  const withFiles = records.filter((r) => (r.changes?.length ?? 0) > 0);
+  let additions: number | null = null;
+  let deletions: number | null = null;
+  if (withFiles.length === 1) {
+    for (const c of withFiles[0]!.changes ?? []) {
+      if (c.additions === null || c.deletions === null) {
+        additions = null;
+        deletions = null;
+        break;
+      }
+      additions = (additions ?? 0) + c.additions;
+      deletions = (deletions ?? 0) + c.deletions;
+    }
+  }
+  return { files: seen.size, incomplete, additions, deletions, observation };
+}
+
+/** One file as the conversation-level panel lists it: every record that
+ *  saw it, under its root. */
+export interface ChangedFile {
+  path: string;
+  entries: Array<{ record: AszWorkspaceChange; change: AszFileChange }>;
+}
+
+export interface ChangeRoot {
+  root: string;
+  files: ChangedFile[];
+}
+
+/** Records grouped by root, then by path, in document order. */
+export function changeRoots(records: AszWorkspaceChange[]): ChangeRoot[] {
+  const roots = new Map<string, Map<string, ChangedFile>>();
+  for (const r of records) {
+    const root = r.root?.path ?? '';
+    let files = roots.get(root);
+    if (!files) {
+      files = new Map();
+      roots.set(root, files);
+    }
+    for (const c of r.changes ?? []) {
+      let f = files.get(c.path);
+      if (!f) {
+        f = { path: c.path, entries: [] };
+        files.set(c.path, f);
+      }
+      f.entries.push({ record: r, change: c });
+    }
+  }
+  return [...roots.entries()].map(([root, files]) => ({ root, files: [...files.values()] }));
 }
 
 export interface TalkRow {
@@ -123,6 +252,10 @@ export class ConversationModel {
   private readonly folderCache = new Map<string, Folder[]>();
   /** Steps that start or report a stream, keyed by the stream id. */
   private readonly openersByStreamId = new Map<string, Step[]>();
+  /** Change records by the step they join to; the join is the record's
+   *  `step`, never its id, which two producers share. */
+  private readonly changesByStep = new Map<string, AszWorkspaceChange[]>();
+  readonly workspaceChanges: AszWorkspaceChange[];
 
   constructor(readonly doc: AszViewDocument) {
     for (const s of doc.streams) {
@@ -130,6 +263,8 @@ export class ConversationModel {
       this.streamById.set(s.id, s);
     }
     for (const seg of doc.segments) this.segmentById.set(seg.id, seg);
+    this.workspaceChanges = doc.workspace_changes ?? [];
+    for (const wc of this.workspaceChanges) if (wc.step) push(this.changesByStep, wc.step, wc);
     let order = 0;
     const flatten = (root: AszNode, talkId: string | null, streamFallback: string): void => {
       const walk = (n: AszNode, run: string | null, depth: number): void => {
@@ -165,6 +300,7 @@ export class ConversationModel {
             flags: n.flags,
             dropped: n.dropped,
             edges: n.edges ?? [],
+            hasChanges: this.changesByStep.has(n.id),
             order: order++,
             depth,
           };
@@ -240,6 +376,11 @@ export class ConversationModel {
 
   step(id: string | null | undefined): Step | null {
     return id ? (this.stepById.get(id) ?? null) : null;
+  }
+
+  /** The change records joined to a step, in document order. */
+  changesOf(stepId: string): AszWorkspaceChange[] {
+    return this.changesByStep.get(stepId) ?? [];
   }
 
   /** The streams the assembler could tie to the start or the end of a stream
