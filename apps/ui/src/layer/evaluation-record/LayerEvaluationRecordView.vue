@@ -409,14 +409,6 @@ const levelFacet = computed<Record<Level, number>>(() => {
 // (the view is opened from /layer/<key>/logs with a specific service
 // selected), so a "top services" rail just repeats the title.
 
-// Since the level filter now goes to OAP, the visible logs already
-// reflect it ??no client-side narrowing needed.
-const filteredGenAIEvaluationRecordRows = computed<GenAIEvaluationRecordStreamRow[]>(
-  () => genAIEvaluationRecordStreamRows.value.filter((row) =>
-    !traceTypeRef.value || row.traceType === traceTypeRef.value,
-  ),
-);
-
 // 闁冲厜鍋撻柍鍏夊亾 Evaluation-record payload popout ??a row click opens the dedicated
 // detail modal (format-aware pretty-print + copy + key/value tag table +
 // trace link). The popout owns its own Escape / close + format detection.
@@ -683,8 +675,8 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         </div>
 
         <!-- Stream -->
-        <div v-if="filteredGenAIEvaluationRecordRows.length === 0" class="lg-empty">
-          {{ genAIEvaluationRecordStreamRows.length === 0 ? t('No evaluation records returned for this scope.') : t('No evaluation records match the active filters.') }}
+        <div v-if="genAIEvaluationRecordStreamRows.length === 0" class="lg-empty">
+          {{ t('No evaluation records returned for this scope.') }}
         </div>
         <!-- Row click ??open the full-payload popout. The dense row
              rendering is the shared `LogStreamPanel` (same markup the
@@ -692,13 +684,13 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
              facets stay in this view. -->
         <EvaluationRecordStreamPanel
             v-else
-            :rows="filteredGenAIEvaluationRecordRows"
+            :rows="genAIEvaluationRecordStreamRows"
             @select="onRowClick($event.row)"
             @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType, $event.traceSegmentId, $event.traceSpanIndex, $event.traceSpanId)"
         />
         <div class="lg-pager">
           <span class="hint">
-            page {{ page }} 鐠?showing {{ filteredGenAIEvaluationRecordRows.length }}
+            page {{ page }} 鐠?showing {{ genAIEvaluationRecordStreamRows.length }}
             <template v-if="total != null"> of {{ total }} total</template>
           </span>
           <div class="lg-pager-ctrls">

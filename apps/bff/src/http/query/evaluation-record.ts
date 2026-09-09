@@ -250,7 +250,12 @@ export async function fetchEvaluationRecords(
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
     ...(scope.sortField ? { sortBy: scope.sortField } : {}),
     ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
-    ...(scope.traceId ? { relatedTrace: { type: scope.traceType ?? 'SKYWALKING_NATIVE', traceId: scope.traceId } } : {}),
+    ...(scope.traceType || scope.traceId ? {
+      relatedTrace: {
+        type: scope.traceType ?? 'SKYWALKING_NATIVE',
+        ...(scope.traceId ? { traceId: scope.traceId } : {}),
+      },
+    } : {}),
     queryDuration: {
       start: window.start,
       end: window.end,
@@ -266,12 +271,7 @@ export async function fetchEvaluationRecords(
       evaluationRecordCondition,
       paging,
     );
-    const records = page.rows
-      .map(mapEvaluationRecordRow)
-      // OAP only accepts relatedTrace.type together with a trace id. When
-      // the user selects a source without an id, enforce that source on the
-      // returned rows so the list never mixes Native and OTLP records.
-      .filter((record) => !scope.traceType || record.traceRef?.type === scope.traceType);
+    const records = page.rows.map(mapEvaluationRecordRow);
     return {
       generatedAt: Date.now(),
       query: {},
@@ -434,7 +434,12 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           ...(body.valueType === 'BOOLEAN' && body.booleanValue != null ? { booleanValue: body.booleanValue } : {}),
           ...(body.taskName ? { taskName: body.taskName } : {}),
           ...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),
-          ...(body.traceId ? { relatedTrace: { type: body.traceType ?? 'SKYWALKING_NATIVE', traceId: body.traceId } } : {}),
+          ...(body.traceType || body.traceId ? {
+            relatedTrace: {
+              type: body.traceType ?? 'SKYWALKING_NATIVE',
+              ...(body.traceId ? { traceId: body.traceId } : {}),
+            },
+          } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a
           // level from the breakdown.
@@ -446,8 +451,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           const env = await graphqlPost<{
             data: { genAIEvaluationRecordList: OapEvaluationRecordRow[] } | null;
           }>(opts, QUERY_EVALUATION_RECORD_FACETS, { evaluationRecordCondition });
-          const rows = (env.data?.genAIEvaluationRecordList ?? [])
-            .filter((row) => !body.traceType || row.traceRef?.type === body.traceType);
+          const rows = env.data?.genAIEvaluationRecordList ?? [];
           const level: EvaluationRecordFacetsResponse['level'] = {
             fail: 0,
             warning: 0,

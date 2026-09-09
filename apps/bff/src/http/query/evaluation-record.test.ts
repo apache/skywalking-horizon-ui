@@ -118,6 +118,43 @@ describe('evaluation-record paging', () => {
     expect(result.hasNext).toBe(true);
   });
 
+  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)(
+    'filters %s before paging and probing without a trace ID', async (type) => {
+      const rows = Array.from({ length: 7 }, (_, i) => ({
+        traceRef: { type: i % 2 === 0 ? 'SKYWALKING_NATIVE' : 'OTLP', traceId: `trace-${i}` },
+      }));
+      const fetch: FetchLike = async (_url, init) => {
+        const { variables } = JSON.parse(String(init?.body)) as {
+          variables: Record<string, { paging: Paging; relatedTrace?: { type: string }; queryDuration?: unknown }>;
+        };
+        for (const condition of Object.values(variables)) {
+          expect(condition.relatedTrace).toEqual({ type });
+          expect(condition.queryDuration).toBeDefined();
+        }
+        const select = (condition: typeof variables.condition) =>
+          slice(rows.filter((row) => row.traceRef.type === condition.relatedTrace?.type), condition.paging);
+        return json({ data: {
+          data: { genAIEvaluationRecordList: select(variables.condition) },
+          probe: { genAIEvaluationRecordList: variables.probe ? select(variables.probe) : [] },
+        } });
+      };
+      for (const pageNum of [1, 2]) {
+        const result = await fetchEvaluationRecords(
+          { queryUrl: 'http://oap.invalid', timeoutMs: 1_000, fetch },
+          { traceType: type },
+          { start: '2026-01-01 000000', end: '2026-01-01 010000' },
+          { pageNum, pageSize: 2 }, false,
+        );
+        expect(result.reachable).toBe(true);
+        expect(result.records.map((row) => row.traceId)).toEqual(
+          slice(rows.filter((row) => row.traceRef.type === type), { pageNum, pageSize: 2 })
+            .map((row) => row.traceRef.traceId),
+        );
+        expect(result.hasNext).toBe(pageNum === 1);
+      }
+    },
+  );
+
   it('soft-fails when OAP cannot be reached', async () => {
     const fetch: FetchLike = async () => { throw new Error('network down'); };
     const result = await fetchEvaluationRecords(
@@ -196,6 +233,26 @@ describe('evaluation-record route scope and time window', () => {
     });
     expect(res.json()).toMatchObject({ sampled: 1, services: [{ name: 'openai', count: 1 }] });
     expect(res.json()).not.toHaveProperty('total');
+  });
+
+  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)('scopes facets to %s without a trace ID', async (type) => {
+    const oap = fakeRouteOap();
+    const { app, sid } = await buildRoute(oap.fetch);
+    try {
+      const res = await app.inject({
+        method: 'POST', url: '/api/layer/virtual_genai/evaluation-records/facets',
+        headers: { cookie: `horizon_sid=${sid}` }, payload: { traceType: type },
+      });
+      expect(res.statusCode).toBe(200);
+      const call = oap.calls.find((c) => c.query.includes('QueryGenAIEvaluationRecordFacets'));
+      const condition = call?.variables.evaluationRecordCondition as Record<string, unknown>;
+      expect(condition.relatedTrace).toEqual({ type });
+      expect(condition.queryDuration).toBeDefined();
+      expect(condition).not.toHaveProperty('traceType');
+      expect(res.json()).toMatchObject({ sampled: 1 });
+    } finally {
+      await app.close();
+    }
   });
 
   it('ignores an empty max score consistently with the list query', async () => {
