@@ -143,5 +143,6 @@ export function useZipkinTrace(
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,
+    refetch: q.refetch,
   };
 }

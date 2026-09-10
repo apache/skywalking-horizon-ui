@@ -243,12 +243,15 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
           `/api/v2/trace/${encodeURIComponent(traceId)}`,
           Object.fromEntries(new URLSearchParams(window)),
         );
+        // A 404 keeps reading as unreachable: the GraphQL port answers 404 too,
+        // so it is also what a misconfigured Zipkin URL looks like. `notFound`
+        // lets a reader that KNOWS the id is real treat it as not there yet.
         const detail: ZipkinTraceDetailResponse = {
           source: 'zipkin',
           traceId,
           spans: Array.isArray(body) ? (body as ZipkinSpan[]) : [],
           reachable: status !== 404,
-          ...(status === 404 ? { error: 'trace not found' } : {}),
+          ...(status === 404 ? { error: 'trace not found', notFound: true } : {}),
         };
         return reply.code(status === 404 ? 200 : status).send(detail);
       } catch (err) {

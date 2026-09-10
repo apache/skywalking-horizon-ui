@@ -168,3 +168,18 @@ export const MESH_DP_SUFFIX = '\\.default';
 export const BANYANDB_LAYER = 'banyandb';
 export const BANYANDB_CLUSTER = 'e2e-banyandb';
 export const BANYANDB_ROLES = ['liaison', 'data'];
+
+/**
+ * The genai fixture: one mock OpenAI provider, called by a Java app on the
+ * SkyWalking agent and by a Python app on OpenTelemetry, with OAP's
+ * LLM-as-Judge scoring every call. The two callers are how a spec picks a
+ * record by TRACE SOURCE — the rows do not print it, but they print who
+ * called, and each caller reports through exactly one receiver.
+ */
+export const GENAI_LAYER = 'virtual_genai';
+export const GENAI_PROVIDER = 'openai';
+export const GENAI_MODEL = 'gpt-4.1-mini-2025-04-14';
+export const NATIVE_GENAI_CALLER = 'e2e-spring-ai';
+export const OTLP_GENAI_CALLER = 'e2e-otel-python';
+/** The judge's tasks, from cases/genai/ai-evaluation.yml. */
+export const GENAI_TASKS = ['Faithfulness', 'TaskCompletion'];

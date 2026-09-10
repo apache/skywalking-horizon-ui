@@ -213,6 +213,10 @@ export interface ZipkinTraceDetailResponse {
   spans: ZipkinSpan[];
   reachable: boolean;
   error?: string;
+  /** OAP answered 404 for the id. Reported as unreachable as well, since a
+   *  misconfigured Zipkin URL answers 404 too; a caller sure of the id can
+   *  read it as "not there yet". */
+  notFound?: boolean;
 }
 
 // When the operator picks `source = both`, the list endpoint fans

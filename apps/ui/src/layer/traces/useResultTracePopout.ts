@@ -39,7 +39,10 @@ export function useResultTracePopout() {
       spanId: ref.spanId ?? null,
     };
     if (ref.type === 'OTLP') {
-      openOtlpTrace(ref.traceId, focus);
+      // The moment bounds the lookup the same way it does for a native trace:
+      // without it OAP searches only its default day, and a record older than
+      // that (cold stage on) opens to an empty popout.
+      openOtlpTrace(ref.traceId, { ...focus, at: atMs });
     } else {
       openNativeTrace(ref.traceId, atMs, ref.type, focus);
     }

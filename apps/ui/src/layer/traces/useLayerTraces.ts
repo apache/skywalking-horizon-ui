@@ -148,20 +148,29 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
  *  BanyanDB's HOUR-precision cap. */
 const TRACE_LOOKUP_HALF_WINDOW_MS = 12 * 60 * 60 * 1000;
 
+export interface TraceLookupWindow {
+  startMs: number;
+  endMs: number;
+}
+
 export function useTraceDetail(
   traceId: Ref<string | null>,
   source: Ref<'native' | 'zipkin'>,
-  /** Optional timestamp the trace is known to live near (e.g. a log
-   *  row's timestamp). When present, the BFF widens the BanyanDB
-   *  lookup to ±12h around it; paired with the cold-stage header,
-   *  this lets cold-tier trace IDs resolve. When null, the BFF
-   *  defaults to OAP's last-1-day `queryTrace` window. */
-  atMs?: Ref<number | null>,
+  /** Where the trace is known to live: a timestamp (e.g. a log row's),
+   *  which the lookup widens to ±12h, or an explicit window, forwarded as it
+   *  is. Paired with the cold-stage header, this lets cold-tier trace IDs
+   *  resolve. When null, the BFF defaults to OAP's last-1-day `queryTrace`
+   *  window. A range longer than a day must come as a window: a midpoint
+   *  would search only its middle day. */
+  atMs?: Ref<number | TraceLookupWindow | null>,
   /** REPLAY: gate the on-demand detail fetch off. Captured v2 rows carry inline
    *  spans (detail renders with no query); v1 has no offline detail — acceptable. */
   replay?: Ref<boolean>,
 ) {
-  const rangeKey = computed(() => atMs?.value ?? null);
+  const rangeKey = computed(() => {
+    const at = atMs?.value;
+    return at == null ? null : typeof at === 'number' ? at : `${at.startMs}-${at.endMs}`;
+  });
   const q = useQuery<TraceDetailResponse>({
     queryKey: ['trace-detail', traceId, source, rangeKey],
     queryFn: () => {
@@ -173,7 +182,9 @@ export function useTraceDetail(
               endMs: at + TRACE_LOOKUP_HALF_WINDOW_MS,
               step: 'HOUR' as const,
             }
-          : undefined;
+          : at && typeof at === 'object'
+            ? { startMs: at.startMs, endMs: at.endMs, step: 'HOUR' as const }
+            : undefined;
       return bffClient.trace.detail(traceId.value!, source.value, range);
     },
     enabled: computed(() => !!traceId.value && !(replay?.value ?? false)),
@@ -186,5 +197,6 @@ export function useTraceDetail(
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,
+    refetch: q.refetch,
   };
 }

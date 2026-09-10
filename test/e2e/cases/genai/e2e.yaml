@@ -1,0 +1,131 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# GenAI case — the VIRTUAL_GENAI layer and its Evaluation records tab, on a
+# stack where OAP's LLM-as-Judge scores calls arriving from BOTH trace
+# sources: the SkyWalking Java agent (native) and OpenTelemetry (OTLP).
+#
+# Run it:  make -C test/e2e run CASE=genai
+# Images:  make -C test/e2e images   (the Python caller builds through compose)
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh genai
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+# No `trigger`: the compose `traffic` service drives BOTH callers in turn for
+# the whole run, which one trigger URL cannot. It keeps records of both
+# sources in every page the specs read, and the provider's metric windows
+# populated through verification.
+
+verify:
+  # The roster Horizon serves comes from a catalog cached for 60s, and the
+  # judge answers asynchronously after the span lands — the budget covers
+  # both, so the specs need no long polls of their own.
+  retry:
+    count: 60
+    interval: 5s
+  cases:
+    # 1. CHECK FIRST: OAP resolved the provider from the GenAI spans. If this
+    #    fails an app or the agent plugin is broken, and Horizon cannot show it.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
+          | yq -P '{"genaiProvider": [.[] | select(.name == "openai") | .layers[] | select(. == "VIRTUAL_GENAI")] | length}'
+      expected: expected/genai-provider.yml
+
+    # 2. Horizon's evaluation catalog carries the provider on its layer — the
+    #    rows the tab's provider picker is drawn from. Absorbs the catalog TTL.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/evaluation-record/caller-services \
+          | yq -P '{"reachable": .reachable, "provider": [.services[] | select(.name == "openai" and .layer == "VIRTUAL_GENAI")] | length}'
+      expected: expected/horizon-provider.yml
+
+    # 3. READINESS: a judged record from the NATIVE source is readable through
+    #    the request the tab makes. The judge runs after the span is analysed,
+    #    on its own buffer, so the provider can exist for a while before any
+    #    record does — and playwright.sh will not re-run a project after a
+    #    first failure, so the wait belongs here.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -P '{"hasNativeRecords": ([.records[] | select(.traceRef.type == "SKYWALKING_NATIVE")] | length > 0)}'
+      expected: expected/has-native-records.yml
+
+    # 4. READINESS: and one from the OTLP source. Separate from 3 because the
+    #    two arrive by different receivers — one can be fine while the other
+    #    produced nothing, and a red run should say which.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -P '{"hasOtlpRecords": ([.records[] | select(.traceRef.type == "OTLP")] | length > 0)}'
+      expected: expected/has-otlp-records.yml
+
+    # 5. READINESS: the native trace a record points at opens. The record is
+    #    written from the span at analysis time; the segment itself persists
+    #    on its own cycle, and the spec clicks straight through to it.
+    - query: |
+        TRACE_ID=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -r '[.records[] | select(.traceRef.type == "SKYWALKING_NATIVE")][0].traceRef.traceId')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/trace/${TRACE_ID}" \
+          | yq -P '{"hasSpans": ((.native.spans // []) | length > 0)}'
+      expected: expected/has-native-trace.yml
+
+    # 6. READINESS: the OTLP trace opens through the Zipkin query, which is
+    #    the path the OTLP popout takes.
+    - query: |
+        TRACE_ID=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -r '[.records[] | select(.traceRef.type == "OTLP")][0].traceRef.traceId')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/zipkin/trace/${TRACE_ID}" \
+          | yq -P '{"hasSpans": ((.spans // []) | length > 0)}'
+      expected: expected/has-otlp-trace.yml
+
+    # 7. READINESS: the provider's metrics landed — what the layer's service
+    #    dashboard reads. Persisted on OAP's ~25s cycle into minute buckets,
+    #    a different write from the records above.
+    - query: |
+        swctl --display yaml --base-url=http://${oap_host}:${oap_12800}/graphql \
+          metrics exec --expression=gen_ai_provider_cpm --service-id=b3BlbmFp.0
+      expected: expected/metrics-has-value.yml
+
+    # 8. The browser suite: the tab and the dashboard, on screen.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh genai
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

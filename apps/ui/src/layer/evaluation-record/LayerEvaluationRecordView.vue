@@ -15,14 +15,13 @@
   limitations under the License.
 -->
 <!--
-  Per-layer Logs tab ??Loki / Datadog visualization style.
-   - Condition bar with the scoping chips + free-text keyword search.
-   - Time-bucketed density histogram (60 bins) across the top, stacked
-     by level (error / warn / info / debug / unknown).
-   - Faceted sidebar with level + service breakdowns (counts derived
-     from the loaded page).
-   - Dense stream: one row per log; click expands inline showing the
-     full payload (auto-detected as JSON or text) + tags + trace link.
+  Per-layer Evaluation records tab: the LLM-as-Judge results OAP stored for
+  the picked provider, in the Logs tab's dense-stream shape.
+   - Condition bar: provider + model, value type / score bounds, task, caller
+     service, judge model, sort, trace id, time range.
+   - Time-bucketed density histogram (60 bins) stacked by evaluation level.
+   - Dense stream: one row per record; a row opens the detail popout, and the
+     trace link opens the native or OTLP trace it was judged from.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
@@ -41,12 +40,16 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useResultTracePopout } from '@/layer/traces/useResultTracePopout';
 import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
+import { useAuthStore } from '@/state/auth';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
+import RelatedTraceSpanPicker, { type RelatedSpanPick } from '@/layer/evaluation-record/RelatedTraceSpanPicker.vue';
+import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const auth = useAuthStore();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { openResultTrace } = useResultTracePopout();
 
@@ -72,19 +75,67 @@ const callerServicesQuery = useQuery({
   staleTime: 60_000,
 });
 const callerServices = computed(() => callerServicesQuery.data.value?.services ?? []);
-const callerServicesFetching = computed(() => callerServicesQuery.isFetching.value);
+const callerServicesLoading = computed(() => callerServicesQuery.isLoading.value);
+// The catalog is the upstream control of everything here: a failure to read
+// it is reported where the prompt would otherwise ask for a provider that
+// cannot be picked.
+const catalogFailure = computed<string | null>(() => {
+  if (callerServicesQuery.error.value) return String(callerServicesQuery.error.value);
+  const answer = callerServicesQuery.data.value;
+  return answer && answer.reachable === false ? (answer.error || t('Backend unreachable.')) : null;
+});
+// The catalog spans every layer because the caller filter needs the
+// applications that call a provider; the providers are its rows on THIS
+// layer. The page owns the provider picker (route meta `ownsServiceSelector`)
+// and draws it from this `logs:read` catalog: the shell's picker reads the
+// metrics roster, which a logs-only role cannot.
+const providers = computed(() => {
+  const key = layerKey.value.toUpperCase();
+  return callerServices.value.filter((candidate) => candidate.layer.toUpperCase() === key);
+});
 const selectedService = computed(() => callerServices.value.find((candidate) => candidate.id === selectedId.value) ?? null);
 const service = computed<ServiceRef | null>(() => {
   const candidate = selectedService.value;
   return candidate ? serviceRef(candidate.id, candidate.name, candidate.normal) : null;
 });
-watch(callerServices, (services) => {
-  if (!selectedId.value && services.length > 0) setSelectedService(services[0].id);
+watch(providers, (rows) => {
+  if (!selectedId.value && rows.length > 0) setSelectedService(rows[0].id);
 }, { immediate: true });
 watch(providerIdParam, (providerId) => {
   if (providerId && selectedId.value !== providerId) setSelectedService(providerId);
 }, { immediate: true });
-// 闁冲厜鍋撻柍鍏夊亾 Model picker. Evaluation records currently reuse the instance
+// A bookmarked provider that has gone quiet stays selectable, as a model does.
+const providerOptions = computed(() => {
+  const id = selectedId.value;
+  return id && !providers.value.some((p) => p.id === id)
+    ? [{ id, name: id }, ...providers.value]
+    : providers.value;
+});
+function changeProvider(providerId: string): void {
+  if (providerId) setSelectedService(providerId);
+}
+const providerTypeaheadOptions = computed(() => providerOptions.value.map((p) => ({ value: p.id, label: p.name })));
+// Callers span every layer, so the layer rides along as the row's hint. A
+// caller that reports through the Zipkin receiver alone registers no layer
+// service, so the catalog never lists it; the records do carry its id and
+// name, and the facet sample brings those in once a query has run.
+// Remembered across samples: a caller seen once stays pickable, and the one
+// picked stays visible, even after a query whose sample has no row of it —
+// otherwise the picker read "Select…" while `serviceId` still filtered.
+const seenCallers = ref(new Map<string, string>());
+const callerTypeaheadOptions = computed(() => {
+  const catalog = callerServices.value.map((s) => ({ value: s.id, label: s.name, hint: s.layer }));
+  const known = new Set(catalog.map((o) => o.value));
+  const seen = [...seenCallers.value.entries()]
+    .filter(([id]) => !known.has(id))
+    .map(([id, name]) => ({ value: id, label: name, hint: t('seen in records') }));
+  const picked = serviceId.value;
+  const orphan = picked && !known.has(picked) && !seenCallers.value.has(picked)
+    ? [{ value: picked, label: picked }]
+    : [];
+  return [{ value: '', label: t('All services') }, ...catalog, ...seen, ...orphan];
+});
+// — Model picker. Evaluation records currently reuse the instance
 // selector plumbing, but the UI labels it by the GenAI domain concept.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const { instances: instanceList } = useLayerInstances(layerKey, service);
@@ -110,12 +161,23 @@ watch(selectedId, (next, prev) => {
   } else {
     changeModel(null);
   }
+  // A provider switch is a context change: back to the Run-query prompt, never
+  // the previous provider's records under the new name.
+  hasQueried.value = false;
+  selectedLevel.value = null;
+  page.value = 1;
+  applyConditions();
 });
 function changeModel(modelId: string | null): void {
   modelSelectionExplicit = true;
   selectedModelId.value = modelId;
   setSelectedInstance(instanceList.value.find((i) => i.id === modelId)?.name ?? null);
+  // Both ids, always: a model belongs to the provider it was picked under, and
+  // a reload or a shared link applies the pair. Writing the model alone left
+  // the previous provider in the address.
   const query = { ...route.query };
+  if (selectedId.value) query.providerId = selectedId.value;
+  else delete query.providerId;
   if (modelId) query.modelId = modelId;
   else delete query.modelId;
   void router.replace({ path: route.path, query });
@@ -127,8 +189,12 @@ const modelOptions = computed(() => {
     ? [{ id, name: id }, ...instances]
     : instances;
 });
+const modelTypeaheadOptions = computed(() => [
+  { value: '', label: t('All models') },
+  ...modelOptions.value.map((i) => ({ value: i.id, label: i.name })),
+]);
 
-// 闁冲厜鍋撻柍鍏夊亾 Query state 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾
+// — Query state ——————————————————————————
 // Trace ID is seeded by the route and remains editable in the condition bar.
 const traceIdParam = computed(() => {
   const v = route.query.evaluationTraceId;
@@ -147,14 +213,14 @@ watch(traceIdInput, (value) => {
   const query = { ...route.query };
   if (next) query.evaluationTraceId = next;
   else delete query.evaluationTraceId;
-  page.value = 1;
   void router.replace({ path: route.path, query });
 });
 // Free-text content search is intentionally NOT exposed. OAP's
 // content-keyword filter is opt-in per storage backend (off on the
 // stock H2 store) and indexing across full log bodies has surprising
 // latency / cardinality behaviour on busy clusters. The conditions
-// the UI exposes ??service / instance / endpoint / traceID / tags ??// are all indexed dimensions and cover the booster-ui condition set.
+// the UI exposes — service / instance / endpoint / traceID / tags —
+// are all indexed dimensions and cover the booster-ui condition set.
 const page = ref(1);
 const pageSize = ref(50);
 const valueType = ref<'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null>('SCORE');
@@ -166,14 +232,49 @@ const booleanValue = ref<boolean | null>(null);
 // broaden the result set.
 const taskName = ref(queryString('taskName') ?? '');
 const judgeModel = ref('');
-const sortField = ref<'EVALUATION_TIME' | 'SCORE_VALUE'>('EVALUATION_TIME');
-const sortOrder = ref<'ASC' | 'DES'>('DES');
+// One ordering, not a field and a direction: newest first is the only order
+// time is read in, and a score reads either way.
+type SortKey = 'time' | 'score_desc' | 'score_asc';
+const sortKey = ref<SortKey>('time');
+const sortField = computed<'EVALUATION_TIME' | 'SCORE_VALUE'>(() => (sortKey.value === 'time' ? 'EVALUATION_TIME' : 'SCORE_VALUE'));
+const sortOrder = computed<'ASC' | 'DES'>(() => (sortKey.value === 'score_asc' ? 'ASC' : 'DES'));
 const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
 // The addressing scheme is only needed when locating a specific trace.
 const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>('SKYWALKING_NATIVE');
+// Narrowing to ONE span of that trace: typed in (ids copied from logs) or
+// picked from the trace. A span belongs to its trace and scheme, so both
+// reset the narrowing.
+const traceSegmentIdInput = ref('');
+const traceSpanIndexInput = ref<number | ''>('');
+const traceSpanIdInput = ref('');
+function clearSpanNarrowing(): void {
+  traceSegmentIdInput.value = '';
+  traceSpanIndexInput.value = '';
+  traceSpanIdInput.value = '';
+}
+watch([traceIdRef, traceTypeRef], clearSpanNarrowing);
+const traceSegmentIdRef = computed<string | null>(() =>
+    traceTypeRef.value === 'SKYWALKING_NATIVE' ? traceSegmentIdInput.value.trim() || null : null);
+const traceSpanIndexRef = computed<number | null>(() => {
+  const index = traceSpanIndexInput.value;
+  return traceTypeRef.value === 'SKYWALKING_NATIVE' && Number.isInteger(index) && (index as number) >= 0 ? (index as number) : null;
+});
+const traceSpanIdRef = computed<string | null>(() =>
+    traceTypeRef.value === 'OTLP' ? traceSpanIdInput.value.trim() || null : null);
+const spanPickerOpen = ref(false);
+function applySpanPick(pick: RelatedSpanPick | null): void {
+  spanPickerOpen.value = false;
+  clearSpanNarrowing();
+  if (pick?.type === 'SKYWALKING_NATIVE') {
+    traceSegmentIdInput.value = pick.segmentId;
+    traceSpanIndexInput.value = pick.spanIndex;
+  } else if (pick?.type === 'OTLP') {
+    traceSpanIdInput.value = pick.spanId;
+  }
+}
 const serviceId = ref('');
 const providerIdRef = computed<string | null>(() => selectedId.value);
 const modelIdRef = computed<string | null>(() => selectedModelId.value);
@@ -183,8 +284,7 @@ function changeValueType(): void {
   minScore.value = null;
   maxScore.value = null;
   booleanValue.value = null;
-  if (valueType.value !== 'SCORE') sortField.value = 'EVALUATION_TIME';
-  page.value = 1;
+  if (valueType.value !== 'SCORE') sortKey.value = 'time';
 }
 
 // Time-range picker. Logs blocks the global topbar picker (see
@@ -192,7 +292,7 @@ function changeValueType(): void {
 // for which rolling window the log + facet queries scan. Presets
 // cover the most common ranges; the operator can extend if needed
 // (cap is 7 days, enforced server-side too). Mirrors the trace tab's
-// Custom??escape hatch ??picking it swaps the preset dropdown for two
+// Custom escape hatch — picking it swaps the preset dropdown for two
 // `datetime-local` inputs so the operator can pin an absolute window.
 const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
   { label: 'Last 15 min', minutes: 15 },
@@ -251,16 +351,32 @@ const customRangeError = computed<string | null>(() => {
   if (end - start > 7 * 24 * 60 * 60_000) return 'Time range cannot exceed 7 days.';
   return null;
 });
-const queryEnabled = computed(() => customRangeError.value == null);
 const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,
 );
+// Taken when the picker opens, not at render: a rolling window read from a
+// computed would keep the clock of the last render, and a trace judged after
+// that would be looked up before its own time.
+function currentWindow(): { startMs: number; endMs: number } | null {
+  if (isCustomRange.value) {
+    const start = startTimeRef.value;
+    const end = endTimeRef.value;
+    return start != null && end != null && end > start ? { startMs: start, endMs: end } : null;
+  }
+  const endMs = Date.now();
+  return { startMs: endMs - windowMinutes.value * 60_000, endMs };
+}
+const pickerWindow = ref<{ startMs: number; endMs: number } | null>(null);
+function openSpanPicker(): void {
+  pickerWindow.value = currentWindow();
+  spanPickerOpen.value = true;
+}
 
-// 闁冲厜鍋撻柍鍏夊亾 Tag conditions (booster-style single `key=value` input) 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾
+// — Tag conditions (booster-style single `key=value` input) ———
 // One text input; Enter commits the tag. Tags accumulate in `customTags`
 // and ride along on the OAP log query as filters. Key/value autocomplete
 // lives in TagInput.
-// 闁冲厜鍋撻柍鍏夊亾 Level filter goes to OAP as a `level=<UPPER>` tag filter so the
+// — Level filter goes to OAP as a `level=<UPPER>` tag filter so the
 // server-side total + pagination match the visible rows. The filter
 // is single-select (booster-ui uses the same pattern).
 const LEVEL_TAG_VALUES: Record<'fail' | 'warning' | 'good' | 'excellent', string> = {
@@ -270,82 +386,151 @@ const LEVEL_TAG_VALUES: Record<'fail' | 'warning' | 'good' | 'excellent', string
   excellent: 'excellent',
 };
 const selectedLevel = ref<'fail' | 'warning' | 'good' | 'excellent' | null>(null);
+// The legend chips sit under the results and act on them: unlike the
+// condition bar, a click here commits and re-reads at once, so the chip
+// means what it shows. Before the first Run query it only stages.
 function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined'): void {
   if (l === 'undefined') return; // server-side fallback bucket is not user-selectable
   selectedLevel.value = selectedLevel.value === l ? null : l;
-  page.value = 1;
+  if (hasQueried.value) runQuery();
 }
 
-watch(
-  [
-    providerIdRef, modelIdRef, serviceId, valueType, minScore, maxScore,
-    booleanValue, taskName, selectedLevel, judgeModel, sortField, sortOrder,
-    traceIdRef, traceTypeRef, pageSize, windowMinutes, customStart, customEnd,
-  ],
-  () => { page.value = 1; },
-  { flush: 'sync' },
-);
+// The reads take these APPLIED conditions, not the live draft refs, so
+// editing a condition stages the query without firing it — the same
+// contract as the Logs and Traces tabs. `applyConditions()` commits the draft
+// on Run query and on a provider switch. `page` / `pageSize` stay live.
+interface AppliedConditions {
+  providerId: string | null;
+  modelId: string | null;
+  serviceId: string | null;
+  valueType: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
+  minScore: number | null;
+  maxScore: number | null;
+  booleanValue: boolean | null;
+  taskName: string | null;
+  evaluationLevel: string | null;
+  judgeModel: string | null;
+  sortField: 'EVALUATION_TIME' | 'SCORE_VALUE';
+  sortOrder: 'ASC' | 'DES';
+  traceId: string | null;
+  traceType: 'SKYWALKING_NATIVE' | 'OTLP';
+  traceSegmentId: string | null;
+  traceSpanIndex: number | null;
+  traceSpanId: string | null;
+  windowMinutes: number;
+  startTime: number | null;
+  endTime: number | null;
+}
+function snapshotConditions(): AppliedConditions {
+  return {
+    providerId: providerIdRef.value,
+    modelId: modelIdRef.value,
+    serviceId: serviceId.value.trim() || null,
+    valueType: valueType.value,
+    minScore: minScore.value,
+    maxScore: maxScore.value,
+    booleanValue: booleanValue.value,
+    taskName: taskName.value.trim() || null,
+    evaluationLevel: selectedLevel.value ? LEVEL_TAG_VALUES[selectedLevel.value] : null,
+    judgeModel: judgeModel.value.trim() || null,
+    sortField: sortField.value,
+    sortOrder: sortOrder.value,
+    traceId: traceIdRef.value,
+    traceType: traceTypeRef.value,
+    traceSegmentId: traceSegmentIdRef.value,
+    traceSpanIndex: traceSpanIndexRef.value,
+    traceSpanId: traceSpanIdRef.value,
+    windowMinutes: windowMinutesEffective.value,
+    startTime: startTimeRef.value,
+    endTime: endTimeRef.value,
+  };
+}
+const applied = ref<AppliedConditions>(snapshotConditions());
+function applyConditions(): void {
+  applied.value = snapshotConditions();
+}
+// Manual-fire gate: nothing is read until the operator presses Run query, so
+// a freshly opened tab shows the prompt rather than a misleading empty state.
+const hasQueried = ref(false);
+// The provider is the upstream control: both reads stay parked until one is
+// picked, however many times Run query is pressed.
+const providerReady = computed(() => !!selectedId.value);
+const queryEnabled = computed(() => hasQueried.value && providerReady.value && customRangeError.value == null);
+const a = <K extends keyof AppliedConditions>(key: K) => computed(() => applied.value[key]);
 
 const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, isFetching, refetch } = useLayerEvaluationRecord(layerKey, {
   service: computed(() => null),
-  serviceId: computed(() => serviceId.value.trim() || null),
-  providerId: providerIdRef,
-  modelId: modelIdRef,
-  valueType,
-  minScore,
-  maxScore,
-  booleanValue,
-  taskName: computed(() => taskName.value.trim() || null),
-  evaluationLevel: computed(() => selectedLevel.value ? LEVEL_TAG_VALUES[selectedLevel.value] : null),
-  judgeModel: computed(() => judgeModel.value.trim() || null),
-  sortField,
-  sortOrder,
-  traceId: traceIdRef,
-  traceType: traceTypeRef,
+  serviceId: a('serviceId'),
+  providerId: a('providerId'),
+  modelId: a('modelId'),
+  valueType: a('valueType'),
+  minScore: a('minScore'),
+  maxScore: a('maxScore'),
+  booleanValue: a('booleanValue'),
+  taskName: a('taskName'),
+  evaluationLevel: a('evaluationLevel'),
+  judgeModel: a('judgeModel'),
+  sortField: a('sortField'),
+  sortOrder: a('sortOrder'),
+  traceId: a('traceId'),
+  traceType: a('traceType'),
+  traceSegmentId: a('traceSegmentId'),
+  traceSpanIndex: a('traceSpanIndex'),
+  traceSpanId: a('traceSpanId'),
   keywords: keywordsRef,
   page,
   pageSize,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  windowMinutes: a('windowMinutes'),
+  startTime: a('startTime'),
+  endTime: a('endTime'),
   enabled: queryEnabled,
 });
 
 const { facets, refetch: refetchFacets } = useLayerEvaluationRecordFacets(layerKey, {
   service: computed(() => null),
-  serviceId: computed(() => serviceId.value.trim() || null),
-  providerId: providerIdRef,
-  modelId: modelIdRef,
-  valueType,
-  minScore,
-  maxScore,
-  booleanValue,
-  taskName: computed(() => taskName.value.trim() || null),
-  judgeModel: computed(() => judgeModel.value.trim() || null),
-  traceId: traceIdRef,
-  traceType: traceTypeRef,
+  serviceId: a('serviceId'),
+  providerId: a('providerId'),
+  modelId: a('modelId'),
+  valueType: a('valueType'),
+  minScore: a('minScore'),
+  maxScore: a('maxScore'),
+  booleanValue: a('booleanValue'),
+  taskName: a('taskName'),
+  judgeModel: a('judgeModel'),
+  traceId: a('traceId'),
+  traceType: a('traceType'),
+  traceSegmentId: a('traceSegmentId'),
+  traceSpanIndex: a('traceSpanIndex'),
+  traceSpanId: a('traceSpanId'),
   keywords: keywordsRef,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  windowMinutes: a('windowMinutes'),
+  startTime: a('startTime'),
+  endTime: a('endTime'),
   enabled: queryEnabled,
 });
 useAutoRefreshSubscribe(() => refetchFacets(), queryEnabled);
+// Declared after the facets composable it reads: a watch fires during setup.
+watch(() => facets.value?.services, (services) => {
+  if (!services) return;
+  const next = new Map(seenCallers.value);
+  for (const s of services) if (s.id) next.set(s.id, s.name);
+  seenCallers.value = next;
+});
 
-// Run-query handler mirrors the trace tab: refetch both the log
-// stream + the facet sample on demand. With most filters already
-// auto-refetching, this is the operator's "I'm done editing ??refresh
-// now" affordance, identical voice to `LayerTracesView#runQuery`.
+// Run query commits the draft and refetches BOTH reads, so the facet sample
+// never diverges from the stream (facets carry a staleTime of their own).
 function runQuery(): void {
-  if (!queryEnabled.value) return;
+  if (!providerReady.value || customRangeError.value != null) return;
   page.value = 1;
+  hasQueried.value = true;
+  applyConditions();
   void refetch();
   void refetchFacets();
 }
 
-// 闁冲厜鍋撻柍鍏夊亾 Density histogram (60 bins). Loki/Datadog style: stacked bars
+// — Density histogram (60 bins). Loki/Datadog style: stacked bars
 // per level over the visible page's time window. Counts come from
-// the loaded page only ??total-window density would need a server
+// the loaded page only — total-window density would need a server
 // aggregation we don't have yet. -----------------------------------
 
 const LEVEL_ORDER = ['fail', 'warning', 'good', 'excellent', 'undefined'] as const;
@@ -401,7 +586,7 @@ const histogram = computed(() => {
   return { bins, max, t0, t1 };
 });
 
-// 闁冲厜鍋撻柍鍏夊亾 Facets ??server-side aggregated across a larger window sample
+// — Facets — server-side aggregated across a larger window sample
 // (default 200 rows). When the facet fetch hasn't returned yet we
 // fall back to counts derived from the visible page so the rail
 // never goes empty.
@@ -411,11 +596,19 @@ const levelFacet = computed<Record<Level, number>>(() => {
   for (const r of genAIEvaluationRecordStreamRows.value) counts[levelOf(r)] += 1;
   return counts;
 });
-// Service facet removed ??the log query is already service-scoped
+// The sample is the newest records up to the facet size, so a count saturates
+// once the window holds more than that and says nothing. The share within the
+// sample is what it can honestly say; the count stays in the tooltip.
+const levelSampleTotal = computed(() => (facets.value ? facets.value.sampled : genAIEvaluationRecordStreamRows.value.length));
+function levelShare(l: Level): number {
+  const total = levelSampleTotal.value;
+  return total > 0 ? Math.round((levelFacet.value[l] / total) * 100) : 0;
+}
+// Service facet removed — the log query is already service-scoped
 // (the view is opened from /layer/<key>/logs with a specific service
 // selected), so a "top services" rail just repeats the title.
 
-// 闁冲厜鍋撻柍鍏夊亾 Evaluation-record payload popout ??a row click opens the dedicated
+// — Evaluation-record payload popout — a row click opens the dedicated
 // detail modal (format-aware pretty-print + copy + key/value tag table +
 // trace link). The popout owns its own Escape / close + format detection.
 const popoutRow = ref<GenAIEvaluationRecordStreamRow | null>(null);
@@ -434,7 +627,7 @@ function fmtBucketRange(idx: number, t0: number, t1: number): string {
   const end = new Date(t0 + (span * (idx + 1)) / BINS);
   const pad = (n: number) => String(n).padStart(2, '0');
   const fmt = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  return `${fmt(start)} ??${fmt(end)}`;
+  return `${fmt(start)} – ${fmt(end)}`;
 }
 function fmtAxisTime(ts: number): string {
   if (!ts) return '';
@@ -444,11 +637,11 @@ function fmtAxisTime(ts: number): string {
 }
 
 /** Open the trace in the global popout overlay rather than navigating
- *  to the Traces tab ??keeps the operator in the log stream, lets them
+ *  to the Traces tab — keeps the operator in the log stream, lets them
  *  scan the waterfall + close it back to where they were without
  *  losing the keyword filter / pagination state. The row's timestamp
  *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
- *  window ??without this, OAP searches only the last 1 day and any
+ *  window — without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
 function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null, traceSegmentId?: string | null, traceSpanIndex?: number | null, traceSpanId?: string | null): void {
   popoutRow.value = null;
@@ -460,6 +653,18 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     spanId: traceSpanId,
   }, ts);
 }
+
+// A dashboard drill arrives with its conditions in the address (the window,
+// and the provider / model / task it was clicked from), as does a link
+// carrying a trace id. Those run once the provider resolves, the way the
+// metric→trace drill does on the Traces tab; a plain open waits for Run query.
+// Declared last: it fires during setup and reads everything above.
+const drillArmed = ref(traceIdParam.value != null || (startTimeParam.value != null && endTimeParam.value != null));
+watch([drillArmed, providerReady], ([armed, ready]) => {
+  if (!armed || !ready) return;
+  drillArmed.value = false;
+  runQuery();
+}, { immediate: true });
 </script>
 
 <template>
@@ -471,87 +676,90 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         <span class="kicker">{{ t('Evaluation records') }}</span>
         <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}...</code></span>
         <span v-if="isFetching" class="hint">refreshing...</span>
-        <button class="sw-btn primary lg-run-btn" type="button" :disabled="!queryEnabled" @click="runQuery">{{ t('Run query') }}</button>
+        <button class="sw-btn primary lg-run-btn" type="button" :disabled="!providerReady || customRangeError != null" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
-        <!-- Instance / Sidecar picker. `All` is the default for every
-             scope; pinning an instance is opt-in via the dropdown. -->
-        <label class="cf">
-          <span>Model</span>
-          <select
-              class="cf-input"
-              :value="selectedModelId ?? ''"
-              @change="changeModel(($event.target as HTMLSelectElement).value || null)"
-          >
-            <option value="">All</option>
-            <option v-for="i in modelOptions" :key="i.id" :value="i.id">{{ i.name }}</option>
-          </select>
+        <div class="cf-row cf-row-3">
+        <!-- Provider is always scoped (a layer page keys on one service);
+             a model is opt-in, `All` by default. -->
+        <label class="cf cf-provider">
+          <span>{{ t('Provider') }}</span>
+          <TypeaheadSelect
+              :model-value="selectedId"
+              :options="providerTypeaheadOptions"
+              :placeholder="callerServicesLoading ? t('Reading data…') : undefined"
+              :disabled="providerOptions.length === 0"
+              :aria-label="t('Provider')"
+              block
+              @update:model-value="changeProvider"
+          />
         </label>
-        <label class="cf">
-          <span>Value type</span>
-          <select v-model="valueType" class="cf-input" @change="changeValueType">
-            <option :value="null">All</option>
-            <option value="SCORE">Score</option>
-            <option value="BOOLEAN">Boolean</option>
-            <option value="STRING">String</option>
-            <option value="JSON">JSON</option>
-          </select>
+        <label class="cf cf-model">
+          <span>{{ t('Model') }}</span>
+          <TypeaheadSelect
+              :model-value="selectedModelId ?? ''"
+              :options="modelTypeaheadOptions"
+              :aria-label="t('Model')"
+              block
+              @update:model-value="(id: string) => changeModel(id || null)"
+          />
         </label>
-        <label v-if="valueType === 'SCORE'" class="cf">
-          <span>Min score</span>
-          <input v-model.number="minScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
+        <label class="cf cf-caller">
+          <span>{{ t('Service') }}</span>
+          <TypeaheadSelect
+              v-model="serviceId"
+              :options="callerTypeaheadOptions"
+              :disabled="callerServices.length === 0"
+              :aria-label="t('Service')"
+              block
+          />
         </label>
-        <label v-if="valueType === 'SCORE'" class="cf">
-          <span>Max score</span>
-          <input v-model.number="maxScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
-        </label>
-        <label v-if="valueType === 'BOOLEAN'" class="cf">
-          <span>{{ t('Boolean value') }}</span>
-          <select v-model="booleanValue" class="cf-input" @change="page = 1">
-            <option :value="null">All</option>
-            <option :value="true">True</option>
-            <option :value="false">False</option>
-          </select>
-        </label>
+        </div>
+        <div class="cf-row cf-row-2">
         <label class="cf">
           <span>Task name</span>
-          <input v-model="taskName" type="text" class="cf-input" :placeholder="t('All tasks')" @change="page = 1" />
-        </label>
-        <label class="cf">
-          <span>Service</span>
-          <select v-model="serviceId" class="cf-input" :disabled="callerServicesFetching" @change="page = 1">
-            <option value="">{{ t('All services') }}</option>
-            <option v-for="service in callerServices" :key="service.id" :value="service.id">
-              {{ service.name }}
-            </option>
-          </select>
+          <input v-model="taskName" type="text" class="cf-input" :placeholder="t('All tasks')" />
         </label>
         <label class="cf">
           <span>Judge model</span>
-          <input v-model="judgeModel" type="text" class="cf-input" :placeholder="t('All judge models')" @change="page = 1" />
+          <input v-model="judgeModel" type="text" class="cf-input" :placeholder="t('All judge models')" />
         </label>
-        <label class="cf">
-          <span>Sort by</span>
-          <select v-model="sortField" class="cf-input" @change="page = 1">
-            <option value="EVALUATION_TIME">{{ t('Evaluation time') }}</option>
-            <option v-if="valueType === 'SCORE'" value="SCORE_VALUE">Score</option>
-          </select>
+        </div>
+        <div class="cf-row cf-row-4">
+        <!-- One condition: the value's type and, beside it, the operand that
+             type takes. A score is bounded, a verdict is true or false; a
+             string or JSON value has no operand, since OAP's condition offers
+             none for those. -->
+        <label class="cf cf-wide cf-value">
+          <span>{{ t('Value') }}</span>
+          <div class="cf-range">
+            <select v-model="valueType" class="cf-input cf-value-type" @change="changeValueType">
+              <option :value="null">{{ t('Any type') }}</option>
+              <option value="SCORE">Score</option>
+              <option value="BOOLEAN">Boolean</option>
+              <option value="STRING">String</option>
+              <option value="JSON">JSON</option>
+            </select>
+            <template v-if="valueType === 'SCORE'">
+              <input v-model.number="minScore" type="number" class="cf-input cf-range-num cf-min-score" step="any" :placeholder="t('min')" />
+              <span class="cf-range-sep">to</span>
+              <input v-model.number="maxScore" type="number" class="cf-input cf-range-num cf-max-score" step="any" :placeholder="t('max')" />
+            </template>
+            <select v-else-if="valueType === 'BOOLEAN'" v-model="booleanValue" class="cf-input cf-boolean-value">
+              <option :value="null">{{ t('All') }}</option>
+              <option :value="true">True</option>
+              <option :value="false">False</option>
+            </select>
+          </div>
         </label>
-        <label class="cf">
-          <span>Direction</span>
-          <select v-model="sortOrder" class="cf-input" @change="page = 1">
-            <option value="DES">Descending</option>
-            <option value="ASC">Ascending</option>
-          </select>
-        </label>
-        <!-- Trace ID. Bound directly ??each keystroke updates the
+        <!-- Trace ID. Bound directly — each keystroke updates the
              query. URL `?traceId=` still overrides. -->
         <label class="cf cf-wide">
           <span>Trace ID</span>
           <input
               v-model="traceIdInput"
               type="text"
-              class="cf-input mono"
+              class="cf-input mono cf-trace-id"
               placeholder="paste trace id..."
           />
         </label>
@@ -562,7 +770,33 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             <option value="OTLP">OTLP</option>
           </select>
         </label>
-        <!-- Time range ??presets + Custom??that swaps to two
+        <!-- One span of that trace, by the scheme's own address. Blank means
+             the whole trace; the picker fills these from the trace itself. -->
+        <template v-if="traceIdRef">
+          <template v-if="traceTypeRef === 'SKYWALKING_NATIVE'">
+            <label class="cf">
+              <span>{{ t('Segment ID') }}</span>
+              <input v-model="traceSegmentIdInput" type="text" class="cf-input mono cf-segment-id" :placeholder="t('Whole trace')" />
+            </label>
+            <label class="cf">
+              <span>{{ t('Span index') }}</span>
+              <input v-model.number="traceSpanIndexInput" type="number" min="0" step="1" class="cf-input mono cf-span-index" :placeholder="t('Any')" />
+            </label>
+          </template>
+          <label v-else class="cf">
+            <span>{{ t('Span ID') }}</span>
+            <input v-model="traceSpanIdInput" type="text" class="cf-input mono cf-span-id" :placeholder="t('Whole trace')" />
+          </label>
+          <!-- Reading a trace needs traces:read, as the row links do; the
+               address can still be typed without it. -->
+          <label v-if="auth.hasVerb('traces:read')" class="cf cf-action">
+            <span>&nbsp;</span>
+            <button class="sw-btn small cf-pick-span" type="button" @click="openSpanPicker">{{ t('Pick span…') }}</button>
+          </label>
+        </template>
+        </div>
+        <div class="cf-row cf-row-3">
+        <!-- Time range — presets + Custom, which swaps to two
              datetime-local inputs (matches the trace tab). -->
         <label class="cf" :class="{ 'cf-wide': isCustomRange }">
           <span>Time range</span>
@@ -588,6 +822,15 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             <option :value="100">100</option>
           </select>
         </label>
+        <label class="cf">
+          <span>{{ t('Sort by') }}</span>
+          <select v-model="sortKey" class="cf-input cf-sort">
+            <option value="time">{{ t('Evaluation time (newest first)') }}</option>
+            <option v-if="valueType === 'SCORE'" value="score_desc">{{ t('Score (high to low)') }}</option>
+            <option v-if="valueType === 'SCORE'" value="score_asc">{{ t('Score (low to high)') }}</option>
+          </select>
+        </label>
+        </div>
       </div>
     </header>
 
@@ -599,7 +842,21 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     <!-- Histogram + main stream -->
     <section v-if="!customRangeError" class="lg-body sw-card">
       <div class="lg-main">
-        <!-- Top-of-table legend strip ??one chip per level with the
+        <!-- Trailing control: the stream waits for a provider, then for Run
+             query. Editing a condition stages it; nothing reads until then. -->
+        <div v-if="catalogFailure" class="banner err lg-catalog-failure">
+          <strong>{{ t('Evaluation catalog unreachable.') }}</strong> {{ catalogFailure }}
+          <button class="sw-btn small" type="button" @click="callerServicesQuery.refetch()">{{ t('Retry') }}</button>
+        </div>
+        <div v-else-if="!providerReady" class="lg-empty">
+          <template v-if="callerServicesLoading">{{ t('Resolving provider…') }}</template>
+          <template v-else>{{ t('Pick a provider to run this query.') }}</template>
+        </div>
+        <div v-else-if="!hasQueried" class="lg-empty">
+          {{ t('Pick your conditions, then click Run query.') }}
+        </div>
+        <template v-else>
+        <!-- Top-of-table legend strip — one chip per level with the
              in-window count when data exists. Clickable: toggles the
              level filter. The service axis is intentionally absent
              (this query is already service-scoped, so the service
@@ -617,15 +874,19 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
           >
             <span class="lvl-dot" :style="{ background: LEVEL_COLOR[l] }" />
             <span class="lg-legend-name">{{ l }}</span>
-            <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
+            <span
+                v-if="levelFacet[l] > 0"
+                class="lg-legend-count"
+                :title="t('{count} of the {n} most recent records', { count: levelFacet[l], n: levelSampleTotal })"
+            >{{ levelShare(l) }}%</span>
           </button>
-          <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
-            {{ t('sample of {n}', { n: facets.sampled }) }}
+          <span v-if="facets" class="lg-legend-sample" :title="t('{count} of the {n} most recent records', { count: facets.sampled, n: facets.sampled })">
+            {{ t('share of the newest {n}', { n: facets.sampled }) }}
           </span>
         </div>
 
-        <!-- Density bar ??x: time, y: count, color: level. Hover a
-             bin: a custom tooltip (NOT the native `title` ??the
+        <!-- Density bar — x: time, y: count, color: level. Hover a
+             bin: a custom tooltip (NOT the native `title` — the
              native cursor was rendering as a help cursor `?` instead
              of the count, which was confusing) shows the bucket time
              range + per-level counts. Axis tick labels under the bar
@@ -648,7 +909,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
                 }"
               />
             </div>
-            <!-- Custom hover tooltip ??replaces the native browser
+            <!-- Custom hover tooltip — replaces the native browser
                  tooltip which was both slow to appear AND coupled to
                  the `cursor: help` rendering (the `?` cursor was the
                  thing the operator was reporting). -->
@@ -681,11 +942,14 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
           </div>
         </div>
 
-        <!-- Stream -->
-        <div v-if="genAIEvaluationRecordStreamRows.length === 0" class="lg-empty">
+        <!-- Stream. A read in flight shows as reading, never as an empty scope. -->
+        <div v-if="genAIEvaluationRecordStreamRows.length === 0 && isFetching" class="lg-empty">
+          {{ t('Reading data…') }}
+        </div>
+        <div v-else-if="genAIEvaluationRecordStreamRows.length === 0" class="lg-empty">
           {{ t('No evaluation records returned for this scope.') }}
         </div>
-        <!-- Row click ??open the full-payload popout. The dense row
+        <!-- Row click — open the full-payload popout. The dense row
              rendering is the shared `LogStreamPanel` (same markup the
              cross-layer Log inspect uses); the popout + density bar +
              facets stay in this view. -->
@@ -697,7 +961,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
         />
         <div class="lg-pager">
           <span class="hint">
-            page {{ page }} 鐠?showing {{ genAIEvaluationRecordStreamRows.length }}
+            {{ t('page {page} · showing {shown}', { page, shown: genAIEvaluationRecordStreamRows.length }) }}
             <template v-if="total != null"> of {{ total }} total</template>
           </span>
           <div class="lg-pager-ctrls">
@@ -710,6 +974,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
             >{{ t('Next') }}</button>
           </div>
         </div>
+        </template>
       </div>
     </section>
 
@@ -718,7 +983,15 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
     <EvaluationRecordDetailPopout
         :row="popoutRow"
         @close="popoutRow = null"
-            @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType, $event.traceSegmentId, $event.traceSpanIndex, $event.traceSpanId)"
+        @jump-trace="jumpToTrace($event.traceId, $event.ts, $event.traceType, $event.traceSegmentId, $event.traceSpanIndex, $event.traceSpanId)"
+    />
+    <RelatedTraceSpanPicker
+        :open="spanPickerOpen"
+        :trace-id="traceIdRef ?? ''"
+        :trace-type="traceTypeRef"
+        :window="pickerWindow"
+        @close="spanPickerOpen = false"
+        @pick="applySpanPick"
     />
   </div>
 </template>
@@ -782,12 +1055,25 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
 }
 .sw-btn.primary:hover { background: var(--sw-accent-2); }
 .sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); }
-.lg-conditions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px 10px;
+.lg-conditions { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+/* Fixed rows: what belongs together stays together, and a control that
+   appears or disappears (the value's operand, the trace address) never
+   reflows its neighbours. */
+.cf-row { display: grid; gap: 8px 10px; }
+.cf-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cf-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cf-row-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .cf-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* The type-to-filter pickers take the native inputs' metrics, so a row of
+   mixed controls sits on one line at one height. */
+.cf :deep(.tas__trigger) {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--sw-fg-0);
+  min-width: 0;
+  max-width: none;
 }
-@media (max-width: 900px) { .lg-conditions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .cf {
   display: flex;
   flex-direction: column;
@@ -798,6 +1084,8 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
   min-width: 0;
 }
 .cf.cf-wide { grid-column: span 2; }
+.cf.cf-action { justify-content: flex-end; }
+.cf.cf-action .sw-btn { align-self: flex-start; }
 .cf-input {
   height: 28px;
   padding: 0 8px;
@@ -813,7 +1101,11 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
 .cf-input:focus { outline: none; border-color: var(--sw-accent-line); }
 .cf-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .cf-range { display: flex; align-items: center; gap: 4px; }
-.cf-range-num { flex: 1; min-width: 0; }
+.cf-range-num { flex: 1 1 0; min-width: 5.5ch; }
+/* The type select's full-width basis would otherwise take the whole cell and
+   crush the bounds beside it to slivers. */
+.cf-range .cf-value-type { flex: 0 1 44%; width: auto; }
+.cf-range .cf-boolean-value { flex: 1 1 0; width: auto; }
 .cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
 
 /* Endpoint combobox = single search input + anchored dropdown.
@@ -898,7 +1190,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
   padding: 0;
   min-height: 540px;
 }
-/* Top-of-table level legend ??chips sit above the density bar so the
+/* Top-of-table level legend — chips sit above the density bar so the
    level counts surface at the same scan line the user reads the
    timeline. Clicking a chip filters the stream to that level. */
 .lg-legend {
@@ -987,13 +1279,13 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
   background: var(--sw-bg-2);
   border-radius: 1px;
   overflow: hidden;
-  /* No `cursor: help` ??the `?` cursor was misread as a UI error.
+  /* No `cursor: help` — the `?` cursor was misread as a UI error.
      The bin reads as informational (hover surfaces a count tooltip),
      so a default pointer is the right affordance. */
 }
 .lg-density-bin:hover { outline: 1px solid var(--sw-accent-line); }
 .lg-density-segment { display: block; }
-/* Custom hover tooltip ??anchored to the hovered bin via the
+/* Custom hover tooltip — anchored to the hovered bin via the
    `left: <bin-center>%` inline style. Wider than a single bin so it
    doesn't clip; transforms back by 50% to centre on the bin. */
 .lg-density-tip {
@@ -1018,7 +1310,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
 .lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 .lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: capitalize; }
 .lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* X-axis tick strip ??5 evenly-spaced labels (start / 25% / 50% /
+/* X-axis tick strip — 5 evenly-spaced labels (start / 25% / 50% /
    75% / end) underneath the bars, in tabular nums so they line up. */
 .lg-density-axis {
   display: flex;
@@ -1064,7 +1356,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
   .lg-legend-chip { padding: 2px 7px; font-size: 11px; }
 }
 
-/* Active tag chips ??markup + visuals lifted from `LayerTracesView`
+/* Active tag chips — markup + visuals lifted from `LayerTracesView`
    so the two pages read identically. */
 .tr-tag-row {
   display: flex;

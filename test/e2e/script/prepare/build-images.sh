@@ -42,19 +42,23 @@ HORIZON_E2E_IMAGE=$(val HORIZON_E2E_IMAGE)
 
 AGENT_IMAGE="ghcr.io/apache/skywalking-java/skywalking-java:${SW_AGENT_JAVA_COMMIT}-java${SW_AGENT_JDK_VERSION}"
 
+# <local name> <upstream image>: the upstream app image's jar on the agent image.
 build_demo() {
-  local role="$1"
-  echo "▸ building horizon-e2e-demo-${role}:${SW_E2E_SERVICE_COMMIT}"
+  local name="$1" upstream="$2"
+  echo "▸ building horizon-e2e-demo-${name}:${SW_E2E_SERVICE_COMMIT}"
   docker build \
     --build-arg "AGENT_IMAGE=${AGENT_IMAGE}" \
-    --build-arg "APP_IMAGE=ghcr.io/apache/skywalking/e2e-service-${role}:${SW_E2E_SERVICE_COMMIT}" \
-    -t "horizon-e2e-demo-${role}:${SW_E2E_SERVICE_COMMIT}" \
+    --build-arg "APP_IMAGE=ghcr.io/apache/skywalking/${upstream}:${SW_E2E_SERVICE_COMMIT}" \
+    -t "horizon-e2e-demo-${name}:${SW_E2E_SERVICE_COMMIT}" \
     -f "${here}/Dockerfile.demo-service" \
     "${here}"
 }
 
-build_demo provider
-build_demo consumer
+build_demo provider e2e-service-provider
+build_demo consumer e2e-service-consumer
+# The genai case's Spring AI app. Spring AI needs Java 17, which is the JDK
+# the agent image above is pinned at.
+build_demo spring-ai e2e-spring-ai-service
 
 # Horizon last: it is the slow one, and a failure in the cheap builds above
 # should surface first.
