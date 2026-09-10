@@ -25,6 +25,7 @@ import { SessionStore } from '../../user/sessions.js';
 import { makeRouteAuthHook } from '../../rbac/route-policy.js';
 import { resetServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { fetchEvaluationRecords, registerEvaluationRecordRoute } from './evaluation-record.js';
+import { registerLandingRoute } from './landing.js';
 
 interface Paging { pageNum: number; pageSize: number }
 
@@ -38,7 +39,10 @@ function json(body: unknown): Response {
 }
 
 function fakeConfig(): ConfigSource {
-  const cfg = configSchema.parse({ oap: { queryUrl: 'http://evaluation-test.invalid' } });
+  const cfg = configSchema.parse({
+    oap: { queryUrl: 'http://evaluation-test.invalid' },
+    rbac: { roles: { admin: ['*'], 'logs-only': ['logs:read'] } },
+  });
   return { current: cfg, current_: () => cfg, path: '', onChange: () => () => {}, close: async () => {} };
 }
 
@@ -68,15 +72,16 @@ function fakeRouteOap(): { fetch: FetchLike; calls: CapturedCall[] } {
   return { fetch, calls };
 }
 
-async function buildRoute(fetch: FetchLike): Promise<{ app: FastifyInstance; sid: string }> {
+async function buildRoute(fetch: FetchLike, role = 'admin'): Promise<{ app: FastifyInstance; sid: string }> {
   const config = fakeConfig();
   const sessions = new SessionStore({ ttlMinutes: 60 });
   const app = Fastify();
   await app.register(cookie);
   app.addHook('onRoute', makeRouteAuthHook({ config, sessions }));
   registerEvaluationRecordRoute(app, { config, sessions, fetch });
+  registerLandingRoute(app, { config, sessions, fetch });
   await app.ready();
-  return { app, sid: sessions.create('op', ['admin']).sid };
+  return { app, sid: sessions.create('op', [role]).sid };
 }
 
 beforeEach(() => resetServiceLayerCatalog());
@@ -136,6 +141,57 @@ describe('evaluation-record paging', () => {
 });
 
 describe('evaluation-record route scope and time window', () => {
+  it('denies metric expressions to a logs-only user while allowing the evaluation catalog', async () => {
+    const oap = fakeRouteOap();
+    const { app, sid } = await buildRoute(oap.fetch, 'logs-only');
+    try {
+      const headers = { cookie: `horizon_sid=${sid}` };
+      const denied = await app.inject({
+        method: 'POST', url: '/api/layer/general/landing', headers,
+        payload: { topN: 1, orderBy: 'x', columns: [{ metric: 'x', label: 'x', mqe: 'service_cpm' }] },
+      });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ error: 'permission_denied', verb: 'metrics:read' });
+      expect(oap.calls).toHaveLength(0);
+      const catalog = await app.inject({ method: 'GET', url: '/api/evaluation-record/caller-services', headers });
+      expect(catalog.statusCode).toBe(200);
+      expect(catalog.json().services).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'service-openai-id' })]));
+      expect(oap.calls.some((call) => call.query.includes('execExpression'))).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each([
+    [0.0079, 7900, 7900], [0.0157, 15700, 15700],
+    [0.0079001, 7901, 7900], [0.0156999, 15700, 15699],
+    [5e-7, 1, 0], [-5e-7, 0, -1], [-0.0079001, -7900, -7901],
+    [0, 0, 0], [1, 1_000_000, 1_000_000],
+  ])('preserves decimal score %s in list, probe and facets bounds', async (score, minScore, maxScore) => {
+    const oap = fakeRouteOap();
+    await fetchEvaluationRecords(
+      { queryUrl: 'http://oap.invalid', timeoutMs: 1_000, fetch: oap.fetch },
+      { valueType: 'SCORE', minScore: score, maxScore: score },
+      { start: '2026-01-01 000000', end: '2026-01-01 010000' },
+      { pageNum: 2, pageSize: 50 }, false,
+    );
+    const list = oap.calls.find((call) => call.query.includes('QueryGenAIEvaluationRecords'))!;
+    expect(list.variables.condition).toMatchObject({ minScore, maxScore });
+    expect(list.variables.probe).toMatchObject({ minScore, maxScore });
+    const { app, sid } = await buildRoute(oap.fetch);
+    try {
+      const res = await app.inject({
+        method: 'POST', url: '/api/layer/virtual_genai/evaluation-records/facets',
+        headers: { cookie: `horizon_sid=${sid}` },
+        payload: { valueType: 'SCORE', minScore: score, maxScore: score },
+      });
+      expect(res.statusCode).toBe(200);
+      const facets = oap.calls.find((call) => call.query.includes('QueryGenAIEvaluationRecordFacets'))!;
+      expect(facets.variables.evaluationRecordCondition).toMatchObject({ minScore, maxScore });
+    } finally {
+      await app.close();
+    }
+  });
   it('resolves a service name and formats epoch milliseconds in the OAP timezone', async () => {
     const oap = fakeRouteOap();
     const { app, sid } = await buildRoute(oap.fetch);

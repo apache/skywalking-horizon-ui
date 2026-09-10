@@ -70,8 +70,19 @@ function optionalFiniteNumber(value: unknown): number | null {
 
 function scoreBoundToStoredValue(value: number | null, lowerBound: boolean): number | null {
   if (value == null) return null;
-  const scaled = value * SCORE_SCALE;
-  return lowerBound ? Math.ceil(scaled) : Math.floor(scaled);
+  // Scale the decimal representation exactly. Binary multiplication can move
+  // an inclusive boundary by one PPM (e.g. 0.0079 * 1e6 > 7900).
+  const [mantissa, exponent = '0'] = value.toString().split('e');
+  const decimals = mantissa.split('.')[1]?.length ?? 0;
+  const coefficient = BigInt(mantissa.replace('.', ''));
+  const shift = Number(exponent) + 6 - decimals;
+  if (shift >= 0) return Number(coefficient * 10n ** BigInt(shift));
+  const divisor = 10n ** BigInt(-shift);
+  const whole = coefficient / divisor;
+  const remainder = coefficient % divisor;
+  const adjustment = remainder === 0n ? 0n
+    : lowerBound ? (remainder > 0n ? 1n : 0n) : (remainder < 0n ? -1n : 0n);
+  return Number(whole + adjustment);
 }
 
 /** Build the log query window as SECOND-precision strings. Logs are

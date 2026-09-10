@@ -83,7 +83,7 @@ export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
   };
 }
 
-function checkAnyVerb(deps: AuthDeps, verbs: readonly string[]) {
+export function checkAnyVerb(deps: AuthDeps, verbs: readonly string[]) {
   return async function anyVerbPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const session = req.session;
     if (!session) return void reply.code(401).send({ error: 'unauthenticated' });
@@ -193,7 +193,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // dashboard author can test their own MQE.
   'POST /api/mqe/exec':                            'metrics:read',
   'GET /api/layer/:key/dashboard/config':          'metrics:read',
-  'POST /api/layer/:key/landing':                  { anyOf: ['metrics:read', 'logs:read'] },
+  'POST /api/layer/:key/landing':                  'metrics:read',
   'GET /api/layer/:key/instances':                 { anyOf: ['metrics:read', 'logs:read'] },
   'GET /api/layer/:key/endpoints':                 'metrics:read',
   'GET /api/layer/:key/services':                  'metrics:read',

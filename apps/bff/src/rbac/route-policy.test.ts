@@ -20,6 +20,7 @@ import type { FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
 import {
   ROUTE_POLICY,
   checkVerb,
+  checkAnyVerb,
   makeRouteAuthHook,
   isTemplateWriteRoute,
   denyTemplateWriteWhenReadOnly,
@@ -82,7 +83,9 @@ describe('the live-debug policy is read to watch, write to run', () => {
   async function decide(route: string, role: string): Promise<{ code?: number; body?: unknown }> {
     const policy = ROUTE_POLICY[route];
     if (policy === undefined) throw new Error(`no ROUTE_POLICY entry for ${route}`);
-    return run(checkVerb(deps, policy), role);
+    return run(typeof policy === 'object' && !Array.isArray(policy)
+      ? checkAnyVerb(deps, policy.anyOf)
+      : checkVerb(deps, policy), role);
   }
 
   it('lets a read-only live-debug role read sessions and cluster status', async () => {
@@ -198,17 +201,22 @@ describe('evaluation record selector route policies', () => {
     const options = { method: route.slice(0, split), url: route.slice(split + 1) } as RouteOptions;
     makeRouteAuthHook(deps)(options);
     const handlers = (Array.isArray(options.preHandler) ? options.preHandler : []) as PreHandler[];
-    const gate = handlers.find((handler) => handler.name === 'anyVerbPreHandler');
+    const gate = handlers.find((handler) => ['anyVerbPreHandler', 'verbOnlyPreHandler'].includes(handler.name));
     expect(gate).toBeDefined();
     return run(gate!, role);
   }
   it('allows either metrics:read or logs:read', async () => {
-    for (const route of ['POST /api/layer/:key/landing', 'GET /api/layer/:key/instances']) {
+    for (const route of ['GET /api/layer/:key/instances']) {
       expect(await decide(route, 'logs-only')).toEqual({});
       expect(await decide(route, 'metrics-only')).toEqual({});
     }
   });
   it('denies a role with neither permission', async () => {
-    expect(await decide('POST /api/layer/:key/landing', 'empty')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read or logs:read' } });
+    expect(await decide('GET /api/layer/:key/instances', 'empty')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read or logs:read' } });
+  });
+  it('requires metrics:read for landing and permits logs:read on the evaluation catalog', async () => {
+    expect(await decide('POST /api/layer/:key/landing', 'logs-only')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read' } });
+    expect(await decide('POST /api/layer/:key/landing', 'metrics-only')).toEqual({});
+    expect(await decide('GET /api/evaluation-record/caller-services', 'logs-only')).toEqual({});
   });
 });

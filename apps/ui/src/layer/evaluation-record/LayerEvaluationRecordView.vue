@@ -78,7 +78,6 @@ const service = computed<ServiceRef | null>(() => {
   const candidate = selectedService.value;
   return candidate ? serviceRef(candidate.id, candidate.name, candidate.normal) : null;
 });
-const serviceName = computed(() => selectedService.value?.name ?? null);
 watch(callerServices, (services) => {
   if (!selectedId.value && services.length > 0) setSelectedService(services[0].id);
 }, { immediate: true });
@@ -89,25 +88,45 @@ watch(providerIdParam, (providerId) => {
 // selector plumbing, but the UI labels it by the GenAI domain concept.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const { instances: instanceList } = useLayerInstances(layerKey, service);
-// Logs (and traces) intentionally do NOT auto-select an instance.
-// Default is `All` so the stream starts broad; the operator opts into
-// narrowing by picking from the dropdown. Auto-selection is reserved
-// for metrics-scope pages (instance / endpoint dashboards), where a
-// chosen entity is needed to render the metric widgets at all.
-watch(serviceName, (next, prev) => {
-  if (prev !== undefined && next !== prev && selectedInstance.value) {
+// Keep the query identity independently of the recent instance roster: an
+// inactive historical model may never appear in that roster.
+const selectedModelId = ref<string | null>(modelIdParam.value);
+let modelSelectionExplicit = modelIdParam.value != null;
+watch(modelIdParam, (modelId) => {
+  selectedModelId.value = modelId;
+  modelSelectionExplicit = true;
+});
+watch(instanceList, (instances) => {
+  if (!modelSelectionExplicit && !selectedModelId.value && selectedInstance.value) {
+    selectedModelId.value = instances.find((i) => i.name === selectedInstance.value)?.id ?? null;
+  }
+}, { immediate: true });
+watch(selectedId, (next, prev) => {
+  if (!prev || next === prev) return;
+  if (next === providerIdParam.value && modelIdParam.value) {
+    selectedModelId.value = modelIdParam.value;
+    modelSelectionExplicit = true;
     setSelectedInstance(null);
+  } else {
+    changeModel(null);
   }
 });
-const selectedInstanceObj = computed(() =>
-    selectedInstance.value
-        ? instanceList.value.find((i) => i.name === selectedInstance.value) ?? null
-        : null,
-);
-watch([modelIdParam, instanceList], ([modelId, instances]) => {
-  const model = modelId ? instances.find((instance) => instance.id === modelId) : null;
-  if (model && selectedInstance.value !== model.name) setSelectedInstance(model.name);
-}, { immediate: true });
+function changeModel(modelId: string | null): void {
+  modelSelectionExplicit = true;
+  selectedModelId.value = modelId;
+  setSelectedInstance(instanceList.value.find((i) => i.id === modelId)?.name ?? null);
+  const query = { ...route.query };
+  if (modelId) query.modelId = modelId;
+  else delete query.modelId;
+  void router.replace({ path: route.path, query });
+}
+const modelOptions = computed(() => {
+  const instances = instanceList.value;
+  const id = selectedModelId.value;
+  return id && !instances.some((i) => i.id === id)
+    ? [{ id, name: id }, ...instances]
+    : instances;
+});
 
 // 闁冲厜鍋撻柍鍏夊亾 Query state 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾
 // Trace ID is seeded by the route and remains editable in the condition bar.
@@ -157,7 +176,7 @@ const traceIdRef = computed<string | null>(() => {
 const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>('SKYWALKING_NATIVE');
 const serviceId = ref('');
 const providerIdRef = computed<string | null>(() => selectedId.value);
-const modelIdRef = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
+const modelIdRef = computed<string | null>(() => selectedModelId.value);
 const keywordsRef = computed<string[]>(() => []);
 
 function changeValueType(): void {
@@ -432,6 +451,7 @@ function fmtAxisTime(ts: number): string {
  *  window ??without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
 function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null, traceSegmentId?: string | null, traceSpanIndex?: number | null, traceSpanId?: string | null): void {
+  popoutRow.value = null;
   openResultTrace({
     type: traceType ?? 'SKYWALKING_NATIVE',
     traceId,
@@ -460,11 +480,11 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
           <span>Model</span>
           <select
               class="cf-input"
-              :value="selectedInstance ?? ''"
-              @change="setSelectedInstance(($event.target as HTMLSelectElement).value || null)"
+              :value="selectedModelId ?? ''"
+              @change="changeModel(($event.target as HTMLSelectElement).value || null)"
           >
             <option value="">All</option>
-            <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
+            <option v-for="i in modelOptions" :key="i.id" :value="i.id">{{ i.name }}</option>
           </select>
         </label>
         <label class="cf">
@@ -1079,5 +1099,3 @@ function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE
 .tag-x:hover { color: var(--sw-err); }
 
 </style>
-
-
