@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -151,6 +151,13 @@ export type {
   LogsResponse,
   LogFacetsResponse,
 } from './logs.js';
+export type {
+  EvaluationRecordQueryRequest,
+  EvaluationRecordFacetsResponse,
+  EvaluationRecordRow,
+  EvaluationRecordsResponse,
+  EvaluationCallerService,
+} from './evaluation-record.js';
 export type {
   BrowserErrorCategory,
   BrowserErrorRow,

@@ -48,12 +48,14 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
+import { useAuthStore } from '@/state/auth';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
 
 const { t } = useI18n({ useScope: 'global' });
+const auth = useAuthStore();
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -219,6 +221,7 @@ const {
   // pages, but nothing on this page may present it — a page that filters
   // it out shows `effectiveInstance`, and reading the shared value here is
   // how metrics for one instance got labelled with another's name.
+  selectedInstance,
   setSelectedInstance,
   lockedInstanceNames,
   toggleLockInstance,
@@ -236,6 +239,11 @@ const {
   service,
   layer,
   computed(() => pageId.value ?? null),
+);
+const effectiveInstanceId = computed<string | null>(() =>
+  effectiveInstance.value == null
+    ? null
+    : instanceList.value.find((instance) => instance.name === effectiveInstance.value)?.id ?? null,
 );
 const {
   selectedEndpoint,
@@ -543,6 +551,19 @@ function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
   const m = w.traceDrill?.mode;
   return m === 'latency' || m === 'error' ? m : null;
 }
+function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
+  return (
+    layerKey.value.toUpperCase() === 'VIRTUAL_GENAI' &&
+    layer.value?.caps?.evaluationRecord === true &&
+    auth.hasVerb('logs:read') &&
+    scope.value === 'instance' &&
+    w.type === 'line' &&
+    w.id === 'evaluation score' &&
+    !!serviceName.value &&
+    !!selectedId.value &&
+    !!selectedInstance.value
+  );
+}
 function drillCenterMs(dataIndex: number, len: number): number {
   const { startMs, endMs } = timeRange.range;
   if (len <= 1) return endMs;
@@ -572,6 +593,7 @@ const gridEl = ref<HTMLElement | null>(null);
 const drill = ref<{
   widgetId: string;
   point: { x: number; y: number };
+  path: string;
   query: Record<string, string>;
   title: string;
   meta: string;
@@ -582,9 +604,29 @@ function onDrillPoint(
   p: { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
 ): void {
   const mode = traceDrillMode(w);
-  if (!mode) return;
+  const evaluationRecordDrill = evaluationRecordDrillEnabled(w);
+  if (!mode && !evaluationRecordDrill) return;
   const len = resultsById.value.get(w.id)?.series?.[0]?.data.length ?? 0;
   const win = drillWindow(p.dataIndex, len);
+  if (evaluationRecordDrill) {
+    drill.value = {
+      widgetId: w.id,
+      point: { x: p.x, y: p.y },
+      path: `/layer/${layerKey.value}/evaluation-record`,
+      query: {
+        providerId: selectedId.value!,
+        modelId: effectiveInstanceId.value!,
+        startTime: String(win.fromMs),
+        endTime: String(win.toMs),
+        ...(p.seriesName ? { taskName: p.seriesName } : {}),
+      },
+      title: w.title,
+      meta: t('around {t}', { t: bucketTimeLabel(timeRange.step, win.labelMs) }),
+      label: t('View evaluation records'),
+    };
+    return;
+  }
+  if (!mode) return;
   const ms = Math.max(0, Math.round(p.value));
   const query: Record<string, string> = {
     dMode: mode,
@@ -600,6 +642,7 @@ function onDrillPoint(
   drill.value = {
     widgetId: w.id,
     point: { x: p.x, y: p.y },
+    path: `/layer/${layerKey.value}/trace`,
     query,
     title: w.title,
     meta:
@@ -613,7 +656,7 @@ function openDrill(): void {
   const d = drill.value;
   if (!d) return;
   drill.value = null;
-  const href = router.resolve({ path: `/layer/${layerKey.value}/trace`, query: d.query }).href;
+  const href = router.resolve({ path: d.path, query: d.query }).href;
   window.open(href, '_blank', 'noopener');
 }
 function closeDrill(): void {
@@ -887,6 +930,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         :compare-table-rows="compareTableRows"
         :compare-table-entities="compareTableEntities"
         :trace-drill-mode="traceDrillMode"
+        :evaluation-record-drill-enabled="evaluationRecordDrillEnabled"
         :on-drill-point="onDrillPoint"
         :drill-open-id="drill?.widgetId ?? null"
         @switch-tab="setActiveTab(w.id, $event)"

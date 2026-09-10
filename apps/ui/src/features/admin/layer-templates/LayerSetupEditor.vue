@@ -76,6 +76,7 @@ const COMPONENT_TOGGLES = computed((): Array<{ key: ComponentKey; label: string;
   { key: 'endpointDependency', label: t('API dependency'), hint: t('Endpoint-to-endpoint dependency view.') },
   { key: 'traces', label: t('Traces'), hint: t('Trace explorer scoped to this layer.') },
   { key: 'logs', label: t('Logs'), hint: t('Log explorer scoped to this layer.') },
+  { key: 'evaluationRecord', label: t('Evaluation Record'), hint: t('GenAI evaluation record explorer scoped to this layer.') },
   { key: 'browserErrors', label: t('Browser Logs'), hint: t('BROWSER-layer JS error logs with source-map de-obfuscation of the minified stack.') },
   { key: 'podLogs', label: t('Pod Logs'), hint: t('On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.') },
   { key: 'traceProfiling', label: t('Trace Profiling'), hint: t('Trace-driven thread profiling — the original SkyWalking profile.') },

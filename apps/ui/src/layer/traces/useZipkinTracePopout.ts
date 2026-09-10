@@ -21,6 +21,7 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
+import { withTraceFocus, clearTraceFocus } from './tracePopoutQuery';
 
 // Native vs Zipkin keys on the trace source, not the ID shape — native IDs
 // can be bare hex, same as Zipkin. An explicit `?source=` (written by the
@@ -30,6 +31,8 @@ export function useTraceSourceIsZipkin() {
   const route = useRoute();
   const { layers } = useLayers();
   return computed<boolean>(() => {
+    if (route.query.traceType === 'OTLP') return true;
+    if (route.query.traceType === 'SKYWALKING_NATIVE') return false;
     const src = route.query.source;
     if (src === 'zipkin') return true;
     if (src === 'native') return false;
@@ -62,6 +65,15 @@ export function zipkinPopoutWindow(query: Record<string, unknown>): { endTs: num
 
 const HALF_DAY_MS = 12 * 60 * 60_000;
 
+interface ZipkinTraceOpenOptions {
+  endTs?: number | null;
+  lookback?: number | null;
+  at?: number | null;
+  segmentId?: string | null;
+  spanIndex?: number | null;
+  spanId?: string | null;
+}
+
 export function useZipkinTracePopout() {
   const route = useRoute();
   const router = useRouter();
@@ -75,29 +87,32 @@ export function useZipkinTracePopout() {
 
   /** Open a trace; `window` is the list window it was pasted or picked
    *  in, `at` the moment a row gave — either bounds the lookup. */
-  function openTrace(id: string, hint?: { endTs?: number | null; lookback?: number | null; at?: number | null }): void {
+  function openTrace(id: string, options?: ZipkinTraceOpenOptions): void {
     if (!id) return;
-    const next: Record<string, string> = { ...(route.query as Record<string, string>), traceId: id };
+    // Force the shared trace-id popout coordinator to select the Zipkin
+    // renderer even when the current layer's default source is native.
+    const next = withTraceFocus({ ...route.query, traceId: id, traceType: 'OTLP' as const }, options);
     delete next.traceAt;
     delete next.traceEnd;
     delete next.traceLookback;
     const given = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
-    if (given(hint?.lookback)) {
-      next.traceEnd = String(given(hint?.endTs) ? hint!.endTs : Date.now());
-      next.traceLookback = String(hint!.lookback);
-    } else if (given(hint?.at)) {
-      next.traceAt = String(hint!.at);
+    if (given(options?.lookback)) {
+      next.traceEnd = String(given(options?.endTs) ? options.endTs : Date.now());
+      next.traceLookback = String(options.lookback);
+    } else if (given(options?.at)) {
+      next.traceAt = String(options.at);
     }
     void router.replace({ path: route.path, query: next });
   }
 
   function closeTrace(): void {
     if (!openTraceId.value) return;
-    const next = { ...route.query };
+    const next = clearTraceFocus({ ...route.query });
     delete next.traceId;
     delete next.traceAt;
     delete next.traceEnd;
     delete next.traceLookback;
+    if (next.traceType === 'OTLP') delete next.traceType;
     void router.replace({ path: route.path, query: next });
   }
 

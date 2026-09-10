@@ -64,6 +64,7 @@ export interface LayerCaps {
   dashboards?: boolean;
   traces?: boolean;
   logs?: boolean;
+  evaluationRecord?: boolean;
   /** Per-layer "Browser Errors" tab — BROWSER-layer JS error logs with
    *  source-map de-obfuscation of the minified stack (#6784). */
   browserErrors?: boolean;

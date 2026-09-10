@@ -40,7 +40,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 import { RESERVED_VERBS, VERBS, hasVerb } from './verbs.js';
-import { ROUTE_POLICY } from './route-policy.js';
+import { ROUTE_POLICY, type RoutePolicy } from './route-policy.js';
 import { configSchema } from '../config/schema.js';
 
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -80,9 +80,15 @@ function code(src: string): string {
 
 const KNOWN_VERBS = new Set<string>(Object.values(VERBS));
 
-/** Every verb any route requires, conjunctions flattened. */
+function policyVerbs(policy: RoutePolicy): readonly string[] {
+  if (policy === 'public' || policy === 'auth') return [];
+  if (Array.isArray(policy)) return policy;
+  return typeof policy === 'object' ? policy.anyOf : [policy];
+}
+
+/** Every verb any route checks, conjunctions and alternatives flattened. */
 const POLICY_VERBS = new Set(
-  Object.values(ROUTE_POLICY).flatMap((p) => (Array.isArray(p) ? p : [p])),
+  Object.values(ROUTE_POLICY).flatMap(policyVerbs),
 );
 
 /** A call that can deny the request. `hasVerb` covers the UI's
@@ -349,7 +355,7 @@ describe('the live debugger is gated on live-debug alone', () => {
   it('no /api/debug/* route requires a rule verb', () => {
     for (const [route, policy] of Object.entries(ROUTE_POLICY)) {
       if (!route.includes(' /api/debug/')) continue;
-      const verbs = Array.isArray(policy) ? policy : [policy];
+      const verbs = policyVerbs(policy);
       expect(verbs.filter((v) => v.startsWith('rule:')), route).toEqual([]);
     }
   });
