@@ -58,18 +58,15 @@ const { data: ttl } = useTtl();
  *  a cold tier at all.
  *
  *  This is the cold scope, not the storage's class list — Horizon sends the
- *  flag for traces, logs and metrics and nowhere else. Two classes are
- *  therefore deliberately absent:
+ *  flag for traces, logs and metrics and nowhere else. One class is
+ *  therefore deliberately absent: `records.normal` — alarms, events,
+ *  profiling and the rest of the group stay hot by design, so a shallow
+ *  retention there would fire this banner (and deepen its advice) over data
+ *  no cold read ever asks for.
  *
- *  - `records.normal` — alarms, events, profiling and the rest of the group
- *    stay hot by design, so a shallow retention there would fire this banner
- *    (and deepen its advice) over data no cold read ever asks for.
- *  - `records.zipkinTrace` — the Zipkin query endpoint takes no stage
- *    parameter, so the Zipkin trace route sends none. See apache/skywalking
- *    issue #14045, which proposes one.
- *
- *  Browser error logs ARE here: that route reads them as logs and does send
- *  the flag. */
+ *  Zipkin traces ARE here: OAP's Zipkin API takes the stage as its own
+ *  `coldStage` addition and the Zipkin routes send it. So are browser error
+ *  logs, read as logs. */
 const classes = computed<Array<{ hot: number; hasCold: boolean }>>(() => {
   const hot = ttl.value?.stages?.hot;
   if (!hot) return [];
@@ -83,6 +80,7 @@ const classes = computed<Array<{ hot: number; hasCold: boolean }>>(() => {
     pick(hot.metrics.hour, cold?.metrics.hour),
     pick(hot.metrics.day, cold?.metrics.day),
     pick(hot.records.trace, cold?.records.trace),
+    pick(hot.records.zipkinTrace, cold?.records.zipkinTrace),
     pick(hot.records.log, cold?.records.log),
     pick(hot.records.browserErrorLog, cold?.records.browserErrorLog),
   ].filter((c): c is { hot: number; hasCold: boolean } => c !== null);

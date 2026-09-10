@@ -111,7 +111,7 @@ it('warns on the shallowest class it actually reads, not the shallowest there is
   ttl.value = {
     stages: {
       hot: {
-        records: { normal: 1, trace: 30, log: 30, zipkinTrace: 1, browserErrorLog: 30 },
+        records: { normal: 1, trace: 30, log: 30, zipkinTrace: 30, browserErrorLog: 30 },
         metrics: { minute: 30, hour: 30, day: 30, metadata: 30 },
       },
       cold: {

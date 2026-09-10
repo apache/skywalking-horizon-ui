@@ -479,6 +479,16 @@ async function runQuery(): Promise<void> {
     running.value = false;
     return;
   }
+  // The window this run reads, kept for the Zipkin detail: a by-id lookup
+  // bounded where the list found the trace, which with the Cold pill on is
+  // what finds it at all.
+  if (zipkin) {
+    const w = req.window;
+    zipkinDetailWindow.value =
+      typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs
+        ? { endTs: w.endMs, lookback: w.endMs - w.startMs }
+        : { endTs: Date.now(), lookback: (w.windowMinutes ?? 30) * 60_000 };
+  }
   try {
     const res = await bffClient.explore.query(req);
     if (res.kind === 'trace' && res.traceSource === 'native') {
@@ -559,8 +569,12 @@ const sourceRef = ref<'native' | 'zipkin'>('native');
 // segment-id → queryTrace path; the zipkin detail is layer-less.
 const nativeDetailTraceId = computed<string | null>(() => (isZipkin.value ? null : selectedTraceId.value));
 const zipkinDetailTraceId = computed<string | null>(() => (isZipkin.value ? selectedTraceId.value : null));
+const zipkinDetailWindow = ref<{ endTs: number; lookback: number } | null>(null);
 const { nativeDetail, isFetching: detailFetching } = useTraceDetail(nativeDetailTraceId, sourceRef);
-const { spans: zipkinSpans, isFetching: zipkinDetailFetching } = useZipkinTrace(zipkinDetailTraceId);
+const { spans: zipkinSpans, isFetching: zipkinDetailFetching } = useZipkinTrace(zipkinDetailTraceId, undefined, {
+  endTs: computed(() => zipkinDetailWindow.value?.endTs ?? null),
+  lookback: computed(() => zipkinDetailWindow.value?.lookback ?? null),
+});
 const waterfallSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
 const detailLoading = computed(() => (isZipkin.value ? zipkinDetailFetching.value : detailFetching.value));
 

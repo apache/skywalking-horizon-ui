@@ -120,10 +120,19 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
   };
 }
 
-export function useZipkinTrace(traceId: Ref<string | null>, replay?: Ref<boolean>) {
+export function useZipkinTrace(
+  traceId: Ref<string | null>,
+  replay?: Ref<boolean>,
+  /** The list's window, so a cold-stage lookup is bounded where the trace was found. */
+  window?: { endTs?: Ref<number | null>; lookback?: Ref<number | null> },
+) {
   const q = useQuery<ZipkinTraceDetailResponse>({
-    queryKey: ['zipkin-trace', traceId],
-    queryFn: () => bffClient.zipkin.trace(traceId.value!),
+    queryKey: ['zipkin-trace', traceId, window?.endTs ?? computed(() => null), window?.lookback ?? computed(() => null)],
+    queryFn: () =>
+      bffClient.zipkin.trace(traceId.value!, {
+        endTs: window?.endTs?.value ?? null,
+        lookback: window?.lookback?.value ?? null,
+      }),
     // Replay rows carry their spans inline, so the by-id fallback never fires.
     enabled: computed(() => Boolean(traceId.value) && !replay?.value),
     staleTime: 60_000,

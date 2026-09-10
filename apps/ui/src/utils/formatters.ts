@@ -130,3 +130,26 @@ export function fmtMetricAs(
   }
   return fmtMetric(v);
 }
+
+/**
+ * How long ago a moment was, in the largest two units that fit, so an age
+ * past a day reads as days and hours rather than as a pile of hours.
+ * `t` is the caller's translator: the four texts are catalog keys.
+ */
+export function relativeAgo(
+  ts: number | null | undefined,
+  t: (key: string, named?: Record<string, unknown>) => string,
+  now = Date.now(),
+): string {
+  if (!ts || !Number.isFinite(ts)) return '—';
+  const ms = now - ts;
+  if (ms < 1000) return t('just now');
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return t('{n}s ago', { n: s });
+  const m = Math.floor(s / 60);
+  if (m < 60) return t('{n}m ago', { n: m });
+  const h = Math.floor(m / 60);
+  if (h < 24) return t('{h}h {m}m ago', { h, m: m % 60 });
+  return t('{d}d {h}h ago', { d: Math.floor(h / 24), h: h % 24 });
+}
+

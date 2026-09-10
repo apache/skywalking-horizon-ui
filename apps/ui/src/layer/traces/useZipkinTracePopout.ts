@@ -39,6 +39,29 @@ export function useTraceSourceIsZipkin() {
   });
 }
 
+/** The window a popped-out Zipkin trace is looked up in, from the address:
+ *  the list's window when the id was opened from one (`traceEnd` +
+ *  `traceLookback`), else half a day either side of the moment a row gave
+ *  (`traceAt`, as the native popout does), else nothing. With nothing and
+ *  the Cold pill off, OAP looks the id up unbounded; with the pill on it
+ *  searches its default day, which a cold trace is older than — so the
+ *  window is what finds a cold trace at all. */
+export function zipkinPopoutWindow(query: Record<string, unknown>): { endTs: number; lookback: number } | null {
+  const num = (k: string): number | null => {
+    const v = query[k];
+    const n = typeof v === 'string' ? Number(v) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const end = num('traceEnd');
+  const lookback = num('traceLookback');
+  if (end !== null && lookback !== null) return { endTs: end, lookback };
+  const at = num('traceAt');
+  if (at !== null) return { endTs: at + HALF_DAY_MS, lookback: 2 * HALF_DAY_MS };
+  return null;
+}
+
+const HALF_DAY_MS = 12 * 60 * 60_000;
+
 export function useZipkinTracePopout() {
   const route = useRoute();
   const router = useRouter();
@@ -48,10 +71,24 @@ export function useZipkinTracePopout() {
     const v = route.query.traceId;
     return typeof v === 'string' && v.length > 0 && sourceIsZipkin.value ? v : null;
   });
+  const openTraceWindow = computed(() => (openTraceId.value ? zipkinPopoutWindow(route.query as Record<string, unknown>) : null));
 
-  function openTrace(id: string): void {
+  /** Open a trace; `window` is the list window it was pasted or picked
+   *  in, `at` the moment a row gave — either bounds the lookup. */
+  function openTrace(id: string, hint?: { endTs?: number | null; lookback?: number | null; at?: number | null }): void {
     if (!id) return;
-    void router.replace({ path: route.path, query: { ...route.query, traceId: id } });
+    const next: Record<string, string> = { ...(route.query as Record<string, string>), traceId: id };
+    delete next.traceAt;
+    delete next.traceEnd;
+    delete next.traceLookback;
+    const given = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    if (given(hint?.lookback)) {
+      next.traceEnd = String(given(hint?.endTs) ? hint!.endTs : Date.now());
+      next.traceLookback = String(hint!.lookback);
+    } else if (given(hint?.at)) {
+      next.traceAt = String(hint!.at);
+    }
+    void router.replace({ path: route.path, query: next });
   }
 
   function closeTrace(): void {
@@ -59,8 +96,10 @@ export function useZipkinTracePopout() {
     const next = { ...route.query };
     delete next.traceId;
     delete next.traceAt;
+    delete next.traceEnd;
+    delete next.traceLookback;
     void router.replace({ path: route.path, query: next });
   }
 
-  return { openTraceId, openTrace, closeTrace };
+  return { openTraceId, openTraceWindow, openTrace, closeTrace };
 }

@@ -69,6 +69,11 @@ function copyShareableUrl(): void {
   // Tag the source so Trace inspect (one route, two sources) reopens it as
   // Zipkin rather than native — IDs alone can't disambiguate.
   url.searchParams.set('source', 'zipkin');
+  // And the trace's moment, so the link resolves with the Cold pill on: a
+  // by-id lookup without a window searches OAP's default day, and a cold
+  // trace is older than that.
+  const { t0 } = detailBounds.value;
+  if (Number.isFinite(t0) && t0 > 0) url.searchParams.set('traceAt', String(Math.floor(t0 / 1000)));
   navigator.clipboard?.writeText(url.toString()).catch(() => {});
 }
 
