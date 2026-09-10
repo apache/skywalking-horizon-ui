@@ -37,9 +37,12 @@ const { t } = useI18n({ useScope: 'global' });
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 
-const { openTraceId, closeTrace } = useZipkinTracePopout();
+const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
 const traceIdRef = computed(() => openTraceId.value);
-const { spans, isLoading, error } = useZipkinTrace(traceIdRef);
+const { spans, isLoading, error } = useZipkinTrace(traceIdRef, undefined, {
+  endTs: computed(() => openTraceWindow.value?.endTs ?? null),
+  lookback: computed(() => openTraceWindow.value?.lookback ?? null),
+});
 
 interface WaterfallRow {
   span: ZipkinSpan;

@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { relativeAgo } from '@/utils/formatters';
 import { bff } from '@/api/client';
 import type { AuthStatus } from '@/api/scopes/admin-auth';
 
@@ -88,11 +89,7 @@ function fmtBytes(n: number | null): string {
   return `${(n / 1024).toFixed(1)} KB`;
 }
 function fmtAgo(ms: number | null): string {
-  if (!ms) return '—';
-  const diff = Math.round((Date.now() - ms) / 1000);
-  if (diff < 60) return t('{n}s ago', { n: diff });
-  if (diff < 3600) return t('{n}m ago', { n: Math.round(diff / 60) });
-  return t('{n}h ago', { n: Math.round(diff / 3600) });
+  return relativeAgo(ms, t);
 }
 </script>
 

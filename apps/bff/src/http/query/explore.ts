@@ -260,6 +260,7 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
             endTs,
             lookback,
             limit: overFetchSize(limit),
+            coldStage: !!req.coldStage,
           });
           const { rows, hasNext } = takeOverFetched(fetched, limit);
           zipkin = { source: 'zipkin', traces: rows, hasNext, reachable: true };

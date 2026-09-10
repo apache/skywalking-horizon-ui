@@ -52,6 +52,7 @@ import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader } from '../../client/graphql.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { wireFetch } from '../../client/wire-log.js';
+import { zipkinWindowParams } from '../../client/zipkin.js';
 
 export interface ZipkinRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -185,6 +186,9 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
           // Zipkin has no offset — the over-fetch is the only has-more signal
           // available here, and it can never become a pager.
           limit: overFetchSize(limit),
+          // OAP's own addition to the Zipkin API: the Cold pill reaches this
+          // route as `req.coldStage` like every trace read.
+          coldStage: req.coldStage ? 'true' : undefined,
         },
       );
       // Zipkin's `/traces` returns `Array<Array<Span>>` — one inner array
@@ -222,11 +226,22 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
       if (!traceId || !/^[0-9a-fA-F]+$/.test(traceId)) {
         return reply.code(400).send({ error: 'invalid_trace_id' });
       }
+      // The window the trace was listed in, when the caller has one. With
+      // the Cold pill on it matters: any of the three makes OAP bound the
+      // lookup, and a cold trace is by definition older than the default
+      // day it would otherwise use.
+      const q = req.query as { endTs?: string; lookback?: string };
+      const window = zipkinWindowParams({
+        endTs: q.endTs ? Number(q.endTs) : undefined,
+        lookback: q.lookback ? Number(q.lookback) : undefined,
+        coldStage: !!req.coldStage,
+      });
       try {
         const { status, body } = await zipkinFetch(
           deps.config.current,
           deps.fetch,
           `/api/v2/trace/${encodeURIComponent(traceId)}`,
+          Object.fromEntries(new URLSearchParams(window)),
         );
         const detail: ZipkinTraceDetailResponse = {
           source: 'zipkin',

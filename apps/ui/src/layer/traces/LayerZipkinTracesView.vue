@@ -212,7 +212,9 @@ function runQuery(): void {
     cEndTs.value = e;
     cLookback.value = e - s;
   } else {
-    cEndTs.value = null;
+    // Frozen at the run, not left as "now": a pasted id is looked up in
+    // the window the list was read with, and that window has an end.
+    cEndTs.value = Date.now();
     cLookback.value = lookbackMs.value;
   }
   cLimit.value = limit.value;
@@ -294,7 +296,7 @@ const selectedRowSpans = computed<ZipkinSpan[] | null>(() => {
 const fallbackTraceId = computed<string | null>(() =>
   selectedTraceId.value && !selectedRowSpans.value ? selectedTraceId.value : null,
 );
-const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId, replay);
+const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId, replay, { endTs: cEndTs, lookback: cLookback });
 const selectedSpans = computed<ZipkinSpan[]>(() => selectedRowSpans.value ?? fetchedSpans.value);
 const selectedLoading = computed<boolean>(() => Boolean(fallbackTraceId.value) && fetchLoading.value);
 
@@ -348,7 +350,9 @@ const maxTraceDuration = computed<number>(() => {
 });
 function openByInput(): void {
   const v = traceIdInput.value.trim();
-  if (v) openTrace(v);
+  // The pasted id is looked up in the tab's window, which is what finds it
+  // in the cold stage; nothing else says when the trace was.
+  if (v) openTrace(v, { endTs: cEndTs.value, lookback: cLookback.value });
 }
 
 // Picking dots / brushing a box narrows the list to the picked set; no extra

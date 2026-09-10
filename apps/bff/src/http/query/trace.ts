@@ -381,14 +381,24 @@ export async function fetchZipkinList(
   opts: ZipkinClientOpts,
   body: TraceListBody,
   maxPageSize: number,
+  coldStage = false,
 ): Promise<ZipkinTraceListResponse> {
   const limit = clampPageSize(body.pageSize, 20, maxPageSize);
+  // The window the caller asked for, as Zipkin's `endTs` + `lookback`:
+  // explicit bounds first, else the rolling minutes. Epoch millis, so the
+  // OAP offset the native branch applies has no part here.
+  const explicit = typeof body.startMs === 'number' && typeof body.endMs === 'number' && body.endMs > body.startMs;
+  const window = explicit
+    ? { endTs: body.endMs as number, lookback: (body.endMs as number) - (body.startMs as number) }
+    : { endTs: Date.now(), lookback: (body.windowMinutes ?? DEFAULT_WINDOW_MIN) * 60_000 };
   try {
     const fetched = await zipkinFetchTraces(opts, {
       serviceName: body.service,
       minDuration: body.minTraceDuration,
       maxDuration: body.maxTraceDuration,
+      ...window,
       limit: overFetchSize(limit),
+      coldStage,
     });
     const { rows, hasNext } = takeOverFetched(fetched, limit);
     return { source: 'zipkin', traces: rows, hasNext, reachable: true };
@@ -444,7 +454,7 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
           ? fetchNativeList(opts, body, !!req.coldStage, offset, maxPageSize)
           : Promise.resolve(undefined),
         wantZipkin
-          ? fetchZipkinList(buildZipkinOpts(deps.config.current, deps.fetch), body, maxPageSize)
+          ? fetchZipkinList(buildZipkinOpts(deps.config.current, deps.fetch), body, maxPageSize, !!req.coldStage)
           : Promise.resolve(undefined),
       ]);
 
@@ -531,9 +541,19 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
           } satisfies TraceDetailResponse);
         }
       }
-      // Zipkin.
+      // Zipkin. The caller's approximate window becomes `endTs` + `lookback`,
+      // OAP's additions to the Zipkin API, and the Cold pill rides with it
+      // as on the native branch above. Zipkin options, not the GraphQL
+      // `opts`: the two type-check alike, and the wrong one asks the
+      // GraphQL port for a Zipkin path.
       try {
-        const spans = await zipkinFetchTraceById(opts, params.traceId);
+        const startMs = Number(q.startMs);
+        const endMs = Number(q.endMs);
+        const bounded = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
+        const spans = await zipkinFetchTraceById(buildZipkinOpts(deps.config.current, deps.fetch), params.traceId, {
+          ...(bounded ? { endTs: endMs, lookback: endMs - startMs } : {}),
+          coldStage: !!req.coldStage,
+        });
         const detail: ZipkinTraceDetailResponse = {
           source: 'zipkin',
           traceId: params.traceId,
