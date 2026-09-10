@@ -23,11 +23,47 @@
  * steps are laid out only while its fold is open.
  */
 
-import { esc } from '../dom.js';
+import { cssEscape, esc } from '../dom.js';
 import type { Step, TalkRow } from '../model.js';
 import { fill } from '../strings.js';
 import { injectionSays, kindTitle, QUIET_MS } from '../vocabulary.js';
+import { changePill, inlineChanges, redrawBoth } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
+import { clipNote, copyButton, copyField, textBody } from './structured.js';
+
+/** Characters past which a card clamps a text with a fade and offers the rest. */
+const CLAMP_CHARS = 380;
+/** Lines past which it does the same: a decoded command shows its newlines. */
+const CLAMP_LINES = 6;
+
+/** A step's input or result, clamped until opened, with the note where the
+ *  document clipped it. */
+function textBlock(ctx: ViewContext, e: Step, which: 'in' | 'out', text: string, bytes: number | undefined, cls: string): { html: string; fields: boolean } {
+  const { s, state } = ctx;
+  const body = textBody(text, e.kind, s);
+  const key = `${e.id}|${which}`;
+  const long = text.length > CLAMP_CHARS || body.lines > CLAMP_LINES;
+  const open = long && state.openTexts.has(key);
+  const note = clipNote(ctx, text, bytes);
+  const more = long && !open ? `<button type="button" class="acv-linkish acv-text-more" data-text-toggle="${esc(key)}">${esc(s.showAllLines)}</button>` : '';
+  return {
+    html: `<span class="acv-text ${cls}${long && !open ? ' clamped' : ''}${open ? ' open' : ''}">${body.html}${
+      note ? `<span class="acv-clip-note">${note}</span>` : ''
+    }</span>${more}`,
+    fields: body.fields,
+  };
+}
+
+/** The result under a card: its label, with a copy button when the text is
+ *  one piece rather than fields, then the text. */
+function resultBlock(ctx: ViewContext, e: Step): string {
+  const { s, f } = ctx;
+  const out = textBlock(ctx, e, 'out', e.result!, e.resultBytes, 'mono result');
+  return `<span class="acv-result-block" data-copy-scope><span class="acv-result-label">${esc(s.result)}${e.failed ? ` · ${esc(s.failed)}` : ''}${
+    e.resultBytes ? ` · ${f.number(e.resultBytes)} B` : ''
+  }${e.reqToRes != null ? ` · ${esc(f.duration(e.reqToRes))} ${esc(s.toReturn)}` : ''}${out.fields ? '' : copyButton(s, `${s.copy} ${s.result}`)}</span>
+        ${out.html}</span>`;
+}
 
 interface Presentation {
   cls: string;
@@ -93,31 +129,28 @@ export function stepCard(ctx: ViewContext, e: Step, prev: Step | undefined, near
     : e.kind === 'context.injection' && injectionSays(e.text)
       ? injectionSays(e.text)!.says
       : e.name || kindTitle(e.kind, s);
-  return `${sep}<button type="button" class="acv-card ${p.cls}${e.id === state.sel ? ' selected' : ''}${
+  // A card is a div, not a button: the change pill and the file rows inside
+  // it are buttons of their own, and a button cannot hold buttons. The list's
+  // key handler gives it Enter and Space.
+  return `${sep}<div class="acv-card ${p.cls}${e.id === state.sel ? ' selected' : ''}${
     near && !near.has(e.id) ? ' dim' : ''
-  }" data-card="${esc(e.id)}" title="${esc(s.locateInTimeline)}"${
+  }" role="button" tabindex="0" data-card="${esc(e.id)}" title="${esc(s.locateInTimeline)}"${
     indent ? ` style="--indent:${indent};margin-left:${indent * 22}px;max-width:calc(100% - ${indent * 22}px)"` : ''
   }>
     <span class="acv-time"><strong>${esc(f.time(e.at))}</strong>${esc(e.kind)}</span>
     <span class="acv-content">
       <span class="acv-role">${esc(p.role)}</span>
       <span class="acv-title acv-kind-${p.color}"><span class="acv-type-mark"></span>${esc(title)}
-        <span class="acv-mini">${e.bytes ? `${f.number(e.bytes)} B` : ''}</span> ${unavailable}</span>
+        <span class="acv-mini">${e.bytes ? `${f.number(e.bytes)} B` : ''}</span> ${unavailable}${changePill(ctx, e)}</span>
       ${
         e.text
           ? `${e.result ? `<span class="acv-result-label">${esc(s.input)}${e.bytes ? ` · ${f.number(e.bytes)} B` : ''}</span>` : ''}
-        <span class="acv-text${mono ? ' mono' : ''}${e.text.length > 380 ? ' clamped' : ''}">${esc(e.text)}</span>`
+        ${textBlock(ctx, e, 'in', e.text, e.bytes, mono ? 'mono' : '').html}`
           : ''
       }
-      ${
-        e.result
-          ? `<span class="acv-result-block"><span class="acv-result-label">${esc(s.result)}${e.failed ? ` · ${esc(s.failed)}` : ''}${
-              e.resultBytes ? ` · ${f.number(e.resultBytes)} B` : ''
-            }${e.reqToRes != null ? ` · ${esc(f.duration(e.reqToRes))} ${esc(s.toReturn)}` : ''}</span>
-        <span class="acv-text mono result${e.result.length > 380 ? ' clamped' : ''}">${esc(e.result)}</span></span>`
-          : ''
-      }
-    </span></button>${link}`;
+      ${e.result ? resultBlock(ctx, e) : ''}
+      ${inlineChanges(ctx, e)}
+    </span></div>${link}`;
 }
 
 function talkCards(ctx: ViewContext, t: TalkRow, prevTo: number | null): string {
@@ -237,6 +270,56 @@ export function bindTranscript(ctx: ViewContext): void {
       ctx.selectFolder(open.dataset.open!);
       return;
     }
+    // The change controls toggle their own state and redraw; none of them
+    // moves the selection, so a reader can open a diff without losing it.
+    const redraw = redrawBoth(ctx);
+    const inList = (selector: string): string => `.acv-transcript-list ${selector}`;
+    const pill = target.closest<HTMLElement>('[data-changes-toggle]');
+    if (pill) {
+      ev.stopPropagation();
+      const id = pill.dataset.changesToggle!;
+      if (ctx.state.openChanges.has(id)) ctx.state.openChanges.delete(id);
+      else ctx.state.openChanges.add(id);
+      redraw(inList(`[data-changes-toggle="${cssEscape(id)}"]`));
+      return;
+    }
+    const fileRow = target.closest<HTMLElement>('[data-change-file]');
+    if (fileRow) {
+      ev.stopPropagation();
+      const key = fileRow.dataset.changeFile!;
+      if (ctx.state.openChangeFiles.has(key)) ctx.state.openChangeFiles.delete(key);
+      else ctx.state.openChangeFiles.add(key);
+      redraw(inList(`[data-change-file="${cssEscape(key)}"]`));
+      return;
+    }
+    const more = target.closest<HTMLElement>('[data-diff-all]');
+    if (more) {
+      ev.stopPropagation();
+      ctx.state.fullDiffs.add(more.dataset.diffAll!);
+      redraw(inList(`[data-change-file="${cssEscape(more.dataset.diffAll!)}"]`));
+      return;
+    }
+    const copy = target.closest<HTMLElement>('[data-copy]');
+    if (copy) {
+      ev.stopPropagation();
+      copyField(copy, ctx.s.copied);
+      return;
+    }
+    const textMore = target.closest<HTMLElement>('[data-text-toggle]');
+    if (textMore) {
+      ev.stopPropagation();
+      const key = textMore.dataset.textToggle!;
+      ctx.state.openTexts.add(key);
+      redraw(inList(`[data-card="${cssEscape(key.slice(0, key.lastIndexOf('|')))}"]`));
+      return;
+    }
+    const toChanges = target.closest<HTMLElement>('[data-to-changes]');
+    if (toChanges) {
+      ev.stopPropagation();
+      ctx.select(toChanges.dataset.toChanges!, true, false);
+      ctx.showTab('changes');
+      return;
+    }
     const card = target.closest<HTMLElement>('[data-card]');
     if (card) {
       ev.stopPropagation();
@@ -254,6 +337,13 @@ export function bindTranscript(ctx: ViewContext): void {
       return;
     }
     ctx.clearFolder();
+  });
+  list.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const card = ev.target as HTMLElement;
+    if (!card.matches('[data-card]')) return;
+    ev.preventDefault();
+    ctx.select(card.dataset.card!, true, false);
   });
 }
 

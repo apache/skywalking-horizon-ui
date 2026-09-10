@@ -231,14 +231,15 @@ describe('layers added after the transcript', () => {
     for (const k of POST_TRANSCRIPT_LAYERS) expect(keys).toContain(k);
   });
 
-  it('AI_AGENT is its Conversations tab: one row, the landing, and a direct link', () => {
+  it('AI_AGENT has its Service and Senders rows, then its own Conversations tab', () => {
     const ai = bundledLayers().find((l) => l.key === 'AI_AGENT')!;
-    // The frozen sidebar had no row for it at all — which is why it is not a
-    // regression subject above.
-    expect(oracleSidebarRows(ai.legacy)).toEqual([]);
-    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['conversations']);
-    expect(firstLayerMenuRow(ai.def)).toBe('conversations');
-    expect(isSingleFeatureLayer(ai.def)).toBe(true);
+    // The frozen sidebar knows only the two generic rows; the Conversations
+    // tab is the layer's own, which is why it is not a regression subject
+    // above.
+    expect(oracleSidebarRows(ai.legacy)).toEqual(['service', 'instance']);
+    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['service', 'instance', 'conversations']);
+    expect(firstLayerMenuRow(ai.def)).toBe('service');
+    expect(isSingleFeatureLayer(ai.def)).toBe(false);
   });
 });
 

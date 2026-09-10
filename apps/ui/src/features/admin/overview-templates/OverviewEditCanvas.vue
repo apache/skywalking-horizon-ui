@@ -17,7 +17,7 @@
 <!--
   Interactive edit canvas — the LEFT pane of the overview editor. Renders
   the dashboard's section-broken widget grid with the REAL overview widget
-  primitives (Metric / KpiTile / MetricComposite) fed deterministic mock
+  primitives (Metric / KpiTile / MetricComposite / CalendarHeatmap) fed deterministic mock
   data, so the layout reads pixel-for-pixel like the live page. On top of
   that read-only preview it layers the editor affordances the live page
   doesn't have:
@@ -41,7 +41,9 @@ import type { OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/a
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import MetricWidget from '@/render/widgets/MetricWidget.vue';
 import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
-import { mockAlarms, mockKpiValues, mockNumber } from './widget-mock';
+import CalendarHeatmapWidget from '@/render/widgets/CalendarHeatmapWidget.vue';
+import RankingWidget from '@/render/widgets/RankingWidget.vue';
+import { mockAlarms, mockCalendarSeries, mockKpiValues, mockNumber, mockRanking } from './widget-mock';
 import { META_SEL } from './constants';
 
 const props = defineProps<{
@@ -97,6 +99,8 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
     case 'topology': return t('Topology');
     case 'alarms': return t('Alarms');
     case 'kpi-tile': return t('KPI tile');
+    case 'calendar-heatmap': return t('Calendar heatmap');
+    case 'ranking': return t('Ranking');
     default: return type;
   }
 }
@@ -182,6 +186,8 @@ const WIDGET_TYPE_OPTIONS = computed((): ReadonlyArray<{ type: OverviewWidget['t
   { type: 'alarms', label: t('Alarms') },
   { type: 'kpi-tile', label: t('KPI tile (number + metrics)') },
   { type: 'metric-composite', label: t('Composite metrics (mixed)') },
+  { type: 'calendar-heatmap', label: t('Calendar heatmap (one cell per hour or day)') },
+  { type: 'ranking', label: t('Ranking (services ranked by one metric)') },
 ]);
 
 const composerOpen = ref(false);
@@ -231,6 +237,12 @@ function widgetDefaults(type: OverviewWidget['type']): Partial<OverviewWidget> {
       return { title: 'KPI tile', kpis: [], showCount: false };
     case 'metric-composite':
       return { title: 'Composite metrics', kpis: [] };
+    case 'calendar-heatmap':
+      // No `windowDays`: absent means the 30-day default, which the drawer
+      // shows as the placeholder.
+      return { title: 'Usage grid', mqe: '' };
+    case 'ranking':
+      return { title: 'Top services', mqe: '', limit: 10 };
     default:
       return { title: 'New widget' };
   }
@@ -337,6 +349,28 @@ function createWidget(): void {
             :layer="w.layer"
             :kpis="w.kpis ?? []"
             :kpi-values="mockKpiValues(w)"
+          />
+          <CalendarHeatmapWidget
+            v-else-if="w.type === 'calendar-heatmap'"
+            :title="w.title"
+            :tip="w.tip"
+            :layer="w.layer"
+            :mqe="w.mqe"
+            :unit="w.unit"
+            :aggregation="w.aggregation"
+            :window-days="w.windowDays"
+            :resolution="w.resolution"
+            :compare-to="w.compareTo"
+            :mock="mockCalendarSeries(w)"
+          />
+          <RankingWidget
+            v-else-if="w.type === 'ranking'"
+            :title="w.title"
+            :tip="w.tip"
+            :layer="w.layer"
+            :unit="w.unit"
+            :rows="mockRanking(w)"
+            :total="mockRanking(w).length"
           />
           <article v-else class="ot__pv-card">
             <div class="ot__pv-card-head">

@@ -1,6 +1,6 @@
 # Overview Widgets
 
-Six widget types render on overview pages. Each `widget.type` you set in a template selects one of them, and reads its own set of fields.
+Eight widget types render on overview pages. Each `widget.type` you set in a template selects one of them, and reads its own set of fields.
 
 ## Grid context (recap)
 
@@ -207,6 +207,88 @@ No MQE — uses the layer's topology metric from the layer template (`topology.m
 }
 ```
 
+## `calendar-heatmap`
+
+**Renders:** A calendar grid over a **fixed** window of the last `windowDays` days ending now, with a footer carrying the window total. The layout adapts to the window: up to 14 days is drawn **by the hour**, one row per day and one column per hour of the OAP's clock, so ten days read as 240 hour cells over the calendar days they touch, usually eleven rows since the window ends at the current hour; a longer window is drawn **by the day**, one row per week and one column per weekday, Monday first, so thirty days read as five week rows with the first and the last partly filled. The one overview widget that does not follow the time picker: the window is part of the template, so the grid reads the same whatever range the rest of the page is on. Built for usage-shaped metrics whose total per hour or day is the interesting number — tokens an AI agent consumed, requests a gateway served.
+
+### Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id`, `title`, `tip`, `layer`, `span`, `rowSpan` | — | Common. `layer` is required. |
+| `mqe` | string | Required. A plain **per-service** metric such as `meter_ai_agent_tokens` — not a `top_n(...)` expression. Horizon evaluates it per service at one bucket per hour or day and aggregates the layer's eight busiest services into each cell. |
+| `aggregation` | `sum` \| `avg` | How the per-service bucket values combine into one cell. `sum` (default) for totals; `avg` for ratios, which also turns the footer into an hourly or daily average. |
+| `unit` | string | Unit suffix on the footer total and the cell tooltips (`tokens`, `rpm`). |
+| `windowDays` | 7–93 | How many days the grid covers, ending now. Default 30. The ceiling is the longest range OAP serves at daily precision. |
+| `resolution` | `auto` \| `hour` \| `day` | Default `auto`: a window of up to 14 days is drawn by the hour, a longer one by the day. `hour` and `day` force one, except that `hour` past 14 days still draws days, the longest range OAP serves at hourly precision. |
+| `compareTo` | boolean | Default `false`. Adds the footer line comparing a summed total to a well-known book (below); `false` hides it. Ignored for `avg`. |
+
+### Behavior
+
+- **Buckets are OAP-local.** A cell is one calendar day, or one hour, on the OAP server's clock, so the grid agrees with the buckets a layer dashboard shows on the same range. The last cell is the day or hour in progress and is outlined to say so; it fills in as time goes on. By the hour, a rolling window starts and ends mid-day, so the first and last rows are partial and the hours outside the window are blank.
+- **Shades follow the window's distribution, not its range.** The five intensities are cut at the quantiles of the days that saw traffic, so one exceptionally heavy day does not flatten every other day into the faintest shade. A day with no data is drawn empty; the tooltip on each cell carries the date and the value.
+- **The total is the sum of the cells** (or their average under `aggregation: avg`), formatted with the unit. When `compareTo` is on, the comparison line reads *about 95.1 times the text of War and Peace* for a 74.2M-token total — the total against the largest of four public-domain works whose approximate token count is below it (Animal Farm ~40k, The Great Gatsby ~63k, Moby-Dick ~275k, War and Peace ~780k, each the published word count × 1.3), so the multiplier is always at least 1; a total under 40k reads as a percentage of Animal Farm instead. The counts are estimates, and the titles stay in English in every language.
+- **Refreshes with the page, keeps its cells while it reads.** The grid re-reads on the same refresh round as the rest of the overview, stays on screen while the new read is out, and says so in its header. A read that fails leaves the previous grid up with a note rather than drawing zeroes; a window with no data says so.
+- **A cell can be picked.** Hovering a cell shows its date and value; clicking one (or Enter on a focused one) keeps it picked and reads its date and value out in the footer, until it is clicked again.
+- **Fits its card.** The cells stretch to the width and the height the card gives them, up to two and a half times wider than tall or taller than wide, so a wide card fills its row; a card too narrow for the grid's long axis turns the grid the other way, days across and hours down, or weeks across and weekdays down, whichever gives the larger cells. A day cell wide enough shows its day number, and a wider one its value.
+- **Eight services per read.** Every read covers the layer's eight services that rank highest on the metric over the window, and every cell aggregates those eight. On a layer with more services than that — many agent runtimes reporting to one OAP — the total is the busiest eight, not the whole layer, and the footer says how many of the layer's services it counts.
+
+### Example
+
+```json
+{
+  "id": "daily_tokens",
+  "title": "Daily tokens",
+  "tip": "Tokens per day over the last 30 days, the busiest agents summed.",
+  "type": "calendar-heatmap",
+  "layer": "AI_AGENT",
+  "mqe": "meter_ai_agent_tokens",
+  "aggregation": "sum",
+  "unit": "tokens",
+  "windowDays": 30,
+  "span": 12,
+  "rowSpan": 3
+}
+```
+
+## `ranking`
+
+**Renders:** The layer's services ranked by one per-service metric over the picked time range, busiest first: a row per service with its value and a bar against the top value. Past five rows the list runs in two or more columns, read down then across, as many as its height needs. The card links to the layer's Service page.
+
+### Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `id`, `title`, `tip`, `layer`, `span`, `rowSpan` | — | Common. |
+| `mqe` | string | Required. A plain **per-service** metric such as `meter_ai_agent_tokens`, not a `top_n(...)` expression: Horizon evaluates it per service and ranks the services on it. |
+| `unit` | string | Suffix on each value. |
+| `limit` | number | How many services to list. Default 10, at most 20. |
+| `rangeTotal` | boolean | Sum a service's buckets over the picked range, so a counter such as tokens reads as the range total. Default off: the value per bucket, which suits rates and ratios. |
+
+### Behavior
+
+- **Follows the time picker.** The values describe the picked range, at the step the range decides.
+- **Twenty services per read.** A read covers at most the layer's twenty services that rank highest on the metric; when the layer has more, the card's header says how many of them it lists.
+- **As many columns as the height needs.** The list measures its card: past five rows it runs in at least two columns, read down then across, and in more when the rows do not fit the height, up to four.
+- **A partial read is said, not hidden.** When part of the fan-out failed, the page's partial-read notice covers this card like every other page-side widget.
+
+### Example
+
+```json
+{
+  "id": "top_agents",
+  "title": "Top 20 agents",
+  "type": "ranking",
+  "layer": "AI_AGENT",
+  "mqe": "meter_ai_agent_tokens",
+  "unit": "tokens",
+  "limit": 20,
+  "rangeTotal": true,
+  "span": 8,
+  "rowSpan": 4
+}
+```
+
 ## `section-break`
 
 **Renders:** Visual row header with horizontal rules. No data fetch.
@@ -244,5 +326,6 @@ The Overview Templates admin editor (`/admin/overview-templates`, verb `overview
 | Active-incident rail. | `alarms` |
 | Service map snapshot. | `topology` |
 | Row separator with custom column count. | `section-break` |
+| One cell per day over a fixed window, with the window total. | `calendar-heatmap` |
 
 If you find yourself wanting a chart on an overview, that probably belongs on a layer dashboard instead (see [Dashboard Widgets](dashboard-widgets.md)). Overviews are KPI-shaped; dashboards are time-series-shaped.

@@ -1,0 +1,57 @@
+{
+  "title": "Vue d’ensemble des agents IA",
+  "description": "Consommation de tokens des agents IA qui remontent vers cet OAP : une grille jour par jour des 30 derniers jours et une grille heure par heure des 10 derniers, puis combien de agents, ce qu’ils ont consommé sur la plage de temps choisie et les vingt plus actifs.",
+  "widgets": [
+    {
+      "id": "usage_break",
+      "title": "Consommation"
+    },
+    {
+      "id": "daily_tokens",
+      "title": "Jetons par jour",
+      "tip": "Tokens par jour sur les 30 derniers jours, les agents les plus actifs additionnés (le pied indique quand la couche compte plus de agents qu’une lecture n’en couvre). Une fenêtre fixe qui ne suit pas le sélecteur de temps ; un clic sur une cellule affiche son jour et sa valeur dans le pied."
+    },
+    {
+      "id": "hourly_tokens",
+      "title": "Tokens par heure",
+      "tip": "Tokens par heure sur les 10 derniers jours, les agents les plus actifs additionnés : une ligne par jour, une colonne par heure de l’horloge de l’OAP. Une fenêtre fixe qui ne suit pas le sélecteur de temps ; un clic sur une cellule affiche son heure et sa valeur dans le pied."
+    },
+    {
+      "id": "runtimes_break",
+      "title": "Agents"
+    },
+    {
+      "id": "tile_runtimes",
+      "title": "Agents",
+      "tip": "Agents remontant sur la couche AI_AGENT et leurs tokens sur la plage choisie, les vingt agents les plus actifs additionnés : le total, puis par type (entrée, sortie, lus depuis le cache, écrits dans le cache) et la part dépensée par les sous-agents ; la part de lectures en cache est leur moyenne. La liste à côté nomme les agents.",
+      "kpis": [
+        {
+          "label": "Tokens"
+        },
+        {
+          "label": "Tokens d’entrée"
+        },
+        {
+          "label": "Tokens de sortie"
+        },
+        {
+          "label": "Tokens lus depuis le cache"
+        },
+        {
+          "label": "Tokens écrits dans le cache"
+        },
+        {
+          "label": "Tokens des sous-agents"
+        },
+        {
+          "label": "Part de lectures en cache"
+        }
+      ]
+    },
+    {
+      "id": "top_runtimes",
+      "title": "Les vingt premiers agents",
+      "tip": "Les vingt agents ayant consommé le plus de tokens sur la plage choisie, du plus actif au moins actif, chacun avec son total et une barre relative au premier. Tant que la couche compte vingt agents ou moins, leur somme égale la tuile à côté."
+    }
+  ]
+}

@@ -231,10 +231,68 @@ export interface ViewStrings {
   notApplicable: string;
   close: string;
   whatDoesMean: string;
+  // Workspace changes: the tool card's pill, the inline details, the
+  // inspector tab and the conversation-level panel
+  changes: string;
+  changesBadge: string;
+  oneFileChanged: string;
+  filesChanged: string;
+  filesUnknown: string;
+  noFilesChanged: string;
+  readOnlyCall: string;
+  readOnlyCallTitle: string;
+  showChanges: string;
+  hideChanges: string;
+  capturedByRuntime: string;
+  capturedByPlugin: string;
+  basisToolWindow: string;
+  basisRuntimeReported: string;
+  basisSkipped: string;
+  basisUnattributed: string;
+  changedFilesUnknown: string;
+  changedFilesNone: string;
+  coveragePartial: string;
+  overlapsNote: string;
+  sharedWith: string;
+  sharedShort: string;
+  outsideWindow: string;
+  diffBinary: string;
+  diffTooLarge: string;
+  diffUnavailable: string;
+  noNewlineBefore: string;
+  noNewlineAfter: string;
+  moreLines: string;
+  showAllLines: string;
+  moreInChangesTab: string;
+  changeRecordsForStep: string;
+  workspaceRoot: string;
+  changeRecordRef: string;
+  basisWord: string;
+  outcomeWord: string;
+  exitCode: string;
+  scannedBefore: string;
+  scannedAfter: string;
+  policyWord: string;
+  readFrom: string;
+  onResultRecord: string;
+  inChangesFile: string;
+  openEvidence: string;
+  changesPanelTitle: string;
+  recordsAndFiles: string;
+  outsideWindowsHeading: string;
+  outsideWindowsNote: string;
+  goToStep: string;
+  changesPanelHint: string;
+  noStepForRecord: string;
   // Announcements
   selected: string;
   selectedNestedStream: string;
   selectionCleared: string;
+  // Fields of a tool call, and the inspector's pop-out
+  copy: string;
+  copied: string;
+  popOutInspector: string;
+  dockInspector: string;
 }
 
 export const ENGLISH: ViewStrings = {
@@ -437,9 +495,64 @@ export const ENGLISH: ViewStrings = {
   notApplicable: 'not applicable — this describes the landed record, not the source',
   close: 'Close',
   whatDoesMean: 'What does {key} mean?',
+  changes: 'Changes',
+  changesBadge: '{n} changes',
+  oneFileChanged: '1 file',
+  filesChanged: '{n} files',
+  filesUnknown: 'files unknown',
+  noFilesChanged: 'no files changed',
+  readOnlyCall: 'read-only',
+  readOnlyCallTitle: 'Classed read-only by the asz plugin: no scan ran, so nothing is known about files. This is not "no changes".',
+  showChanges: 'Show the changes',
+  hideChanges: 'Hide the changes',
+  capturedByRuntime: 'the runtime’s own patch',
+  capturedByPlugin: 'observed by the asz plugin',
+  basisToolWindow: 'the workspace was scanned before and after the call',
+  basisRuntimeReported: 'the patch the tool itself reported',
+  basisSkipped: 'not observed: the command was classed read-only, so no scan ran. This says nothing about whether files changed.',
+  basisUnattributed: 'found by a later scan; no observed tool window covers it',
+  changedFilesUnknown: 'how many files changed is unknown',
+  changedFilesNone: 'a complete observation found no changed file',
+  coveragePartial: 'Partial coverage: a scan stopped early, so changes may be missing. Gaps:',
+  overlapsNote: 'Other windows were open on this root at the same time:',
+  sharedWith: 'shared with {windows}',
+  sharedShort: 'shared',
+  outsideWindow: 'outside any observed window',
+  diffBinary: 'binary — path and hashes only, no diff',
+  diffTooLarge: 'too large to diff — path and hashes only',
+  diffUnavailable: 'no diff available',
+  noNewlineBefore: 'before: no newline at end of file',
+  noNewlineAfter: 'after: no newline at end of file',
+  moreLines: '{n} more lines',
+  showAllLines: 'show all',
+  moreInChangesTab: 'more in the Changes tab →',
+  changeRecordsForStep: '{n} change records — open the Changes tab →',
+  workspaceRoot: 'workspace root',
+  changeRecordRef: 'change record',
+  basisWord: 'Basis',
+  outcomeWord: 'Outcome',
+  exitCode: 'exit {code}',
+  scannedBefore: 'Scanned before',
+  scannedAfter: 'Scanned after',
+  policyWord: 'Policy',
+  readFrom: 'Read from',
+  onResultRecord: 'the tool’s own result record',
+  inChangesFile: 'a changes file',
+  openEvidence: 'open Evidence →',
+  changesPanelTitle: 'Workspace changes',
+  recordsAndFiles: '{records} records · {files} files',
+  outsideWindowsHeading: 'Changes outside observed tool windows',
+  outsideWindowsNote: 'A person, an editor or a tool no hook covered changed these between two observed calls; no step made them.',
+  goToStep: 'go to the step',
+  changesPanelHint: 'Click a record to open the step that made it, on its Changes tab.',
+  noStepForRecord: 'no step',
   selected: 'Selected {what}',
   selectedNestedStream: 'Selected nested stream {name}, opened by {kind}. Press Enter to dive in, Escape to clear.',
   selectionCleared: 'Selection cleared.',
+  copy: 'copy',
+  copied: 'copied',
+  popOutInspector: 'Pop out',
+  dockInspector: 'Dock',
 };
 
 /** `{name}` placeholders, filled from `vars`. */

@@ -28,6 +28,7 @@ export type IconName =
   | 'svc'
   | 'ep'
   | 'event'
+  | 'changes'
   | 'set'
   | 'search'
   | 'chev'
@@ -86,6 +87,10 @@ export type IconName =
     </template>
     <template v-else-if="name === 'metric'">
       <path d="M3 17l5-7 4 4 4-8 5 11" />
+    </template>
+    <template v-else-if="name === 'changes'">
+      <path d="M12 3.5v8M8 7.5h8" />
+      <path d="M8 17.5h8" />
     </template>
     <template v-else-if="name === 'trace'">
       <path d="M3 6h10M3 10h14M3 14h7M3 18h12" />

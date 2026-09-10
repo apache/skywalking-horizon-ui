@@ -90,8 +90,101 @@ export interface AszNode {
   // A turn.duration step adds these.
   duration_ms?: number;
   duration_measured_by?: string;
+  /** Ids of the workspace change records joined to this step, in the order
+   *  `workspace_changes` lists them. Not unique across producers: the join
+   *  is `WorkspaceChange.step`, this list only says there are some. */
+  changes?: string[];
   children?: AszNode[];
   edges?: AszEdge[];
+}
+
+/** One side of a file before or after a change. `bytes` is null when the
+ *  whole file was never seen, as when the runtime reported a patch alone. */
+export interface AszChangeSide {
+  present: boolean;
+  bytes: number | null;
+  sha256?: string;
+  no_newline_at_end?: boolean;
+}
+
+/** A unified-diff hunk as JSON; `lines` carry their `-`, `+` or space prefix,
+ *  and a runtime-reported patch may end with the git marker line
+ *  `\ No newline at end of file`, kept as written. */
+export interface AszHunk {
+  old_start: number;
+  old_lines: number;
+  new_start: number;
+  new_lines: number;
+  lines: string[];
+}
+
+export interface AszFileChange {
+  /** Relative to `root.path`, forward slashes; absolute when outside it. */
+  path: string;
+  /** `create` | `modify` | `delete` | `type_change`. */
+  operation: string;
+  before: AszChangeSide;
+  after: AszChangeSide;
+  /** `available` | `binary` | `too_large` | `unavailable`; only `available`
+   *  carries `hunks`, and the counts are null otherwise. */
+  diff: string;
+  /** `only_this_window` | `shared` | `outside_any_window`; absent on a
+   *  runtime-reported record. */
+  attribution?: string;
+  windows?: string[];
+  additions: number | null;
+  deletions: number | null;
+  hunks?: AszHunk[];
+}
+
+export interface AszChangeInterval {
+  from: string;
+  to: string;
+}
+
+export interface AszChangeOverlap {
+  capture: string;
+  session: string;
+  stream: string;
+  tool?: string;
+  tool_name?: string;
+  state: string;
+}
+
+/**
+ * One `changes/1` record with the step it joins to and where it was read
+ * from, as `workspace_changes` lists them. Two producers write the shape:
+ * the runtime's own patch (`captured_by: claude-code`) and the asz Claude
+ * Code plugin's observations (`asz-plugin`). Both use the tool-use id as
+ * `id`, and the plugin appends `/<root id>` when more than one workspace
+ * root is configured, so one call can carry several records; `step` is
+ * the join, `""` when no step carries the id.
+ */
+export interface AszWorkspaceChange {
+  step: string;
+  ref: AszRef;
+  schema: string;
+  id: string;
+  captured_by: string;
+  session: string;
+  stream: string;
+  tool?: string;
+  tool_name?: string;
+  /** RFC 3339, when the observation ended. */
+  time: string;
+  /** `tool_window` | `runtime_reported` | `unattributed` | `skipped_read_only`. */
+  basis: string;
+  root?: { path: string; id?: string };
+  policy?: { exclusions?: string; read_only?: string; expanded?: string[] };
+  window?: { before: AszChangeInterval; after: AszChangeInterval };
+  outcome?: { state: string; exit_code: number | null };
+  /** `complete` | `partial`, with `gaps` saying why. */
+  coverage?: string;
+  gaps?: string[];
+  overlaps?: AszChangeOverlap[];
+  /** Null is unknown, which is not zero. */
+  changed_files: number | null;
+  changes: AszFileChange[] | null;
 }
 
 export interface AszOrigin {
@@ -180,6 +273,9 @@ export interface AszSummary {
   segments: number;
   rounds: number;
   unresolved: number;
+  /** Workspace change RECORDS, skipped and empty observations included.
+   *  Absent from a document written before the records existed. */
+  changes?: number;
   from: number;
   to: number;
   kinds: Record<string, number>;
@@ -204,6 +300,9 @@ export interface AszViewDocument {
   loose?: AszNode[];
   relations: AszRelation[];
   unresolved: AszUnresolved[];
+  /** Every change record of the session in time order; absent from a
+   *  document written before the records existed, `[]` when none. */
+  workspace_changes?: AszWorkspaceChange[];
 }
 
 export const ASZ_VIEW_FORMAT = 'asz.view';

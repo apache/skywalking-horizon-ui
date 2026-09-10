@@ -1,0 +1,57 @@
+{
+  "title": "Visão geral dos agentes de IA",
+  "description": "Uso de tokens dos agentes de IA que reportam a este OAP: uma grade dia a dia dos últimos 30 dias e uma grade hora a hora dos últimos 10, depois quantos agentes existem, o que consumiram no intervalo de tempo escolhido e os vinte mais ativos.",
+  "widgets": [
+    {
+      "id": "usage_break",
+      "title": "Uso"
+    },
+    {
+      "id": "daily_tokens",
+      "title": "Tokens por dia",
+      "tip": "Tokens por dia nos últimos 30 dias, somando os agentes mais ativos (o rodapé avisa quando a camada tem mais agentes do que uma leitura cobre). Uma janela fixa que não segue o seletor de tempo; clicar numa célula mostra o dia e o valor dela no rodapé."
+    },
+    {
+      "id": "hourly_tokens",
+      "title": "Tokens por hora",
+      "tip": "Tokens por hora nos últimos 10 dias, somando os agentes mais ativos: uma linha por dia e uma coluna por hora do relógio do OAP. Uma janela fixa que não segue o seletor de tempo; clicar numa célula mostra a hora e o valor dela no rodapé."
+    },
+    {
+      "id": "runtimes_break",
+      "title": "Agentes"
+    },
+    {
+      "id": "tile_runtimes",
+      "title": "Agentes",
+      "tip": "Agentes que reportam na camada AI_AGENT e seus tokens no intervalo escolhido, somando os vinte agentes mais ativos: o total, depois por tipo (entrada, saída, lidos do cache, gravados no cache) e a parte gasta por subagentes; a fração de leituras de cache é a média deles. A lista ao lado nomeia os agentes.",
+      "kpis": [
+        {
+          "label": "Tokens"
+        },
+        {
+          "label": "Tokens de entrada"
+        },
+        {
+          "label": "Tokens de saída"
+        },
+        {
+          "label": "Tokens lidos do cache"
+        },
+        {
+          "label": "Tokens gravados no cache"
+        },
+        {
+          "label": "Tokens de subagentes"
+        },
+        {
+          "label": "Fração de leituras de cache"
+        }
+      ]
+    },
+    {
+      "id": "top_runtimes",
+      "title": "Os vinte principais agentes",
+      "tip": "Os vinte agentes com mais tokens no intervalo escolhido, o mais ativo primeiro, cada um com seu total e uma barra relativa ao primeiro. Enquanto a camada tiver vinte agentes ou menos, a soma deles é igual ao cartão ao lado."
+    }
+  ]
+}

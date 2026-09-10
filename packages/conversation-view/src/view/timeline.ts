@@ -29,9 +29,10 @@
  */
 
 import { esc } from '../dom.js';
-import type { Folder, Step } from '../model.js';
+import { tallyChanges, type Folder, type Step } from '../model.js';
 import { fill } from '../strings.js';
 import { injectionSays, kindTitle, LANE_H, QUIET_MS, TRACK_NAME, TRACKS, type Track } from '../vocabulary.js';
+import { icon, ICON_CHANGES, ICON_READONLY } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
 
 interface Band {
@@ -451,11 +452,16 @@ export function paintViewport(ctx: ViewContext): void {
     const q = p.pos.get(e.id)!;
     if (!inView(q.x, q.w)) continue;
     const says = e.kind === 'context.injection' ? injectionSays(e.text) : null;
+    // The same two marks the card's pill wears: a call classed read-only, or
+    // one that changed files.
+    const mark = e.hasChanges
+      ? icon(tallyChanges(ctx.model.changesOf(e.id)).observation === 'skipped' ? ICON_READONLY : ICON_CHANGES, 'acv-clip-mark')
+      : '';
     html += `<button type="button" class="acv-clip acv-kind-${e.type}${e.id === state.sel ? ' selected' : ''}${
       p.near && !p.near.has(e.id) ? ' dim' : ''
-    }" data-node="${esc(e.id)}" data-talk="${esc(e.talk ?? '')}" title="${esc(e.at ? `${f.time(e.at)} · ` : '')}${esc(kindTitle(e.kind, s))}${
+    }${mark ? ' marked' : ''}" data-node="${esc(e.id)}" data-talk="${esc(e.talk ?? '')}" title="${esc(e.at ? `${f.time(e.at)} · ` : '')}${esc(kindTitle(e.kind, s))}${
       e.name ? ` · ${esc(e.name)}` : ''
-    }" style="left:${q.x}px;top:${q.y}px;width:${q.w}px">${esc(says ? says.says : e.name || kindTitle(e.kind, s))}</button>`;
+    }${mark ? ` · ${esc(s.changes)}` : ''}" style="left:${q.x}px;top:${q.y}px;width:${q.w}px">${mark}${esc(says ? says.says : e.name || kindTitle(e.kind, s))}</button>`;
   }
   for (const fo of p.folders) {
     const q = p.fpos.get(fo.key)!;

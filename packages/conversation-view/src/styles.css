@@ -89,7 +89,7 @@
 .acv-btn:hover { color: var(--acv-text); background: var(--acv-surface-3); }
 .acv-btn.primary { border-color: var(--acv-kind-agent); background: color-mix(in srgb, var(--acv-kind-agent) 14%, transparent); color: var(--acv-text); }
 .acv-btn.primary:hover { background: color-mix(in srgb, var(--acv-kind-agent) 24%, transparent); }
-.acv-linkish { padding: 0; border: 0; background: transparent; color: var(--sw-info); cursor: pointer; text-align: left; font-size: 12px; }
+.acv .acv-linkish { padding: 0; border: 0; background: transparent; color: var(--sw-info); cursor: pointer; text-align: left; font-size: 12px; }
 .acv-linkish:hover { text-decoration: underline; }
 .acv-hint { color: var(--acv-faint); font-size: 10px; }
 
@@ -178,7 +178,7 @@
 .acv-lane-labels::-webkit-scrollbar { display: none; }
 .acv-lane-label { position: absolute; left: 25px; color: var(--acv-faint); font-size: 11px; line-height: 28px; }
 .acv-lane-label.child { left: 38px; }
-.acv-tl-scroll { height: 100%; overflow: auto; background: var(--acv-bg); scrollbar-color: var(--acv-line) var(--acv-bg); }
+.acv-tl-scroll { height: 100%; overflow: auto; background: var(--acv-bg); }
 .acv-tl-canvas { position: relative; min-width: 920px; isolation: isolate; }
 .acv-tl-static,
 .acv-tl-items { position: absolute; inset: 0; }
@@ -303,16 +303,56 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-content { min-width: 0; }
 .acv-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12px; font-weight: 650; }
 .acv-type-mark { width: 7px; height: 7px; border-radius: 2px; background: currentColor; }
-.acv-text { display: block; position: relative; margin-top: 5px; max-height: 8.9em; overflow: hidden; color: var(--acv-text); font-size: 12px; line-height: 1.48; white-space: pre-wrap; overflow-wrap: anywhere; }
+.acv-text { display: block; position: relative; margin-top: 5px; color: var(--acv-text); font-size: 12px; line-height: 1.48; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Only a text the card judged long is cut, so a short one that merely wraps is never cut with nothing to open it. */
+.acv-text.clamped { max-height: 8.9em; overflow: hidden; }
 .acv-text.clamped::after { content: ""; position: absolute; inset: auto 0 0 0; height: 2.2em; background: linear-gradient(180deg, transparent, var(--acv-surface)); }
 .acv-result-label { display: block; margin-top: 8px; color: var(--acv-faint); font-size: 9px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
 .acv-text.result { margin-top: 3px; padding-left: 8px; border-left: 2px solid var(--acv-line); color: var(--acv-muted); }
 .acv-text.mono { font-family: var(--acv-mono); font-size: 11px; }
 .acv-mini { color: var(--acv-faint); font-size: 9px; font-weight: 500; }
 .acv-result-block { display: block; border-radius: 6px; }
+.acv-text-more { display: block; margin-top: 3px; }
+.acv-fields { display: block; }
+.acv-field { display: block; }
+.acv-field + .acv-field { margin-top: 2px; }
+.acv-field-key { margin-right: 7px; color: var(--acv-faint); font-weight: 650; }
+.acv-field.block .acv-field-key { display: inline-block; margin-top: 4px; }
+.acv-field-text { display: block; margin-top: 2px; padding: 5px 8px; border-left: 2px solid var(--acv-line); background: var(--acv-surface-2); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+.acv-block .acv-field-text { background: var(--acv-surface); }
+.acv-field-cut { color: var(--acv-faint); font-style: italic; }
+.acv-copy { margin-left: 8px; padding: 0 5px; border: 1px solid var(--acv-line); border-radius: 4px; background: transparent; color: var(--acv-faint); font-family: inherit; font-size: 9px; line-height: 1.5; cursor: pointer; opacity: 0.6; vertical-align: middle; }
+.acv-copy:hover, .acv-copy:focus-visible { opacity: 1; color: var(--acv-text); }
+.acv-copy.done { opacity: 1; color: var(--sw-ok); border-color: color-mix(in srgb, var(--sw-ok) 50%, transparent); }
+.acv-copy-side { display: inline; margin-left: 2px; }
+.acv-kicker .acv-copy, .acv-result-label .acv-copy { font-weight: 400; letter-spacing: normal; text-transform: none; vertical-align: baseline; }
+.acv-edit-diff { display: block; margin-top: 2px; border-top: 0; border-left: 2px solid var(--acv-line); white-space: pre-wrap; overflow-wrap: anywhere; }
+.acv-clip-note { display: block; margin-top: 4px; color: var(--acv-faint); font-size: 10px; font-style: italic; }
+
+/* Every area that scrolls keeps its scrollbar in view, as Horizon's main
+   area does: an overlay scrollbar that only appears while scrolling leaves a
+   long list looking complete at the edge it was cut. The standard properties
+   are for Firefox alone: set beside the -webkit- pseudo-elements, Chromium
+   honours them instead and the bar stays an overlay. */
+@supports not selector(::-webkit-scrollbar) {
+  .acv-problems-body, .acv-talk-list, .acv-tl-scroll, .acv-transcript-list, .acv-inspector-body, .acv-changes-body, .acv-diff { scrollbar-width: thin; scrollbar-color: var(--acv-line) transparent; }
+}
+.acv-problems-body::-webkit-scrollbar, .acv-talk-list::-webkit-scrollbar, .acv-tl-scroll::-webkit-scrollbar, .acv-transcript-list::-webkit-scrollbar, .acv-inspector-body::-webkit-scrollbar, .acv-changes-body::-webkit-scrollbar, .acv-diff::-webkit-scrollbar { width: 8px; height: 8px; }
+.acv-problems-body::-webkit-scrollbar-thumb, .acv-talk-list::-webkit-scrollbar-thumb, .acv-tl-scroll::-webkit-scrollbar-thumb, .acv-transcript-list::-webkit-scrollbar-thumb, .acv-inspector-body::-webkit-scrollbar-thumb, .acv-changes-body::-webkit-scrollbar-thumb, .acv-diff::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--acv-line); }
 
 /* ---------- inspector ---------- */
 .acv-inspector-head { padding: 8px 10px 7px; border-bottom: 1px solid var(--acv-line); }
+.acv-inspector-headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.acv-pop-btn { flex: none; padding: 2px 7px; font-size: 12px; line-height: 1.2; }
+.acv-main { position: relative; }
+.acv-popped .acv-main { grid-template-columns: minmax(0, 1fr) 0 0; }
+.acv-popped .acv-split-inspector { display: none; }
+/* Popped, the inspector is a panel over the whole page, four fifths of it
+   each way, above the host's own chrome, with a scrim that docks it on a
+   click; the reader who popped it out wanted room, not the transcript. */
+.acv-popped .acv-inspector { position: fixed; top: 10vh; left: 10vw; width: 80vw; height: 80vh; z-index: 1000; border: 1px solid var(--acv-line); border-radius: 8px; box-shadow: 0 18px 60px color-mix(in srgb, var(--acv-text) 22%, transparent); }
+.acv-scrim { position: fixed; inset: 0; z-index: 999; background: color-mix(in srgb, var(--acv-bg) 62%, transparent); }
+.acv-scrim[hidden] { display: none; }
 .acv-inspector-head h2 { min-width: 0; margin: 0; overflow: hidden; color: var(--acv-text); font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .acv-inspector-meta { color: var(--acv-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acv-tablist { display: flex; gap: 2px; padding: 5px 8px; border-bottom: 1px solid var(--acv-line); overflow-x: auto; }
@@ -380,3 +420,64 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 @media (prefers-reduced-motion: reduce) {
   .acv * { scroll-behavior: auto !important; }
 }
+
+/* ---------- workspace changes ---------- */
+/* The two marks are one symbol each, drawn in the skeleton and referenced
+   wherever they appear, so the pill, the clip and the tab wear the same mark. */
+.acv-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.acv-ico { width: 11px; height: 11px; flex: none; vertical-align: -1px; }
+.acv-change-pill { display: inline-flex; align-items: center; gap: 5px; margin-left: 2px; padding: 1px 8px 1px 6px; border: 1px solid color-mix(in srgb, var(--acv-kind-tool) 50%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--acv-kind-tool) 14%, transparent); color: var(--acv-text); font-size: 10px; font-weight: 650; line-height: 1.6; cursor: pointer; }
+.acv-change-pill:hover { background: color-mix(in srgb, var(--acv-kind-tool) 26%, transparent); }
+.acv-change-pill .acv-ico { color: var(--acv-kind-tool); }
+.acv-change-pill.readonly { border-style: dashed; border-color: var(--acv-line); background: transparent; color: var(--acv-muted); font-weight: 500; }
+.acv-change-pill.readonly .acv-ico { color: var(--acv-faint); }
+.acv-change-pill.unknown,
+.acv-change-pill.none { border-style: dashed; background: transparent; color: var(--acv-muted); font-weight: 500; }
+.acv-file-counts { font-family: var(--acv-mono); font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.acv-add { color: var(--sw-ok); }
+.acv-del { color: var(--sw-err); }
+.acv-changes-inline { display: block; margin-top: 8px; }
+.acv-change-root { margin: 10px 0 5px; color: var(--acv-faint); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+.acv-change-root .mono { text-transform: none; letter-spacing: 0; color: var(--acv-muted); }
+.acv-change-record { margin-top: 6px; border: 1px solid var(--acv-line); border-radius: 7px; background: var(--acv-surface-2); overflow: hidden; }
+.acv-change-record-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 5px 9px; border-bottom: 1px solid var(--acv-line-soft); color: var(--acv-muted); font-size: 10px; }
+.acv-producer { padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--acv-kind-tool) 18%, transparent); color: var(--acv-text); font-family: var(--acv-mono); font-size: 10px; }
+.acv-producer.runtime { background: color-mix(in srgb, var(--acv-kind-assistant) 20%, transparent); }
+.acv-change-meta { padding: 8px 9px 4px; font-size: 11px; }
+.acv-change-note { display: flex; align-items: center; gap: 6px; padding: 6px 9px; color: var(--acv-muted); font-size: 10.5px; line-height: 1.45; }
+.acv-change-record .acv-warning { margin: 8px 9px; }
+.acv-change-file { border-top: 1px solid var(--acv-line-soft); }
+.acv-change-file-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 9px; border: 0; background: transparent; color: var(--acv-text); font-size: 11px; text-align: left; cursor: pointer; }
+.acv-change-file-row:hover,
+.acv-change-file.open > .acv-change-file-row { background: color-mix(in srgb, var(--sw-info) 6%, transparent); }
+.acv-change-file-row .acv-fold-mark { flex: none; }
+.acv-op { flex: none; min-width: 52px; color: var(--acv-faint); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.acv-op.create { color: var(--sw-ok); }
+.acv-op.delete { color: var(--sw-err); }
+.acv-op.type_change { color: var(--sw-warn); }
+.acv-file-path { min-width: 0; flex: 1; overflow: hidden; font-family: var(--acv-mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.acv-diff { margin: 0; padding: 4px 0; border-top: 1px solid var(--acv-line-soft); background: var(--acv-bg); color: var(--acv-muted); font-family: var(--acv-mono); font-size: 10.5px; line-height: 1.5; overflow-x: auto; white-space: pre; }
+.acv-diff-hunk { padding: 2px 9px; color: var(--sw-info); }
+.acv-diff-line { padding: 0 9px; }
+.acv-diff-line.add { background: color-mix(in srgb, var(--sw-ok) 13%, transparent); color: var(--acv-text); }
+.acv-diff-line.del { background: color-mix(in srgb, var(--sw-err) 13%, transparent); color: var(--acv-text); }
+.acv-diff-line.marker { color: var(--acv-faint); font-style: italic; }
+.acv-diff-note { padding: 4px 9px 6px; color: var(--acv-faint); font-size: 10px; }
+.acv-diff-more { display: block; padding: 4px 9px 6px; font-size: 10.5px; }
+.acv-changes-more { display: block; margin-top: 6px; font-size: 11px; }
+.acv-clip.marked { padding-right: 20px; }
+.acv-clip-mark { position: absolute; right: 5px; top: 7px; width: 11px; height: 11px; }
+/* Floats under the strip like the overview and the problems; scrolls inside. */
+.acv-explain.acv-changes { position: absolute; top: 100%; right: 12px; z-index: 30; width: min(880px, calc(100% - 24px)); margin: 4px 0 0; background: color-mix(in srgb, var(--acv-kind-tool) 6%, var(--acv-surface)); border-color: color-mix(in srgb, var(--acv-kind-tool) 40%, transparent); box-shadow: 0 14px 36px color-mix(in srgb, var(--acv-text) 22%, transparent); }
+.acv-changes[hidden] { display: none; }
+.acv-changes .acv-explain-title { font-family: var(--acv-sans); }
+.acv-changes-body { max-height: 60vh; overflow: auto; padding: 6px 14px 12px; font-size: 11px; }
+.acv-panel-hint { margin: 6px 0 2px; color: var(--acv-muted); font-size: 11px; }
+.acv-panel-entry .acv-linkish { font-size: inherit; }
+.acv-changes-toggle { cursor: pointer; }
+.acv-changes-toggle .acv-ico { color: var(--acv-kind-tool); }
+.acv-panel-file { margin: 4px 0; padding: 5px 8px; border: 1px solid var(--acv-line-soft); border-radius: 6px; background: var(--acv-surface); }
+.acv-panel-file-head { display: flex; align-items: center; gap: 8px; }
+.acv-panel-entry { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 3px 0 0 60px; color: var(--acv-muted); font-size: 10.5px; }
+.acv-to-changes { display: block; margin-top: 10px; }
+.acv-hashes { display: block; margin-top: 2px; font-family: var(--acv-mono); font-size: 9.5px; color: var(--acv-faint); overflow-wrap: anywhere; }

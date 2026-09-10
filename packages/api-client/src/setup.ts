@@ -67,6 +67,12 @@ export interface LandingColumn {
    */
   selfAggregate?: boolean;
   /**
+   * Sum a service's buckets over the window instead of averaging them, so
+   * a counter reads as the window's total. Consulted only on the fan-out
+   * path; default false (the value per bucket).
+   */
+  rangeTotal?: boolean;
+  /**
    * Multiplier applied BFF-side after MQE returns. Use for unit
    * normalization — e.g. SkyWalking's `service_sla` is integer
    * percent-times-100 (`9923` for 99.23%), so a `scale: 0.01` brings
@@ -84,7 +90,7 @@ export interface LandingColumn {
 export interface LandingConfig {
   /** Lower number → higher on the Overview. */
   priority: number;
-  /** Number of services to surface in the landing card, clamped 5..8. */
+  /** Number of services to surface in the landing card, at most `LANDING_TOP_N_MAX`. */
   topN: number;
   /** Metric key used to rank the top-N. */
   orderBy: string;

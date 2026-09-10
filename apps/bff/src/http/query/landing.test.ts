@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { bodySchema } from './landing.js';
 import { allLayerTemplates } from '../../logic/layers/loader.js';
+import { LANDING_TOP_N_MAX } from '@skywalking-horizon-ui/api-client';
 
 /**
  * The SPA turns a layer template's `layer-header` block straight into the
@@ -86,5 +87,21 @@ describe('landing body schema — a column that names a metric', () => {
       columns: [{ metric: 'w_0', label: 'RPM', mqe: 'service_cpm' }],
     });
     expect(expression.success && expression.data.columns[0].mqe).toBe('service_cpm');
+  });
+});
+
+describe('landing body schema — a column that wants the window total', () => {
+  const base = {
+    orderBy: 'w_0',
+    columns: [{ metric: 'w_0', label: 'Tokens', mqe: 'meter_ai_agent_tokens', aggregation: 'sum', rangeTotal: true }],
+  };
+
+  it('accepts `rangeTotal` on a column and keeps the cap on the rows it ranks', () => {
+    expect(bodySchema.parse({ ...base, topN: LANDING_TOP_N_MAX }).columns[0]!.rangeTotal).toBe(true);
+    expect(bodySchema.safeParse({ ...base, topN: LANDING_TOP_N_MAX + 1 }).success).toBe(false);
+  });
+
+  it('refuses a non-boolean rather than coercing it', () => {
+    expect(bodySchema.safeParse({ ...base, topN: 1, columns: [{ ...base.columns[0], rangeTotal: 'yes' }] }).success).toBe(false);
   });
 });

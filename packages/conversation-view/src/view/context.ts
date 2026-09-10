@@ -20,7 +20,7 @@ import type { ViewStrings } from '../strings.js';
 import type { TimeFormatter } from '../format.js';
 import type { AszRef, Glossary, LandedRecord } from '../types.js';
 
-export type InspectorTab = 'details' | 'relations' | 'evidence';
+export type InspectorTab = 'details' | 'relations' | 'evidence' | 'changes';
 
 /** What the reader is looking at. The three fields a host round-trips through
  *  its URL are the talk, the selected step and the stream; the rest is local. */
@@ -42,6 +42,19 @@ export interface ViewState {
   autoOpen: Set<string>;
   explain: string | null;
   overviewOpen: boolean;
+  /** The conversation-level changes panel under the strip. */
+  changesOpen: boolean;
+  /** Tool cards whose inline change details are open, by step id. */
+  openChanges: Set<string>;
+  /** File rows opened to their hunks, keyed `<step>|<captured_by>|<record id>|<path>`
+   *  so two records of one path never share a row. */
+  openChangeFiles: Set<string>;
+  /** File rows whose whole diff is shown past the preview length. */
+  fullDiffs: Set<string>;
+  /** Input and result texts opened past the card's clamp, keyed `<step>|in` or `<step>|out`. */
+  openTexts: Set<string>;
+  /** The inspector drawn as a wide panel over the workbench rather than at its side. */
+  inspectorPopped: boolean;
 }
 
 /** Everything a view module needs: the model, the words, the state, and the
@@ -73,6 +86,7 @@ export interface ViewContext {
   drawInspector(): void;
   drawStreamTabs(): void;
   drawTalkList(): void;
+  drawChangesPanel(): void;
   centerOn(id: string | null, behavior: ScrollBehavior, alsoTranscript?: boolean): void;
   announce(text: string): void;
 }

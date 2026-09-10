@@ -1,0 +1,57 @@
+{
+  "title": "KI-Agenten-Übersicht",
+  "description": "Token-Verbrauch der KI-Agenten, die an dieses OAP melden: ein Tagesraster der letzten 30 Tage und ein Stundenraster der letzten 10, dann wie viele Agenten es gibt, was sie im gewählten Zeitraum verbraucht haben und die zwanzig aktivsten davon.",
+  "widgets": [
+    {
+      "id": "usage_break",
+      "title": "Verbrauch"
+    },
+    {
+      "id": "daily_tokens",
+      "title": "Tokens pro Tag",
+      "tip": "Tokens pro Tag über die letzten 30 Tage, die aktivsten Agenten zusammengezählt (die Fußzeile sagt, wenn die Ebene mehr Agenten hat, als ein Lesen abdeckt). Ein festes Fenster, das dem Zeitwähler nicht folgt; ein Klick auf eine Zelle zeigt ihren Tag und Wert in der Fußzeile."
+    },
+    {
+      "id": "hourly_tokens",
+      "title": "Token pro Stunde",
+      "tip": "Tokens pro Stunde über die letzten 10 Tage, die aktivsten Agenten zusammengezählt: eine Zeile pro Tag, eine Spalte pro Stunde der OAP-Uhr. Ein festes Fenster, das dem Zeitwähler nicht folgt; ein Klick auf eine Zelle zeigt ihre Stunde und ihren Wert in der Fußzeile."
+    },
+    {
+      "id": "runtimes_break",
+      "title": "Agenten"
+    },
+    {
+      "id": "tile_runtimes",
+      "title": "Agenten",
+      "tip": "Agenten, die auf der Ebene AI_AGENT melden, und ihre Tokens im gewählten Zeitraum, die zwanzig aktivsten Agenten zusammengezählt: die Summe, dann nach Art (Eingabe, Ausgabe, aus dem Cache gelesen, in den Cache geschrieben) und der Anteil der Subagenten; der Cache-Leseanteil ist ihr Durchschnitt. Die Liste daneben nennt die Agenten.",
+      "kpis": [
+        {
+          "label": "Tokens"
+        },
+        {
+          "label": "Eingabe-Tokens"
+        },
+        {
+          "label": "Ausgabe-Tokens"
+        },
+        {
+          "label": "Aus dem Cache gelesene Tokens"
+        },
+        {
+          "label": "In den Cache geschriebene Tokens"
+        },
+        {
+          "label": "Subagent-Tokens"
+        },
+        {
+          "label": "Cache-Leseanteil"
+        }
+      ]
+    },
+    {
+      "id": "top_runtimes",
+      "title": "Die zwanzig aktivsten Agenten",
+      "tip": "Die zwanzig Agenten mit den meisten Tokens im gewählten Zeitraum, die aktivste zuerst, jede mit ihrer Summe und einem Balken relativ zur ersten. Solange die Ebene höchstens zwanzig Agenten hat, ergeben sie zusammen die Kachel daneben."
+    }
+  ]
+}

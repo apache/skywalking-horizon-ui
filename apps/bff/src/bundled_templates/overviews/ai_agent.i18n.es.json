@@ -1,0 +1,57 @@
+{
+  "title": "Resumen de agentes de IA",
+  "description": "Uso de tokens de los agentes de IA que reportan a este OAP: una cuadrícula día a día de los últimos 30 días y una hora a hora de los últimos 10, y luego cuántos agentes hay, cuánto consumieron en el rango de tiempo elegido y los veinte más activos.",
+  "widgets": [
+    {
+      "id": "usage_break",
+      "title": "Uso"
+    },
+    {
+      "id": "daily_tokens",
+      "title": "Tokens por día",
+      "tip": "Tokens por día en los últimos 30 días, sumando los agentes más activos (el pie indica cuando la capa tiene más agentes de los que cubre una lectura). Una ventana fija que no sigue el selector de tiempo; al hacer clic en una celda, el pie muestra su día y su valor."
+    },
+    {
+      "id": "hourly_tokens",
+      "title": "Tokens por hora",
+      "tip": "Tokens por hora en los últimos 10 días, sumando los agentes más activos: una fila por día y una columna por hora del reloj del OAP. Una ventana fija que no sigue el selector de tiempo; al hacer clic en una celda, el pie muestra su hora y su valor."
+    },
+    {
+      "id": "runtimes_break",
+      "title": "Agentes"
+    },
+    {
+      "id": "tile_runtimes",
+      "title": "Agentes",
+      "tip": "Agentes que reportan en la capa AI_AGENT y sus tokens en el rango elegido, sumando los veinte agentes más activos: el total, luego por tipo (entrada, salida, leídos de caché, escritos en caché) y la parte gastada por subagentes; la proporción de lecturas de caché es su promedio. La lista de al lado nombra los agentes.",
+      "kpis": [
+        {
+          "label": "Tokens"
+        },
+        {
+          "label": "Tokens de entrada"
+        },
+        {
+          "label": "Tokens de salida"
+        },
+        {
+          "label": "Tokens leídos de caché"
+        },
+        {
+          "label": "Tokens escritos en caché"
+        },
+        {
+          "label": "Tokens de subagentes"
+        },
+        {
+          "label": "Proporción de lecturas de caché"
+        }
+      ]
+    },
+    {
+      "id": "top_runtimes",
+      "title": "Los veinte agentes principales",
+      "tip": "Los veinte agentes con más tokens en el rango elegido, el más activo primero, cada uno con su total y una barra relativa al primero. Mientras la capa tenga veinte agentes o menos, suman lo mismo que la tarjeta de al lado."
+    }
+  ]
+}
