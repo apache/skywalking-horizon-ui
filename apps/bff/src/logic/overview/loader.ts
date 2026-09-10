@@ -71,6 +71,8 @@ const WIDGET_TYPES: ReadonlySet<OverviewWidgetType> = new Set([
   'kpi-tile',
   'alarms',
   'metric-composite',
+  'calendar-heatmap',
+  'ranking',
 ]);
 // `layer` is required for data-bound widgets; layout-only / aggregate
 // widgets resolve their data without an explicit layer binding.
@@ -101,6 +103,7 @@ function parseKpis(raw: unknown): OverviewKpi[] | undefined {
       unit: isString(rec.unit) ? rec.unit : undefined,
       aggregation:
         rec.aggregation === 'sum' ? 'sum' : rec.aggregation === 'avg' ? 'avg' : undefined,
+      rangeTotal: rec.rangeTotal === true ? true : undefined,
       style,
       max,
       source,
@@ -168,6 +171,11 @@ function validate(raw: unknown, file: string): OverviewDashboard | null {
       aggregateOnPage: w.aggregateOnPage === true ? true : undefined,
       limit: typeof w.limit === 'number' ? w.limit : undefined,
       rankBy: parseRankBy(w.rankBy),
+      windowDays: typeof w.windowDays === 'number' ? w.windowDays : undefined,
+      resolution: w.resolution === 'auto' || w.resolution === 'hour' || w.resolution === 'day' ? w.resolution : undefined,
+      // Off unless the template says so; the explicit boolean survives the parse either way.
+      compareTo: typeof w.compareTo === 'boolean' ? w.compareTo : undefined,
+      rangeTotal: w.rangeTotal === true ? true : undefined,
       span: typeof w.span === 'number' ? w.span : undefined,
       rowSpan: typeof w.rowSpan === 'number' ? w.rowSpan : undefined,
     })),

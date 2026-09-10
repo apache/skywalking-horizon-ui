@@ -4,16 +4,364 @@
   "color": "var(--sw-purple)",
   "documentLink": "https://skywalking.apache.org/docs/skywalking-ai-sessionizer/next/readme/",
   "aliases": {
-    "services": "Agent runtimes",
-    "instances": "Senders"
+    "services": "Agents",
+    "instances": "Agent runtimes"
   },
   "components": {
-    "service": false,
-    "instances": false,
+    "service": true,
+    "instances": true,
     "endpoints": false,
     "topology": false,
     "traces": false,
     "logs": false,
     "aiConversations": true
+  },
+  "layer-header": {
+    "orderBy": "tokens",
+    "columns": [
+      {
+        "metric": "tokens",
+        "label": "Tokens",
+        "mqe": "meter_ai_agent_tokens",
+        "aggregation": "sum"
+      },
+      {
+        "metric": "cacheShare",
+        "label": "Cache read share",
+        "unit": "%",
+        "mqe": "meter_ai_agent_cache_read_share",
+        "aggregation": "avg"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens by type",
+        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides), counted at the minute a call ended. Cache reads are most of the total, so each type is its own line rather than a stack.",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "meter_ai_agent_tokens_by_type"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Main agent and subagents",
+        "tip": "auxiliary appears only from Claude Code's own exporter; the AI Sessionizer sees only main and subagent.",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_tokens_by_source, sum(query_source))"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens by model",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_tokens_by_model, sum(model))"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "cache_share",
+        "title": "Cache read share",
+        "tip": "cacheRead over every type except output, formed per received batch and averaged.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_ai_agent_cache_read_share"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "cost",
+        "title": "Cost by model",
+        "tip": "From Claude Code's own exporter only; the AI Sessionizer never estimates cost.",
+        "type": "line",
+        "unit": "USD",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_cost_by_model, sum(model)) / 1000000"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_cost_by_model",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "active_time",
+        "title": "Active time",
+        "tip": "user is keyboard interaction, cli is tool execution and responses. From Claude Code's own exporter only.",
+        "type": "line",
+        "unit": "s",
+        "expressions": [
+          "meter_ai_agent_active_time / 1000"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_active_time",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions started",
+        "tip": "From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_sessions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_sessions",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Lines of code",
+        "tip": "Lines added and removed by the editing tools. From Claude Code's own exporter only.",
+        "type": "line",
+        "unit": "lines",
+        "expressions": [
+          "meter_ai_agent_lines_of_code"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_lines_of_code",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits made while the agent ran. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_commits"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_commits",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull requests",
+        "tip": "Pull requests opened while the agent ran. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_pull_requests"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_pull_requests",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Edit permission decisions",
+        "tip": "Accepted and rejected permission prompts on the editing tools. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_edit_decisions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_edit_decisions",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "Tokens by type",
+        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides), counted at the minute a call ended. Cache reads are most of the total, so each type is its own line rather than a stack.",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "meter_ai_agent_instance_tokens_by_type"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "Main agent and subagents",
+        "tip": "auxiliary appears only from Claude Code's own exporter; the AI Sessionizer sees only main and subagent.",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_instance_tokens_by_source, sum(query_source))"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "Tokens by model",
+        "type": "line",
+        "unit": "tokens",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_instance_tokens_by_model, sum(model))"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "cache_share",
+        "title": "Cache read share",
+        "tip": "cacheRead over every type except output, formed per received batch and averaged.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_ai_agent_instance_cache_read_share"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "cost",
+        "title": "Cost by model",
+        "tip": "From Claude Code's own exporter only; the AI Sessionizer never estimates cost.",
+        "type": "line",
+        "unit": "USD",
+        "expressions": [
+          "aggregate_labels(meter_ai_agent_instance_cost_by_model, sum(model)) / 1000000"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_cost_by_model",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "active_time",
+        "title": "Active time",
+        "tip": "user is keyboard interaction, cli is tool execution and responses. From Claude Code's own exporter only.",
+        "type": "line",
+        "unit": "s",
+        "expressions": [
+          "meter_ai_agent_instance_active_time / 1000"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_active_time",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions started",
+        "tip": "From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_instance_sessions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_sessions",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "lines_of_code",
+        "title": "Lines of code",
+        "tip": "Lines added and removed by the editing tools. From Claude Code's own exporter only.",
+        "type": "line",
+        "unit": "lines",
+        "expressions": [
+          "meter_ai_agent_instance_lines_of_code"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_lines_of_code",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "commits",
+        "title": "Commits",
+        "tip": "Commits made while the agent ran. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_instance_commits"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_commits",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull requests",
+        "tip": "Pull requests opened while the agent ran. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_instance_pull_requests"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_pull_requests",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "edit_decisions",
+        "title": "Edit permission decisions",
+        "tip": "Accepted and rejected permission prompts on the editing tools. From Claude Code's own exporter only.",
+        "type": "line",
+        "expressions": [
+          "meter_ai_agent_instance_edit_decisions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_ai_agent_instance_edit_decisions",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      }
+    ]
   }
 }

@@ -1,7 +1,131 @@
 {
   "alias": "AI エージェント",
   "slots": {
-    "services": "エージェントランタイム",
-    "instances": "送信元"
+    "services": "エージェント",
+    "instances": "エージェントランタイム"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "トークン"
+      },
+      {
+        "label": "キャッシュ読み取り比率"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "種類別トークン",
+        "tip": "各点はその区間（時間範囲に応じて 1 分、1 時間、または 1 日）の合計で、呼び出しが終了した分に計上されます。キャッシュ読み取りが総量の大半を占めるため、積み上げではなく種類ごとに別の線で表示します。"
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "メインエージェントとサブエージェント",
+        "tip": "auxiliary は Claude Code 自身のエクスポーターからのみ届きます。AI Sessionizer が把握するのは main と subagent のみです。"
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "モデル別トークン"
+      },
+      {
+        "id": "cache_share",
+        "title": "キャッシュ読み取り比率",
+        "tip": "output を除く全種類に対する cacheRead の比率。受信したバッチごとに算出し、平均します。"
+      },
+      {
+        "id": "cost",
+        "title": "モデル別コスト",
+        "tip": "Claude Code 自身のエクスポーターからのみ。AI Sessionizer はコストを推定しません。"
+      },
+      {
+        "id": "active_time",
+        "title": "アクティブ時間",
+        "tip": "user はキーボード操作、cli はツール実行と応答の時間です。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "sessions",
+        "title": "開始されたセッション",
+        "tip": "Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "lines_of_code",
+        "title": "コード行数",
+        "tip": "編集ツールが追加・削除した行数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "commits",
+        "title": "コミット",
+        "tip": "エージェント実行中に行われたコミット数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "pull_requests",
+        "title": "プルリクエスト",
+        "tip": "エージェント実行中に作成されたプルリクエスト数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "edit_decisions",
+        "title": "編集の許可判断",
+        "tip": "編集ツールに対する許可プロンプトの承認と拒否の回数。Claude Code 自身のエクスポーターからのみ。"
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "種類別トークン",
+        "tip": "各点はその区間（時間範囲に応じて 1 分、1 時間、または 1 日）の合計で、呼び出しが終了した分に計上されます。キャッシュ読み取りが総量の大半を占めるため、積み上げではなく種類ごとに別の線で表示します。"
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "メインエージェントとサブエージェント",
+        "tip": "auxiliary は Claude Code 自身のエクスポーターからのみ届きます。AI Sessionizer が把握するのは main と subagent のみです。"
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "モデル別トークン"
+      },
+      {
+        "id": "cache_share",
+        "title": "キャッシュ読み取り比率",
+        "tip": "output を除く全種類に対する cacheRead の比率。受信したバッチごとに算出し、平均します。"
+      },
+      {
+        "id": "cost",
+        "title": "モデル別コスト",
+        "tip": "Claude Code 自身のエクスポーターからのみ。AI Sessionizer はコストを推定しません。"
+      },
+      {
+        "id": "active_time",
+        "title": "アクティブ時間",
+        "tip": "user はキーボード操作、cli はツール実行と応答の時間です。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "sessions",
+        "title": "開始されたセッション",
+        "tip": "Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "lines_of_code",
+        "title": "コード行数",
+        "tip": "編集ツールが追加・削除した行数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "commits",
+        "title": "コミット",
+        "tip": "エージェント実行中に行われたコミット数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "pull_requests",
+        "title": "プルリクエスト",
+        "tip": "エージェント実行中に作成されたプルリクエスト数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "edit_decisions",
+        "title": "編集の許可判断",
+        "tip": "編集ツールに対する許可プロンプトの承認と拒否の回数。Claude Code 自身のエクスポーターからのみ。"
+      }
+    ]
   }
 }

@@ -52,7 +52,13 @@ import {
   walkWidgets,
 } from '@skywalking-horizon-ui/api-client';
 import type { DashboardWidget, LayerExtPages } from '@skywalking-horizon-ui/api-client';
-import { MAX_EXT_PAGE_ID_LENGTH, MAX_EXT_PAGE_NAME_LENGTH } from '@skywalking-horizon-ui/api-client';
+import {
+  CALENDAR_HEATMAP_WINDOW_DAYS_MAX,
+  CALENDAR_HEATMAP_WINDOW_DAYS_MIN,
+  LANDING_TOP_N_MAX,
+  MAX_EXT_PAGE_ID_LENGTH,
+  MAX_EXT_PAGE_NAME_LENGTH,
+} from '@skywalking-horizon-ui/api-client';
 import { widgetSchema, scopeSchema } from '../dashboard/schema.js';
 import { linkSchemeIssue } from '../../util/link-policy.js';
 import {
@@ -922,6 +928,8 @@ const OVERVIEW_WIDGET_TYPES = [
   'kpi-tile',
   'alarms',
   'metric-composite',
+  'calendar-heatmap',
+  'ranking',
 ] as const;
 
 /** Widgets that resolve without a layer binding; every other type needs
@@ -965,6 +973,7 @@ function buildOverviewSchemas(complete: boolean) {
       mqe: text.optional(),
       unit: z.string().optional(),
       aggregation: aggregationSchema.optional(),
+      rangeTotal: z.boolean().optional(),
       style: z.enum(['number', 'progress-bar']).optional(),
       max: z.number().positive().optional(),
       source: z.enum(['mqe', 'service-count']).optional(),
@@ -1009,6 +1018,15 @@ function buildOverviewSchemas(complete: boolean) {
         .object({ kpi: z.number().int().min(0).optional(), mqe: text.optional() })
         .strict()
         .optional(),
+      windowDays: z
+        .number()
+        .int()
+        .min(CALENDAR_HEATMAP_WINDOW_DAYS_MIN)
+        .max(CALENDAR_HEATMAP_WINDOW_DAYS_MAX)
+        .optional(),
+      resolution: z.enum(['auto', 'hour', 'day']).optional(),
+      compareTo: z.boolean().optional(),
+      rangeTotal: z.boolean().optional(),
       span: z.number().int().positive().max(MAX_OVERVIEW_SPAN).optional(),
       rowSpan: z.number().int().positive().max(MAX_OVERVIEW_SPAN).optional(),
     })
@@ -1025,7 +1043,12 @@ function buildOverviewSchemas(complete: boolean) {
       if (!OVERVIEW_LAYERLESS_WIDGETS.has(w.type) && !w.layer) {
         issue('layer', `a "${w.type}" widget requires a \`layer\``);
       }
-      if (w.type === 'metric' && !w.mqe) issue('mqe', 'a "metric" widget requires an `mqe`');
+      if ((w.type === 'metric' || w.type === 'calendar-heatmap' || w.type === 'ranking') && !w.mqe) {
+        issue('mqe', `a "${w.type}" widget requires an \`mqe\``);
+      }
+      if (w.type === 'ranking' && w.limit !== undefined && w.limit > LANDING_TOP_N_MAX) {
+        issue('limit', `a "ranking" widget lists at most ${LANDING_TOP_N_MAX} services`);
+      }
       if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && !w.kpis) {
         issue('kpis', `a "${w.type}" widget requires \`kpis\``);
       }

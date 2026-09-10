@@ -23,6 +23,7 @@
 
 import { esc } from '../dom.js';
 import { fill } from '../strings.js';
+import { icon, ICON_CHANGES } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
 
 export function drawStatus(ctx: ViewContext): void {
@@ -42,8 +43,15 @@ export function drawStatus(ctx: ViewContext): void {
     `<span><strong>${f.number(m.talks.length)}</strong> ${esc(s.talks)}</span>` +
     `<span>${esc(span)} ${esc(s.span)}</span>` +
     (sum.unresolved ? `<span class="acv-warn">${f.number(sum.unresolved)} ${esc(s.unresolved)}</span>` : '') +
+    (m.workspaceChanges.length
+      ? `<button type="button" class="acv-badge acv-changes-toggle" aria-expanded="${state.changesOpen}" aria-controls="acv-changes">${icon(ICON_CHANGES)} ${esc(
+          fill(s.changesBadge, { n: f.number(m.workspaceChanges.length) }),
+        )}</button>`
+      : '') +
     `<button type="button" class="acv-overview-toggle" aria-expanded="${state.overviewOpen}" aria-controls="acv-overview">${esc(s.overview)} <span class="acv-chevron" aria-hidden="true">⌄</span></button>`;
   ctx.q('.acv-overview-toggle').addEventListener('click', () => setOverviewOpen(ctx, !state.overviewOpen));
+  ctx.root.querySelector('.acv-changes-toggle')?.addEventListener('click', () => setChangesOpen(ctx, !state.changesOpen));
+  ctx.q('.acv-changes-close').addEventListener('click', () => setChangesOpen(ctx, false));
   if (sum.problems.length) {
     ctx.q('.acv-integrity').addEventListener('click', () => setProblemsOpen(ctx, ctx.q('.acv-problems').hidden));
     ctx.q('.acv-problems-close').addEventListener('click', () => setProblemsOpen(ctx, false));
@@ -64,6 +72,7 @@ export function setProblemsOpen(ctx: ViewContext, open: boolean): void {
   const box = ctx.q('.acv-problems');
   box.hidden = !open;
   if (open && ctx.state.overviewOpen) setOverviewOpen(ctx, false);
+  if (open && ctx.state.changesOpen) setChangesOpen(ctx, false);
 }
 
 /** The overview floats over the workbench; it never pushes it. */
@@ -71,8 +80,46 @@ export function setOverviewOpen(ctx: ViewContext, open: boolean): void {
   ctx.state.overviewOpen = open;
   ctx.q('.acv-overview').hidden = !open;
   if (open) ctx.q('.acv-problems').hidden = true;
+  if (open && ctx.state.changesOpen) setChangesOpen(ctx, false);
   ctx.q('.acv-overview-toggle').setAttribute('aria-expanded', String(open));
   if (open) ctx.q<HTMLInputElement>('.acv-talk-filter').focus();
+}
+
+/** The conversation's changes float under the strip like the overview; the
+ *  three floating boxes never show together. Drawn on open, since the
+ *  document does not change under it. */
+export function setChangesOpen(ctx: ViewContext, open: boolean): void {
+  ctx.state.changesOpen = open;
+  ctx.q('.acv-changes').hidden = !open;
+  ctx.root.querySelector('.acv-changes-toggle')?.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  if (ctx.state.overviewOpen) setOverviewOpen(ctx, false);
+  ctx.q('.acv-problems').hidden = true;
+  ctx.drawChangesPanel();
+}
+
+/** The inspector as a panel over the whole page, or back at its side. Popped,
+ *  it is a modal dialog: the rest of the renderer is inert and the tab order
+ *  stays inside it (`trapFocus`), so nothing under the scrim can be reached. */
+export function setInspectorPopped(ctx: ViewContext, on: boolean): void {
+  ctx.state.inspectorPopped = on;
+  ctx.q('.acv-workbench').classList.toggle('acv-popped', on);
+  ctx.q('.acv-scrim').hidden = !on;
+  const inspector = ctx.q('.acv-inspector');
+  if (on) {
+    inspector.setAttribute('role', 'dialog');
+    inspector.setAttribute('aria-modal', 'true');
+    inspector.setAttribute('aria-label', `${ctx.s.inspector} · ${ctx.q('.acv-inspector-title').textContent ?? ''}`);
+  } else {
+    for (const a of ['role', 'aria-modal', 'aria-label']) inspector.removeAttribute(a);
+  }
+  for (const el of ctx.root.querySelectorAll<HTMLElement>('.acv-main > :not(.acv-inspector):not(.acv-scrim), .acv-workbench > :not(.acv-main), .acv > :not(.acv-workbench)')) {
+    el.toggleAttribute('inert', on);
+  }
+  const btn = ctx.q('.acv-pop-btn');
+  btn.setAttribute('aria-pressed', String(on));
+  btn.title = on ? ctx.s.dockInspector : ctx.s.popOutInspector;
+  btn.textContent = on ? '⤡' : '⤢';
 }
 
 export function drawOverview(ctx: ViewContext): void {
@@ -88,7 +135,9 @@ export function drawOverview(ctx: ViewContext): void {
   ctx.q('.acv-summary').innerHTML = `
     <div class="acv-cell acv-cell-primary"><div class="acv-kicker">${esc(s.session)}</div><strong>${esc(m.doc.sessions.join(', ') || m.doc.conversation)}</strong></div>
     <div class="acv-cell"><div class="acv-kicker">${esc(s.steps)}</div><strong>${f.number(sum.steps)}</strong>
-      <div class="acv-cell-sub">${f.number(m.talks.length)} ${esc(s.talks)} · ${f.number(runs)} ${esc(s.runs)}</div></div>
+      <div class="acv-cell-sub">${f.number(m.talks.length)} ${esc(s.talks)} · ${f.number(runs)} ${esc(s.runs)}${
+        m.workspaceChanges.length ? ` · ${esc(fill(s.changesBadge, { n: f.number(m.workspaceChanges.length) }))}` : ''
+      }</div></div>
     <div class="acv-cell"><div class="acv-kicker">${esc(s.childStreams)}</div><strong>${f.number(child)}</strong>
       <div class="acv-cell-sub">${esc(s.childStreamsNote)}</div></div>
     <div class="acv-cell"><div class="acv-kicker">${esc(s.relations)}</div><strong>${f.number(m.doc.relations.length)}</strong>
@@ -188,3 +237,23 @@ export function fmtNumberWord(ctx: ViewContext, n: number, singular: string, plu
 }
 
 export { fill };
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab inside the popped inspector: the host's own chrome is outside the
+ *  renderer's reach, so wrapping is what keeps the dialog modal there too. */
+export function trapFocus(ctx: ViewContext, e: KeyboardEvent): void {
+  if (e.key !== 'Tab' || !ctx.state.inspectorPopped) return;
+  const inspector = ctx.q('.acv-inspector');
+  const items = Array.from(inspector.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.closest('[hidden]'));
+  if (!items.length) return;
+  const first = items[0]!;
+  const last = items[items.length - 1]!;
+  const active = document.activeElement as HTMLElement | null;
+  const inside = active ? inspector.contains(active) : false;
+  if (e.shiftKey ? !inside || active === first : !inside || active === last) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  }
+}
+

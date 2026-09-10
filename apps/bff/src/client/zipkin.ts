@@ -93,6 +93,19 @@ export interface ZipkinTracesQuery {
   /** Lookback in millis (defaults 30 min). */
   lookback?: number;
   limit?: number;
+  /** Read the BanyanDB cold stage instead of hot+warm — OAP's own addition to
+   *  the Zipkin API, honoured with `endTs`/`lookback`. */
+  coldStage?: boolean;
+}
+
+/** The window and stage a by-id lookup may carry. Any one of them makes OAP
+ *  build a duration, and the others then take OAP's defaults: `endTs` now,
+ *  `lookback` its configured day. With none of the three the lookup is
+ *  unbounded. */
+export interface ZipkinTraceWindow {
+  endTs?: number;
+  lookback?: number;
+  coldStage?: boolean;
 }
 
 const DEFAULT_LOOKBACK_MS = 30 * 60_000;
@@ -185,6 +198,7 @@ export async function zipkinFetchTraces(
   qs.set('endTs', String(endTs));
   qs.set('lookback', String(lookback));
   qs.set('limit', String(query.limit ?? 20));
+  if (query.coldStage) qs.set('coldStage', 'true');
   const path = `/api/v2/traces?${qs.toString()}`;
   const arr = await zipkinFetch<ZipkinSpan[][]>(opts, path);
   return arr
@@ -199,9 +213,21 @@ export async function zipkinFetchTraces(
 export async function zipkinFetchTraceById(
   opts: ZipkinClientOpts,
   traceId: string,
+  window?: ZipkinTraceWindow,
 ): Promise<ZipkinSpan[]> {
-  const path = `/api/v2/trace/${encodeURIComponent(traceId)}`;
+  const qs = zipkinWindowParams(window);
+  const path = `/api/v2/trace/${encodeURIComponent(traceId)}${qs ? `?${qs}` : ''}`;
   return zipkinFetch<ZipkinSpan[]>(opts, path);
+}
+
+/** The query string of a by-id window: empty when nothing is asked. */
+export function zipkinWindowParams(window: ZipkinTraceWindow | undefined): string {
+  if (!window) return '';
+  const qs = new URLSearchParams();
+  if (typeof window.endTs === 'number' && Number.isFinite(window.endTs)) qs.set('endTs', String(window.endTs));
+  if (typeof window.lookback === 'number' && Number.isFinite(window.lookback)) qs.set('lookback', String(window.lookback));
+  if (window.coldStage) qs.set('coldStage', 'true');
+  return qs.toString();
 }
 
 /** The Zipkin service universe (`localEndpoint.serviceName` of recent spans) —

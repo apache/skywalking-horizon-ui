@@ -36,12 +36,14 @@ import MetricWidget from '@/render/widgets/MetricWidget.vue';
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import AlarmsWidget from '@/render/widgets/AlarmsWidget.vue';
 import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
+import CalendarHeatmapWidget from '@/render/widgets/CalendarHeatmapWidget.vue';
+import RankingWidget from '@/render/widgets/RankingWidget.vue';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const dashId = computed(() => String(route.params.id ?? ''));
-const { dashboard, widgets, values, isLoading, isLoadingData, metricsPartial } = useOverviewDashboard(dashId);
+const { dashboard, widgets, values, isLoading, isLoadingData, metricsPartial, dataError } = useOverviewDashboard(dashId);
 
 interface Section { title: string; cols: number; widgets: OverviewWidget[] }
 const sections = computed<Section[]>(() => {
@@ -140,6 +142,30 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
               :layer="w.layer"
               :kpis="w.kpis"
               :kpi-values="values.kpiValues[w.id] ?? {}"
+              :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
+            />
+            <CalendarHeatmapWidget
+              v-else-if="w.type === 'calendar-heatmap'"
+              :title="w.title"
+              :tip="w.tip"
+              :layer="w.layer"
+              :mqe="w.mqe"
+              :unit="w.unit"
+              :aggregation="w.aggregation"
+              :window-days="w.windowDays"
+              :resolution="w.resolution"
+              :compare-to="w.compareTo"
+              :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
+            />
+            <RankingWidget
+              v-else-if="w.type === 'ranking'"
+              :title="w.title"
+              :tip="w.tip"
+              :layer="w.layer"
+              :unit="w.unit"
+              :rows="values.rankings[w.id]?.rows"
+              :total="values.rankings[w.id]?.total"
+              :failed="dataError"
               :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
             />
           </template>

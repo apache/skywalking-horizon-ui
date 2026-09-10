@@ -65,6 +65,7 @@ Widget `type`s (`OverviewWidgetType`):
 - `metric` — a single scalar `mqe` (rarely needed; prefer kpi-tile).
 - `alarms` — active-alarm rail; layer-agnostic, `limit?`. Omit `layer`.
 - `topology` — embedded static service-map for a `layer`, click-through to the full map.
+- `calendar-heatmap` — one cell per OAP-local day over a FIXED window (`windowDays` 7–93, default 30) that ignores the time picker; `mqe` is a plain per-service metric (no `top_n`), `aggregation` sum|avg, `unit`, `compareTo` (footer line against a well-known book). Fetches on its own.
 - Grid: `span` (12-col) + `rowSpan`.
 
 Procedure:

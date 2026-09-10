@@ -43,6 +43,20 @@ export interface AiConversationRow {
   streams: number;
   segments: number;
   unresolved: number;
+  /** Workspace change records the Sessionizer had captured as of the head
+   *  round: one per tool call it watched for file changes, whether or not the
+   *  call changed any, counted per producer. `null` when the round did not
+   *  carry the count, which a Sessionizer older than it leaves out. */
+  changes: number | null;
+  /** What those records' diffs add and remove, summed; `null` with `changes`. */
+  linesAdded: number | null;
+  linesRemoved: number | null;
+  /** Provider calls, child agents started, and shell commands run through the
+   *  runtime's Bash tool, as of the head round; `null` when the round did not
+   *  carry them. */
+  llmCalls: number | null;
+  subagents: number | null;
+  bashRuns: number | null;
   /** When the conversation began, epoch ms. */
   from: number;
   /** Its last activity so far, epoch ms. */

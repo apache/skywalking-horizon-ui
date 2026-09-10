@@ -47,6 +47,7 @@
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { relativeAgo } from '@/utils/formatters';
 import type { NativeTraceListRow } from '@/api/client';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -75,12 +76,7 @@ function parseNativeStart(v: string): number {
   return Number.isFinite(ts) ? ts : 0;
 }
 function fmtRelativeAgo(ts: number | null | undefined): string {
-  if (!ts) return '—';
-  const ms = Date.now() - ts;
-  if (ms < 1000) return t('just now');
-  if (ms < 60_000) return t('{n}s ago', { n: Math.round(ms / 1000) });
-  if (ms < 3_600_000) return t('{n}m ago', { n: Math.round(ms / 60_000) });
-  return t('{n}h ago', { n: Math.round(ms / 3_600_000) });
+  return relativeAgo(ts, t);
 }
 /**
  * Trace-result bar colour. Red is reserved for actual error-status

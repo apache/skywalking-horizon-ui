@@ -1,7 +1,131 @@
 {
   "alias": "AI 智能体",
   "slots": {
-    "services": "智能体运行时",
-    "instances": "发送方"
+    "services": "智能体",
+    "instances": "智能体运行时"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Token"
+      },
+      {
+        "label": "缓存读取占比"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tokens_by_type",
+        "title": "按类型的 Token",
+        "tip": "每个点是所在时间桶（按时间范围为一分钟、一小时或一天）的总量，计入调用结束的那一分钟。缓存读取占总量的绝大部分，因此各类型分别成线，而不是堆叠。"
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "主智能体与子智能体",
+        "tip": "auxiliary 只来自 Claude Code 自带的导出器；AI Sessionizer 只能看到 main 和 subagent。"
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "按模型的 Token"
+      },
+      {
+        "id": "cache_share",
+        "title": "缓存读取占比",
+        "tip": "cacheRead 除以 output 之外所有类型的总量，按收到的每个批次计算后取平均。"
+      },
+      {
+        "id": "cost",
+        "title": "按模型的成本",
+        "tip": "只来自 Claude Code 自带的导出器；AI Sessionizer 不会估算成本。"
+      },
+      {
+        "id": "active_time",
+        "title": "活跃时长",
+        "tip": "user 为键盘交互时间，cli 为工具执行与响应时间。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "sessions",
+        "title": "已启动会话数",
+        "tip": "只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "lines_of_code",
+        "title": "代码行数",
+        "tip": "编辑工具新增与删除的行数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "commits",
+        "title": "提交",
+        "tip": "智能体运行期间完成的提交数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull Request",
+        "tip": "智能体运行期间创建的 Pull Request 数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "edit_decisions",
+        "title": "编辑权限决定",
+        "tip": "编辑工具权限请求的允许与拒绝次数。只来自 Claude Code 自带的导出器。"
+      }
+    ],
+    "instance": [
+      {
+        "id": "tokens_by_type",
+        "title": "按类型的 Token",
+        "tip": "每个点是所在时间桶（按时间范围为一分钟、一小时或一天）的总量，计入调用结束的那一分钟。缓存读取占总量的绝大部分，因此各类型分别成线，而不是堆叠。"
+      },
+      {
+        "id": "tokens_by_source",
+        "title": "主智能体与子智能体",
+        "tip": "auxiliary 只来自 Claude Code 自带的导出器；AI Sessionizer 只能看到 main 和 subagent。"
+      },
+      {
+        "id": "tokens_by_model",
+        "title": "按模型的 Token"
+      },
+      {
+        "id": "cache_share",
+        "title": "缓存读取占比",
+        "tip": "cacheRead 除以 output 之外所有类型的总量，按收到的每个批次计算后取平均。"
+      },
+      {
+        "id": "cost",
+        "title": "按模型的成本",
+        "tip": "只来自 Claude Code 自带的导出器；AI Sessionizer 不会估算成本。"
+      },
+      {
+        "id": "active_time",
+        "title": "活跃时长",
+        "tip": "user 为键盘交互时间，cli 为工具执行与响应时间。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "sessions",
+        "title": "已启动会话数",
+        "tip": "只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "lines_of_code",
+        "title": "代码行数",
+        "tip": "编辑工具新增与删除的行数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "commits",
+        "title": "提交",
+        "tip": "智能体运行期间完成的提交数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "pull_requests",
+        "title": "Pull Request",
+        "tip": "智能体运行期间创建的 Pull Request 数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "edit_decisions",
+        "title": "编辑权限决定",
+        "tip": "编辑工具权限请求的允许与拒绝次数。只来自 Claude Code 自带的导出器。"
+      }
+    ]
   }
 }

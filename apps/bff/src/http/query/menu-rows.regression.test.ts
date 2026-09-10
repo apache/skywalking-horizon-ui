@@ -203,8 +203,8 @@ describe('default order vs. the component list', () => {
     return resolveLayerMenuRows({ caps, slots: {}, traces: t.traces }).map((r) => r.path);
   }
 
-  it('covers all 17 components', () => {
-    expect(COMPONENT_KEYS).toHaveLength(17);
+  it('covers all 18 components', () => {
+    expect(COMPONENT_KEYS).toHaveLength(18);
   });
 
   it('gives every component at least one row', () => {
@@ -218,7 +218,7 @@ describe('default order vs. the component list', () => {
   });
 
   it('is one row per component, plus the second trace row', () => {
-    // 17 components → 18 rows: `traces` is the only one that resolves to
+    // 18 components → 19 rows: `traces` is the only one that resolves to
     // two (native and Zipkin span formats get their own tabs).
     expect(DEFAULT_LAYER_ROW_ORDER).toHaveLength(COMPONENT_KEYS.length + 1);
     const multi = COMPONENT_KEYS.filter((k) => rowsForComponent(k).length > 1);
@@ -233,14 +233,15 @@ describe('layers added after the transcript', () => {
     for (const k of POST_TRANSCRIPT_LAYERS) expect(keys).toContain(k);
   });
 
-  it('AI_AGENT is its Conversations tab: one row, the landing, and a direct link', () => {
+  it('AI_AGENT has its Service and Senders rows, then its own Conversations tab', () => {
     const ai = bundledLayers().find((l) => l.key === 'AI_AGENT')!;
-    // The frozen sidebar had no row for it at all — which is why it is not a
-    // regression subject above.
-    expect(oracleSidebarRows(ai.legacy)).toEqual([]);
-    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['conversations']);
-    expect(firstLayerMenuRow(ai.def)).toBe('conversations');
-    expect(isSingleFeatureLayer(ai.def)).toBe(true);
+    // The frozen sidebar knows only the two generic rows; the Conversations
+    // tab is the layer's own, which is why it is not a regression subject
+    // above.
+    expect(oracleSidebarRows(ai.legacy)).toEqual(['service', 'instance']);
+    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['service', 'instance', 'conversations']);
+    expect(firstLayerMenuRow(ai.def)).toBe('service');
+    expect(isSingleFeatureLayer(ai.def)).toBe(false);
   });
 });
 

@@ -108,7 +108,8 @@ it empties it. A Cold toggle would blank the alarm list and the entity pickers.
 
 | Sends `coldStage` | Never sends it |
 |---|---|
-| `trace.ts` — traces | `alarms.ts` — `/api/alarms`, `/api/alarms/count` |
+| `trace.ts` — traces, native and Zipkin alike | `alarms.ts` — `/api/alarms`, `/api/alarms/count` |
+| `zipkin.ts` — the Zipkin list and trace-by-id (`coldStage` is OAP's own addition to the Zipkin API, bounded by `endTs` + `lookback`) | |
 | `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
 | `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
 | `mqe-exec.ts` — one metric expression, run from the template editor | |

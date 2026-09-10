@@ -54,10 +54,18 @@ export class ZipkinApi {
       `/api/zipkin/traces${qs ? '?' + qs : ''}`,
     );
   }
-  trace(traceId: string): Promise<ZipkinTraceDetailResponse> {
+  /** One trace by id. `window` is the list's `endTs` + `lookback` when the
+   *  caller has them: with the Cold pill on, OAP bounds the lookup to a window
+   *  and a cold trace is older than the default day. */
+  trace(traceId: string, window?: { endTs?: number | null; lookback?: number | null }): Promise<ZipkinTraceDetailResponse> {
+    const params = new URLSearchParams();
+    const given = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    if (given(window?.endTs)) params.set('endTs', String(window!.endTs));
+    if (given(window?.lookback)) params.set('lookback', String(window!.lookback));
+    const qs = params.toString();
     return this.bff.request<ZipkinTraceDetailResponse>(
       'GET',
-      `/api/zipkin/trace/${encodeURIComponent(traceId)}`,
+      `/api/zipkin/trace/${encodeURIComponent(traceId)}${qs ? '?' + qs : ''}`,
     );
   }
   autocompleteKeys(): Promise<string[]> {

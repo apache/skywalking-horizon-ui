@@ -34,6 +34,7 @@ export type {
   LayerConfig,
 } from './setup.js';
 export type { LandingAggregates, LandingResponse, LandingServiceRow } from './landing.js';
+export { LANDING_TOP_N_MAX } from './landing.js';
 export type {
   DashboardConfig,
   DashboardRecordItem,
@@ -289,12 +290,19 @@ export type {
 } from './async-profile.js';
 export type {
   OverviewWidgetType,
+  CalendarHeatmapResolution,
   OverviewWidget,
   OverviewKpi,
   OverviewVisibility,
   OverviewDashboard,
   OverviewDashboardListResponse,
   OverviewDashboardResponse,
+} from './overview.js';
+export {
+  CALENDAR_HEATMAP_HOURLY_MAX_DAYS,
+  CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT,
+  CALENDAR_HEATMAP_WINDOW_DAYS_MAX,
+  CALENDAR_HEATMAP_WINDOW_DAYS_MIN,
 } from './overview.js';
 export { parseOapTimezoneMinutes } from './oap-info.js';
 export {

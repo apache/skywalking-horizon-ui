@@ -1,0 +1,126 @@
+{
+  "id": "ai_agent",
+  "title": "AI Agent Overview",
+  "description": "Token usage of the AI agents reporting to this OAP: a day-by-day grid of the last 30 days and an hour-by-hour grid of the last 10, then how many agents there are, what they used over the picked time range, and the twenty busiest of them.",
+  "visibility": "public",
+  "icon": "ai",
+  "order": 30,
+  "layers": [
+    "AI_AGENT"
+  ],
+  "widgets": [
+    {
+      "id": "usage_break",
+      "title": "Usage",
+      "type": "section-break",
+      "cols": 12
+    },
+    {
+      "id": "daily_tokens",
+      "title": "Daily tokens",
+      "tip": "Tokens per day over the last 30 days, the busiest agents summed (the footer says when the layer has more than one read covers). A fixed window that does not follow the time picker; click a cell to read its day and value in the footer.",
+      "type": "calendar-heatmap",
+      "layer": "AI_AGENT",
+      "mqe": "meter_ai_agent_tokens",
+      "aggregation": "sum",
+      "unit": "tokens",
+      "windowDays": 30,
+      "span": 4,
+      "rowSpan": 4
+    },
+    {
+      "id": "hourly_tokens",
+      "title": "Hourly tokens",
+      "tip": "Tokens per hour over the last 10 days, the busiest agents summed: one row per day, one column per hour of the OAP's clock. A fixed window that does not follow the time picker; click a cell to read its hour and value in the footer.",
+      "type": "calendar-heatmap",
+      "layer": "AI_AGENT",
+      "mqe": "meter_ai_agent_tokens",
+      "aggregation": "sum",
+      "unit": "tokens",
+      "windowDays": 10,
+      "span": 8,
+      "rowSpan": 4
+    },
+    {
+      "id": "runtimes_break",
+      "title": "Agents",
+      "type": "section-break",
+      "cols": 12
+    },
+    {
+      "id": "tile_runtimes",
+      "title": "Agents",
+      "tip": "Agents reporting on the AI_AGENT layer, and their tokens over the picked range, the twenty busiest agents summed: the total, then by type (input, output, read from cache, written to cache) and the part spent by subagents; cache read share is their average. The list beside it names the agents.",
+      "type": "kpi-tile",
+      "layer": "AI_AGENT",
+      "showCount": true,
+      "kpis": [
+        {
+          "label": "Tokens",
+          "mqe": "meter_ai_agent_tokens",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Input tokens",
+          "mqe": "meter_ai_agent_tokens_by_type{type='input'}",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Output tokens",
+          "mqe": "meter_ai_agent_tokens_by_type{type='output'}",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Cache read tokens",
+          "mqe": "meter_ai_agent_tokens_by_type{type='cacheRead'}",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Cache created tokens",
+          "mqe": "meter_ai_agent_tokens_by_type{type='cacheCreation'}",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Subagent tokens",
+          "mqe": "aggregate_labels(meter_ai_agent_tokens_by_source{query_source='subagent'},sum(query_source))",
+          "aggregation": "sum",
+          "rangeTotal": true,
+          "unit": "tokens"
+        },
+        {
+          "label": "Cache read share",
+          "mqe": "meter_ai_agent_cache_read_share",
+          "aggregation": "avg",
+          "unit": "%"
+        }
+      ],
+      "span": 4,
+      "rowSpan": 4,
+      "aggregateOnPage": true,
+      "limit": 20
+    },
+    {
+      "id": "top_runtimes",
+      "title": "Top 20 agents",
+      "tip": "The twenty agents with the most tokens over the picked range, busiest first, each with its total and a bar against the top one. They add up to the tile beside it while the layer has twenty agents or fewer.",
+      "type": "ranking",
+      "layer": "AI_AGENT",
+      "mqe": "meter_ai_agent_tokens",
+      "unit": "tokens",
+      "limit": 20,
+      "rangeTotal": true,
+      "span": 8,
+      "rowSpan": 4
+    }
+  ]
+}

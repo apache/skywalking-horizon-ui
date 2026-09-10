@@ -27,7 +27,9 @@
  * editing a sibling shouldn't jiggle the numbers under their cursor.
  */
 
-import type { OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import { LANDING_TOP_N_MAX, CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT, type OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import { DAY_MS, HOUR_MS, formatDay, formatHour, resolutionFor, weekdayIndex, type CalendarHeatmapSeries } from '@/render/widgets/calendarHeatmap';
+import type { RankingRow } from '@/render/widgets/ranking';
 
 function hash(s: string): number {
   let h = 0;
@@ -76,6 +78,32 @@ export function mockAlarms(seed: string, n: number): MockAlarmRow[] {
   return out;
 }
 
+/** Mock daily series for the calendar heatmap — the widget's own window
+ *  ending today, weekends quieter, stable per widget id. */
+/** Quiet weekends at day resolution; office hours at hour resolution. */
+export function mockCalendarSeries(w: OverviewWidget): CalendarHeatmapSeries {
+  const days = w.windowDays ?? CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT;
+  if (resolutionFor(days, w.resolution) === 'hour') {
+    const start = Date.now() - (days * 24 - 1) * HOUR_MS;
+    return {
+      resolution: 'hour',
+      start: formatHour(start),
+      values: Array.from({ length: days * 24 }, (_, i) => {
+        const hour = new Date(start + i * HOUR_MS).getUTCHours();
+        return (hour >= 9 && hour < 19 ? 4 : hour < 6 ? 0 : 1) * mockNumber(`${w.id}#${i}`);
+      }),
+    };
+  }
+  const start = Date.now() - (days - 1) * DAY_MS;
+  return {
+    resolution: 'day',
+    start: formatDay(start),
+    values: Array.from({ length: days }, (_, i) =>
+      (weekdayIndex(start + i * DAY_MS) >= 5 ? 1 : 4) * mockNumber(`${w.id}#${i}`),
+    ),
+  };
+}
+
 /** Mock value per KPI label for the real widget components — percent /
  *  progress-bar rows get a 0-100 value, everything else a plain number.
  *  Keyed by widget id + label so it's stable across re-renders. */
@@ -88,4 +116,16 @@ export function mockKpiValues(w: OverviewWidget): Record<string, number | null> 
         : mockNumber(w.id + k.label, k.max ?? 999);
   }
   return out;
+}
+
+/** Ranked rows for a `ranking` widget: `limit` services of the widget's
+ *  layer with values falling from the top, stable per widget. */
+export function mockRanking(w: OverviewWidget): RankingRow[] {
+  const n = Math.min(LANDING_TOP_N_MAX, Math.max(1, w.limit ?? 10));
+  const layer = (w.layer ?? 'service').toLowerCase();
+  return Array.from({ length: n }, (_, i) => ({
+    serviceId: `${w.id}#${i}`,
+    name: `${layer}-${i + 1}`,
+    value: (mockNumber(`${w.id}#${i}`, 400) + 600) * (n - i),
+  }));
 }

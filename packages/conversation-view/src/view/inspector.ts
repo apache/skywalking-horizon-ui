@@ -28,7 +28,9 @@ import type { Step } from '../model.js';
 import { fill } from '../strings.js';
 import type { AszRef, LandedRecord } from '../types.js';
 import { kindTitle } from '../vocabulary.js';
+import { drawChangesTab } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
+import { clipNote, copyButton, copyField, textBody } from './structured.js';
 
 function field(dt: string, dd: string, mono = false): string {
   return `<dt>${esc(dt)}</dt><dd class="${mono ? 'mono' : ''}">${dd}</dd>`;
@@ -48,6 +50,13 @@ export function drawInspector(ctx: ViewContext): void {
     ctx.showTab('details');
     return;
   }
+  const changesTab = ctx.q<HTMLButtonElement>('[data-tab="changes"]');
+  const hasChanges = !!(e && m.changesOf(e.id).length);
+  changesTab.hidden = !hasChanges;
+  if (!hasChanges && state.tab === 'changes') {
+    ctx.showTab('details');
+    return;
+  }
   const title = ctx.q('.acv-inspector-title');
   const meta = ctx.q('.acv-inspector-meta');
   const body = ctx.q('.acv-inspector-body');
@@ -61,6 +70,7 @@ export function drawInspector(ctx: ViewContext): void {
   meta.textContent = `${e.stream.slice(0, 12)} · ${f.time(e.at)}${e.bytes ? ` · ${f.number(e.bytes)} B` : ''}`;
   if (state.tab === 'details') drawDetails(ctx, body, e);
   else if (state.tab === 'relations') drawRelations(ctx, body, e);
+  else if (state.tab === 'changes') drawChangesTab(ctx, body, e);
   else void drawEvidence(ctx, body, e);
 }
 
@@ -116,18 +126,48 @@ function drawFolderPanel(ctx: ViewContext): void {
   body.querySelector<HTMLElement>('[data-goto]')?.addEventListener('click', (ev) => ctx.select((ev.currentTarget as HTMLElement).dataset.goto!, true));
 }
 
+/** Where the step sits, by the names a reader knows: the activity window
+ *  and its place among them, the agent, the talk by its opening line and its
+ *  place in the stream, the run's place in the talk, and the step by kind
+ *  and name. The document's own ids stay in the tooltip. */
+function containment(ctx: ViewContext, e: Step): { text: string; ids: string } {
+  const { s, model: m, state } = ctx;
+  const crumbs: string[] = [];
+  const ids: string[] = [m.doc.conversation];
+  const seg = state.talk ? m.segmentById.get(state.talk.segment) : undefined;
+  if (seg) {
+    const i = m.doc.segments.findIndex((x) => x.id === seg.id);
+    crumbs.push(`${s.segment} ${i + 1}/${m.doc.segments.length}`);
+    ids.push(seg.id);
+  }
+  const st = m.streamByName.get(e.stream);
+  crumbs.push(!st || st.role === 'main' ? s.mainAgent : st.label || `${s.childAgent} ${st.name.slice(0, 6)}`);
+  ids.push(e.stream);
+  if (e.talk) {
+    const talks = m.talks.filter((t) => t.stream === e.stream);
+    const i = talks.findIndex((t) => t.id === e.talk);
+    const label = m.talkById.get(e.talk)?.label ?? '';
+    crumbs.push(`${s.talk} ${i + 1}/${talks.length} · ${label ? (label.length > 48 ? `${label.slice(0, 47)}…` : label) : s.untitled}`);
+    ids.push(e.talk);
+    if (e.run) {
+      const runs: string[] = [];
+      for (const x of m.steps(e.stream)) if (x.talk === e.talk && x.run && !runs.includes(x.run)) runs.push(x.run);
+      crumbs.push(`${s.run} ${runs.indexOf(e.run) + 1}/${runs.length}`);
+      ids.push(e.run);
+    }
+  }
+  crumbs.push(e.name ? `${kindTitle(e.kind, s)} · ${e.name}` : kindTitle(e.kind, s));
+  ids.push(e.id);
+  return { text: crumbs.join(' › '), ids: ids.join(' › ') };
+}
+
 function drawDetails(ctx: ViewContext, body: HTMLElement, e: Step): void {
   const { s, f, model: m, state } = ctx;
   const st = m.streamByName.get(e.stream);
   const seg = state.talk ? m.segmentById.get(state.talk.segment) : undefined;
-  const path = [`${m.doc.conversation.slice(0, 8)}`];
-  if (seg) path.push(`${s.segment.toLowerCase()} ${seg.id.replace(/^segment\//, '')}`);
-  path.push(`${s.stream.toLowerCase()} ${e.stream.slice(0, 10)}`);
-  if (e.talk) path.push(`${s.talk.toLowerCase()} ${e.talk.replace(/^talk\//, '').slice(0, 14)}`);
-  if (e.run) path.push(`${s.run.toLowerCase()} ${e.run.replace(/^run\//, '').slice(0, 14)}`);
-  path.push(`${e.kind} ${e.id.slice(0, 20)}`);
+  const where = containment(ctx, e);
 
-  let html = `<div class="acv-path">${path.map(esc).join(' › ')}</div><dl class="acv-definition">`;
+  let html = `<div class="acv-path" title="${esc(where.ids)}">${esc(where.text)}</div><dl class="acv-definition">`;
   html += field(s.nodeKind, esc(e.kind));
   html += field(s.lane, esc(e.track));
   html += field(s.stream, `${esc(e.stream)}${st ? ` · ${esc(st.role)}` : ''}`, true);
@@ -166,11 +206,12 @@ function drawDetails(ctx: ViewContext, body: HTMLElement, e: Step): void {
     );
   }
   html += `</dl>`;
-  if (e.text) html += `<div class="acv-block">${esc(e.text)}</div>`;
+  if (e.text) html += detailBlock(ctx, e, e.text, e.bytes).html;
   if (e.result) {
-    html += `<div class="acv-kicker" style="margin-top:14px">${esc(s.result)}${e.failed ? ` · ${esc(s.failed)}` : ''}${
+    const out = detailBlock(ctx, e, e.result, e.resultBytes);
+    html += `<div data-copy-scope><div class="acv-kicker" style="margin-top:14px">${esc(s.result)}${e.failed ? ` · ${esc(s.failed)}` : ''}${
       e.resultBytes ? ` · ${f.number(e.resultBytes)} B` : ''
-    }</div><div class="acv-block">${esc(e.result)}</div>`;
+    }${out.fields ? '' : copyButton(s, `${s.copy} ${s.result}`)}</div>${out.html}</div>`;
   } else if (e.state && e.state !== 'available') {
     html += `<div class="acv-warning"><strong>${esc(fill(s.contentUnavailable, { state: e.state }))}</strong><br>${esc(s.contentUnavailableText)}</div>`;
   }
@@ -181,10 +222,21 @@ function drawDetails(ctx: ViewContext, body: HTMLElement, e: Step): void {
       folders.length === 1 ? s.oneChildAgent : fill(s.childAgents, { n: folders.length }),
     )} — ${esc(s.openRelations)}</button>`;
   }
+  const changes = m.changesOf(e.id).length;
+  if (changes) {
+    html += `<button type="button" class="acv-linkish acv-to-changes" data-to-changes>${esc(fill(s.changeRecordsForStep, { n: changes }))}</button>`;
+  }
   if (state.navStack.length) html += `<button type="button" class="acv-btn" style="margin-top:12px" data-back-parent>${esc(s.backToParentStream)}</button>`;
   body.innerHTML = html;
   body.querySelector<HTMLElement>('[data-to-relations]')?.addEventListener('click', () => ctx.showTab('relations'));
+  body.querySelector<HTMLElement>('[data-to-changes]')?.addEventListener('click', () => ctx.showTab('changes'));
   body.querySelector<HTMLElement>('[data-back-parent]')?.addEventListener('click', () => ctx.goBack());
+  body.querySelectorAll<HTMLElement>('[data-copy]').forEach((b) =>
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      copyField(b, ctx.s.copied);
+    }),
+  );
 }
 
 function drawRelations(ctx: ViewContext, body: HTMLElement, e: Step): void {
@@ -232,6 +284,13 @@ function drawRelations(ctx: ViewContext, body: HTMLElement, e: Step): void {
   );
 }
 
+/** A step's input or result in full: a tool call's fields, or the text. */
+function detailBlock(ctx: ViewContext, e: Step, text: string, bytes: number | undefined): { html: string; fields: boolean } {
+  const body = textBody(text, e.kind, ctx.s);
+  const note = clipNote(ctx, text, bytes);
+  return { html: `<div class="acv-block">${body.html}${note ? `<div class="acv-clip-note">${note}</div>` : ''}</div>`, fields: body.fields };
+}
+
 /** Where the step was read from, and the text the document carries for it.
  *  The whole record is one more read away, offered only when the host can
  *  make it. */
@@ -245,20 +304,34 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
     seen.add(k);
     return true;
   });
+  // A change record's landed position is evidence of this step too, and the
+  // plugin's records sit in a file of their own that none of the step's refs
+  // name: it joins the chips when the reader arrived from one.
+  const same = (a: AszRef, b: AszRef): boolean => a.seq === b.seq && a.row === b.row && (a.block ?? null) === (b.block ?? null);
+  const own = list.length;
+  if (state.rawRef && !list.some((r) => same(r, state.rawRef!))) list.push(state.rawRef);
   if (!list.length) {
     body.innerHTML = `<div class="acv-empty">${esc(s.derivedByAssembly)}</div>`;
     return;
   }
-  const pick = (state.rawRef && list.find((r) => r.seq === state.rawRef!.seq && r.row === state.rawRef!.row)) ?? list[0]!;
+  const pick = (state.rawRef && list.find((r) => same(r, state.rawRef!))) ?? list[0]!;
   const role = (i: number): string =>
-    e.kind === 'tool' || e.kind === 'agent.call' ? (i === 0 ? s.request : s.result) : list.length > 1 ? `${s.part} ${i + 1}` : s.record;
+    i >= own
+      ? s.changeRecordRef
+      : e.kind === 'tool' || e.kind === 'agent.call'
+        ? i === 0
+          ? s.request
+          : s.result
+        : own > 1
+          ? `${s.part} ${i + 1}`
+          : s.record;
   const shown = e.text ? new TextEncoder().encode(e.text).length : 0;
   const clipped = e.bytes && shown && e.bytes > shown;
   body.innerHTML = `
     <div class="acv-kicker">${esc(s.landedPositions)}</div>
     <div class="acv-ref-row">${list
       .map(
-        (r, i) => `<button type="button" class="acv-ref-chip${r === pick ? ' on' : ''}" data-ref="${r.seq}/${r.row}">
+        (r, i) => `<button type="button" class="acv-ref-chip${r === pick ? ' on' : ''}" data-ref="${r.seq}/${r.row}/${r.block ?? ''}">
         <b>${esc(role(i))}</b><span>seq ${r.seq} · row ${r.row}${r.block != null ? ` · block ${r.block}` : ''}</span></button>`,
       )
       .join('')}</div>
@@ -277,8 +350,8 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
   body.querySelectorAll<HTMLElement>('[data-ref]').forEach(
     (b) =>
       (b.onclick = () => {
-        const [seq, row] = b.dataset.ref!.split('/').map(Number);
-        state.rawRef = { seq: seq!, row: row! };
+        const [seq, row, block] = b.dataset.ref!.split('/');
+        state.rawRef = { seq: Number(seq), row: Number(row), ...(block ? { block: Number(block) } : {}) };
         state.explain = null;
         ctx.drawInspector();
       }),

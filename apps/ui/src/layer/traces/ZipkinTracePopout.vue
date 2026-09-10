@@ -39,10 +39,13 @@ import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useRoute } from 'vue-router';
 import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 
-const { openTraceId, closeTrace } = useZipkinTracePopout();
+const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
 const route = useRoute();
 const traceIdRef = computed(() => openTraceId.value);
-const { spans, isLoading, error } = useZipkinTrace(traceIdRef);
+const { spans, isLoading, error } = useZipkinTrace(traceIdRef, undefined, {
+  endTs: computed(() => openTraceWindow.value?.endTs ?? null),
+  lookback: computed(() => openTraceWindow.value?.lookback ?? null),
+});
 
 interface WaterfallRow {
   span: ZipkinSpan;

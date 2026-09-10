@@ -42,6 +42,7 @@ import type {
   LandingResponse,
   LandingServiceRow,
 } from '@skywalking-horizon-ui/api-client';
+import { LANDING_TOP_N_MAX } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
@@ -135,9 +136,11 @@ const columnSchema = z.object({
   // Self-aggregating column: the `mqe` folds the layer to one scalar
   // server-side, so the BFF fires it once (no per-service fan-out).
   selfAggregate: z.boolean().optional(),
+  // Sum the service's buckets over the window rather than averaging them.
+  rangeTotal: z.boolean().optional(),
 });
 export const bodySchema = z.object({
-  topN: z.number().int().min(1).max(8),
+  topN: z.number().int().min(1).max(LANDING_TOP_N_MAX),
   orderBy: z.string().min(1),
   // Bumped from 5 to 10: Overview tile metrics are now self-contained
   // and threaded as synthetic columns in the same query as the
@@ -204,16 +207,25 @@ function collapseToSeries(r: MqeResultShape | undefined): Array<number | null> |
 }
 
 /**
- * Collapse to a single scalar (avg of non-null bucket values). MQE with
- * `step: MINUTE` over 15m typically returns ~15 buckets — averaging
- * matches what booster-ui's KPI tiles do.
+ * Collapse to a single scalar: the average of the non-null bucket values
+ * (MQE with `step: MINUTE` over 15m typically returns ~15 buckets, and
+ * averaging matches what booster-ui's KPI tiles did), or their SUM when the
+ * column asks for the window's total.
  */
-function collapseToScalar(r: MqeResultShape | undefined): number | null {
+function collapseToScalar(r: MqeResultShape | undefined, total = false): number | null {
   const series = collapseToSeries(r);
   if (!series) return null;
   const ns = series.filter((x): x is number => x !== null);
   if (ns.length === 0) return null;
-  return ns.reduce((a, b) => a + b, 0) / ns.length;
+  const sum = ns.reduce((a, b) => a + b, 0);
+  return total ? sum : sum / ns.length;
+}
+
+/** The key a service's collapsed value is held under: the expression, and the
+ *  range mode, since one expression may be asked for both as a per-bucket
+ *  average and as a range total and the two must not overwrite each other. */
+function valueKey(expression: string, rangeTotal: boolean): string {
+  return rangeTotal ? `${expression}\u0000total` : expression;
 }
 
 /** Apply the operator's chosen aggregation across the topN rows for one metric. */
@@ -736,7 +748,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           const orderByCol = resolved.find((r) => r.column.metric === cfg.orderBy && r.expression);
           if (orderByCol) {
             const ranked = await probeColumns(services, [orderByCol]);
-            const scored = services.map((svc) => ({ svc, v: collapseToScalar(ranked.get(`${svc.id}#0`)) }));
+            const scored = services.map((svc) => ({
+              svc,
+              v: collapseToScalar(ranked.get(`${svc.id}#0`), orderByCol.column.rangeTotal === true),
+            }));
             scored.sort((a, b) => {
               if (a.v == null && b.v == null) return 0;
               if (a.v == null) return 1;
@@ -751,8 +766,11 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         probedCells = await probeColumns(sampled, resolved);
         for (const svc of sampled) {
           const row: Record<string, number | null> = {};
-          resolved.forEach(({ expression }, ci) => {
-            if (expression) row[expression] = collapseToScalar(probedCells!.get(`${svc.id}#${ci}`));
+          resolved.forEach(({ expression, column }, ci) => {
+            if (expression) {
+              const total = column.rangeTotal === true;
+              row[valueKey(expression, total)] = collapseToScalar(probedCells!.get(`${svc.id}#${ci}`), total);
+            }
           });
           scalarByService.set(svc.id, row);
         }
@@ -772,7 +790,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         const metrics: Record<string, number | null> = {};
         for (const { column, expression } of resolved) {
           metrics[column.metric] = postProcess(
-            (expression ? held[expression] : null) ?? null,
+            (expression ? held[valueKey(expression, column.rangeTotal === true)] : null) ?? null,
             column.scale,
             column.precision,
           );

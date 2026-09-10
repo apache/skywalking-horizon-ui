@@ -51,6 +51,12 @@ const ROW = {
   streams: 1,
   segments: 1,
   unresolved: 0,
+  changes: null,
+  linesAdded: null,
+  linesRemoved: null,
+  llmCalls: null,
+  subagents: null,
+  bashRuns: null,
   from: 100,
   to: 200,
 };
