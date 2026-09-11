@@ -46,6 +46,10 @@ export class ZipkinApi {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) {
       if (v === undefined || v === null || v === '') continue;
+      if (Array.isArray(v)) {
+        if (v.length > 0) params.set(k, v.join(','));
+        continue;
+      }
       params.set(k, String(v));
     }
     const qs = params.toString();

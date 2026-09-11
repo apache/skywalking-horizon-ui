@@ -102,3 +102,34 @@ test('a span opens its detail modal', async ({ page, pageErrors }) => {
 
   expect(pageErrors).toEqual([]);
 });
+
+test('a trace is looked up by its id', async ({ page, pageErrors }) => {
+  await page.goto(`/layer/${LAYER}/trace`);
+  await page.locator('button.tr-run-btn').click();
+  const rows = page.locator('.tr-rowlist .tr-row-card');
+  await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+  const traceId = await rows.first().locator('.trace-id-snip').getAttribute('title');
+  expect(traceId, 'the row should carry its trace id').toBeTruthy();
+
+  // The Trace ID switch trades the filter for the id and a time range, left at
+  // No time range here. Only Run query reads.
+  await page.locator('.tr-toolbar-head .seg button', { hasText: 'Trace ID' }).click();
+  const id = page.locator('.tr-conditions input[placeholder="paste trace id…"]');
+  await id.fill(traceId!);
+  const read = page.waitForRequest((r) => r.method() === 'POST' && new URL(r.url()).pathname === `/api/layer/${LAYER}/traces`);
+  const answered = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/layer/${LAYER}/traces`);
+  await page.locator('button.tr-run-btn').click();
+
+  // Wire check, because the screen cannot show it: a trace inside the default
+  // window renders the same whether or not a window and a service were sent.
+  const body = (await read).postDataJSON() as Record<string, unknown>;
+  expect(body.traceId).toBe(traceId);
+  expect(body).not.toHaveProperty('windowMinutes');
+  expect(body).not.toHaveProperty('serviceId');
+  await answered;
+
+  await expect(rows).toHaveCount(1, { timeout: 45_000 });
+  await expect(rows.first().locator('.trace-id-snip')).toHaveAttribute('title', traceId!);
+
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
+});

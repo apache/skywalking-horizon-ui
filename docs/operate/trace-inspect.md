@@ -47,17 +47,18 @@ Native conditions:
 
 | Condition | What it does |
 |---|---|
-| Trace ID | Paste a known trace id for a direct lookup. |
 | Status | `ALL`, `SUCCESS`, or `ERROR`. |
 | Order | Newest (by start time) or Slowest (by duration). |
 | Duration (ms) | Min–max trace duration bounds, in milliseconds. |
 | Tags | Comma-separated `key=value` pairs, AND-joined, with autocomplete (below). |
-| Time | A rolling preset (15m, 30m, 1h, 3h, 6h, 12h, 24h) or **Custom…**, which swaps in an absolute start/end pair. The **×** returns to presets. |
+| Time | A rolling preset (15m, 30m, 1h, 3h, 6h, 12h, 24h), or **Custom…**, which swaps in an absolute start/end pair (the **×** returns to presets). |
 | Limit | Result cap: 20, 30 (default), 50, or 100. |
 
-Zipkin conditions are the store's own: **Duration (ms)** bounds, an **Annotation query** (`error` or `key=value` terms, AND-joined), plus the shared **Time** and **Limit**. There is no Trace ID field on the Zipkin side.
+Zipkin conditions are the store's own: **Duration (ms)** bounds and an **Annotation query** (`error` or `key=value` terms, AND-joined), which suggests the keys OAP is configured to index and, once you type `key=`, that key's values — plus the shared **Time** and **Limit**.
 
 The **Tags** field autocompletes from the tags actually stored in the window: start typing to see known keys, type `=` to switch the suggestions to that key's known values, and press **Enter** to commit the pair — the field then primes a comma so you can keep typing the next one. Time windows are evaluated at second precision, same as the per-layer tab, so a trace that just finished still falls inside the window.
+
+**Looking a trace up by its id.** The **Query by** switch at the top picks **Filter** — the target and the conditions above — or **Trace ID**, which trades them for an id field and **Time**. **Time** starts at **No time range**, which finds the trace wherever the hot and warm stages keep it; a preset or **Custom…** searches only that range. **Run query** reads the id with no service and no other condition, and refuses to run without one; switching back to **Filter** finds your conditions as you left them. The Zipkin side takes several ids: press **Enter** after each to lock it in as a chip — Enter never runs the query. What a lookup covers with no time range, per OAP version, is described under [Traces](traces.md).
 
 ## Run query and the resolved query
 
@@ -77,7 +78,7 @@ Clicking a row opens the same trace detail the per-layer tab uses: the span wate
 
 - **No layer, no header picker.** The target is part of the query form, optional, and can be a typed name — including services in layers you never open, or all services at once.
 - **Both stores on one page.** Native vs. Zipkin is a per-query toggle here; on the layer tab it is fixed by the layer template.
-- **Built for id-first triage.** Paste a trace id with no service at all and run — the common "a log/alarm gave me an id" entry point.
+- **Built for id-first triage.** Switch **Query by** to **Trace ID**, paste the id and run — no service, and no time range unless you pick one, on either store — the common "a log/alarm gave me an id" entry point.
 
 The waterfall, the distribution chart, the staged Run-query flow, and the v1/v2 behavior are identical to the per-layer tab — this page changes how you *scope* the query, not how results render.
 

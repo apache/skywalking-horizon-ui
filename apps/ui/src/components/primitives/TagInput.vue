@@ -37,8 +37,9 @@ const props = withDefaults(
     kind: 'trace' | 'log';
     windowMinutes?: number;
     placeholder?: string;
+    disabled?: boolean;
   }>(),
-  { windowMinutes: 30, placeholder: '' },
+  { windowMinutes: 30, placeholder: '', disabled: false },
 );
 
 const emit = defineEmits<{
@@ -219,6 +220,7 @@ onBeforeUnmount(() => {
       type="text"
       :value="modelValue"
       :placeholder="placeholder"
+      :disabled="disabled"
       autocomplete="off"
       spellcheck="false"
       @input="onInput"
@@ -246,6 +248,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.tgi__input:disabled { opacity: 0.5; cursor: not-allowed; }
 .tgi { position: relative; display: block; width: 100%; }
 
 /* The input must carry its own dark style — `.cf-input` is defined in each

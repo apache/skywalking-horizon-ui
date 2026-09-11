@@ -24,9 +24,10 @@
     - Service / endpoint live on `localEndpoint.serviceName` / `name`
     - Kind is CLIENT/SERVER/PRODUCER/CONSUMER/INTERNAL
 
-  Shape stays consistent with the native popout: dark backdrop, fixed-
-  width waterfall column, span detail rail on the right when a span
-  is picked. ESC closes; backdrop click closes.
+  Shape: dark backdrop, a fixed-width waterfall, and a picked span opening
+  in a centered dialog over it, as the Traces tab's trace detail does. ESC
+  closes the dialog first, then the popout; a backdrop click closes the
+  layer it lands on.
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -220,7 +221,7 @@ function widthPct(us: number): number {
 
 // Escape unwinds one layer at a time: clear span detail first (if a span is
 // pinned), then close the whole popout. Operators expect Escape not to nuke
-// their trace context when they only meant to dismiss the side panel.
+// their trace context when they only meant to dismiss the span dialog.
 function onKeydown(ev: KeyboardEvent): void {
   if (ev.key !== 'Escape') return;
   if (selectedSpan.value) {
@@ -283,7 +284,6 @@ function copyTraceId(): void {
             <span class="mono">{{ code }}</span>
           </span>
         </div>
-        <div class="tp-split" :class="{ 'no-selection': !selectedSpan }">
         <div class="zk-waterfall">
           <div class="tp-time-axis">
             <span class="t-tick first">0</span>
@@ -335,14 +335,15 @@ function copyTraceId(): void {
             </div>
           </div>
         </div>
-        <!-- The selected span beside the waterfall, the same shape as the native
-             popout: the trace stays in view while a span is read. -->
-        <aside v-if="selectedSpan" class="tp-span-panel">
-          <header class="tp-span-head">
-            <h5>{{ t('Span detail') }} <span class="mono">{{ selectedSpan.name || '—' }}</span></h5>
+      </template>
+
+      <div v-if="selectedSpan" class="span-modal-backdrop" @click.self="clearSpan">
+        <article class="span-modal sw-card">
+          <header class="span-modal-head">
+            <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
             <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
           </header>
-          <div class="tp-span-body">
+          <div class="span-modal-body">
             <section class="sd-section">
               <h6>{{ t('Meta') }}</h6>
               <dl class="kv">
@@ -383,9 +384,8 @@ function copyTraceId(): void {
               </div>
             </section>
           </div>
-        </aside>
-        </div>
-      </template>
+        </article>
+      </div>
     </article>
   </div>
 </template>
@@ -398,7 +398,7 @@ function copyTraceId(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999; /* match native TracePopout */
+  z-index: 999; /* match native TracePopout; the span-modal (1000) nests above */
   padding: 24px;
 }
 .zk-popout {
@@ -426,17 +426,8 @@ function copyTraceId(): void {
   font-size: 12px;
 }
 
-.tp-split {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 0;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-.tp-split.no-selection { grid-template-columns: 1fr; }
 .zk-waterfall {
-  min-width: 0;
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 4px 0;
@@ -598,46 +589,51 @@ function copyTraceId(): void {
 .flag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
 .status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
-.tp-span-panel {
-  border-left: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
+.span-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+.span-modal {
+  width: 100%;
+  max-width: 920px;
+  max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
 }
-.tp-span-head {
+.span-modal-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--sw-line);
   flex: 0 0 auto;
 }
-.tp-span-head h5 {
+.span-modal-head h4 {
   margin: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--sw-fg-0);
+  display: inline-flex;
+  gap: 10px;
+  align-items: baseline;
   flex: 1;
   min-width: 0;
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
 }
-.tp-span-head h5 .mono {
+.span-modal-head h4 .dim { color: var(--sw-fg-3); font-weight: 500; }
+.span-modal-head h4 .mono {
   font-family: var(--sw-mono);
-  font-weight: 500;
   color: var(--sw-fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tp-span-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px 14px;
-}
+.span-modal-body { padding: 12px 14px 16px; overflow-y: auto; }
 .sd-section { margin-bottom: 14px; }
 .sd-section h6 {
   margin: 0 0 6px;

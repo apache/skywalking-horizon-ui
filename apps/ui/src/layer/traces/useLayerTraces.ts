@@ -51,7 +51,8 @@ export interface TraceListParams {
   pageSize: Ref<number>;
   tags: Ref<Array<{ key: string; value: string }>>;
   /** Rolling-window length in minutes — the trace tab owns its own
-   *  time range rather than reading the global topbar one. */
+   *  time range rather than reading the global topbar one. 0 sends no
+   *  window: a lookup by trace id with no time range. */
   windowMinutes: Ref<number>;
   /** Optional explicit start/end (ISO). When both are non-empty they
    *  override `windowMinutes`. */
@@ -115,7 +116,9 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
               startMs: new Date(params.customStart.value).getTime(),
               endMs: new Date(params.customEnd.value).getTime(),
             }
-          : { windowMinutes: params.windowMinutes.value }),
+          : params.windowMinutes.value > 0
+            ? { windowMinutes: params.windowMinutes.value }
+            : {}),
         ...(previewCfg.value ? { previewConfig: previewCfg.value } : {}),
       }),
     enabled: computed(
@@ -159,8 +162,9 @@ export function useTraceDetail(
   /** Where the trace is known to live: a timestamp (e.g. a log row's),
    *  which the lookup widens to ±12h, or an explicit window, forwarded as it
    *  is. Paired with the cold-stage header, this lets cold-tier trace IDs
-   *  resolve. When null, the BFF defaults to OAP's last-1-day `queryTrace`
-   *  window. A range longer than a day must come as a window: a midpoint
+   *  resolve. When null, no window is sent, and BanyanDB searches everything
+   *  the hot and warm stages keep (only the last day on OAP 11.0.0 and
+   *  earlier). A range longer than a day must come as a window: a midpoint
    *  would search only its middle day. */
   atMs?: Ref<number | TraceLookupWindow | null>,
   /** REPLAY: gate the on-demand detail fetch off. Captured v2 rows carry inline

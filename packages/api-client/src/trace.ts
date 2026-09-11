@@ -205,6 +205,8 @@ export interface ZipkinTraceListResponse {
   hasNext: boolean;
   reachable: boolean;
   error?: string;
+  /** A lookup by trace id: the ids OAP returned no trace for. */
+  missingTraceIds?: string[];
 }
 
 export interface ZipkinTraceDetailResponse {

@@ -35,6 +35,7 @@ export type {
 } from './setup.js';
 export type { LandingAggregates, LandingResponse, LandingServiceRow } from './landing.js';
 export { LANDING_TOP_N_MAX } from './landing.js';
+export { normalizeZipkinTraceId } from './zipkin-trace-id.js';
 export type {
   DashboardConfig,
   DashboardRecordItem,

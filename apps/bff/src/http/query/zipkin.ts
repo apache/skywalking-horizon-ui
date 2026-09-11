@@ -29,6 +29,7 @@
  *   GET /api/v2/remoteServices?serviceName=
  *   GET /api/v2/traces?...
  *   GET /api/v2/trace/{traceId}
+ *   GET /api/v2/traceMany?traceIds=
  *
  * Base URL is `cfg.oap.zipkinUrl` (default `http://127.0.0.1:9412/zipkin`).
  * Auth piggy-backs on the same `cfg.oap.auth` block the GraphQL client
@@ -52,37 +53,10 @@ import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader } from '../../client/graphql.js';
 import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { wireFetch } from '../../client/wire-log.js';
-import { zipkinWindowParams } from '../../client/zipkin.js';
+import { buildZipkinOpts, summariseZipkinTrace, zipkinLookupTraces, zipkinWindowParams } from '../../client/zipkin.js';
 
 export interface ZipkinRouteDeps extends AuthDeps {
   fetch?: FetchLike;
-}
-
-/** Derive the summary fields (`ZipkinTraceListRow` minus `spans`) from a
- *  trace's full span array — the root entry + counts. The caller attaches
- *  the spans themselves so the inline detail can render from the list. */
-function summariseTrace(spans: ZipkinSpan[]): ZipkinTraceListRow {
-  // Root = span with no parent. Falls back to the earliest span when
-  // every span has a parentId (broken trace).
-  const root = spans.find((s) => !s.parentId)
-    ?? spans.slice().sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))[0]
-    ?? null;
-  const errorCount = spans.reduce((n, s) => {
-    const t = s.tags ?? {};
-    if (t['error'] != null || t['http.status_code']?.startsWith('5') || t['otel.status_code'] === 'ERROR') {
-      return n + 1;
-    }
-    return n;
-  }, 0);
-  return {
-    traceId: root?.traceId ?? (spans[0]?.traceId ?? ''),
-    rootName: root?.name ?? null,
-    rootService: root?.localEndpoint?.serviceName ?? null,
-    timestamp: root?.timestamp ?? null,
-    duration: root?.duration ?? null,
-    spanCount: spans.length,
-    errorCount,
-  };
 }
 
 async function zipkinFetch(
@@ -166,6 +140,23 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
 
   app.get('/api/zipkin/traces', { preHandler: auth }, async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;
+    if (q.traceIds) {
+      // A lookup by id is bounded only when the caller sends a window. OAP
+      // reads the cold stage only within one, so without it the Cold pill does
+      // not reach this read.
+      const cfg = deps.config.current;
+      const endTs = Number(q.endTs);
+      const lookback = Number(q.lookback);
+      const windowed = Number.isFinite(endTs) && endTs > 0 && Number.isFinite(lookback) && lookback > 0;
+      return reply.send(
+        await zipkinLookupTraces(
+          buildZipkinOpts(cfg, deps.fetch),
+          q.traceIds.split(','),
+          cfg.performance.limits.maxPageSize.traces,
+          windowed ? { endTs, lookback, coldStage: !!req.coldStage } : undefined,
+        ),
+      );
+    }
     const limit = q.limit ? Math.max(1, Math.min(200, Number(q.limit))) : 30;
     const lookback = q.lookback ? Number(q.lookback) : 30 * 60_000; // 30 min default (ms)
     const endTs = q.endTs ? Number(q.endTs) : Date.now();
@@ -197,7 +188,7 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
       // redundant `/trace/{id}` re-query. (The `/trace/{id}` route stays for
       // the paste-an-id / deep-link popout, which has no list row.)
       const raw = Array.isArray(body) ? (body as ZipkinSpan[][]) : [];
-      const fetched: ZipkinTraceListRow[] = raw.map((spans) => ({ ...summariseTrace(spans), spans }));
+      const fetched: ZipkinTraceListRow[] = raw.map((spans) => ({ ...summariseZipkinTrace(spans), spans }));
       const { rows, hasNext } = takeOverFetched(fetched, limit);
       const response: ZipkinTraceListResponse = {
         source: 'zipkin',

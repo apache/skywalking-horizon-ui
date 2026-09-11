@@ -37,7 +37,7 @@ The native explorer queries SkyWalking's own trace store. The service is taken f
 
 ### Conditions
 
-All conditions are staged in the toolbar and only take effect on **Run query** — editing a field does not refetch on its own.
+All conditions are staged in the toolbar and only take effect on **Run query** — editing a field does not refetch on its own. The **Filter** / **Trace ID** switch beside the title picks between these conditions and a lookup by id; see *Looking a trace up by its id* below.
 
 | Condition | What it does |
 |---|---|
@@ -47,7 +47,6 @@ All conditions are staged in the toolbar and only take effect on **Run query** �
 | Order | `BY_START_TIME` (Newest) or `BY_DURATION` (Slowest). |
 | Limit | Cap on result rows: 30 by default. The server caps a single page at 200. The list says when the window held more traces than the limit returned — there is no total on the wire, only "there is more". |
 | Time range | A rolling preset (Last 15 min through Last 24 hours) or a Custom… absolute start/end pair. |
-| Trace ID | Paste a known trace id to look it up directly. |
 | Duration range (ms) | Min–max trace duration, in milliseconds. |
 | Tag | Free-form span tags as `key=value` (for example `http.status_code=500`). Press Enter to add; each committed tag shows as an Active-tag chip. Multiple tags are AND-joined. |
 
@@ -103,21 +102,30 @@ When a layer enables Zipkin, the Zipkin tab queries an upstream Zipkin store thr
 | Span name | Narrow to one span/operation name. Requires a service to be picked first. |
 | Min duration (ms) / Max duration (ms) | Duration bounds, entered in milliseconds. |
 | Annotations | Zipkin annotation query — `error` or `key=value` terms, AND-joined. |
-| Open trace ID | Paste a trace id to open it directly. |
 | Limit | Result cap: 10, 30, 50, 100, or 200. The list says when the window held more traces than the limit returned. |
 | Time range | A lookback preset (Last 15 min through Last 24 hours) or a Custom range… absolute window. |
 
-As with the native tab, conditions are staged and only applied on **Run query**.
+As with the native tab, conditions are staged and only applied on **Run query**, and the **Filter** / **Trace ID** switch beside the title picks between them and a lookup by id.
 
 Each Zipkin result shows its duration and error state, with a duration bar colored fast-to-slow (errored traces are forced to the error color). Selecting a trace renders the Zipkin span waterfall, and a span detail panel exposes the span's duration, kind, and Zipkin tags. Because the two stores have different span formats, there is no field mapping between native and Zipkin results — Zipkin spans keep their Zipkin shape.
+
+## Looking a trace up by its id
+
+The **Filter** / **Trace ID** switch beside each tab's title picks how the tab queries. On **Trace ID** the conditions give way to an id field and a **Time range**, and **Run query** reads the id within that range — with no service (not even the one picked in the layer header) and no other condition — and refuses to run without an id. Switching back to **Filter** finds the conditions as you left them. Nothing is read until you press **Run query**: switching, or pressing **Enter** in the id field, reads nothing.
+
+- **Time range** starts at **No time range**, which finds the trace wherever the hot and warm stages keep it. A preset or **Custom…** searches only that range — the only way to reach the cold stage, with **Cold** on.
+- On the native tab, paste one trace id. On a backend that lists segments, the trace's segments are listed — up to 100, and the list says when there are more.
+- On the Zipkin tab, paste an id and press **Enter** to lock it in as a chip, and add as many as you need; **Run query** reads them all at once. Ids are shown the way Zipkin stores them — lower-case, padded to 16 or 32 hex digits — and a value that is not a trace id is refused with the reason under the field. The ids that matched nothing are named above the results.
+
+With **No time range**, OAP 11.0.0 and earlier on BanyanDB look an id up in the last 24 hours only, and no lookup reaches the cold stage. On OAP 11.0.0 and earlier a Zipkin lookup ignores the time range you pick.
 
 ## Troubleshooting
 
 - **"No traces in window."** — the query ran but matched nothing. Widen the time range, relax the Status / Duration / Tag conditions, or confirm the service is actually reporting traces.
 - **An `unreachable` chip on the list** — the trace store did not answer, and the reason is printed in a banner above the results. For native traces this points at OAP or its storage backend; for Zipkin it points at the configured Zipkin endpoint. The two stores fail independently — one being down does not blank the other.
-- **Run query is greyed out** — the tab does not yet know which service to read. It says which: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. Traces are always read for one service, so the tab waits instead of querying the whole layer.
+- **Run query is greyed out** — the tab does not yet know which service to read. It says which: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. Traces are always read for one service, so the tab waits instead of querying the whole layer — except a lookup by trace id, which needs no service.
 - **Rows are segments, not whole traces** — that is expected on storage backends without whole-trace support; the banner says so. Click a segment to fetch its full trace.
-- **A pasted trace id from a log row won't resolve** — older traces can sit outside the default lookup window or in a cold storage tier. Open the trace from the log row (which carries its timestamp) rather than pasting the id cold, so the lookup is widened around the right time.
+- **A trace looked up by its id is not found** — a time range you picked has to cover when the trace happened, so widen it or pick **No time range**. With no time range, OAP 11.0.0 and earlier on BanyanDB cover only the last 24 hours, and the cold stage is not read. Open the trace from the log row that named it (which carries its timestamp), or pick a time range around when it happened, with **Cold** on if it has aged into cold storage.
 - **No data even with a valid service** — double-check the time range first; this tab does not follow the global topbar, so the window is whatever the tab's own Time range control says.
 
 ## Related

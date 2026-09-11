@@ -24,8 +24,11 @@
       No URL mutation — clicking around stays cheap.
     - URL-driven access (`?traceId=<id>`): opens the global TracePopout
       overlay (mounted in AppShell). Used for shareable links and
-      cross-trace refs. While the URL carries a traceId we suppress
-      the list query — the popout is a cold-link experience.
+      cross-trace refs.
+
+  A switch above the conditions picks Filter or Trace ID. By trace id only
+  the id and an optional time range are read — no service or other
+  condition — and the filter keeps its values for the way back.
 
   Distribution chart: dots are clickable; clicking a dot selects the
   matching list row (inline detail). Y axis is omitted — Y is the
@@ -49,6 +52,7 @@ import type {
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerTraces, useTraceDetail } from '@/layer/traces/useLayerTraces';
+import { NO_TIME_RANGE, useTraceQueryMode } from '@/layer/traces/useTraceQueryMode';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
@@ -62,6 +66,7 @@ import {
   SLOW_RECORD_RANGE_HOURS,
 } from '@/utils/recordTimeRange';
 import { useSetupStore } from '@/state/setup';
+import { useColdStageStore } from '@/controls/coldStage';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
@@ -97,6 +102,7 @@ const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
 const store = useSetupStore();
+const coldStage = useColdStageStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
   key: layerKey.value, name: layerKey.value, color: 'var(--sw-fg-2)',
   serviceCount: -1, active: false, level: null, slots: {}, caps: {},
@@ -192,10 +198,15 @@ const TIME_RANGE_PRESETS = computed<Array<{ label: string; minutes: number }>>((
 ]);
 const windowMinutes = ref<number>(30);
 const CUSTOM_RANGE_SENTINEL = -1;
-const customStart = ref<string | null>(null);
-const customEnd = ref<string | null>(null);
+// The switch above the conditions. By trace id the time control keeps its own
+// choice, which may be none at all.
+const { queryMode, isTraceIdMode, perMode } = useTraceQueryMode();
+/** The time control's value, and its custom bounds, in the current mode. */
+const timeChoice = perMode(windowMinutes, ref<number>(NO_TIME_RANGE));
+const customStart = perMode(ref<string | null>(null), ref<string | null>(null));
+const customEnd = perMode(ref<string | null>(null), ref<string | null>(null));
 function setCustomMode(): void {
-  if (windowMinutes.value !== CUSTOM_RANGE_SENTINEL) return;
+  if (!isCustomRange.value) return;
   if (customStart.value && customEnd.value) return;
   const end = new Date();
   const start = new Date(end.getTime() - 30 * 60_000);
@@ -206,19 +217,26 @@ function setCustomMode(): void {
   customStart.value = fmt(start);
   customEnd.value = fmt(end);
 }
-function clearCustomRange(): void {
+/** Back from Custom to the mode's default: 30 minutes, or no time range by id. */
+function leaveCustomRange(): void {
   customStart.value = null;
   customEnd.value = null;
+  timeChoice.value = isTraceIdMode.value ? NO_TIME_RANGE : 30;
 }
-const isCustomRange = computed(() => windowMinutes.value === CUSTOM_RANGE_SENTINEL);
+const isCustomRange = computed(() => timeChoice.value === CUSTOM_RANGE_SENTINEL);
 /** Why the last click did NOT run a query. A custom range that cannot be
  *  resolved refuses rather than quietly querying some other window. */
 const rangeError = ref<string | null>(null);
-// A refusal describes the range that was submitted. Editing any part of the
-// range makes it stale, so it goes the moment the operator changes something —
-// otherwise the complaint outlives the mistake and masks the slow-range tip.
-watch([customStart, customEnd, windowMinutes], () => {
+/** Why the last click did not run a lookup by trace id. */
+const idError = ref<string | null>(null);
+// A refusal describes what was submitted. Editing any part of it makes it
+// stale, so it goes the moment the operator changes something — otherwise the
+// complaint outlives the mistake and masks the slow-range tip.
+watch([customStart, customEnd, timeChoice, queryMode], () => {
   rangeError.value = null;
+});
+watch([traceIdInput, queryMode], () => {
+  idError.value = null;
 });
 /** Non-blocking caution about the window's size — presets included, since cost
  *  follows the span rather than how it was chosen. */
@@ -229,12 +247,15 @@ const rangeWarning = computed<string | null>(() =>
           const r = resolveRecordRange(customStart.value, customEnd.value);
           return typeof r === 'string' ? null : r.endMs - r.startMs;
         })()
-      : windowMinutes.value * 60_000,
+      : timeChoice.value > 0
+        ? timeChoice.value * 60_000
+        : null,
   ),
 );
+// Custom seeds its bounds when first picked; they stay while the mode switches,
+// so coming back finds them as they were.
 watch(isCustomRange, (custom) => {
   if (custom) setCustomMode();
-  else clearCustomRange();
 });
 
 const NATIVE_SOURCE = ref<'native'>('native');
@@ -273,13 +294,22 @@ watch([serviceKey], () => {
   if (embedded.value) return; // focus (incl. seeded endpoint/instance) is fixed by props
   instanceId.value = null;
   endpointId.value = null;
+  // A lookup by trace id read no service, so its result — the list, the open
+  // trace and the pick — outlives the switch.
+  if (cTraceIdFilter.value !== null) return;
   hasQueried.value = false;
   commitConditions();
+  // The inline detail and the in-page pick key on rows of the result set this
+  // just cleared — a pick left behind would also filter the NEXT service's list
+  // down to nothing.
+  closeDetail();
+  resetPick();
 });
 
 // The service is the upstream control: the list read stays parked until it
-// resolves, however many times the operator has pressed Run query.
-const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
+// resolves, however many times the operator has pressed Run query — except a
+// lookup by trace id, which reads no service.
+const queryEnabled = computed(() => hasQueried.value && (cTraceIdFilter.value !== null || serviceReady.value));
 
 const { native, isFetching, refetch } = useLayerTraces(layerKey, {
   source: NATIVE_SOURCE,
@@ -312,33 +342,55 @@ const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
 const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
 const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
 
-/** Copy the live filter values into the committed refs the query reads. */
+// Declared ahead of runQuery, which resets them: the drill watch below runs
+// during setup and can reach runQuery before the rest of this script has run.
+const selectedTraceId = ref<string | null>(null);
+const selectedTraceIds = ref<string[]>([]);
+const selectedRowKey = ref<string | null>(null);
+const embeddedSpans = ref<NativeSpan[] | null>(null);
+const pickedTraceIds = ref<Set<string>>(new Set());
+
+/** Copy the live filter values into the committed refs the query reads. By
+ *  trace id only the id and the time range are committed; the filter keeps its
+ *  values in the form for the way back. */
 function commitConditions(): void {
-  traceIdFilter.value = traceIdInput.value.trim() || null;
-  cService.value = serviceRef.value;
-  cInstanceId.value = instanceId.value;
-  cEndpointId.value = endpointId.value;
+  const byId = isTraceIdMode.value;
+  traceIdFilter.value = byId ? traceIdInput.value.trim() || null : null;
+  // A lookup by id reads no service — not even the header's.
+  cService.value = byId ? null : serviceRef.value;
+  cInstanceId.value = byId ? null : instanceId.value;
+  cEndpointId.value = byId ? null : endpointId.value;
   cTraceIdFilter.value = traceIdFilter.value;
-  cTraceState.value = traceState.value;
-  cQueryOrder.value = queryOrder.value;
-  cMinDuration.value = minDuration.value;
-  cMaxDuration.value = maxDuration.value;
-  cLimit.value = limit.value;
-  cTags.value = [...tagsList.value];
-  cWindowMinutes.value = windowMinutes.value;
-  cCustomStart.value = customStart.value;
-  cCustomEnd.value = customEnd.value;
+  cTraceState.value = byId ? 'ALL' : traceState.value;
+  cQueryOrder.value = byId ? 'BY_START_TIME' : queryOrder.value;
+  cMinDuration.value = byId ? null : minDuration.value;
+  cMaxDuration.value = byId ? null : maxDuration.value;
+  // By id, every segment of the trace is listed, as far as the page cap allows.
+  cLimit.value = byId ? 100 : limit.value;
+  cTags.value = byId ? [] : [...tagsList.value];
+  // NO_TIME_RANGE is a window of 0, which sends none.
+  cWindowMinutes.value = timeChoice.value;
+  cCustomStart.value = isCustomRange.value ? customStart.value : null;
+  cCustomEnd.value = isCustomRange.value ? customEnd.value : null;
 }
 /**
  * Commit the live filter values, then fire the query. This is the only
  * path that fetches — filter inputs don't auto-refresh the result list.
  */
 function runQuery(): void {
-  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
-  // a click landing inside the resolution window would otherwise fire a read
-  // with no service — every service's traces under this service's title.
-  if (!serviceReady.value) return;
   rangeError.value = null;
+  idError.value = null;
+  if (isTraceIdMode.value) {
+    if (!traceIdInput.value.trim()) {
+      idError.value = 'Enter a trace ID to look up.';
+      return;
+    }
+  } else if (!serviceReady.value) {
+    // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+    // a click landing inside the resolution window would otherwise fire a read
+    // with no service — every service's traces under this service's title.
+    return;
+  }
   if (isCustomRange.value) {
     const resolved = resolveRecordRange(customStart.value, customEnd.value);
     // A string is the complaint, not a range: refuse, so the operator sees why
@@ -350,6 +402,10 @@ function runQuery(): void {
   }
   commitConditions();
   hasQueried.value = true;
+  // The open trace and the distribution pick belong to the previous result
+  // set; left up, a run that finds nothing reads as that trace being its answer.
+  closeDetail();
+  resetPick();
   void refetch();
 }
 function addTag(): void {
@@ -398,6 +454,7 @@ function applyDrillFromRoute(): void {
   const q = route.query;
   const mode = typeof q.dMode === 'string' ? q.dMode : null;
   if (mode !== 'latency' && mode !== 'error') return;
+  queryMode.value = 'filter';
   traceState.value = mode === 'error' ? 'ERROR' : 'ALL';
   queryOrder.value = mode === 'latency' ? 'BY_DURATION' : 'BY_START_TIME';
   minDuration.value =
@@ -442,10 +499,6 @@ onMounted(() => {
   runQuery();
 });
 
-const selectedTraceId = ref<string | null>(null);
-const selectedTraceIds = ref<string[]>([]);
-const selectedRowKey = ref<string | null>(null);
-const embeddedSpans = ref<NativeSpan[] | null>(null);
 const railOpen = ref<boolean>(true);
 
 function selectNative(row: NativeTraceListRow): void {
@@ -482,7 +535,6 @@ const maxTraceDuration = computed(() => {
 
 // Picking dots / brushing a rectangle filters the list to the picked traces;
 // no extra query fires.
-const pickedTraceIds = ref<Set<string>>(new Set());
 const pickedKeys = computed(() => [...pickedTraceIds.value]);
 const isPicking = computed(() => pickedTraceIds.value.size > 0);
 function togglePick(rowKey: string): void {
@@ -494,13 +546,6 @@ function togglePick(rowKey: string): void {
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
-// Both the inline detail and the in-page pick key on rows of the result set the
-// service switch just cleared — a pick left behind would also filter the NEXT
-// service's list down to nothing.
-watch(serviceKey, () => {
-  closeDetail();
-  resetPick();
-});
 // Picking dots filters the list; the inline detail still opens via a list row.
 function onScatterSelect(row: NativeTraceListRow): void {
   togglePick(row.key);
@@ -560,15 +605,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                button already shows the bound service, so repeating it is
                duplicate chrome. -->
           <span class="kicker">{{ t('Traces') }}</span>
+          <div class="seg" role="group" :aria-label="t('Query by')">
+            <button type="button" :class="{ on: !isTraceIdMode }" :aria-pressed="!isTraceIdMode" @click="queryMode = 'filter'">{{ t('Filter') }}</button>
+            <button type="button" :class="{ on: isTraceIdMode }" :aria-pressed="isTraceIdMode" @click="queryMode = 'traceId'">{{ t('Trace ID') }}</button>
+          </div>
           <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
           <button
             class="sw-btn primary tr-run-btn"
             type="button"
-            :disabled="!serviceReady"
+            :disabled="!serviceReady && !isTraceIdMode"
             @click="runQuery"
           >{{ t('Run query') }}</button>
         </div>
         <div class="tr-conditions">
+          <label v-if="isTraceIdMode" class="cf cf-wide">
+            <span>{{ t('Trace ID') }}</span>
+            <input v-model="traceIdInput" type="text" :placeholder="t('paste trace id…')" class="cf-input mono" />
+            <span v-if="idError" class="cf-note cf-note--err">{{ t(idError) }}</span>
+          </label>
+          <template v-else>
           <label class="cf">
             <span>{{ t('Instance') }}</span>
             <TypeaheadSelect
@@ -615,6 +670,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               <option :value="100">100</option>
             </select>
           </label>
+          </template>
           <label class="cf" :class="{ 'cf-wide': isCustomRange }">
             <span>{{ t('Time range') }}</span>
             <template v-if="isCustomRange">
@@ -622,10 +678,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
                 <span class="cf-range-sep">–</span>
                 <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
-                <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="windowMinutes = 30">×</button>
+                <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="leaveCustomRange">×</button>
               </div>
             </template>
-            <select v-else v-model.number="windowMinutes" class="cf-input">
+            <select v-else v-model.number="timeChoice" class="cf-input">
+              <option v-if="isTraceIdMode" :value="NO_TIME_RANGE">{{ t('No time range') }}</option>
               <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
               <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
             </select>
@@ -637,11 +694,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             <span v-else-if="rangeWarning" class="cf-note">
               {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
             </span>
+            <span v-else-if="isTraceIdMode && timeChoice === NO_TIME_RANGE && coldStage.enabled" class="cf-note cf-note--info">
+              {{ t('The cold stage is not searched: it can only be read within a time range.') }}
+            </span>
           </label>
-          <label class="cf cf-wide">
-            <span>{{ t('Trace ID') }}</span>
-            <input v-model="traceIdInput" type="text" :placeholder="t('paste trace id…')" class="cf-input" @keyup.enter="runQuery" />
-          </label>
+          <template v-if="!isTraceIdMode">
           <div class="cf" :title="t('Trace duration in ms (min – max).')">
             <span>{{ t('Duration range (ms)') }}</span>
             <div class="cf-range">
@@ -660,8 +717,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               @commit="addTag"
             />
           </label>
+          </template>
         </div>
-        <div v-if="tagsList.length > 0" class="tr-tag-row">
+        <div v-if="!isTraceIdMode && tagsList.length > 0" class="tr-tag-row">
           <span class="tag-row-label">{{ t('Active tags') }}</span>
           <span class="tag-chips">
             <span v-for="(tag, i) in tagsList" :key="i" class="tag-chip">
@@ -730,11 +788,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
           <!-- The list is capped by the limit picker and OAP reports no total,
                so the over-fetch is the only honest "there is more" signal. -->
-          <span v-if="native?.hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: native.traces.length }) }}</span>
+          <span v-if="native?.hasNext" class="hint">{{ cTraceIdFilter ? t('showing the first {n} segments', { n: native.traces.length }) : t('capped at {n} — narrow the window', { n: native.traces.length }) }}</span>
         </header>
         <!-- Trailing control: the list waits for the service, and says which
              kind of waiting this is — still resolving, or resolved to nothing. -->
-        <div v-if="!serviceReady" class="tr-empty">
+        <div v-if="!serviceReady && !isTraceIdMode && !cTraceIdFilter" class="tr-empty">
           <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
           <template v-else-if="serviceStatus === 'unknown'">
             {{ t('The selected service is not in this layer — pick another one to query.') }}
@@ -744,8 +802,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
         <div v-else-if="!hasQueried" class="tr-empty">
           {{ t('Pick your conditions, then click Run query.') }}
         </div>
+        <div v-else-if="isFetching && (!native || native.traces.length === 0)" class="tr-empty">
+          {{ t('Reading data…') }}
+        </div>
         <div v-else-if="!native || (native.reachable && native.traces.length === 0)" class="tr-empty">
-          {{ t('No traces in window.') }}
+          <template v-if="cTraceIdFilter">
+            {{ t('No trace found for this ID.') }}
+            <template v-if="cWindowMinutes !== NO_TIME_RANGE">{{ t('Widen the time range, or pick No time range.') }}</template>
+          </template>
+          <template v-else>{{ t('No traces in window.') }}</template>
         </div>
         <div v-else-if="isPicking && visibleTraces.length === 0" class="tr-empty">
           {{ t('No traces match the distribution selection.') }}
@@ -801,6 +866,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .tr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
 .tr-toolbar-head { display: flex; align-items: baseline; gap: 10px; }
 .tr-run-btn { margin-left: auto; }
+.seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }
+.seg button { background: var(--sw-bg-2); color: var(--sw-fg-2); border: none; padding: 2px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--sw-line-2); }
+.seg button.on { background: var(--sw-accent); color: #fff; }
 .kicker {
   font-size: 10px;
   text-transform: uppercase;
@@ -1016,5 +1085,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 }
 .cf-note--err {
   color: var(--sw-err);
+}
+.cf-note--info {
+  color: var(--sw-fg-3);
 }
 </style>
