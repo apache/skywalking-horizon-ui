@@ -37,13 +37,16 @@ import type {
   ZipkinTraceListResponse,
   ZipkinTraceListRow,
 } from '@skywalking-horizon-ui/api-client';
+import { normalizeZipkinTraceId } from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
-import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinAutocomplete } from '@/layer/traces/useZipkinAutocomplete';
+import { NO_TIME_RANGE, useTraceQueryMode } from '@/layer/traces/useTraceQueryMode';
 import { zipkinRowToNative } from '@/layer/traces/zipkinTraceRows';
+import { useColdStageStore } from '@/controls/coldStage';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import ChipInput from '@/components/primitives/ChipInput.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
@@ -83,7 +86,12 @@ const layerKey = computed(() =>
 // Sentinel duration meaning "use the custom start/end instead of a preset
 // window." Picked as -1 so it can't collide with any real ms value.
 const CUSTOM_RANGE = -1;
+// The switch above the conditions. By trace id the time control keeps its own
+// choice, which may be none at all.
+const { queryMode, isTraceIdMode, perMode } = useTraceQueryMode();
 const lookbackMs = ref<number>(30 * 60_000);
+/** The time control's value in the current mode. */
+const timeChoice = perMode(lookbackMs, ref<number>(NO_TIME_RANGE));
 const TIME_PRESETS = computed<Array<{ label: string; ms: number }>>(() => [
   { label: t('Last 15 min'), ms: 15 * 60_000 },
   { label: t('Last 30 min'), ms: 30 * 60_000 },
@@ -103,9 +111,12 @@ function toLocalDtValue(ms: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-const customStart = ref<string>(toLocalDtValue(Date.now() - 60 * 60_000));
-const customEnd = ref<string>(toLocalDtValue(Date.now()));
-const isCustomRange = computed(() => lookbackMs.value === CUSTOM_RANGE);
+// Each mode keeps its own pair, so the way back finds the filter's.
+const seedStart = toLocalDtValue(Date.now() - 60 * 60_000);
+const seedEnd = toLocalDtValue(Date.now());
+const customStart = perMode(ref(seedStart), ref(seedStart));
+const customEnd = perMode(ref(seedEnd), ref(seedEnd));
+const isCustomRange = computed(() => timeChoice.value === CUSTOM_RANGE);
 function parseLocalDt(v: string): number | null {
   if (!v) return null;
   const t = new Date(v).getTime();
@@ -117,7 +128,9 @@ const remoteServiceName = ref<string>('');
 const minDurationMs = ref<number | null>(null);
 const maxDurationMs = ref<number | null>(null);
 const annotationQuery = ref<string>('');
-const traceIdInput = ref<string>('');
+/** The ids of a lookup by trace id, each locked in with Enter. */
+const traceIds = ref<string[]>([]);
+const traceIdChips = ref<InstanceType<typeof ChipInput> | null>(null);
 /**
  * The Zipkin query optionally narrows by serviceName. We default the
  * input to the page's selected service for ergonomic landing (so the
@@ -133,7 +146,7 @@ const hasService = computed<boolean>(() => zipkinServiceFilter.value.trim().leng
 
 // Committed snapshot — only changes when Run query is clicked.
 const cService = ref<string | null>(null);
-const cLookback = ref<number>(lookbackMs.value);
+const cLookback = ref<number | null>(lookbackMs.value); // null = no window, a lookup by id only
 const cEndTs = ref<number | null>(null); // absolute window end (ms), null = now
 const cLimit = ref<number>(limit.value);
 const cSpan = ref<string | null>(null);
@@ -141,10 +154,11 @@ const cRemote = ref<string | null>(null);
 const cMinDurUs = ref<number | null>(null);
 const cMaxDurUs = ref<number | null>(null);
 const cAnno = ref<string | null>(null);
+const cTraceIds = ref<string[] | null>(null);
 const hasQueried = ref<boolean>(false);
 const queryEnabled = computed(() => hasQueried.value);
 
-const { traces, hasNext, isFetching, reachable, error, refetch } = useLayerZipkinTraces({
+const { data: listData, traces, hasNext, isFetching, reachable, error, refetch } = useLayerZipkinTraces({
   serviceName: cService,
   remoteServiceName: cRemote,
   spanName: cSpan,
@@ -154,10 +168,18 @@ const { traces, hasNext, isFetching, reachable, error, refetch } = useLayerZipki
   lookback: cLookback,
   limit: cLimit,
   annotationQuery: cAnno,
+  traceIds: cTraceIds,
   enabled: queryEnabled,
   replayData: computed(() => props.replayData ?? null),
 });
-const { openTrace } = useZipkinTracePopout();
+const coldStage = useColdStageStore();
+/** The ids a lookup by id asked for that OAP returned nothing for — gated like
+ *  the rows, since a layer switch returns the tab to its prompt while the
+ *  query's cached answer lingers. */
+const missingTraceIds = computed<string[]>(() => (hasQueried.value ? (listData.value?.missingTraceIds ?? []) : []));
+function invalidTraceId(v: string): string {
+  return t('Not a Zipkin trace ID: {id}', { id: v });
+}
 // An unreachable read carries no rows — say so rather than let it read as an
 // empty window (in replay that's the failure the capture recorded).
 const failed = computed<boolean>(() => !reachable.value || error.value !== null);
@@ -167,11 +189,16 @@ const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? tra
 
 /** Why the last click did NOT run a query. */
 const rangeError = ref<string | null>(null);
-// A refusal describes the range that was submitted. Editing any part of the
-// range makes it stale, so it goes the moment the operator changes something —
-// otherwise the complaint outlives the mistake and masks the slow-range tip.
-watch([customStart, customEnd, lookbackMs], () => {
+/** Why the last click did not run a lookup by trace id. */
+const idError = ref<string | null>(null);
+// A refusal describes what was submitted. Editing any part of it makes it
+// stale, so it goes the moment the operator changes something — otherwise the
+// complaint outlives the mistake and masks the slow-range tip.
+watch([customStart, customEnd, timeChoice, queryMode], () => {
   rangeError.value = null;
+});
+watch([traceIds, queryMode], () => {
+  idError.value = null;
 });
 /** Non-blocking caution about the window's size — presets included, since cost
  *  follows the span rather than how it was chosen. */
@@ -182,12 +209,25 @@ const rangeWarning = computed<string | null>(() =>
           const r = resolveRecordRange(customStart.value, customEnd.value);
           return typeof r === 'string' ? null : r.endMs - r.startMs;
         })()
-      : lookbackMs.value,
+      : timeChoice.value > 0
+        ? timeChoice.value
+        : null,
   ),
 );
 
 function runQuery(): void {
   rangeError.value = null;
+  idError.value = null;
+  const byId = isTraceIdMode.value;
+  if (byId) {
+    // An id typed but not yet locked in with Enter is part of the lookup too;
+    // one the field refused stops the run, with the reason under the field.
+    if (traceIdChips.value && !traceIdChips.value.commitDraft()) return;
+    if (traceIds.value.length === 0) {
+      idError.value = 'Enter a trace ID to look up.';
+      return;
+    }
+  }
   if (isCustomRange.value) {
     const resolved = resolveRecordRange(customStart.value, customEnd.value);
     // Refuse rather than commit: this used to fall back to a 30-minute window,
@@ -197,13 +237,14 @@ function runQuery(): void {
       return;
     }
   }
-  // Empty service filter = "All services" in Zipkin's API: pass null and
-  // OAP returns the full set.
-  cService.value = zipkinServiceFilter.value.trim() || null;
+  // By id only the ids and the time range are read; the filter keeps its values
+  // in the form for the way back. Empty service filter = "All services" in
+  // Zipkin's API: pass null and OAP returns the full set.
+  cService.value = byId ? null : zipkinServiceFilter.value.trim() || null;
   // Time range — preset emits {endTs: now, lookback: preset}; Custom
   // commits absolute start/end → {endTs: end, lookback: end - start}.
   // Zipkin queries the window [endTs - lookback, endTs] so this is a
-  // straightforward translation.
+  // straightforward translation. By id there may be none at all.
   if (isCustomRange.value) {
     // Already validated at the top of runQuery — this cannot be reached with an
     // unresolvable range.
@@ -211,19 +252,27 @@ function runQuery(): void {
     const e = parseLocalDt(customEnd.value) as number;
     cEndTs.value = e;
     cLookback.value = e - s;
+  } else if (timeChoice.value === NO_TIME_RANGE) {
+    cEndTs.value = null;
+    cLookback.value = null;
   } else {
-    // Frozen at the run, not left as "now": a pasted id is looked up in
-    // the window the list was read with, and that window has an end.
+    // Frozen at the run, not left as "now": a trace missing from the list is
+    // looked up in the window the list was read with, and that window has an end.
     cEndTs.value = Date.now();
-    cLookback.value = lookbackMs.value;
+    cLookback.value = timeChoice.value;
   }
   cLimit.value = limit.value;
-  cSpan.value = spanName.value.trim() || null;
-  cRemote.value = remoteServiceName.value.trim() || null;
-  cAnno.value = annotationQuery.value.trim() || null;
-  cMinDurUs.value = minDurationMs.value != null ? Math.max(0, minDurationMs.value * 1000) : null;
-  cMaxDurUs.value = maxDurationMs.value != null ? Math.max(0, maxDurationMs.value * 1000) : null;
+  cSpan.value = byId ? null : spanName.value.trim() || null;
+  cRemote.value = byId ? null : remoteServiceName.value.trim() || null;
+  cAnno.value = byId ? null : annotationQuery.value.trim() || null;
+  cMinDurUs.value = !byId && minDurationMs.value != null ? Math.max(0, minDurationMs.value * 1000) : null;
+  cMaxDurUs.value = !byId && maxDurationMs.value != null ? Math.max(0, maxDurationMs.value * 1000) : null;
+  cTraceIds.value = byId ? [...traceIds.value] : null;
   hasQueried.value = true;
+  // The open trace and the distribution pick belong to the previous result
+  // set; left up, a run that finds nothing reads as that trace being its answer.
+  closeDetail();
+  resetPick();
   void refetch();
 }
 
@@ -233,6 +282,7 @@ watch(layerKey, () => {
   selectedTraceId.value = null;
   pickedTraceIds.value = new Set();
 });
+
 
 const {
   serviceOptions: zipkinServiceOptions,
@@ -265,8 +315,7 @@ const spanNameSelectOptions = computed(() => [
 ]);
 
 // A row click commits a selection to local state (inline detail in the side
-// rail). The trace-id input + URL `?traceId=` still fall back to the global
-// popout for the "paste an id" / "share a link" flows.
+// rail). A shared `?traceId=` link still opens the global popout.
 const selectedTraceId = ref<string | null>(null);
 function selectNative(row: NativeTraceListRow): void {
   selectedTraceId.value = row.key;
@@ -278,11 +327,6 @@ function closeDetail(): void {
  *  to a narrow rail with progress-bar-only entries (folder style).
  *  Click any bar to swap the inline detail without expanding back. */
 const railOpen = ref<boolean>(true);
-// Reset when the query parameters change so a stale selection
-// doesn't outlive its result set.
-watch([cService, cLookback, cLimit, cSpan, cRemote, cAnno], () => {
-  selectedTraceId.value = null;
-});
 
 // The selected trace's spans already ride on the list row (Zipkin's /traces
 // ships the full span tree), so the inline detail renders from it with no
@@ -296,7 +340,10 @@ const selectedRowSpans = computed<ZipkinSpan[] | null>(() => {
 const fallbackTraceId = computed<string | null>(() =>
   selectedTraceId.value && !selectedRowSpans.value ? selectedTraceId.value : null,
 );
-const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId, replay, { endTs: cEndTs, lookback: cLookback });
+const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId, replay, {
+  endTs: cEndTs,
+  lookback: cLookback,
+});
 const selectedSpans = computed<ZipkinSpan[]>(() => selectedRowSpans.value ?? fetchedSpans.value);
 const selectedLoading = computed<boolean>(() => Boolean(fallbackTraceId.value) && fetchLoading.value);
 
@@ -348,13 +395,6 @@ const maxTraceDuration = computed<number>(() => {
   for (const r of nativeRows.value) if (r.duration > m) m = r.duration;
   return m;
 });
-function openByInput(): void {
-  const v = traceIdInput.value.trim();
-  // The pasted id is looked up in the tab's window, which is what finds it
-  // in the cold stage; nothing else says when the trace was.
-  if (v) openTrace(v, { endTs: cEndTs.value, lookback: cLookback.value });
-}
-
 // Picking dots / brushing a box narrows the list to the picked set; no extra
 // query fires.
 const pickedTraceIds = ref<Set<string>>(new Set());
@@ -388,10 +428,16 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
     <header class="ztr-toolbar sw-card">
       <div class="ztr-head">
         <span class="kicker">{{ t('Traces · Zipkin') }}</span>
-        <span v-if="zipkinServiceFilter" class="for-svc">
-          {{ t('service') }} <b class="mono">{{ zipkinServiceFilter }}</b>
-        </span>
-        <span v-else class="for-svc dim">{{ t('all services') }}</span>
+        <div class="seg" role="group" :aria-label="t('Query by')">
+          <button type="button" :class="{ on: !isTraceIdMode }" :aria-pressed="!isTraceIdMode" @click="queryMode = 'filter'">{{ t('Filter') }}</button>
+          <button type="button" :class="{ on: isTraceIdMode }" :aria-pressed="isTraceIdMode" @click="queryMode = 'traceId'">{{ t('Trace ID') }}</button>
+        </div>
+        <template v-if="!isTraceIdMode">
+          <span v-if="zipkinServiceFilter" class="for-svc">
+            {{ t('service') }} <b class="mono">{{ zipkinServiceFilter }}</b>
+          </span>
+          <span v-else class="for-svc dim">{{ t('all services') }}</span>
+        </template>
         <span v-if="isCustomRange && customStart && customEnd" class="for-svc dim">
           · <b class="mono">{{ customStart.replace('T', ' ') }} → {{ customEnd.replace('T', ' ') }}</b>
         </span>
@@ -399,6 +445,21 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         <button class="sw-btn primary ztr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="ztr-conditions">
+        <!-- Not inside a <label>: a label forwards a click on its text to the
+             first control in it, which here is a chip's remove button. -->
+        <div v-if="isTraceIdMode" class="cf cf-wide">
+          <span>{{ t('Trace ID(s)') }}</span>
+          <ChipInput
+            ref="traceIdChips"
+            v-model="traceIds"
+            :placeholder="t('paste a trace id, then Enter')"
+            :normalize="normalizeZipkinTraceId"
+            :invalid-message="invalidTraceId"
+            :aria-label="t('Trace ID(s)')"
+          />
+          <span v-if="idError" class="cf-note cf-note--err">{{ t(idError) }}</span>
+        </div>
+        <template v-else>
         <label class="cf">
           <span>{{ t('Service') }}</span>
           <TypeaheadSelect
@@ -448,15 +509,10 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
             :placeholder="t('error or key=value, AND-joined')"
             list="ztr-annotation-suggest"
             @input="onAnnotationInput"
-            @keyup.enter="runQuery"
           />
           <datalist id="ztr-annotation-suggest">
             <option v-for="opt in annotationDatalistOptions" :key="opt" :value="opt" />
           </datalist>
-        </label>
-        <label class="cf cf-wide">
-          <span>{{ t('Open trace ID') }}</span>
-          <input v-model="traceIdInput" class="cf-input mono" type="text" :placeholder="t('paste trace id…')" @keyup.enter="openByInput" />
         </label>
         <label class="cf">
           <span>{{ t('Limit') }}</span>
@@ -467,9 +523,11 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
             <option :value="100">100</option>
           </select>
         </label>
-        <label class="cf row-break">
+        </template>
+        <label class="cf" :class="{ 'row-break': !isTraceIdMode }">
           <span>{{ t('Time range') }}</span>
-          <select v-model.number="lookbackMs" class="cf-input">
+          <select v-model.number="timeChoice" class="cf-input">
+            <option v-if="isTraceIdMode" :value="NO_TIME_RANGE">{{ t('No time range') }}</option>
             <option v-for="p in TIME_PRESETS" :key="p.ms" :value="p.ms">{{ p.label }}</option>
           </select>
           <!-- Refusal and caution share the slot under the control they are
@@ -480,6 +538,9 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
           <span v-else-if="rangeWarning" class="cf-note">
             {{ t(rangeWarning, { h: SLOW_RECORD_RANGE_HOURS }) }}
           </span>
+          <span v-else-if="isTraceIdMode && timeChoice === NO_TIME_RANGE && coldStage.enabled" class="cf-note cf-note--info">
+            {{ t('The cold stage is not searched: it can only be read within a time range.') }}
+          </span>
         </label>
         <label v-if="isCustomRange" class="cf">
           <span>{{ t('From') }}</span>
@@ -487,7 +548,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
             v-model="customStart"
             class="cf-input mono"
             type="datetime-local"
-            @keyup.enter="runQuery"
           />
         </label>
         <label v-if="isCustomRange" class="cf">
@@ -496,7 +556,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
             v-model="customEnd"
             class="cf-input mono"
             type="datetime-local"
-            @keyup.enter="runQuery"
           />
         </label>
       </div>
@@ -539,6 +598,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
                count is the FETCHED set: brushing the scatter filters the list
                below, but it cannot change how many rows the query returned. -->
           <span v-if="hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: nativeRows.length }) }}</span>
+          <span v-if="missingTraceIds.length > 0" class="hint warn">{{ t('Not found: {ids}', { ids: missingTraceIds.join(', ') }) }}</span>
         </header>
         <div v-if="failed" class="banner err">
           <strong>{{ replay ? t('This Zipkin read failed when it was captured.') : t('Zipkin query failed.') }}</strong>
@@ -547,8 +607,15 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         <div v-else-if="!hasQueried" class="ztr-empty">
           {{ t('Click Run query to fetch Zipkin traces for this service.') }}
         </div>
-        <div v-else-if="visibleRows.length === 0 && !isFetching" class="ztr-empty">
-          {{ t('No Zipkin traces in the selected window. Widen the time range or relax conditions.') }}
+        <div v-else-if="visibleRows.length === 0 && isFetching" class="ztr-empty">
+          {{ t('Reading data…') }}
+        </div>
+        <div v-else-if="visibleRows.length === 0" class="ztr-empty">
+          <template v-if="cTraceIds">
+            {{ cTraceIds.length > 1 ? t('No traces found for these IDs.') : t('No trace found for this ID.') }}
+            <template v-if="cLookback !== null">{{ t('Widen the time range, or pick No time range.') }}</template>
+          </template>
+          <template v-else>{{ t('No Zipkin traces in the selected window. Widen the time range or relax conditions.') }}</template>
         </div>
         <TraceListPanel
           v-else
@@ -619,6 +686,10 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 .ztr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .ztr-head { display: flex; align-items: baseline; gap: 10px; }
 .ztr-run-btn { margin-left: auto; }
+.seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }
+.seg button { background: var(--sw-bg-2); color: var(--sw-fg-2); border: none; padding: 2px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--sw-line-2); }
+.seg button.on { background: var(--sw-accent); color: #fff; }
 .kicker {
   font-size: 10px;
   text-transform: uppercase;
@@ -799,4 +870,8 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 .cf-note--err {
   color: var(--sw-err);
 }
+.cf-note--info {
+  color: var(--sw-fg-3);
+}
+.hint.warn { color: var(--sw-warn); }
 </style>

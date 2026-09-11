@@ -48,7 +48,7 @@ import { buildEndpointId, buildInstanceId, buildServiceId } from '../../util/ent
 import { fetchNativeList, type TraceListBody } from './trace.js';
 import { fetchLogs } from './log.js';
 import { fetchBrowserErrors } from './browser-errors.js';
-import { zipkinFetchTraces } from '../../client/zipkin.js';
+import { zipkinFetchTraces, zipkinLookupTraces } from '../../client/zipkin.js';
 
 export interface ExploreRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -154,6 +154,7 @@ const exploreBodySchema = z
     pageNum: z.number().optional(),
     pageSize: z.number().optional(),
     traceId: z.string().optional(),
+    traceIds: z.array(z.string()).optional(),
     traceState: z.string().optional(),
     queryOrder: z.string().optional(),
     minTraceDuration: z.number().optional(),
@@ -227,7 +228,8 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
               ...(typeof body.minTraceDuration === 'number' ? { minTraceDuration: body.minTraceDuration } : {}),
               ...(typeof body.maxTraceDuration === 'number' ? { maxTraceDuration: body.maxTraceDuration } : {}),
               ...(body.tags && body.tags.length ? { tags: body.tags } : {}),
-              ...win,
+              // A trace id sent with no window was looked up with none.
+              ...(body.traceId && !body.window ? {} : win),
             },
           };
           return reply.send({
@@ -242,12 +244,29 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         // zipkin: a raw service name (no OAP id) plus the rich query
         // params Zipkin's REST API takes. Duration arrives in ms (the
         // shared condition unit) — Zipkin wants µs.
+        const zipkinOpts = { ...opts, queryUrl: deps.config.current.oap.zipkinUrl };
+        if (body.traceIds && body.traceIds.length > 0) {
+          // Bounded only when the request carries a window; the cold stage is
+          // read only within one.
+          const byId = body.window ? zipkinWindow(body.window) : null;
+          const zipkin = await zipkinLookupTraces(
+            zipkinOpts,
+            body.traceIds,
+            maxTraces,
+            byId ? { ...byId, coldStage: !!req.coldStage } : undefined,
+          );
+          const resolved: ExploreResolved = {
+            kind: 'trace',
+            source: 'zipkin',
+            condition: { traceIds: body.traceIds, ...(byId ?? {}) },
+          };
+          return reply.send({ kind: 'trace', traceSource: 'zipkin', generatedAt, zipkin, resolved } satisfies ExploreResponse);
+        }
         const service = body.entity?.serviceName;
         const { endTs, lookback } = zipkinWindow(body.window ?? {});
         const minUs = typeof body.minTraceDuration === 'number' ? Math.max(0, body.minTraceDuration * 1000) : undefined;
         const maxUs = typeof body.maxTraceDuration === 'number' ? Math.max(0, body.maxTraceDuration * 1000) : undefined;
         const limit = Math.min(maxTraces, Math.max(1, Math.round(body.pageSize ?? 20)));
-        const zipkinOpts = { ...opts, queryUrl: deps.config.current.oap.zipkinUrl };
         let zipkin: ZipkinTraceListResponse;
         try {
           const fetched = await zipkinFetchTraces(zipkinOpts, {

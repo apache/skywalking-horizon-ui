@@ -77,10 +77,12 @@ export interface ExploreRequest {
   /** Optional — a trace/log query needs no entity (query all services in
    *  the window, or filter by trace id / conditions only). */
   entity?: ExploreEntity;
-  window: ExploreWindow;
+  /** Optional for a lookup by trace id, which is then read with no window. */
+  window?: ExploreWindow;
   pageNum?: number;
   pageSize?: number;
   // ── trace conditions ──
+  /** Native: looks the trace up — within `window` when one is sent. */
   traceId?: string;
   traceState?: TraceQueryState;
   queryOrder?: TraceQueryOrder;
@@ -91,6 +93,9 @@ export interface ExploreRequest {
   remoteServiceName?: string;
   spanName?: string;
   annotationQuery?: string;
+  /** Zipkin: looks these traces up by id — within `window` when one is sent;
+   *  the other Zipkin conditions do not apply. */
+  traceIds?: string[];
   // ── log (raw) conditions ──
   keywordsOfContent?: string[];
   relatedTraceId?: string;

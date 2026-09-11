@@ -300,6 +300,9 @@ export interface ZipkinTraceQuery {
   /** ms */
   lookback?: number;
   limit?: number;
+  /** A lookup by trace id. The other conditions are ignored; `endTs` and
+   *  `lookback` bound it only when both are sent, with no server default. */
+  traceIds?: string[];
 }
 
 export interface MeResponse {

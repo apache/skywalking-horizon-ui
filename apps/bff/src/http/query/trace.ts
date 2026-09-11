@@ -70,6 +70,7 @@ import {
   buildZipkinOpts,
   zipkinFetchTraces,
   zipkinFetchTraceById,
+  zipkinLookupTraces,
   summariseZipkinTrace,
   type ZipkinClientOpts,
 } from '../../client/zipkin.js';
@@ -130,7 +131,11 @@ export interface TraceListBody {
   service?: string;
   instanceId?: string;
   endpointId?: string;
+  /** Native: looks the trace up with no window — see `fetchNativeList`. */
   traceId?: string;
+  /** Zipkin: looks these traces up by id with no window. The other Zipkin
+   *  conditions do not apply to a lookup by id. */
+  traceIds?: string[];
   traceState?: TraceQueryState;
   queryOrder?: TraceQueryOrder;
   minTraceDuration?: number;
@@ -207,12 +212,13 @@ const TRACES_PAGE: PagedQuerySpec = {
 };
 
 /* `duration` is BanyanDB-only and optional. When the caller passes a
- * window (start/end/step), OAP scopes the trace lookup to that window
- * — necessary for IDs older than 1 day, since the default search is
- * "last 1 day" only. Pair with `Duration.coldStage: true` (spliced by
- * the `withColdStage` helper) for trace IDs whose data has migrated
- * past hot+warm. Older OAP versions ignore the unknown variable;
- * older non-BanyanDB backends ignore the Duration entirely. */
+ * window (start/end/step), OAP scopes the trace lookup to that window;
+ * without one it searches everything the hot and warm stages keep — only
+ * the last day on OAP 11.0.0 and earlier. Pair with `Duration.coldStage:
+ * true` (spliced by the `withColdStage` helper) for trace IDs whose data
+ * has migrated past hot+warm: the cold stage is read only within a window.
+ * Older OAP versions ignore the unknown variable; non-BanyanDB backends
+ * ignore the Duration entirely. */
 const QUERY_TRACE_DETAIL = /* GraphQL */ `
   query QueryTrace($traceId: ID!, $duration: Duration) {
     trace: queryTrace(traceId: $traceId, duration: $duration) {
@@ -249,7 +255,7 @@ const QUERY_TRACE_DETAIL = /* GraphQL */ `
 function buildTraceCondition(
   body: TraceListBody,
   resolvedServiceId: string | null,
-  w: { start: string; end: string },
+  w: { start: string; end: string } | null,
   coldStage: boolean,
   paging: OapPaging,
 ) {
@@ -261,12 +267,16 @@ function buildTraceCondition(
     ...(body.tags && body.tags.length > 0 ? { tags: body.tags } : {}),
     ...(typeof body.minTraceDuration === 'number' ? { minTraceDuration: body.minTraceDuration } : {}),
     ...(typeof body.maxTraceDuration === 'number' ? { maxTraceDuration: body.maxTraceDuration } : {}),
-    queryDuration: {
-      start: w.start,
-      end: w.end,
-      step: 'SECOND',
-      ...(coldStage ? { coldStage: true } : {}),
-    },
+    ...(w
+      ? {
+          queryDuration: {
+            start: w.start,
+            end: w.end,
+            step: 'SECOND',
+            ...(coldStage ? { coldStage: true } : {}),
+          },
+        }
+      : {}),
     traceState: (body.traceState ?? 'ALL') as TraceQueryState,
     queryOrder: (body.queryOrder ?? 'BY_START_TIME') as TraceQueryOrder,
     paging,
@@ -281,13 +291,18 @@ export async function fetchNativeList(
   maxPageSize: number,
 ): Promise<NativeTraceListResponse> {
   const api = await detectTraceQueryApi(opts);
-  // Explicit start+end takes precedence over windowMinutes; falling
-  // back to the rolling default when the explicit range is invalid.
+  // Explicit start+end takes precedence over windowMinutes, falling back to the
+  // rolling default when the explicit range is invalid. A trace id takes no
+  // default: the protocol accepts either, so it is looked up with no window
+  // unless the caller sent one — and with no Duration there is nowhere to ask
+  // for the cold stage, so it then reads hot and warm only.
   const explicit =
     typeof body.startMs === 'number' && typeof body.endMs === 'number'
       ? explicitWindow(body.startMs, body.endMs, offsetMinutes)
       : null;
-  const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
+  const window = body.traceId
+    ? (explicit ?? (typeof body.windowMinutes === 'number' ? rollingWindow(body.windowMinutes, offsetMinutes) : null))
+    : (explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes));
   const scope = serviceScopeOf(body);
   // Half an identity must NOT fall through as "no service":
   // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
@@ -383,11 +398,21 @@ export async function fetchZipkinList(
   maxPageSize: number,
   coldStage = false,
 ): Promise<ZipkinTraceListResponse> {
-  const limit = clampPageSize(body.pageSize, 20, maxPageSize);
   // The window the caller asked for, as Zipkin's `endTs` + `lookback`:
   // explicit bounds first, else the rolling minutes. Epoch millis, so the
   // OAP offset the native branch applies has no part here.
   const explicit = typeof body.startMs === 'number' && typeof body.endMs === 'number' && body.endMs > body.startMs;
+  if (body.traceIds && body.traceIds.length > 0) {
+    // By id, the rolling default does not apply: no window was asked for, so
+    // none is sent — and the cold stage, read only within one, with it.
+    const byId = explicit
+      ? { endTs: body.endMs as number, lookback: (body.endMs as number) - (body.startMs as number) }
+      : typeof body.windowMinutes === 'number'
+        ? { endTs: Date.now(), lookback: body.windowMinutes * 60_000 }
+        : null;
+    return zipkinLookupTraces(opts, body.traceIds, maxPageSize, byId ? { ...byId, coldStage } : undefined);
+  }
+  const limit = clampPageSize(body.pageSize, 20, maxPageSize);
   const window = explicit
     ? { endTs: body.endMs as number, lookback: (body.endMs as number) - (body.startMs as number) }
     : { endTs: Date.now(), lookback: (body.windowMinutes ?? DEFAULT_WINDOW_MIN) * 60_000 };
@@ -478,7 +503,7 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
         /** Approximate window the trace lives in (epoch ms + OAP step).
          *  When provided, the BFF spells the window in OAP-server TZ
          *  via `windowFromRange` and forwards it as `queryTrace.duration`
-         *  so BanyanDB looks beyond its default 1-day search. Paired
+         *  so BanyanDB searches there (see QUERY_TRACE_DETAIL). Paired
          *  with the cold-stage header, this lets a trace ID from a log
          *  row resolve even when the trace data lives in the cold tier. */
         startMs?: string;
@@ -492,8 +517,8 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
         const api = await detectTraceQueryApi(opts);
         try {
           // When the caller supplies an approximate window, forward it
-          // as the optional `duration` so BanyanDB looks beyond its
-          // default 1-day window. `withColdStage` adds `coldStage: true`
+          // as the optional `duration` so BanyanDB searches that window
+          // (see QUERY_TRACE_DETAIL). `withColdStage` adds `coldStage: true`
           // when the operator has the Cold pill on, letting trace IDs
           // whose data lives in the cold tier resolve from log rows.
           const startMs = Number(q.startMs);

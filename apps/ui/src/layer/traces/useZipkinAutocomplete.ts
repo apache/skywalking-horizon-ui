@@ -18,9 +18,10 @@ import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } fro
 import { bffClient } from '@/api/client';
 
 /**
- * The Zipkin Traces tab's three autocomplete subsystems, mirroring
- * Zipkin Lens's search wiring. Each owns its own fetch + watch +
- * debounce and tears the debounce timer down on unmount.
+ * The autocomplete behind the Zipkin search inputs — the Zipkin Traces tab
+ * and Trace inspect's Zipkin mode — in three subsystems mirroring Zipkin
+ * Lens's search wiring. Each owns its own fetch + watch + debounce and
+ * tears the debounce timer down on unmount.
  *
  *   1. Services    — the full `/api/v2/services` list, loaded once per
  *                    layer for the Service filter dropdown.
@@ -38,7 +39,8 @@ import { bffClient } from '@/api/client';
  *                    layer is enough.
  *
  * Inputs:
- *   layerKey            — drives the once-per-layer service + key loads.
+ *   layerKey            — drives the once-per-layer service + key loads; an
+ *                         empty key loads nothing.
  *   serviceFilter       — the Service input; span/remote options follow it.
  *   annotationQuery     — the annotations input; the key=value cursor.
  *   spanName / remote   — dependent inputs reset when the service clears.
@@ -71,7 +73,7 @@ export function useZipkinAutocomplete(opts: {
    *  otherwise fill the dropdowns for a service that is no longer typed. */
   let autocompleteGeneration = 0;
 
-  watch(layerKey, () => { if (enabled) void loadServiceOptions(); }, { immediate: true });
+  watch(layerKey, (k) => { if (enabled && k) void loadServiceOptions(); }, { immediate: true });
 
   const spanNameOptions = ref<string[]>([]);
   const remoteSvcOptions = ref<string[]>([]);
@@ -158,12 +160,17 @@ export function useZipkinAutocomplete(opts: {
     const key = last.slice(0, eq).trim();
     if (key) void loadAnnotationValues(key);
   }
+  // A <datalist> matches and replaces the WHOLE input, not its last term, so
+  // each option carries the terms typed before the one being completed.
   const annotationDatalistOptions = computed<string[]>(() => {
-    const last = (annotationQuery.value.split(/\s+/).pop() ?? '').trim();
+    const query = annotationQuery.value;
+    const lastStart = query.search(/\S*$/);
+    const prefix = query.slice(0, lastStart);
+    const last = query.slice(lastStart);
     const eq = last.indexOf('=');
-    if (eq === -1) return annotationKeyOptions.value;
+    if (eq === -1) return annotationKeyOptions.value.map((k) => `${prefix}${k}`);
     const key = last.slice(0, eq).trim();
-    return annotationValueOptions.value.map((v) => `${key}=${v}`);
+    return annotationValueOptions.value.map((v) => `${prefix}${key}=${v}`);
   });
   // Eagerly load keys once we know the layer — keys aren't service-
   // scoped, so a single load on mount is enough.

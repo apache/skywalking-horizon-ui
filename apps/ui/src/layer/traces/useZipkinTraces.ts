@@ -43,10 +43,14 @@ export interface ZipkinTracesParams {
   maxDuration?: Ref<number | null>;
   /** Window end in ms since epoch. null = "now". */
   endTs?: Ref<number | null>;
-  /** Window size in ms. */
-  lookback: Ref<number>;
+  /** Window size in ms. null only for a lookup by id with no time range. */
+  lookback: Ref<number | null>;
   limit: Ref<number>;
   annotationQuery?: Ref<string | null>;
+  /** A lookup by trace id: when set, the traces are read by id — within
+   *  `endTs` + `lookback` when both are set — and every other condition is
+   *  ignored. */
+  traceIds?: Ref<string[] | null>;
   /** Run only when the user has clicked Run query — mirrors the native
    *  trace tab's "explicit fetch" model. */
   enabled?: Ref<boolean>;
@@ -76,8 +80,18 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
       params.lookback,
       params.limit,
       params.annotationQuery ?? computed(() => null),
+      params.traceIds ?? computed(() => null),
     ],
     queryFn: () => {
+      const traceIds = params.traceIds?.value;
+      const endTs = params.endTs?.value ?? null;
+      const lookback = params.lookback.value;
+      if (traceIds && traceIds.length > 0) {
+        return bffClient.zipkin.traces({
+          traceIds,
+          ...(endTs !== null && lookback !== null ? { endTs, lookback } : {}),
+        });
+      }
       const body: ZipkinTraceQuery = {
         ...(params.serviceName.value ? { serviceName: params.serviceName.value } : {}),
         ...(params.remoteServiceName?.value ? { remoteServiceName: params.remoteServiceName.value } : {}),
@@ -86,7 +100,7 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
         ...(params.maxDuration?.value ? { maxDuration: params.maxDuration.value } : {}),
         ...(params.endTs?.value ? { endTs: params.endTs.value } : {}),
         ...(params.annotationQuery?.value ? { annotationQuery: params.annotationQuery.value } : {}),
-        lookback: params.lookback.value,
+        ...(lookback !== null ? { lookback } : {}),
         limit: params.limit.value,
       };
       return bffClient.zipkin.traces(body);

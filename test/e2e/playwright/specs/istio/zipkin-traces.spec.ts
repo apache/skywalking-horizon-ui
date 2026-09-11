@@ -84,7 +84,7 @@ test('a shared zipkin trace link opens the trace in a new page', async ({
   // The id is read off the row rather than the URL: a row click on this tab
   // commits to LOCAL state and shows the detail inline, so — unlike the
   // native tab — it does not put anything in the query string. `?traceId=`
-  // is the paste-an-id / share-a-link path, which is exactly why it needs
+  // is the share-a-link path, which is exactly why it needs
   // its own assertion.
   await rows.first().click();
   const detail = page.locator('.ztr-detail');
@@ -109,6 +109,35 @@ test('a shared zipkin trace link opens the trace in a new page', async ({
   } finally {
     await shared.close();
   }
+
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
+});
+
+test('a zipkin trace is looked up by its id', async ({ page, pageErrors }) => {
+  await page.goto('/layer/mesh/zipkin-trace');
+  await page.locator('button.ztr-run-btn').click();
+  const rows = page.locator('.tr-rowlist .tr-row-card');
+  await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+  // The id as the list shows it, already spelled the way OAP stores it.
+  const traceId = await rows.first().locator('.trace-id-snip').getAttribute('title');
+  expect(traceId, 'the row should carry its trace id').toBeTruthy();
+
+  // The Trace ID switch trades the filter for ids, each locked in with Enter,
+  // and a time range, left at No time range here. Only Run query reads.
+  await page.locator('.ztr-head .seg button', { hasText: 'Trace ID' }).click();
+  const ids = page.locator('.chi__input');
+  await ids.fill(traceId!);
+  await ids.press('Enter');
+  await expect(page.locator('.chi__chip')).toHaveCount(1);
+  const read = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/zipkin/traces');
+  await page.locator('button.ztr-run-btn').click();
+  await read;
+
+  // Exactly the trace asked for — rendered as the result, where the old field
+  // opened a popout through the address.
+  await expect(rows).toHaveCount(1, { timeout: 45_000 });
+  await expect(rows.first().locator('.trace-id-snip')).toHaveAttribute('title', traceId!);
+  expect(new URL(page.url()).searchParams.has('traceId')).toBe(false);
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

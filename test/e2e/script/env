@@ -44,7 +44,13 @@
 # Not the v11.0.0 tag commit (6f1fd78e): ghcr publishes per master push and
 # that commit is off-master, so no image is built for it — a release tag is
 # not a pinnable reference here.
-SW_OAP_COMMIT=9ae0b8d3941030a192c6a194f773850de1d4cd5e
+#
+# Must also be at or after afddbd65de (#14063). Before it, OAP's first
+# runtime-rule pass after boot tore down and reloaded every bundled MAL and LAL
+# rule, dropping that round's samples without a log line, and OAP accepted
+# requests on 11800/12800 before its rule sets were set up — so a fresh
+# fixture lost its first round of metrics.
+SW_OAP_COMMIT=476afadecdc0a410bf5c64de48f6ead8e6030b00
 
 # BanyanDB — the storage every case runs on. OAP's own default selector is
 # banyandb, so no SW_STORAGE override is needed anywhere.
