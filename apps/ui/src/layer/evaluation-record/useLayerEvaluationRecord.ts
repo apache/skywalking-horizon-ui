@@ -77,6 +77,9 @@ export interface EvaluationRecordParams {
   sortOrder?: Ref<'ASC' | 'DES'>;
   traceId?: Ref<string | null>;
   traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
+  traceSegmentId?: Ref<string | null>;
+  traceSpanIndex?: Ref<number | null>;
+  traceSpanId?: Ref<string | null>;
   keywords?: Ref<string[]>;
   page: Ref<number>;
   pageSize: Ref<number>;
@@ -107,6 +110,9 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       params.sortOrder ?? computed(() => 'DES'),
       params.traceId ?? computed(() => null),
       computed(() => params.traceId?.value ? params.traceType?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSegmentId?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSpanIndex?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSpanId?.value ?? null : null),
       params.page,
       params.pageSize,
       params.windowMinutes ?? computed(() => 0),
@@ -129,6 +135,9 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
         ...(params.sortOrder?.value ? { sortOrder: params.sortOrder.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
         ...(params.traceId?.value && params.traceType?.value ? { traceType: params.traceType.value } : {}),
+        ...(params.traceId?.value && params.traceSegmentId?.value ? { traceSegmentId: params.traceSegmentId.value } : {}),
+        ...(params.traceId?.value && params.traceSpanIndex?.value != null ? { traceSpanIndex: params.traceSpanIndex.value } : {}),
+        ...(params.traceId?.value && params.traceSpanId?.value ? { traceSpanId: params.traceSpanId.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }
@@ -244,6 +253,9 @@ export interface EvaluationRecordFacetParams {
   judgeModel?: Ref<string | null>;
   traceId?: Ref<string | null>;
   traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
+  traceSegmentId?: Ref<string | null>;
+  traceSpanIndex?: Ref<number | null>;
+  traceSpanId?: Ref<string | null>;
   keywords?: Ref<string[]>;
   windowMinutes?: Ref<number>;
   startTime?: Ref<number | null>;
@@ -269,6 +281,9 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
       params.judgeModel ?? computed(() => null),
       params.traceId ?? computed(() => null),
       computed(() => params.traceId?.value ? params.traceType?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSegmentId?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSpanIndex?.value ?? null : null),
+      computed(() => params.traceId?.value ? params.traceSpanId?.value ?? null : null),
       params.keywords ?? computed(() => []),
       params.windowMinutes ?? computed(() => 0),
       params.startTime ?? computed(() => null),
@@ -287,6 +302,9 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
         ...(params.judgeModel?.value ? { judgeModel: params.judgeModel.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
         ...(params.traceId?.value && params.traceType?.value ? { traceType: params.traceType.value } : {}),
+        ...(params.traceId?.value && params.traceSegmentId?.value ? { traceSegmentId: params.traceSegmentId.value } : {}),
+        ...(params.traceId?.value && params.traceSpanIndex?.value != null ? { traceSpanIndex: params.traceSpanIndex.value } : {}),
+        ...(params.traceId?.value && params.traceSpanId?.value ? { traceSpanId: params.traceSpanId.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }

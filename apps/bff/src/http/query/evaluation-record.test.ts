@@ -255,7 +255,40 @@ describe('evaluation-record route scope and time window', () => {
       relatedTrace: { type: 'OTLP', traceId: 'trace-1' },
     });
     expect(res.json()).toMatchObject({ sampled: 1, services: [{ name: 'openai', count: 1 }] });
+    // The id rides along: it is what the Service condition filters by, and a
+    // caller that only reports through the Zipkin receiver has no catalog row.
+    expect(res.json().services[0]).toHaveProperty('id');
     expect(res.json()).not.toHaveProperty('total');
+  });
+
+  it('narrows the related trace to one span — segment and index for native, span id for OTLP', async () => {
+    const oap = fakeRouteOap();
+    const { app, sid } = await buildRoute(oap.fetch);
+    const post = (url: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'POST', url, headers: { cookie: `horizon_sid=${sid}` }, payload: { windowMinutes: 30, ...payload } });
+    const related = (operation: string, variable: string) => {
+      const call = oap.calls.find((c) => c.query.includes(operation));
+      return (call?.variables[variable] as { relatedTrace?: unknown } | undefined)?.relatedTrace;
+    };
+
+    // The other scheme's field rides along and must be dropped, not forwarded.
+    await post('/api/layer/virtual_genai/evaluation-records', {
+      traceId: 'trace-1', traceType: 'SKYWALKING_NATIVE', traceSegmentId: 'seg-1', traceSpanIndex: 2, traceSpanId: 'stray',
+    });
+    expect(related('QueryGenAIEvaluationRecords', 'condition')).toEqual({ type: 'SKYWALKING_NATIVE', traceId: 'trace-1', segmentId: 'seg-1', spanIndex: 2 });
+
+    oap.calls.length = 0;
+    await post('/api/layer/virtual_genai/evaluation-records', {
+      traceId: 'trace-2', traceType: 'OTLP', traceSpanId: 'span-9', traceSegmentId: 'stray', traceSpanIndex: 0,
+    });
+    expect(related('QueryGenAIEvaluationRecords', 'condition')).toEqual({ type: 'OTLP', traceId: 'trace-2', spanId: 'span-9' });
+
+    // Index 0 is the first span, not "unset".
+    oap.calls.length = 0;
+    await post('/api/layer/virtual_genai/evaluation-records/facets', {
+      traceId: 'trace-3', traceType: 'SKYWALKING_NATIVE', traceSegmentId: 'seg-3', traceSpanIndex: 0,
+    });
+    expect(related('QueryGenAIEvaluationRecordFacets', 'evaluationRecordCondition')).toEqual({ type: 'SKYWALKING_NATIVE', traceId: 'trace-3', segmentId: 'seg-3', spanIndex: 0 });
   });
 
   it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)('ignores standalone %s type in facets without a trace ID', async (type) => {

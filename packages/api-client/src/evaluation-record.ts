@@ -42,6 +42,11 @@ export interface EvaluationRecordQueryRequest {
   traceId?: string | null;
   /** Addressing scheme for traceId; ignored when traceId is absent. */
   traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  /** Narrow a native trace to ONE span: the segment it is in and its index there. */
+  traceSegmentId?: string | null;
+  traceSpanIndex?: number | null;
+  /** Narrow an OTLP trace to ONE span. */
+  traceSpanId?: string | null;
   page?: number;
   pageSize?: number;
   windowMinutes?: number;
@@ -86,7 +91,9 @@ export interface EvaluationRecordFacetsResponse {
   generatedAt: number;
   sampled: number;
   level: Record<'fail' | 'warning' | 'good' | 'excellent' | 'undefined', number>;
-  services: Array<{ name: string; count: number }>;
+  /** Callers seen in the sample. `id` is what the Service condition filters by;
+   *  null only when a record carried no service id. */
+  services: Array<{ id: string | null; name: string; count: number }>;
   reachable: boolean;
   error?: string;
 }

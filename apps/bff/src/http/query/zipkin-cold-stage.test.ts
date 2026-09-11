@@ -115,6 +115,22 @@ describe('the Cold pill on the Zipkin routes', () => {
   });
 });
 
+describe('a Zipkin by-id lookup that OAP answers 404', () => {
+  it('reports the trace as not found as well as unreachable, so a reader sure of the id can tell the two apart', async () => {
+    const fetch: FetchLike = async (rawUrl, init) => {
+      const url = new URL(String(rawUrl));
+      if (url.pathname.includes('/api/v2/trace/')) return new Response('', { status: 404 });
+      const body = JSON.parse(String(init?.body ?? '{}')) as { query?: string };
+      if ((body.query ?? '').includes('getTimeInfo')) return json({ data: { getTimeInfo: { timezone: '+0000', currentTimestamp: Date.now() } } });
+      return json({ data: {} });
+    };
+    const { app, sid } = await build(fetch);
+    const res = await app.inject({ method: 'GET', url: '/api/zipkin/trace/abc123', headers: { cookie: `horizon_sid=${sid}` } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ reachable: false, notFound: true, error: 'trace not found', spans: [] });
+  });
+});
+
 describe('the Cold pill on the trace routes’ Zipkin branches', () => {
   it('sends coldStage and the requested window on the layer list when the source is Zipkin', async () => {
     const on = await call(true, 'POST', '/api/layer/general/traces', { source: 'zipkin', pageSize: 5, startMs: 1700000000000, endMs: 1700432000000 });

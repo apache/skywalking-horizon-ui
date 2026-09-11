@@ -1,0 +1,40 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Asserts only that PERSISTED data exists: at least one bucket carries a value.
+#
+# Deliberately does NOT pin the newest bucket. OAP persists on a ~25s cycle and
+# aggregates into minute buckets, so whether the last bucket is null or filled
+# depends purely on when the query lands relative to that cycle — upstream's
+# copy of this file asserts a trailing null, which is a coin flip rather than a
+# contract. `contains` means "the actual data includes at least this", so one
+# filled bucket is the whole assertion.
+debuggingtrace: null
+type: TIME_SERIES_VALUES
+results:
+  {{- contains .results }}
+  - metric:
+      labels: []
+    values:
+      {{- contains .values }}
+      - id: {{ notEmpty .id }}
+        value: {{ notEmpty .value }}
+        owner: null
+        traceid: null
+      {{- end}}
+  {{- end}}
+error: null

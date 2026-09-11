@@ -15,6 +15,7 @@ test/e2e/
     docker-compose/
       base-compose.yml           service definitions shared by all cases
     Dockerfile.demo-service      agent image + upstream service jar
+    Dockerfile.otel-python       the genai case's OpenTelemetry caller
     prepare/                     installers and helpers used by cases
   cases/
     core/                        the baseline stack — traces, metrics, logs,
@@ -25,6 +26,10 @@ test/e2e/
                                  reaches Horizon's pre-v2 trace query
     browser/                     browser telemetry — OAP's browser receiver
                                  and the BROWSER layer
+    genai/                       OAP's LLM judge over a mock provider called
+      ai-evaluation.yml          from the Java agent AND from OpenTelemetry —
+                                 the VIRTUAL_GENAI layer and the Evaluation
+                                 records tab, with both trace sources
     admin/                       the WRITE paths — DSL hot-update and
                                  template CRUD, isolated because they mutate
                                  the backend other cases read; covers the
@@ -50,7 +55,7 @@ Playwright is reached through one verify line per case, so every case reuses the
 | `provider` / `consumer` | SkyWalking Java agent + upstream e2e service jar | The demo app. Reports as `e2e-service-provider` / `e2e-service-consumer` in the `GENERAL` layer. |
 | `horizon` | built from this checkout | `templates.mode: live`, local auth, one admin account. |
 
-Every upstream image is **pinned by commit SHA in [`script/env`](script/env)**, the same shape as `apache/skywalking`'s `test/e2e-v2/script/env`. Nothing is built from an upstream checkout, so this directory plus that file is the entire dependency on the SkyWalking repo.
+Every upstream image is **pinned by commit SHA in [`script/env`](script/env)**, the same shape as `apache/skywalking`'s `test/e2e-v2/script/env`. Nothing from the SkyWalking project is built from a checkout, so this directory plus that file is the entire dependency on it. The one image built from source is the genai case's Python OpenTelemetry caller, a pip install compose runs for that case alone.
 
 ## Run it locally
 
@@ -106,7 +111,7 @@ Cases needing **rover / eBPF** cannot run on macOS: eBPF needs a Linux kernel, a
 
 If the case needs UI coverage, add specs under `playwright/specs/` and call `script/prepare/playwright.sh <project>` from a verify case.
 
-**A Playwright project shared between cases couples them: a spec added for one becomes a requirement for every case that runs it,** including cases that never run the readiness check it depends on. So each case has its OWN project matching `specs/<project>/` — `es` runs only the pre-v2 trace spec, `browser` only the Browser Errors spec, `istio` the mesh specs. `auth` is the exception: it is nobody's project and everybody's dependency, signing in once and sharing the session.
+**A Playwright project shared between cases couples them: a spec added for one becomes a requirement for every case that runs it,** including cases that never run the readiness check it depends on. So each case has its OWN project matching `specs/<project>/` — `es` runs only the pre-v2 trace spec, `browser` only the Browser Errors spec, `genai` the evaluation records specs, `istio` the mesh specs. `auth` is the exception: it is nobody's project and everybody's dependency, signing in once and sharing the session.
 
 ## Writing a spec that will not flake
 

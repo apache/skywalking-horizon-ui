@@ -89,6 +89,21 @@
 #             path, category, and the stack behind the expander
 #             components: LayerBrowserErrorsView
 #
+#   genai     plus OAP's LLM judge, fed from BOTH trace sources  ACTIVE
+#             upstream's mock LLM server, called by upstream's Spring AI app
+#             on the SkyWalking agent — native traces — and by a Python app
+#             on OpenTelemetry — OTLP traces — with the judge scoring every
+#             call
+#             tests: the VIRTUAL_GENAI layer — the provider resolved from
+#             GenAI spans and its service dashboard's card widgets — and
+#             the Evaluation records tab: the page-owned provider picker,
+#             the judged rows from each source, and the trace link opening
+#             the native popout for one source and the Zipkin popout for
+#             the other, each looked up at the record's own time
+#             components: LayerEvaluationRecordView,
+#             EvaluationRecordStreamPanel, TracePopout, ZipkinTracePopout,
+#             LayerWidgetTile's card branch
+#
 #   audit-banyandb  OAP + BanyanDB, and the audit stored there   ACTIVE
 #             The same four audit assertions `core` runs against PostgreSQL,
 #             against the OTHER backend — one suite, two deployments, so a
@@ -206,6 +221,8 @@ jobs:
             config: test/e2e/cases/es/e2e.yaml
           - name: browser (+ browser receiver)
             config: test/e2e/cases/browser/e2e.yaml
+          - name: genai (+ LLM judge, native and OTLP traces)
+            config: test/e2e/cases/genai/e2e.yaml
           - name: admin (isolated, mutating)
             config: test/e2e/cases/admin/e2e.yaml
           - name: audit-banyandb (audit on BanyanDB)

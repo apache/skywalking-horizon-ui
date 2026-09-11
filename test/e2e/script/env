@@ -59,10 +59,16 @@ SW_BANYANDB_COMMIT=3b83e18fb0481d02e44eaa5df137fcf7b000754b
 SW_AGENT_JAVA_COMMIT=ac0df43d7140e726eba9e5e5b1b75cf364c71dff
 SW_AGENT_JDK_VERSION=17
 
-# The demo app: apache/skywalking's own e2e provider/consumer services,
-# published as images so no Maven build is needed here. Tagged from the last
-# master push that touched test/e2e-v2/java-test-service.
-SW_E2E_SERVICE_COMMIT=95a296e2c810e6280b16975dd411e9c595a16836
+# The demo apps: apache/skywalking's own e2e services, published as images so
+# no Maven build is needed here. Tagged from the last master push that touched
+# test/e2e-v2/java-test-service. Four images share this pin: the provider and
+# consumer every compose case runs, and the genai case's two — the Spring AI
+# app (e2e-spring-ai-service) and the mock LLM that answers both its callers
+# and OAP's judge (e2e-mock-llm-server).
+#
+# Must be at or after 51e727359f (#14071), which vendored the Spring AI app and
+# split the mock LLM out of the provider into its own image.
+SW_E2E_SERVICE_COMMIT=51e727359fd00f006cf7a98511ae205176171969
 
 # swctl, the project's own CLI — used for the fixture sanity check that asks
 # OAP directly what it knows, bypassing Horizon. Built from source because

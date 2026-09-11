@@ -1,0 +1,174 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# GenAI case: OAP with its LLM-as-Judge on, upstream's mock LLM, and TWO
+# applications calling it — one on the SkyWalking Java agent, one on
+# OpenTelemetry — so the evaluation records point at both trace sources
+# Horizon renders: native and OTLP.
+
+services:
+  banyandb:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: banyandb
+    ports:
+      - 17912
+
+  oap:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: oap
+    ports:
+      - 12800
+      - 17128
+      # The Zipkin query, so a dev Horizon on the host can open OTLP traces.
+      - 9412
+    environment:
+      # OTLP spans are stored as Zipkin spans, and the Zipkin query is what
+      # Horizon's OTLP trace popout reads — both have to be on.
+      SW_RECEIVER_ZIPKIN: default
+      SW_QUERY_ZIPKIN: default
+      SW_AI_EVALUATION: default
+      # Judge every GenAI span. The default samples a fraction, which on a
+      # fixture this young can be none at all.
+      SW_AI_EVALUATION_SAMPLE_RATE: 1000000
+      # The judge is the same mock LLM the apps call; it answers with a fixed
+      # score and a fixed verdict (see ai-evaluation.yml for the tasks).
+      AI_EVALUATION_ENDPOINT: http://mock-llm-server:9090/llm/evaluation/v1/chat/completions
+      AI_EVALUATION_MODEL: e2e-judge
+      AI_EVALUATION_API_KEY: e2e-api-key
+    volumes:
+      - ./ai-evaluation.yml:/skywalking/config/ai-evaluation.yml
+    depends_on:
+      banyandb:
+        condition: service_healthy
+
+  # Upstream's mock LLM: an OpenAI-shaped chat completion for the two callers
+  # and the judge's verdict for OAP, from one published image.
+  mock-llm-server:
+    image: "ghcr.io/apache/skywalking/e2e-mock-llm-server:${SW_E2E_SERVICE_COMMIT}"
+    networks: [e2e]
+    expose: ["9090"]
+    ports:
+      - 9090
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9090"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  # Native trace source: upstream's Spring AI app on the Java agent, joined
+  # by build-images.sh the way the provider and consumer are.
+  springai:
+    image: "horizon-e2e-demo-spring-ai:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    networks: [e2e]
+    expose: ["8080"]
+    ports:
+      - 8080
+    environment:
+      OPENAI_API_KEY: e2e-not-a-key
+      SPRING_AI_OPENAI_BASE_URL: http://mock-llm-server:9090/llm/v1
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_AGENT_NAME: e2e-spring-ai
+      SW_AGENT_INSTANCE_NAME: spring-ai-1
+      SW_PLUGIN_SPRINGAI_COLLECT_INPUT_MESSAGES: "true"
+      SW_PLUGIN_SPRINGAI_COLLECT_OUTPUT_MESSAGES: "true"
+    # The agent image ships no `nc`; the same bash probe as the base's Java
+    # services.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+    depends_on:
+      oap:
+        condition: service_healthy
+      mock-llm-server:
+        condition: service_healthy
+
+  # OTLP trace source: a Python caller on OpenTelemetry. Its health probe
+  # opens a socket rather than requesting, because a request IS an LLM call
+  # and would be traffic the case never declared; `traffic` below is that.
+  otelpy:
+    build:
+      context: ../../script
+      dockerfile: Dockerfile.otel-python
+    image: horizon-e2e-otel-python:e2e
+    networks: [e2e]
+    expose: ["9091"]
+    ports:
+      - 9091
+    environment:
+      OPENAI_BASE_URL: http://mock-llm-server:9090/llm/otlp/v1
+      OPENAI_API_KEY: e2e-not-a-key
+      OTEL_SERVICE_NAME: e2e-otel-python
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://oap:11800
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # Traces are the fixture; the SDK's default metric and log exporters
+      # would only add streams nothing here reads.
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+    depends_on:
+      oap:
+        condition: service_healthy
+      mock-llm-server:
+        condition: service_healthy
+
+  # Both callers in turn, for the whole run. The case's one `trigger` could
+  # drive one URL, and a source driven only at setup is displaced off the
+  # first page by the other as the run goes on — the specs read that page,
+  # and a slow run then failed on a healthy deployment. Alternating keeps
+  # both sources in every page, and the case declares no trigger.
+  traffic:
+    image: "${TRAFFIC_GEN_IMAGE}"
+    networks: [e2e]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          curl -sf -m 60 -o /dev/null http://springai:8080/ai/generateStream || true
+          curl -sf -m 60 -o /dev/null http://otelpy:9091/ || true
+          sleep 3
+        done
+    depends_on:
+      springai:
+        condition: service_healthy
+      otelpy:
+        condition: service_healthy
+
+  horizon:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: horizon
+    ports:
+      - 8081
+    environment:
+      HORIZON_OAP_ZIPKIN_URL: http://oap:9412/zipkin
+    depends_on:
+      oap:
+        condition: service_healthy
+
+networks:
+  e2e:

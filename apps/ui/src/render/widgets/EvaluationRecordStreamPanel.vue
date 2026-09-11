@@ -15,6 +15,7 @@
   limitations under the License.
 -->
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { logRowKey } from '@/utils/logRow';
 import type { GenAIEvaluationRecordStreamRow } from '@/layer/evaluation-record/useLayerEvaluationRecord';
 import { useAuthStore } from '@/state/auth';
@@ -24,6 +25,7 @@ defineProps<{
   selectedKey?: string | null;
 }>();
 const auth = useAuthStore();
+const { t } = useI18n();
 const emit = defineEmits<{
   (e: 'select', payload: { row: GenAIEvaluationRecordStreamRow; key: string }): void;
   (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
@@ -70,6 +72,20 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
 
 <template>
   <div class="lg-stream">
+    <!-- Ten columns need naming; the row grid and this header share one
+         column template so they cannot drift apart. -->
+    <div class="lg-head" aria-hidden="true">
+      <span>{{ t('Time') }}</span>
+      <span>{{ t('Date') }}</span>
+      <span>{{ t('Service') }}</span>
+      <span>{{ t('Provider / model') }}</span>
+      <span>{{ t('Operation') }}</span>
+      <span>{{ t('Judge model') }}</span>
+      <span>{{ t('Task') }}</span>
+      <span>{{ t('Level') }}</span>
+      <span>{{ t('Trace') }}</span>
+      <span>{{ t('Value') }}</span>
+    </div>
     <div
       v-for="(r, idx) in rows"
       :key="keyOf(r, idx)"
@@ -102,16 +118,29 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
 </template>
 
 <style scoped>
-.lg-stream { font-size: 11.5px; }
+.lg-stream { font-size: 11.5px; --lg-cols: 80px 60px 120px 180px 80px 140px 130px 64px 60px 1fr; }
+.lg-head,
 .lg-row {
   display: grid;
-  grid-template-columns: 80px 60px 120px 180px 80px 140px 130px 64px 60px 1fr;
+  grid-template-columns: var(--lg-cols);
   gap: 10px;
   align-items: center;
   padding: 4px 12px;
   border-bottom: 1px solid var(--sw-line);
-  cursor: pointer;
 }
+.lg-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sw-bg-1);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+}
+.lg-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-row { cursor: pointer; }
 .lg-row:hover { background: var(--sw-bg-2); }
 .lg-row.on { background: var(--sw-accent-soft); }
 .lg-row.lv-fail { box-shadow: inset 3px 0 0 var(--sw-err); }

@@ -74,6 +74,13 @@ function fmtDate(ts: number): string {
 }
 
 const fmt = computed<LogFormat | null>(() => (props.row ? detectFormat(props.row) : null));
+// A score or a true/false is one value, not a document: it takes the first
+// row of the table instead of a content pane of its own. A string or JSON
+// verdict keeps the pane, where a document reads properly.
+const scalar = computed(() => {
+  const type = props.row?.tags.find((tag) => tag.key.toLowerCase() === 'value_type')?.value?.toUpperCase();
+  return type === 'SCORE' || type === 'BOOLEAN';
+});
 const badgeText = computed(() => {
   if (!props.row) return '';
   if (props.badgeTagKey) {
@@ -141,11 +148,15 @@ function onJumpTrace(): void {
         <span v-if="row.traceId" class="ld-meta-item">{{ t('Trace ID') }} <code class="mono">{{ row.traceId }}</code></span>
       </div>
       <div class="ld-split">
-        <pre class="ld-body" :class="`fmt-${fmt}`">{{ prettyContent(row) }}</pre>
-        <aside v-if="row.tags.length > 0" class="ld-tags">
+        <pre v-if="!scalar" class="ld-body" :class="`fmt-${fmt}`">{{ prettyContent(row) }}</pre>
+        <aside v-if="scalar || row.tags.length > 0" class="ld-tags" :class="{ 'ld-tags--full': scalar }">
           <table class="ld-tag-tbl">
             <thead><tr><th>{{ t('Key') }}</th><th>{{ t('Value') }}</th></tr></thead>
             <tbody>
+              <tr v-if="scalar" class="ld-value-row">
+                <td class="mono">value</td>
+                <td class="mono">{{ row.content }}</td>
+              </tr>
               <tr v-for="tg in row.tags" :key="`${tg.key}=${tg.value}`">
                 <td class="mono">{{ tg.key }}</td>
                 <td class="mono">{{ tg.value }}</td>
@@ -193,6 +204,10 @@ function onJumpTrace(): void {
   flex: 0 0 340px; border-left: 1px solid var(--sw-line); padding: 8px 14px 12px;
   overflow: auto; background: var(--sw-bg-1);
 }
+.ld-tags--full { flex: 1 1 auto; border-left: 0; padding-left: 0; }
+.ld-tags--full .ld-tag-tbl { table-layout: auto; }
+.ld-tags--full .ld-tag-tbl td:first-child { width: 160px; }
+.ld-value-row td { color: var(--sw-fg-0); font-weight: 600; }
 .ld-tag-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
 .ld-tag-tbl td { word-break: break-all; vertical-align: top; }
 .ld-tag-tbl th, .ld-tag-tbl td {

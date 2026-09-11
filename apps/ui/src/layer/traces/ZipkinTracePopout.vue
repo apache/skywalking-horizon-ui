@@ -38,13 +38,23 @@ import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useRoute } from 'vue-router';
 import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
+import { useEmptyTraceRetry } from './useEmptyTraceRetry';
 
 const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
 const route = useRoute();
 const traceIdRef = computed(() => openTraceId.value);
-const { spans, isLoading, error } = useZipkinTrace(traceIdRef, undefined, {
+const { data, spans, isLoading, isFetching, error, refetch } = useZipkinTrace(traceIdRef, undefined, {
   endTs: computed(() => openTraceWindow.value?.endTs ?? null),
   lookback: computed(() => openTraceWindow.value?.lookback ?? null),
+});
+// OAP has no record of a trace for a moment after what named it landed; a
+// 404 is `notFound`, an empty answer to re-read, where a real failure is not.
+const { pending: stillLooking } = useEmptyTraceRetry({
+  active: computed(() => openTraceId.value != null),
+  empty: computed(() => spans.value.length === 0),
+  busy: isFetching,
+  failed: computed(() => !!error.value || (data.value?.reachable === false && !data.value?.notFound)),
+  refetch,
 });
 
 interface WaterfallRow {
@@ -139,15 +149,6 @@ watch([traceIdRef, spans], () => {
   if (!selectedSpanId.value && Number.isInteger(spanIndex) && spanIndex >= 0) selectedSpanId.value = spans.value[spanIndex]?.id ?? null;
 }, { immediate: true });
 
-const spanDetailRef = ref<HTMLElement | null>(null);
-function onSpanDetailDocClick(e: MouseEvent): void {
-  if (!selectedSpan.value) return;
-  const t = e.target as Element | null;
-  if (!t) return;
-  if (spanDetailRef.value?.contains(t)) return;
-  clearSpan();
-}
-
 // Palette + hash match the native trace detail (TracePopout).
 const SERVICE_PALETTE = [
   'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
@@ -233,22 +234,16 @@ function onKeydown(ev: KeyboardEvent): void {
   }
 }
 
-// Global keydown + mousedown listeners are wired through Vue's lifecycle so
-// they're torn down on unmount (the correct shape for HMR / split-mount).
+// The keydown listener is wired through Vue's lifecycle so it is torn down
+// on unmount (the correct shape for HMR / split-mount).
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', onKeydown);
-  }
-  if (typeof document !== 'undefined') {
-    document.addEventListener('mousedown', onSpanDetailDocClick);
   }
 });
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onKeydown);
-  }
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('mousedown', onSpanDetailDocClick);
   }
 });
 
@@ -272,7 +267,7 @@ function copyTraceId(): void {
       </header>
 
       <div v-if="!isLoading && spans.length === 0" class="zk-empty">
-        {{ t('No spans returned for this trace.') }}
+        {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('No spans returned for this trace.') }}
       </div>
 
       <template v-else>
@@ -288,6 +283,7 @@ function copyTraceId(): void {
             <span class="mono">{{ code }}</span>
           </span>
         </div>
+        <div class="tp-split" :class="{ 'no-selection': !selectedSpan }">
         <div class="zk-waterfall">
           <div class="tp-time-axis">
             <span class="t-tick first">0</span>
@@ -339,15 +335,14 @@ function copyTraceId(): void {
             </div>
           </div>
         </div>
-      </template>
-
-      <div v-if="selectedSpan" class="span-modal-backdrop">
-        <article ref="spanDetailRef" class="span-modal sw-card">
-          <header class="span-modal-head">
-            <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
+        <!-- The selected span beside the waterfall, the same shape as the native
+             popout: the trace stays in view while a span is read. -->
+        <aside v-if="selectedSpan" class="tp-span-panel">
+          <header class="tp-span-head">
+            <h5>{{ t('Span detail') }} <span class="mono">{{ selectedSpan.name || '—' }}</span></h5>
             <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
           </header>
-          <div class="span-modal-body">
+          <div class="tp-span-body">
             <section class="sd-section">
               <h6>{{ t('Meta') }}</h6>
               <dl class="kv">
@@ -388,8 +383,9 @@ function copyTraceId(): void {
               </div>
             </section>
           </div>
-        </article>
-      </div>
+        </aside>
+        </div>
+      </template>
     </article>
   </div>
 </template>
@@ -402,7 +398,7 @@ function copyTraceId(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999; /* match native TracePopout; the span-modal (1000) nests above */
+  z-index: 999; /* match native TracePopout */
   padding: 24px;
 }
 .zk-popout {
@@ -430,8 +426,17 @@ function copyTraceId(): void {
   font-size: 12px;
 }
 
+.tp-split {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.tp-split.no-selection { grid-template-columns: 1fr; }
 .zk-waterfall {
-  height: 100%;
+  min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 4px 0;
@@ -593,51 +598,46 @@ function copyTraceId(): void {
 .flag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
 .status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
-.span-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 1000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 40px 20px;
-  overflow-y: auto;
-}
-.span-modal {
-  width: 100%;
-  max-width: 920px;
-  max-height: calc(100vh - 80px);
+.tp-span-panel {
+  border-left: 1px solid var(--sw-line);
+  background: var(--sw-bg-1);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
-.span-modal-head {
+.tp-span-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--sw-line);
   flex: 0 0 auto;
 }
-.span-modal-head h4 {
+.tp-span-head h5 {
   margin: 0;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  display: inline-flex;
-  gap: 10px;
-  align-items: baseline;
+  color: var(--sw-fg-0);
   flex: 1;
   min-width: 0;
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
 }
-.span-modal-head h4 .dim { color: var(--sw-fg-3); font-weight: 500; }
-.span-modal-head h4 .mono {
+.tp-span-head h5 .mono {
   font-family: var(--sw-mono);
+  font-weight: 500;
   color: var(--sw-fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.span-modal-body { padding: 12px 14px 16px; overflow-y: auto; }
+.tp-span-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+}
 .sd-section { margin-bottom: 14px; }
 .sd-section h6 {
   margin: 0 0 6px;

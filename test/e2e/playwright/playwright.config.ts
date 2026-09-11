@@ -109,6 +109,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
     },
     {
+      // GenAI — its own project because the VIRTUAL_GENAI layer, and the
+      // evaluation records its tab reads, exist only where an LLM judge runs.
+      name: 'genai',
+      testMatch: '**/specs/genai/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
       // ElasticSearch's browser half — one spec, the pre-v2 trace path, which
       // is the only thing that deployment proves.
       name: 'es',

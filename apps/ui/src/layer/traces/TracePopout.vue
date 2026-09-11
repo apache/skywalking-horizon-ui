@@ -34,6 +34,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
+import { useEmptyTraceRetry } from './useEmptyTraceRetry';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
@@ -50,9 +51,18 @@ const traceIdRef = computed<string | null>(() => openTraceId.value);
 // composable widens the BanyanDB lookup window around it so cold-tier
 // trace IDs resolve.
 const traceAtRef = computed<number | null>(() => openTraceAtMs.value);
-const { nativeDetail, isFetching } = useTraceDetail(traceIdRef, sourceRef, traceAtRef);
+const { nativeDetail, isFetching, error, refetch } = useTraceDetail(traceIdRef, sourceRef, traceAtRef);
 
 const spans = computed<NativeSpan[]>(() => nativeDetail.value?.spans ?? []);
+// A trace opened seconds after what named it (a log row, an evaluation
+// record) can read as empty until its spans land; re-read for a while.
+const { pending: stillLooking } = useEmptyTraceRetry({
+  active: computed(() => openTraceId.value != null),
+  empty: computed(() => spans.value.length === 0),
+  busy: isFetching,
+  failed: computed(() => !!error.value || nativeDetail.value?.reachable === false),
+  refetch,
+});
 
 // Reset selected span when the trace changes (cross-trace ref jump).
 const selectedSpan = ref<NativeSpan | null>(null);
@@ -253,7 +263,9 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
       </div>
 
       <div class="tp-body">
-        <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">{{ t('no span data') }}</div>
+        <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">
+          {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('no span data') }}
+        </div>
         <div v-else class="tp-split" :class="{ 'no-selection': !selectedSpan }">
           <div class="tp-waterfall">
             <div class="tp-time-axis">

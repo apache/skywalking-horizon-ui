@@ -229,6 +229,28 @@ export interface EvaluationRecordFetchScope {
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
   traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  traceSegmentId?: string | null;
+  traceSpanIndex?: number | null;
+  traceSpanId?: string | null;
+}
+
+/** OAP's `relatedTrace`: the trace, optionally narrowed to ONE span in it.
+ *  A native span is addressed by segment + index, an OTLP span by span id;
+ *  the field for the other scheme is dropped, not forwarded — OAP applies
+ *  `spanIndex` to any non-OTLP query, so a stray one matches nothing. */
+function relatedTraceCondition(scope: Pick<EvaluationRecordFetchScope,
+    'traceId' | 'traceType' | 'traceSegmentId' | 'traceSpanIndex' | 'traceSpanId'>): Record<string, unknown> | null {
+  if (!scope.traceId) return null;
+  const type = scope.traceType ?? 'SKYWALKING_NATIVE';
+  const native = type === 'SKYWALKING_NATIVE';
+  const spanIndex = scope.traceSpanIndex;
+  return {
+    type,
+    traceId: scope.traceId,
+    ...(native && scope.traceSegmentId ? { segmentId: scope.traceSegmentId } : {}),
+    ...(native && Number.isInteger(spanIndex) && (spanIndex as number) >= 0 ? { spanIndex } : {}),
+    ...(!native && scope.traceSpanId ? { spanId: scope.traceSpanId } : {}),
+  };
 }
 
 /** Run OAP's `queryGenAIEvaluationRecord(GenAIEvaluationRecordQueryCondition)` for a pre-resolved scope +
@@ -248,6 +270,7 @@ export async function fetchEvaluationRecords(
   const maxScore = scope.valueType === 'SCORE'
     ? scoreBoundToStoredValue(optionalFiniteNumber(scope.maxScore), false)
     : null;
+  const relatedTrace = relatedTraceCondition(scope);
   const evaluationRecordCondition = (page: { pageNum: number; pageSize: number }) => ({
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.providerId ? { providerId: scope.providerId } : {}),
@@ -261,12 +284,7 @@ export async function fetchEvaluationRecords(
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
     ...(scope.sortField ? { sortBy: scope.sortField } : {}),
     ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
-    ...(scope.traceId ? {
-      relatedTrace: {
-        type: scope.traceType ?? 'SKYWALKING_NATIVE',
-        traceId: scope.traceId,
-      },
-    } : {}),
+    ...(relatedTrace ? { relatedTrace } : {}),
     queryDuration: {
       start: window.start,
       end: window.end,
@@ -382,6 +400,9 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
               sortOrder: body.sortOrder,
               traceId: body.traceId,
               traceType: body.traceType,
+              traceSegmentId: body.traceSegmentId,
+              traceSpanIndex: body.traceSpanIndex,
+              traceSpanId: body.traceSpanId,
             },
             window,
             {
@@ -445,12 +466,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           ...(body.valueType === 'BOOLEAN' && body.booleanValue != null ? { booleanValue: body.booleanValue } : {}),
           ...(body.taskName ? { taskName: body.taskName } : {}),
           ...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),
-          ...(body.traceId ? {
-            relatedTrace: {
-              type: body.traceType ?? 'SKYWALKING_NATIVE',
-              traceId: body.traceId,
-            },
-          } : {}),
+          ...(relatedTraceCondition(body) ? { relatedTrace: relatedTraceCondition(body) } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a
           // level from the breakdown.
@@ -470,7 +486,10 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
             excellent: 0,
             undefined: 0,
           };
-          const svcMap = new Map<string, number>();
+          // Keyed by the caller's id as well as its name: the id is what the
+          // Service condition filters by, and a caller that only reports through
+          // the Zipkin receiver has no catalog entry to look it up from.
+          const svcMap = new Map<string, { id: string | null; name: string; count: number }>();
           for (const r of rows) {
             const raw = (r.evaluationLevel ?? '').toLowerCase();
             if (raw === 'fail') level.fail++;
@@ -478,11 +497,14 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
             else if (raw === 'good') level.good++;
             else if (raw === 'excellent') level.excellent++;
             else level.undefined++;
-            const svc = r.serviceName ?? '(none)';
-            svcMap.set(svc, (svcMap.get(svc) ?? 0) + 1);
+            const name = r.serviceName ?? '(none)';
+            const id = r.serviceId ?? null;
+            const key = `${id ?? ''}\u0000${name}`;
+            const entry = svcMap.get(key) ?? { id, name, count: 0 };
+            entry.count += 1;
+            svcMap.set(key, entry);
           }
-          const services = Array.from(svcMap.entries())
-              .map(([name, count]) => ({ name, count }))
+          const services = Array.from(svcMap.values())
               .sort((a, b) => b.count - a.count)
               .slice(0, 12);
           return reply.send({
