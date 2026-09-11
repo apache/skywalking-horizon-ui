@@ -55,12 +55,12 @@ import { test, expect } from '../support/diagnostics.js';
 async function startSampling(page: Page, filePattern: RegExp, ruleLabel?: string): Promise<void> {
   const file = page.locator('select.ctl__select').first();
   await expect(file).toBeVisible({ timeout: 45_000 });
-  await expect
-    .poll(async () => file.locator('option').count(), { timeout: 60_000 })
-    .toBeGreaterThan(1);
-  const label = (await file.locator('option').allTextContents()).find((o) => filePattern.test(o));
-  expect(label, `no rule file matching ${filePattern}`).toBeTruthy();
-  await file.selectOption({ label: label! });
+  // Wait for the named file itself. The picker asks each catalog separately
+  // and lists whichever have answered, so "more than the placeholder" is true
+  // before the catalog holding this file has landed.
+  const match = file.locator('option', { hasText: filePattern }).first();
+  await expect(match, `no rule file matching ${filePattern}`).toBeAttached({ timeout: 60_000 });
+  await file.selectOption({ label: (await match.textContent())!.trim() });
 
   const rule = page.locator('select.ctl__select').nth(1);
   await expect
