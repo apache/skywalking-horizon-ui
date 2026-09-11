@@ -258,9 +258,9 @@ export function drawStructured(st: Structured, s: Pick<ViewStrings, 'copy'>): st
   const inline = rest.filter((f) => !f.block);
   const blocks = rest.filter((f) => f.block);
   const side = (f: StructuredField): string =>
-    `<span class="acv-copy-src" hidden>${esc(f.value)}</span>${copyButton(s, `${s.copy} ${f.key}`)}`;
+    `<span class="acv-field acv-copy-side"><span class="acv-field-key">${esc(f.key)}</span><span class="acv-copy-src" hidden>${esc(f.value)}</span>${copyButton(s, `${s.copy} ${f.key}`)}</span>`;
   const diff = pair
-    ? `<span class="acv-field block"><span class="acv-field-key">${EDIT_PAIR.join(' → ')}</span>${pair.map((f) => `<span class="acv-field acv-copy-side">${side(f)}</span>`).join('')}<pre class="acv-diff acv-edit-diff">${lineDiff(pair[0].value, pair[1].value)
+    ? `<span class="acv-field block">${side(pair[0])}<span class="acv-edit-arrow">→</span>${side(pair[1])}<pre class="acv-diff acv-edit-diff">${lineDiff(pair[0].value, pair[1].value)
         .map((r) => `<div class="acv-diff-line ${r.kind}">${esc((r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' ') + r.text)}</div>`)
         .join('')}</pre></span>`
     : '';

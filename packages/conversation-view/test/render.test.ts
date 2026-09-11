@@ -412,6 +412,20 @@ describe('copying a whole result', () => {
     expect(written).toEqual(['build succeeded', 'build succeeded']);
   });
 
+  it('copies the side of an edit whose copy button was clicked', async () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: (t: string) => (written.push(t), Promise.resolve()) }, configurable: true });
+    const doc = JSON.parse(readFileSync(resolve('test/fixtures/workspace-changes.json'), 'utf8')) as AszViewDocument;
+    const { root, view } = mount(undefined, undefined, doc);
+    view.setState({ step: 'tool/s3-tool' });
+    const sides = root.querySelectorAll<HTMLButtonElement>('.acv-inspector-body .acv-copy-side [data-copy]');
+    expect(sides).toHaveLength(2);
+    sides[0]!.click();
+    sides[1]!.click();
+    await Promise.resolve();
+    expect(written).toEqual(['var timeout = 30', 'var timeoutSeconds = 30']);
+  });
+
   it('leaves a result drawn as fields to their own copy buttons', () => {
     const doc = structuredClone(fixture) as AszViewDocument;
     const walk = (n: unknown): void => {
