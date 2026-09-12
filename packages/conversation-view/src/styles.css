@@ -324,7 +324,9 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-copy { margin-left: 8px; padding: 0 5px; border: 1px solid var(--acv-line); border-radius: 4px; background: transparent; color: var(--acv-faint); font-family: inherit; font-size: 9px; line-height: 1.5; cursor: pointer; opacity: 0.6; vertical-align: middle; }
 .acv-copy:hover, .acv-copy:focus-visible { opacity: 1; color: var(--acv-text); }
 .acv-copy.done { opacity: 1; color: var(--sw-ok); border-color: color-mix(in srgb, var(--sw-ok) 50%, transparent); }
-.acv-copy-side { display: inline; margin-left: 2px; }
+.acv-copy-side { display: inline; }
+.acv-copy-side .acv-field-key { margin-right: 0; }
+.acv-edit-arrow { margin: 0 14px; color: var(--acv-faint); }
 .acv-kicker .acv-copy, .acv-result-label .acv-copy { font-weight: 400; letter-spacing: normal; text-transform: none; vertical-align: baseline; }
 .acv-edit-diff { display: block; margin-top: 2px; border-top: 0; border-left: 2px solid var(--acv-line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .acv-clip-note { display: block; margin-top: 4px; color: var(--acv-faint); font-size: 10px; font-style: italic; }

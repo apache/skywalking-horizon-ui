@@ -143,9 +143,21 @@ describe('copy buttons and the edit diff', () => {
     const text = new ConversationModel(changes).step('tool/s3-tool')!.text!;
     const html = drawStructured(structure(text)!, S);
     expect(html).toContain('<span class="acv-field-key">file_path</span>');
-    expect(html).toContain('<span class="acv-field-key">old_string → new_string</span>');
     expect(html).toContain('<div class="acv-diff-line del">-var timeout = 30</div>');
     expect(html).toContain('<div class="acv-diff-line add">+var timeoutSeconds = 30</div>');
-    expect(html).not.toContain('<span class="acv-field-key">new_string</span>');
+    expect(html.match(/acv-field-value|acv-field-text/g)).toHaveLength(1);
+  });
+
+  it("puts each side's copy button beside that side's name", () => {
+    const host = document.createElement('div');
+    host.innerHTML = drawStructured(structure(new ConversationModel(changes).step('tool/s3-tool')!.text!)!, S);
+    const sides = Array.from(host.querySelectorAll('.acv-copy-side'), (side) => [
+      side.querySelector('.acv-field-key')?.textContent,
+      side.querySelector('.acv-copy')?.getAttribute('title'),
+    ]);
+    expect(sides).toEqual([
+      ['old_string', 'copy old_string'],
+      ['new_string', 'copy new_string'],
+    ]);
   });
 });
