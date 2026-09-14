@@ -20,7 +20,7 @@
     "services": "AI Gateways"
   },
   "group": "Gateways",
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "dashboards": {
     "service": [
       {

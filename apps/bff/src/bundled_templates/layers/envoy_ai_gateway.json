@@ -1,6 +1,6 @@
 {
   "key": "ENVOY_AI_GATEWAY",
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "group": "Gateways",
   "color": "var(--sw-pink)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-envoy-ai-gateway-monitoring/",

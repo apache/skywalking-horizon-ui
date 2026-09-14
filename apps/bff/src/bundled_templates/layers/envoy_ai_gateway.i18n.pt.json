@@ -1,5 +1,5 @@
 {
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "group": "Gateways",
   "slots": {
     "services": "AI Gateways",
