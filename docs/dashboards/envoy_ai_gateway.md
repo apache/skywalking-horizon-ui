@@ -14,11 +14,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Envoy AI Gateway
+# Agent Router
 
-The **ENVOY_AI_GATEWAY** layer monitors [Envoy AI Gateway](https://aigateway.envoyproxy.io/) deployments — the Envoy-based gateway that fronts LLM providers and models, routing chat / completion traffic to OpenAI, Anthropic, and other backends. SkyWalking turns the gateway's OpenTelemetry GenAI signals into request, latency, token, and streaming-quality metrics, broken down by provider and model, and lands them here.
+The **ENVOY_AI_GATEWAY** layer monitors [Agent Router](https://theagentrouter.ai/) deployments (formerly Envoy AI Gateway, renamed when it joined the Agentic AI Foundation) — the Envoy-based gateway that fronts LLM providers and models, routing chat / completion traffic to OpenAI, Anthropic, and other backends. SkyWalking turns the gateway's OpenTelemetry GenAI signals into request, latency, token, and streaming-quality metrics, broken down by provider and model, and lands them here.
 
-In Horizon's sidebar this layer is grouped under **Gateways**. Its services are listed as **AI Gateways** and its instances as **Nodes**. The ENVOY_AI_GATEWAY layer enables the Service (AI Gateway) and Instance (Node) dashboards plus the Logs sub-tab. It does **not** ship an Endpoint dashboard, a topology / service-map view, or a Traces tab — the gateway is monitored entirely through its GenAI meter families, which carry no per-endpoint scope or call graph.
+In Horizon's sidebar this layer is grouped under **Gateways**. Its services are listed as **Agent Routers** and its instances as **Nodes**. The ENVOY_AI_GATEWAY layer enables the Service (Agent Router) and Instance (Node) dashboards plus the Logs sub-tab. It does **not** ship an Endpoint dashboard, a topology / service-map view, or a Traces tab — the gateway is monitored entirely through its GenAI meter families, which carry no per-endpoint scope or call graph.
 
 This page is the **operator reference** for the bundled ENVOY_AI_GATEWAY dashboard: what you see on each scope and what each widget means.
 
@@ -26,7 +26,7 @@ This page is the **operator reference** for the bundled ENVOY_AI_GATEWAY dashboa
 
 ## Service list
 
-Before opening a gateway, the layer landing page lists every AI Gateway with four sortable columns, sorted by traffic (**RPM**) by default:
+Before opening a gateway, the layer landing page lists every Agent Router with four sortable columns, sorted by traffic (**RPM**) by default:
 
 - **RPM** — requests per minute across the gateway (`meter_envoy_ai_gw_request_cpm`).
 
@@ -38,7 +38,7 @@ Before opening a gateway, the layer landing page lists every AI Gateway with fou
 
 ## Service dashboard
 
-The primary drill-down for one selected AI Gateway. Beyond the headline request and token widgets, it breaks traffic down by GenAI provider and model and exposes streaming-quality timings (TTFT / TPOT). The Model Context Protocol (MCP) widgets only appear when the gateway actually serves MCP traffic.
+The primary drill-down for one selected Agent Router. Beyond the headline request and token widgets, it breaks traffic down by GenAI provider and model and exposes streaming-quality timings (TTFT / TPOT). The Model Context Protocol (MCP) widgets only appear when the gateway actually serves MCP traffic.
 
 **Requests, latency, and tokens**
 
@@ -110,7 +110,7 @@ For one selected **Node** of the gateway. The same request, latency, token, and 
 
 ## Requirements
 
-The ENVOY_AI_GATEWAY dashboard is a pure consumer of what OAP reports — it invents no data, and a widget with no backing data simply reads `no data`. To populate it, OAP needs the Envoy AI Gateway GenAI meter families, derived from the gateway's OpenTelemetry GenAI signals:
+The ENVOY_AI_GATEWAY dashboard is a pure consumer of what OAP reports — it invents no data, and a widget with no backing data simply reads `no data`. To populate it, OAP needs the Agent Router GenAI meter families, derived from the gateway's OpenTelemetry GenAI signals:
 
 - **Gateway (service) metrics** — the `meter_envoy_ai_gw_*` family at service scope: request load (`meter_envoy_ai_gw_request_cpm`), latency average and percentile (`meter_envoy_ai_gw_request_latency_avg`, `meter_envoy_ai_gw_request_latency_percentile`), input / output token rates (`meter_envoy_ai_gw_input_token_rate`, `meter_envoy_ai_gw_output_token_rate`), and the streaming-quality timings (`meter_envoy_ai_gw_ttft_*`, `meter_envoy_ai_gw_tpot_*`).
 
@@ -120,4 +120,4 @@ The ENVOY_AI_GATEWAY dashboard is a pure consumer of what OAP reports — it inv
 
 - **Node (instance) metrics** — the `meter_envoy_ai_gw_instance_*` family for the per-node widgets (request load, latency, tokens, percentile, TTFT, TPOT).
 
-Each metric is queried at its own OAP scope; OAP does not roll a metric up across scopes, so a node-scope metric is empty until that level of data is reported. For how to enable the upstream collector, see the [Envoy AI Gateway monitoring](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-envoy-ai-gateway-monitoring/) setup docs.
+Each metric is queried at its own OAP scope; OAP does not roll a metric up across scopes, so a node-scope metric is empty until that level of data is reported. The layer key `ENVOY_AI_GATEWAY` and the `meter_envoy_ai_gw_*` metric names keep the old name, and so does the SkyWalking setup guide; the rename left the gateway's configuration and signals unchanged. For how to enable the upstream collector, see the SkyWalking [Envoy AI Gateway monitoring](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-envoy-ai-gateway-monitoring/) setup docs.

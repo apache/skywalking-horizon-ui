@@ -1,5 +1,5 @@
 {
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "group": "Passerelles",
   "layer-header": {
     "columns": [
@@ -149,7 +149,7 @@
     ]
   },
   "slots": {
-    "services": "Passerelles AI",
+    "services": "Agent Routers",
     "instances": "Nœuds"
   }
 }

@@ -41,7 +41,7 @@ Horizon ships four bundled tiers:
 |---|---|---|
 | **Apps** (top) | The application surfaces and their direct dependencies as the app sees them | General (agent) services, Browser/RUM, iOS, mini-programs, and the Virtual* targets (database / cache / MQ / gateway / GenAI) |
 | **Middleware** | The data and messaging services, gateways, and self-observability | MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch, Kafka, RocketMQ, RabbitMQ, Pulsar, APISIX, Nginx, Kong, Flink, the SkyWalking SO11Y components, and cloud-managed data services |
-| **Service Mesh** | The mesh that fronts the apps | Istio managed services, Istio data plane (Envoy sidecars), Istio control plane, Cilium, Envoy AI Gateway |
+| **Service Mesh** | The mesh that fronts the apps | Istio managed services, Istio data plane (Envoy sidecars), Istio control plane, Cilium, Agent Router |
 | **Infra** (bottom) | The platform the rest runs on | Kubernetes cluster + service, Linux/Windows hosts, virtual machines, EKS |
 
 Every layer OAP reports is placed onto exactly one tier. A layer that

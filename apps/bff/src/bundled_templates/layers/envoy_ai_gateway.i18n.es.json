@@ -17,10 +17,10 @@
   },
   "slots": {
     "instances": "Nodos",
-    "services": "AI Gateways"
+    "services": "Agent Routers"
   },
   "group": "Gateways",
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "dashboards": {
     "service": [
       {
