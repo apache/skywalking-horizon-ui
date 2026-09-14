@@ -1,5 +1,5 @@
 {
-  "alias": "Envoy AI Gateway",
+  "alias": "Agent Router",
   "group": "게이트웨이",
   "layer-header": {
     "columns": [
@@ -149,7 +149,7 @@
     ]
   },
   "slots": {
-    "services": "AI 게이트웨이",
+    "services": "Agent Router",
     "instances": "노드"
   }
 }
