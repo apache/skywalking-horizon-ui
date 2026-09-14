@@ -155,6 +155,8 @@ export interface AiConversationViewRequest {
   conversation: string;
   serviceName: string;
   instanceName?: string;
+  /** Opt in to BanyanDB's cold stage; omitted or false reads hot and warm. */
+  coldStage?: boolean;
   /** `yaml` asks for the `+yaml` twin; anything else is the JSON document. */
   format: 'json' | 'yaml';
   /** The browser's own `Accept-Encoding`, forwarded verbatim so OAP compresses
@@ -194,9 +196,11 @@ export function aiConversationViewPath(
   conversation: string,
   serviceName: string,
   instanceName?: string,
+  coldStage = false,
 ): string {
   const qs = new URLSearchParams({ service: serviceName });
   if (instanceName) qs.set('instance', instanceName);
+  if (coldStage) qs.set('coldStage', 'true');
   return `/ai-agent/conversations/${encodeURIComponent(conversation)}/v1/view?${qs.toString()}`;
 }
 
@@ -205,7 +209,7 @@ export function openAiConversationView(
   q: AiConversationViewRequest,
 ): Promise<AiConversationViewUpstream> {
   const url = new URL(
-    opts.queryUrl.replace(/\/$/, '') + aiConversationViewPath(q.conversation, q.serviceName, q.instanceName),
+    opts.queryUrl.replace(/\/$/, '') + aiConversationViewPath(q.conversation, q.serviceName, q.instanceName, q.coldStage),
   );
   const lib = url.protocol === 'https:' ? https : http;
   const headers: Record<string, string> = {
