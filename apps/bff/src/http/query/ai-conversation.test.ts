@@ -266,6 +266,23 @@ describe('GET /api/ai-conversation/:conversation/view', () => {
   const DOC_GZIP = gzipSync(DOC);
   const JSON_TYPE = 'application/vnd.skywalking.asz.view+json; version=1.0; charset=utf-8';
 
+  it.each([undefined, '0', '1'])('forwards the explicit cold-stage header %s to OAP', async (stage) => {
+    let path = '';
+    const url = await serveOap((req, res) => {
+      path = req.url ?? '';
+      res.writeHead(200, { 'content-type': JSON_TYPE });
+      res.end(DOC);
+    });
+    const { app, cookie: c } = await build(fakeOap().fetch, { oap: { queryUrl: url } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/ai-conversation/c1/view?service=s',
+      headers: { cookie: c, ...(stage === undefined ? {} : { 'x-horizon-cold-stage': stage }) },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(path).toBe(`/ai-agent/conversations/c1/v1/view?service=s${stage === '1' ? '&coldStage=true' : ''}`);
+  });
+
   it('refuses a request that names no service', async () => {
     const { app, cookie: c } = await build(fakeOap().fetch);
     const res = await app.inject({ method: 'GET', url: '/api/ai-conversation/c1/view', headers: { cookie: c } });

@@ -27,6 +27,7 @@ import {
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
 import { withBase } from '../client';
+import { COLD_STAGE_HEADER, readColdStageHeader } from '@/controls/coldStage';
 import { pushEvent } from '@/controls/eventLog';
 
 /** Why a conversation document could not be read. `not_found` and
@@ -123,7 +124,10 @@ export class AiConversationApi {
     try {
       res = await fetch(withBase(path), {
         credentials: 'include',
-        headers: { accept: ASZ_VIEW_JSON_MEDIA_TYPE },
+        headers: {
+          accept: ASZ_VIEW_JSON_MEDIA_TYPE,
+          ...(readColdStageHeader() ? { [COLD_STAGE_HEADER]: '1' } : {}),
+        },
         ...(opts.signal ? { signal: opts.signal } : {}),
       });
     } catch (err) {

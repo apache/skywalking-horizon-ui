@@ -113,7 +113,7 @@ it empties it. A Cold toggle would blank the alarm list and the entity pickers.
 | `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
 | `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
 | `mqe-exec.ts` — one metric expression, run from the template editor | |
-| `ai-conversation.ts` — the conversation LIST (`recordsAIAgent` is a record group with a cold stage) | `ai-conversation.ts` — the conversation VIEW relay: no `Duration` to carry a flag on |
+| `ai-conversation.ts` — the conversation list (`Duration.coldStage`) and view relay (`coldStage=true` query parameter), only when the UI selects cold | |
 
 The conversation VIEW relay holds the whole document before answering (gzip in memory, a fifth of the document's size): OAP streams it without a length, and the page shows "n of m MB" only because the BFF is the first to know `m`. It therefore asks OAP for gzip or plain bytes only — never the browser's own `Accept-Encoding` list — since it decodes what it holds to count it and to read the summary off the head (`logic/ai-conversation/hold-document.ts`). The decoded size and the summary's counts travel as `x-horizon-document-bytes` and `x-horizon-document-summary`.
 | `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |

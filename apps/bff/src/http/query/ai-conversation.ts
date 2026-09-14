@@ -220,6 +220,7 @@ export function registerAiConversationRoutes(app: FastifyInstance, deps: AiConve
             conversation,
             serviceName,
             instanceName: typeof q.instance === 'string' && q.instance ? q.instance : undefined,
+            coldStage: !!req.coldStage,
             format: yaml ? 'yaml' : 'json',
             acceptEncoding: browserTakesGzip ? 'gzip' : 'identity',
           },

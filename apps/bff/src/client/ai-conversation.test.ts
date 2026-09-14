@@ -125,6 +125,15 @@ describe('listAiConversations', () => {
 });
 
 describe('aiConversationViewPath', () => {
+  it('names the cold stage only when explicitly selected', () => {
+    expect(aiConversationViewPath('c1', 's', undefined, false)).toBe(
+      '/ai-agent/conversations/c1/v1/view?service=s',
+    );
+    expect(aiConversationViewPath('c1', 's', undefined, true)).toBe(
+      '/ai-agent/conversations/c1/v1/view?service=s&coldStage=true',
+    );
+  });
+
   it('is the OAP route with the service, and the sender only when given', () => {
     expect(aiConversationViewPath('c 1', 'Claude Code')).toBe(
       '/ai-agent/conversations/c%201/v1/view?service=Claude+Code',
@@ -173,9 +182,9 @@ describe('openAiConversationView', () => {
     });
     const up = await openAiConversationView(
       { queryUrl: url, timeoutMs: 2000, auth: { username: 'u', password: 'p' } },
-      { conversation: 'c1', serviceName: 'Claude Code', instanceName: 'me@host', format: 'json', acceptEncoding: 'gzip, br' },
+      { conversation: 'c1', serviceName: 'Claude Code', instanceName: 'me@host', coldStage: true, format: 'json', acceptEncoding: 'gzip, br' },
     );
-    expect(path).toBe('/ai-agent/conversations/c1/v1/view?service=Claude+Code&instance=me%40host');
+    expect(path).toBe('/ai-agent/conversations/c1/v1/view?service=Claude+Code&instance=me%40host&coldStage=true');
     expect(seen.accept).toBe('application/vnd.skywalking.asz.view+json');
     expect(seen['accept-encoding']).toBe('gzip, br');
     expect(seen.authorization).toBe(`Basic ${Buffer.from('u:p').toString('base64')}`);

@@ -22,6 +22,12 @@ import '../client';
 import { AiConversationApi, AiConversationViewError } from './ai-conversation';
 import type { BffClient } from '../client';
 
+const coldStage = vi.hoisted(() => ({ enabled: false }));
+vi.mock('@/controls/coldStage', () => ({
+  COLD_STAGE_HEADER: 'X-Horizon-Cold-Stage',
+  readColdStageHeader: () => coldStage.enabled,
+}));
+
 function api(): { api: AiConversationApi; unauthorized: ReturnType<typeof vi.fn> } {
   const unauthorized = vi.fn();
   const bff = { handleUnauthorized: unauthorized, request: vi.fn() } as unknown as BffClient;
@@ -38,9 +44,29 @@ function streamOf(parts: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  coldStage.enabled = false;
+  vi.unstubAllGlobals();
+});
 
 describe('bff.aiConversation.view', () => {
+  it('requests cold storage only while the UI selection is enabled', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(
+      JSON.stringify({ format: 'asz.view', version: '1.0' }),
+      { status: 200 },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api: a } = api();
+    for (const enabled of [false, true, false]) {
+      coldStage.enabled = enabled;
+      await a.view('c1', { service: 's' });
+    }
+    const stages = fetchMock.mock.calls.map(([, init]) =>
+      new Headers((init as RequestInit).headers).get('X-Horizon-Cold-Stage'),
+    );
+    expect(stages).toEqual([null, '1', null]);
+  });
+
   it('asks for the JSON document with the session cookie and reports the bytes as they stream', async () => {
     const doc = { format: 'asz.view', version: '1.0', conversation: 'c1', talks: [] };
     const text = JSON.stringify(doc);
