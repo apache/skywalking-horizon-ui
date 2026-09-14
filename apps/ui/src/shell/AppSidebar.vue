@@ -64,34 +64,12 @@ import SidebarLayerRow from './SidebarLayerRow.vue';
 import SidebarLayerChildren from './SidebarLayerChildren.vue';
 import { useSidebarActive } from './useSidebarActive';
 import { useSidebarMenu } from './useSidebarMenu';
-
-type SidebarLayer = (typeof orderedLayers.value)[number];
+import { buildSidebarEntries } from './sidebarEntries';
+import { useSidebarGroups } from './useSidebarGroups';
 
 const { route, isActive, isActiveExact, expandedLayer, toggleLayer, navRef } =
   useSidebarActive(orderedLayers);
 
-interface LayerGroup { kind: 'group'; label: string; layers: SidebarLayer[] }
-interface LayerSingle { kind: 'single'; layer: SidebarLayer }
-type SidebarEntry = LayerGroup | LayerSingle;
-/** Group layers by their template's `group` field, preserving the
- *  first-seen position so the section lands where the first member
- *  appears in source order. Ungrouped layers fall through as singles. */
-function bucket(rows: SidebarLayer[]): SidebarEntry[] {
-  const out: SidebarEntry[] = [];
-  const groupBuckets = new Map<string, SidebarLayer[]>();
-  for (const L of rows) {
-    if (L.group) {
-      if (!groupBuckets.has(L.group)) {
-        groupBuckets.set(L.group, []);
-        out.push({ kind: 'group', label: L.group, layers: groupBuckets.get(L.group)! });
-      }
-      groupBuckets.get(L.group)!.push(L);
-    } else {
-      out.push({ kind: 'single', layer: L });
-    }
-  }
-  return out;
-}
 // Public layers mirror the Overview/landing order (landing.priority) so
 // the two surfaces stay in lockstep.
 const publicLayers = computed(() =>
@@ -104,7 +82,8 @@ const publicLayers = computed(() =>
 const operateLayers = computed(() =>
   availableLayers.value.filter((L) => L.visibility === 'operate'),
 );
-const sidebarEntries = computed<SidebarEntry[]>(() => bucket(publicLayers.value));
+const sidebarEntries = computed(() => buildSidebarEntries(publicLayers.value));
+const { isGroupOpen, toggleGroup } = useSidebarGroups(sidebarEntries);
 
 const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMenu();
 
@@ -114,7 +93,7 @@ const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMe
 const signedInAs = computed(() => auth.user?.displayName || auth.user?.username);
 
 // True when this layer's template has local edits not yet published to OAP
-// (diverged) — drives the yellow warning on its grouped sidebar row.
+// (diverged) — drives the yellow warning on its sidebar row.
 function isLayerDiverged(key: string): boolean {
   const badges = bundle.value?.syncStatus?.badges ?? [];
   return badges.some(
@@ -200,33 +179,51 @@ function isLayerDiverged(key: string): boolean {
         </i18n-t>
       </div>
       <template v-for="(E, ei) in sidebarEntries" :key="E.kind === 'group' ? `g:${E.label}` : `s:${E.layer.key}:${ei}`">
-        <template v-if="E.kind === 'group'">
-          <div class="sw-nav-section sw-nav-section--icon">
+        <div v-if="E.kind === 'group'" class="layer-group">
+          <button
+            :id="`sidebar-group-toggle-${ei}`"
+            type="button"
+            class="sw-nav-section sw-nav-section--icon layer-group-toggle"
+            :aria-expanded="isGroupOpen(E.label)"
+            :aria-controls="`sidebar-group-children-${ei}`"
+            @click="toggleGroup(E.label)"
+          >
             <Icon :name="sectionIcon(E.label)" />
-            <span class="layer-group-name">{{ E.label }}</span>
+            <span class="layer-group-name" :title="E.label">{{ E.label }}</span>
+            <span class="caret" :class="{ open: isGroupOpen(E.label) }">
+              <Icon name="caret" :size="10" />
+            </span>
+          </button>
+          <div
+            v-show="isGroupOpen(E.label)"
+            :id="`sidebar-group-children-${ei}`"
+            role="group"
+            :aria-labelledby="`sidebar-group-toggle-${ei}`"
+          >
+            <template v-for="L in E.layers" :key="`${E.label}::${L.key}`">
+              <SidebarLayerRow
+                :layer="L"
+                variant="grouped"
+                :expanded="expandedLayer === L.key"
+                :diverged="isLayerDiverged(L.key)"
+                @toggle="toggleLayer"
+              />
+              <SidebarLayerChildren
+                v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
+                :layer="L"
+                in-group
+              />
+            </template>
           </div>
-          <template v-for="L in E.layers" :key="`${E.label}::${L.key}`">
-            <SidebarLayerRow
-              :layer="L"
-              variant="grouped"
-              :expanded="expandedLayer === L.key"
-              :diverged="isLayerDiverged(L.key)"
-              @toggle="toggleLayer"
-            />
-            <SidebarLayerChildren
-              v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
-              :layer="L"
-              in-group
-            />
-          </template>
-        </template>
+        </div>
 
-        <!-- Ungrouped single-feature layer OR expandable accordion head. -->
+        <!-- Standalone layer, including the only visible member of a group. -->
         <SidebarLayerRow
           v-else
           :layer="E.layer"
           variant="ungrouped"
           :expanded="expandedLayer === E.layer.key"
+          :diverged="isLayerDiverged(E.layer.key)"
           @toggle="toggleLayer"
         />
         <SidebarLayerChildren
@@ -261,7 +258,7 @@ function isLayerDiverged(key: string): boolean {
           <template v-for="L in operateLayers" :key="`op:${L.key}`">
             <SidebarLayerRow
               :layer="L"
-              variant="operate"
+              variant="ungrouped"
               :expanded="expandedLayer === L.key"
               @toggle="toggleLayer"
             />
@@ -460,14 +457,14 @@ function isLayerDiverged(key: string): boolean {
   margin-left: 2px;
   letter-spacing: 0.02em;
 }
-/* L1 row — unified menu spec: 28px tall, 16px icon, 12/600 fg-1.
+/* L1 row — 16px icon, 12/600 fg-1.
  * Active = accent inset + 10% accent fill; expanded-only = white-fade. */
 .layer-row {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin: 1px 8px;
-  padding: 6px 10px;
+  margin: 1px 0;
+  padding: 6px 8px;
   border-radius: 6px;
   color: var(--sw-fg-1);
   font-size: 12px;
@@ -534,7 +531,7 @@ function isLayerDiverged(key: string): boolean {
 .caret.open {
   transform: rotate(0);
 }
-/* L2 — children of an expanded layer. Vertical rail at left:22 with
+/* L2 — children of an expanded layer. Vertical rail at left:12 with
  * a per-row horizontal tick; the last child masks the rail's tail
  * with --sw-bg-1 so it reads as a half-line. */
 .layer-children {
@@ -545,7 +542,7 @@ function isLayerDiverged(key: string): boolean {
 .layer-children::before {
   content: '';
   position: absolute;
-  left: 22px;
+  left: 12px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -553,7 +550,7 @@ function isLayerDiverged(key: string): boolean {
 }
 .layer-children .sw-nav-item {
   position: relative;
-  margin: 1px 8px 1px 28px;
+  margin: 1px 0 1px 18px;
   padding: 5px 9px;
   border-radius: 5px;
   font-size: 11.5px;
@@ -602,7 +599,7 @@ function isLayerDiverged(key: string): boolean {
 }
 /* L0 — section headers (top-of-sidebar kickers AND in-Layers sub-group
  * buckets) share one rhythm and carry a left icon so the icon column
- * stays aligned with the L1 rows below. Presentational: no caret, no click. */
+ * stays aligned with the L1 rows below. Layer groups also have a fold toggle. */
 .sw-nav-section,
 .sw-nav-section--icon {
   font-size: 10px;
@@ -614,8 +611,10 @@ function isLayerDiverged(key: string): boolean {
 .sw-nav-section--icon {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 14px 4px;
+  /* Center the 12px section glyph on the 16px standalone-row icon column
+   * and start both labels at the same horizontal position. */
+  gap: 11px;
+  padding: 14px 14px 4px 10px;
 }
 .sw-nav-section--icon :deep(svg) {
   /* Slightly larger than the 10px text so the glyph reads as a label
@@ -627,7 +626,49 @@ function isLayerDiverged(key: string): boolean {
   color: var(--sw-fg-3);
   opacity: 1;
 }
-.layer-group-name { flex: 1; min-width: 0; }
+.layer-group {
+  padding-top: 10px;
+}
+.layer-group-toggle {
+  width: 100%;
+  /* Match a layer row's 12px label at 1.45 line-height plus 6px padding
+   * above and below, even though the group heading uses smaller text. */
+  min-height: calc(12px * 1.45 + 12px);
+  padding: 6px 8px 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.layer-group-toggle:hover {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-1);
+}
+.layer-group-toggle:focus-visible {
+  outline: 2px solid var(--sw-accent);
+  outline-offset: -2px;
+}
+.layer-group-toggle .caret {
+  flex: 0 0 10px;
+}
+.layer-group-toggle .caret :deep(svg) {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+}
+.layer-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Separate a group from the next standalone layer, open or folded. */
+.sw-nav > .layer-group + .layer-row {
+  margin-top: 12px;
+}
 .sw-nav-item {
   text-decoration: none;
 }
@@ -645,7 +686,8 @@ function isLayerDiverged(key: string): boolean {
  * Direct-child selector keeps it scoped so the global tokens-default
  * `.sw-nav-item.is-active` (bg-3) still applies on other surfaces. */
 .sw-nav > .sw-nav-item {
-  margin: 1px 8px;
+  margin: 1px 0;
+  padding: 6px 8px;
   font-weight: 600;
 }
 .sw-nav > .sw-nav-item :deep(svg) {

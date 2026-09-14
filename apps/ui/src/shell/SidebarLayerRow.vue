@@ -17,9 +17,8 @@
 <!--
   The L1 layer row. A single-feature layer (services list only) renders as
   a direct RouterLink; everything else renders as an expandable accordion
-  head that emits `toggle`. `variant` selects the placement-specific dress:
-  `grouped` carries the diverged-warn badge + the in-group class, `operate`
-  carries a serviceCount badge on the single-feature link.
+  head that emits `toggle`. Grouped rows carry the in-group class;
+  diverged warnings apply at either placement.
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
@@ -34,7 +33,7 @@ import { useRouteActive } from '@/shell/useSidebarActive';
 const props = defineProps<{
   layer: LayerDef;
   expanded: boolean;
-  variant: 'grouped' | 'ungrouped' | 'operate';
+  variant: 'grouped' | 'ungrouped';
   /** Layer template has local edits not yet published to OAP. */
   diverged?: boolean;
 }>();
@@ -47,8 +46,7 @@ const { isActive, isActiveExact } = useRouteActive();
 const L = computed(() => props.layer);
 const single = computed(() => isSingleFeatureLayer(L.value));
 const inGroup = computed(() => props.variant === 'grouped');
-const showWarn = computed(() => props.variant === 'grouped' && Boolean(props.diverged));
-const showCount = computed(() => props.variant === 'operate');
+const showWarn = computed(() => Boolean(props.diverged));
 const icon = computed(() => layerIconByKey(L.value.key));
 </script>
 
@@ -66,7 +64,6 @@ const icon = computed(() => layerIconByKey(L.value.key));
       class="layer-warn"
       :title="t('Local changes not published to OAP')"
     ><Icon name="alert" :size="11" /></span>
-    <span v-if="showCount" class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
   </RouterLink>
   <div
     v-else
@@ -92,14 +89,14 @@ const icon = computed(() => layerIconByKey(L.value.key));
 </template>
 
 <style scoped>
-/* L1 row — unified menu spec: 28px tall, 16px icon, 12/600 fg-1.
+/* L1 row — 16px icon, 12/600 fg-1.
  * Active = accent inset + 10% accent fill; expanded-only = white-fade. */
 .layer-row {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin: 1px 8px;
-  padding: 6px 10px;
+  margin: 1px 0;
+  padding: 6px 8px;
   border-radius: 6px;
   color: var(--sw-fg-1);
   font-size: 12px;
@@ -163,9 +160,10 @@ const icon = computed(() => layerIconByKey(L.value.key));
   cursor: pointer;
   user-select: none;
 }
-/* Grouped and ungrouped layer rows sit at the same indent — the group
- * header already delineates the section, so no extra tree-style nest. */
-.layer-row.in-group { }
+/* Inset group members so standalone layers read as peers of the group. */
+.layer-row.in-group {
+  margin-left: 12px;
+}
 /* Base glyph points down; -90° collapses to right-arrow. */
 .caret {
   margin-left: 4px;
