@@ -16,7 +16,7 @@
 -->
 <!--
   The L2 tab cluster under an expanded layer row — one canonical copy for
-  every placement (grouped, ungrouped, operate). `inGroup` only nudges the
+  every placement. `inGroup` only nudges the
   CSS class; which rows exist and in what order comes from the layer's
   resolved `menuRows`, so this component decides only how a row LOOKS.
 
@@ -109,7 +109,7 @@ const firstRowTo = computed(() => rows.value[0]?.to ?? '');
 </template>
 
 <style scoped>
-/* L2 — children of an expanded layer. Vertical rail at left:22 with
+/* L2 — children of an expanded layer. Vertical rail at left:12 with
  * a per-row horizontal tick; the last child masks the rail's tail
  * with --sw-bg-1 so it reads as a half-line. */
 .layer-children {
@@ -120,7 +120,7 @@ const firstRowTo = computed(() => rows.value[0]?.to ?? '');
 .layer-children::before {
   content: '';
   position: absolute;
-  left: 22px;
+  left: 12px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -128,7 +128,7 @@ const firstRowTo = computed(() => rows.value[0]?.to ?? '');
 }
 .layer-children .sw-nav-item {
   position: relative;
-  margin: 1px 8px 1px 28px;
+  margin: 1px 0 1px 18px;
   padding: 5px 9px;
   border-radius: 5px;
   font-size: 11.5px;
@@ -175,9 +175,10 @@ const firstRowTo = computed(() => rows.value[0]?.to ?? '');
 .layer-children .sw-nav-item.is-active :deep(svg) {
   color: var(--sw-accent);
 }
-/* Grouped layer rows sit at the same indent — the group header already
- * delineates the section, so no extra tree-style nest. */
-.layer-children.in-group { }
+/* Move the child rows and their rail with the grouped layer's inset. */
+.layer-children.in-group {
+  margin-left: 12px;
+}
 .sw-nav-item {
   text-decoration: none;
 }

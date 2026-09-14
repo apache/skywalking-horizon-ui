@@ -59,6 +59,8 @@ The cascade only lands on destinations that also appear in the sidebar. A bundle
 
 ## Rows Under a Layer
 
+Click a layer group heading, such as **Databases**, to fold or unfold its layers. Each group folds independently. Navigating to a layer opens its group; a menu refresh keeps your current fold choices. A group with only one visible layer shows that layer directly, without a separate group heading.
+
 Expanding a layer shows one row per enabled component, plus any extension pages those components declare. The built-in order is:
 
 ```text
