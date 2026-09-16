@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // The scope imports `withBase` from the client, and the client constructs every
 // scope at load: the client has to be the module that starts the cycle.
 import '../client';
-import { AiConversationApi, AiConversationViewError } from './ai-conversation';
+import { AiConversationApi, AiConversationViewError, readFiles } from './ai-conversation';
 import type { BffClient } from '../client';
 
 const coldStage = vi.hoisted(() => ({ enabled: false }));
@@ -161,5 +161,100 @@ describe('bff.aiConversation.view', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 200 })));
     err = (await api().api.view('c1', { service: 's' }).catch((e: unknown) => e)) as AiConversationViewError;
     expect(err.kind).toBe('unsupported');
+  });
+});
+
+describe('readFiles', () => {
+  const frame = (file: string, seq: number, bytes: string): string => {
+    const size = new TextEncoder().encode(bytes).length;
+    const naming = JSON.stringify({ file, seq, lines: (bytes.match(/\n/g) ?? []).length, bytes: size, digest: 'd' });
+    return `${naming}\n${bytes}${size > 0 && !bytes.endsWith('\n') ? '\n' : ''}`;
+  };
+  /** The body in chunks of `at` bytes, so a file is split across reads wherever the caller says. */
+  const stream = (text: string, at: number): ReadableStream<Uint8Array> => {
+    const bytes = new TextEncoder().encode(text);
+    let pos = 0;
+    return new ReadableStream({
+      pull(c) {
+        if (pos >= bytes.length) {
+          c.close();
+          return;
+        }
+        c.enqueue(bytes.slice(pos, pos + at));
+        pos += at;
+      },
+    });
+  };
+  const read = async (text: string, at: number): Promise<Array<{ seq: number; file: string; text: string }>> => {
+    const out: Array<{ seq: number; file: string; text: string }> = [];
+    await readFiles(stream(text, at), (f) => out.push({ seq: f.seq, file: f.file, text: new TextDecoder().decode(f.bytes) }));
+    return out;
+  };
+
+  it('reads each file whole, at any chunk boundary', async () => {
+    // a file ending with its own newline, one that does not, one that is empty, and a 4 KB one
+    const body =
+      frame('a.sd', 1, '{"h":1}\n{"t":"end"}\n') + frame('b.sd', 2, '{"h":1}') + frame('c.sd', 3, '') + frame('d.sd', 4, `${'x'.repeat(4096)}\n`);
+    for (const at of [1, 3, 64, 4096, 1 << 20]) {
+      const files = await read(body, at);
+      expect(files.map((f) => f.seq), `chunks of ${at}`).toEqual([1, 2, 3, 4]);
+      expect(files[0]!.text).toBe('{"h":1}\n{"t":"end"}\n');
+      expect(files[1]!.text).toBe('{"h":1}');
+      expect(files[2]!.text).toBe('');
+      expect(files[3]!.text).toBe(`${'x'.repeat(4096)}\n`);
+    }
+  });
+
+  it('answers with nothing when nothing was stored', async () => {
+    expect(await read('', 16)).toEqual([]);
+  });
+
+  it('refuses a body that ends inside a file, or is not this framing', async () => {
+    await expect(read(frame('a.sd', 1, '{"h":1}\n').slice(0, -3), 8)).rejects.toThrow();
+    await expect(read('{"file":"a.sd"}\n', 8)).rejects.toThrow();
+    await expect(read('not a naming line\n', 8)).rejects.toThrow();
+  });
+
+  it('refuses a file whose count is not followed by the newline that closes it', async () => {
+    // the byte after a file that does not end with its own newline says the count was the file's. A
+    // different byte there means every file after it would be read at the wrong offset.
+    const wrong = `${JSON.stringify({ file: 'a.sd', seq: 1, lines: 1, bytes: 7, digest: 'd' })}\n{"h":1}X${frame('b.sd', 2, 'later\n')}`;
+    await expect(read(wrong, 8)).rejects.toThrow();
+  });
+
+  it('ends the body when it refuses a frame, rather than leaving it streaming', async () => {
+    // A body nobody will read must not stay open: the browser keeps receiving it and the relay
+    // behind it keeps asking OAP for the rest.
+    const bytes = new TextEncoder().encode('not a naming line\n');
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(bytes);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    await expect(readFiles(stream, () => undefined)).rejects.toThrow();
+    expect(cancelled).toBe(true);
+    expect(stream.locked).toBe(false);
+  });
+
+  it('reads a file of megabytes without copying it again for every chunk', async () => {
+    // Joining each chunk onto the whole would copy about 130 MB for these 2 MB, so a regression
+    // shows as this test running out of time rather than as a stopwatch reading, which under a
+    // parallel suite says more about the machine than about the code.
+    const big = `${'y'.repeat(2 * 1024 * 1024)}\n`;
+    const files = await read(frame('big.sd', 9, big), 16 * 1024);
+    expect(files[0]!.text.length).toBe(big.length);
+  });
+
+  it('reads a file that arrives in very many small chunks', async () => {
+    // Dropping a consumed chunk by shifting the array moves every chunk still held, which is the
+    // same quadratic cost the copying had, just paid on references. These are 131,000 chunks, which
+    // is seconds of moving them, so a regression runs the test out of time rather than being timed.
+    const big = `${'z'.repeat(2 * 1024 * 1024)}\n`;
+    const files = await read(frame('many.sd', 3, big), 16);
+    expect(files[0]!.text.length).toBe(big.length);
   });
 });

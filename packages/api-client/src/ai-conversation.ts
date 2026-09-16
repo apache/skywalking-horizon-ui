@@ -107,6 +107,10 @@ export const ASZ_VIEW_FORMAT = 'asz.view';
 export const ASZ_VIEW_MAJOR_VERSION = 1;
 export const ASZ_VIEW_JSON_MEDIA_TYPE = 'application/vnd.skywalking.asz.view+json';
 export const ASZ_VIEW_YAML_MEDIA_TYPE = 'application/vnd.skywalking.asz.view+yaml';
+/** The files route's body: for each stored file a naming line, then its bytes. */
+export const ASZ_FILES_MEDIA_TYPE = 'application/vnd.skywalking.asz.files+ndjson';
+/** The most seqs one files request carries, the OAP route's own limit. */
+export const ASZ_FILES_MAX_SEQS = 32;
 
 /** What the view route answers with instead of a document: an RFC 9457 problem,
  *  `application/problem+json`. 400 without a service, 404 when the service
