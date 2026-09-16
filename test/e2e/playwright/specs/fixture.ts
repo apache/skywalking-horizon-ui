@@ -183,3 +183,22 @@ export const NATIVE_GENAI_CALLER = 'e2e-spring-ai';
 export const OTLP_GENAI_CALLER = 'e2e-otel-python';
 /** The judge's tasks, from cases/genai/ai-evaluation.yml. */
 export const GENAI_TASKS = ['Faithfulness', 'TaskCompletion'];
+
+/**
+ * AI agent conversations, from the Sessionizer scenarios the `ai-agent` case pushes.
+ *
+ * The conversation named here is the one that carries everything the page draws: talks with input and
+ * a reply, a shell command, and the provider bodies behind its model calls. Its title is the
+ * scenario's own, rendered verbatim in every locale, so it is matched literally.
+ */
+export const AI_AGENT_LAYER = 'ai_agent';
+export const AI_AGENT_SERVICE = 'e2e-ai-agent';
+export const AI_AGENT_SENDER = 'e2e-sender';
+/** The scenario whose calls carry provider bodies, and which runs one shell command. */
+export const AI_CONVERSATION_TITLE = 'provider bodies beside the calls';
+export const AI_CONVERSATION_BASH_RUNS = 1;
+/** Its one shell command, run by the child agent it started, and what came back. */
+export const AI_CONVERSATION_BASH_STEP = 'tool/searcher-s1-tool';
+export const AI_CONVERSATION_BASH_COMMAND = 'grep -rn timeout .';
+export const AI_CONVERSATION_BASH_RESULT = 'server.go:3: var timeout = 30';
+export const AI_CONVERSATION_LLM_CALLS = 7;

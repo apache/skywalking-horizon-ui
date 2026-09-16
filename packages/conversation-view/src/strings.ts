@@ -234,6 +234,49 @@ export interface ViewStrings {
   // Workspace changes: the tool card's pill, the inline details, the
   // inspector tab and the conversation-level panel
   changes: string;
+  // The prompt of a call: the bodies it exchanged with the model provider.
+  prompt: string;
+  promptNotHere: string;
+  promptBothStored: string;
+  promptRequestStored: string;
+  promptResponseStored: string;
+  promptLoadCost: string;
+  promptLoad: string;
+  promptLoading: string;
+  promptReading: string;
+  promptLoadFailed: string;
+  promptFilesMissing: string;
+  promptSides: string;
+  promptRequest: string;
+  promptResponse: string;
+  promptNoRequest: string;
+  promptNoResponse: string;
+  promptRebuildFailed: string;
+  promptRequestModes: string;
+  promptWholeRequest: string;
+  promptWholeBody: string;
+  promptChanges: string;
+  promptNoPrevious: string;
+  promptSystem: string;
+  promptTools: string;
+  promptMessages: string;
+  promptMessageOf: string;
+  promptMessagesNote: string;
+  promptSettings: string;
+  promptBlocks: string;
+  promptShared: string;
+  promptRewritten: string;
+  promptAlsoChanged: string;
+  promptAdded: string;
+  promptNothingAdded: string;
+  promptStopReason: string;
+  promptThinking: string;
+  promptReminder: string;
+  promptToolUse: string;
+  promptToolResult: string;
+  promptToolFailed: string;
+  promptToolFor: string;
+  promptUnknownRole: string;
   changesBadge: string;
   oneFileChanged: string;
   filesChanged: string;
@@ -496,6 +539,48 @@ export const ENGLISH: ViewStrings = {
   close: 'Close',
   whatDoesMean: 'What does {key} mean?',
   changes: 'Changes',
+  prompt: 'Prompt',
+  promptNotHere: 'The bodies of this call are not among the files this document lists.',
+  promptBothStored: 'The request this call sent and the response it received are stored.',
+  promptRequestStored: 'The request this call sent is stored.',
+  promptResponseStored: 'The response this call received is stored.',
+  promptLoadCost: 'Reading them loads {files} file(s) of this session, {bytes} bytes as stored.',
+  promptLoad: 'Load the prompt',
+  promptLoading: '{loaded} of {total} files',
+  promptReading: 'Reading…',
+  promptLoadFailed: 'The files could not be read: {why}',
+  promptFilesMissing: 'These files of the session are not stored, so a body that needs them cannot be rebuilt: seq {seqs}.',
+  promptSides: 'Which side of the call to show',
+  promptRequest: 'Request',
+  promptResponse: 'Response',
+  promptNoRequest: 'The request of this call was not captured.',
+  promptNoResponse: 'The response of this call was not captured.',
+  promptRebuildFailed: 'This body did not come back whole.',
+  promptRequestModes: 'How much of the request to show',
+  promptWholeRequest: 'Whole request',
+  promptWholeBody: 'The body',
+  promptChanges: 'What it added',
+  promptNoPrevious: 'The request before this one is not among the loaded bodies, so there is nothing to compare with.',
+  promptSystem: 'System prompt',
+  promptTools: 'Tools ({count})',
+  promptMessages: 'Messages ({count})',
+  promptMessageOf: '{n} of {total}',
+  promptMessagesNote: '{bytes} bytes as sent',
+  promptSettings: 'Settings',
+  promptBlocks: '{count} block(s), {bytes} bytes',
+  promptShared: 'The {count} message(s) before are as the call before sent them, {bytes} bytes.',
+  promptRewritten: 'The history was rewritten, which is what a compaction does.',
+  promptAlsoChanged: 'Also changed: {what}.',
+  promptAdded: 'Added by this call ({count})',
+  promptNothingAdded: 'This request adds no message.',
+  promptStopReason: 'stopped: {reason}',
+  promptThinking: 'Thinking',
+  promptReminder: 'Injected by the runtime',
+  promptToolUse: 'Tool use: {name}',
+  promptToolResult: 'Tool result',
+  promptToolFailed: 'Tool result, which failed',
+  promptToolFor: 'for {id}',
+  promptUnknownRole: 'message',
   changesBadge: '{n} changes',
   oneFileChanged: '1 file',
   filesChanged: '{n} files',

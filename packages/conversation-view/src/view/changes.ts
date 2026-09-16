@@ -44,6 +44,11 @@ import type { ViewContext } from './context.js';
 
 export const ICON_CHANGES = 'acv-i-changes';
 export const ICON_READONLY = 'acv-i-readonly';
+/** The inspector's two states. They are one icon each, not one glyph turned
+ *  around: ⤡ and ⤢ are the same double-headed arrow on the other diagonal, so a
+ *  reader cannot tell from them whether the button opens the panel or closes it. */
+export const ICON_POP_OUT = 'acv-i-pop-out';
+export const ICON_DOCK = 'acv-i-dock';
 
 /** The two marks, defined once and referenced everywhere they appear: a
  *  plus over a minus for a call that changed files, an eye for one the
@@ -52,6 +57,8 @@ export function symbolDefs(): string {
   return `<svg class="acv-defs" aria-hidden="true" focusable="false">
     <symbol id="${ICON_CHANGES}" viewBox="0 0 16 16"><path d="M3 4.5h10M8 1.5v6M3 12h10" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="${ICON_READONLY}" viewBox="0 0 16 16"><path d="M1.5 8s2.6-4.5 6.5-4.5S14.5 8 14.5 8s-2.6 4.5-6.5 4.5S1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2.1" fill="currentColor"/></symbol>
+    <symbol id="${ICON_POP_OUT}" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4"/><path d="M6.5 13.5h-4v-4"/><path d="M13.5 2.5 9 7"/><path d="M2.5 13.5 7 9"/></g></symbol>
+    <symbol id="${ICON_DOCK}" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6.5h-4v-4"/><path d="M2.5 9.5h4v4"/><path d="M9.5 6.5 14 2"/><path d="M6.5 9.5 2 14"/></g></symbol>
   </svg>`;
 }
 

@@ -31,11 +31,13 @@
 
 import './styles.css';
 import { esc, cssEscape, reducedMotion, scrollTo } from './dom.js';
+import type { StoredFile } from './prompt/store.js';
+import { PromptCache } from './prompt/cache.js';
 import { EN_US_FORMATTER, type TimeFormatter } from './format.js';
 import { ConversationModel, type Step } from './model.js';
 import { ENGLISH, fill, type ViewStrings } from './strings.js';
 import type { AszRef, AszViewDocument, Glossary, LandedRecord } from './types.js';
-import { drawChangesPanel, symbolDefs } from './view/changes.js';
+import { drawChangesPanel, icon, ICON_POP_OUT, symbolDefs } from './view/changes.js';
 import {
   drawOverview,
   drawStatus,
@@ -58,6 +60,7 @@ export { makeFormatter, EN_US_FORMATTER } from './format.js';
 export type { ViewStrings } from './strings.js';
 export { ENGLISH } from './strings.js';
 export * from './types.js';
+export type { StoredFile, PromptManifest } from './prompt/store.js';
 
 /** The reader's position, as a host keeps it in its URL. */
 export interface PublicState {
@@ -74,6 +77,15 @@ export interface MountOptions {
   /** Reads one landed record by address. Offered in the Evidence tab only when
    *  present: the Sessionizer's viewer has such an endpoint, the OAP has none. */
   loadRecord?: (ref: AszRef) => Promise<LandedRecord>;
+  /** Reads stored files of one session by their landed seqs, which is how a
+   *  reader gets the provider bodies a call points at. Each file is handed
+   *  over as it arrives, so a long read shows its progress, and the signal
+   *  ends it when the reader moves on. Offered in the Prompt tab only when
+   *  present: a host without a files route shows no prompts. */
+  loadFiles?: (
+    request: { session: string; seqs: number[]; signal: AbortSignal },
+    onFile: (file: StoredFile) => void,
+  ) => Promise<void>;
   state?: PublicState;
   onStateChange?: (state: PublicState) => void;
 }
@@ -119,7 +131,7 @@ function skeleton(s: ViewStrings): string {
         <div class="acv-inspector-head">
           <div class="acv-inspector-headrow">
             <div class="acv-heading"><span class="acv-kicker">${esc(s.inspector)}</span><h2 class="acv-inspector-title">—</h2></div>
-            <button type="button" class="acv-btn acv-pop-btn" aria-pressed="false" title="${esc(s.popOutInspector)}">⤢</button>
+            <button type="button" class="acv-btn acv-pop-btn" aria-pressed="false" title="${esc(s.popOutInspector)}">${icon(ICON_POP_OUT)}</button>
           </div>
           <div class="acv-inspector-meta"></div>
         </div>
@@ -128,6 +140,7 @@ function skeleton(s: ViewStrings): string {
           <button class="acv-tab" type="button" role="tab" data-tab="relations" aria-selected="false">${esc(s.relations)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="evidence" aria-selected="false">${esc(s.evidence)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="changes" aria-selected="false" hidden>${esc(s.changes)}</button>
+          <button class="acv-tab" type="button" role="tab" data-tab="prompt" aria-selected="false" hidden>${esc(s.prompt)}</button>
         </div>
         <div class="acv-inspector-body" role="tabpanel"></div>
       </aside>
@@ -204,6 +217,9 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     openChangeFiles: new Set(),
     openTexts: new Set(),
     inspectorPopped: false,
+    promptSide: 'request',
+    promptWhole: true,
+    openPromptSections: new Set<string>(),
     fullDiffs: new Set(),
   };
 
@@ -228,6 +244,8 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     f: opts.formatter ?? EN_US_FORMATTER,
     glossary: opts.glossary ?? null,
     loadRecord: opts.loadRecord,
+    loadFiles: opts.loadFiles,
+    prompts: new PromptCache(),
     state,
     q<T extends Element = HTMLElement>(selector: string): T {
       const el = root.querySelector<T>(selector);
@@ -437,7 +455,8 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
 
   function showTab(tab: InspectorTab): void {
     state.tab = tab;
-    root.querySelectorAll<HTMLElement>('[data-tab]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+    // the inspector marks which tab is selected: it is the one that knows when a step has nothing
+    // for the chosen tab and details is drawn in its place
     drawInspector(ctx);
   }
 
@@ -618,6 +637,9 @@ export function mountConversationView(host: HTMLElement, opts: MountOptions): Co
     destroy(): void {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointerDown);
+      // a read in flight has no reader any more: ending it lets the browser drop the request, and the
+      // relay behind it stop asking OAP for the rest
+      ctx.prompts.stop();
       teardownPanels();
       root.innerHTML = '';
       root.classList.remove('acv');

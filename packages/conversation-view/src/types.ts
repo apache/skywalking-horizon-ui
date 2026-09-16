@@ -41,6 +41,14 @@ export interface AszDrop {
   why?: string;
 }
 
+/** One provider body of a call: which side it is, and where it landed. The
+ *  body itself is not in the document; a reader loads it from those files. */
+export interface AszProviderBody {
+  /** `request` or `response`. */
+  role: string;
+  ref: AszRef;
+}
+
 export interface AszEdge {
   type: string;
   other: string;
@@ -94,6 +102,9 @@ export interface AszNode {
    *  `workspace_changes` lists them. Not unique across producers: the join
    *  is `WorkspaceChange.step`, this list only says there are some. */
   changes?: string[];
+  /** Where this call's request and response landed, when they were captured.
+   *  A call may list one of them, both, or neither. */
+  provider_bodies?: AszProviderBody[];
   children?: AszNode[];
   edges?: AszEdge[];
 }
@@ -276,6 +287,10 @@ export interface AszSummary {
   /** Workspace change RECORDS, skipped and empty observations included.
    *  Absent from a document written before the records existed. */
   changes?: number;
+  /** The session's landed provider bodies, and the calls whose request is
+   *  among them. Absent from a document written before they existed. */
+  provider_bodies?: number;
+  captured_prompts?: number;
   from: number;
   to: number;
   kinds: Record<string, number>;

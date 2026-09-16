@@ -50,7 +50,14 @@
 # rule, dropping that round's samples without a log line, and OAP accepted
 # requests on 11800/12800 before its rule sets were set up — so a fresh
 # fixture lost its first round of metrics.
-SW_OAP_COMMIT=476afadecdc0a410bf5c64de48f6ead8e6030b00
+# Must also be at or after 289b4b3bd2 (#14084), which serves an AI agent
+# conversation and its stored files: the `ai-agent` case reads both.
+SW_OAP_COMMIT=289b4b3bd2e271ef6b617cfb3f64987fe29a8265
+
+# The AI Sessionizer, which builds a conversation and pushes it to OAP. Only
+# the `ai-agent` case runs it, and only once: a conversation is a chain of
+# rounds already written, not traffic.
+SW_AI_SESSIONIZER_COMMIT=747d83c9615b19a1edc7d79606f2d4dfbefc153b
 
 # BanyanDB — the storage every case runs on. OAP's own default selector is
 # banyandb, so no SW_STORAGE override is needed anywhere.

@@ -29,7 +29,8 @@ import { fill } from '../strings.js';
 import type { AszRef, LandedRecord } from '../types.js';
 import { kindTitle } from '../vocabulary.js';
 import { drawChangesTab } from './changes.js';
-import { streamName, type ViewContext } from './context.js';
+import { drawPrompt, hasPrompt } from './prompt.js';
+import { streamName, type InspectorTab, type ViewContext } from './context.js';
 import { clipNote, copyButton, copyField, textBody } from './structured.js';
 
 function field(dt: string, dd: string, mono = false): string {
@@ -46,17 +47,24 @@ export function drawInspector(ctx: ViewContext): void {
   const relTab = ctx.q<HTMLButtonElement>('[data-tab="relations"]');
   const hasRels = !!(e && e.edges.length);
   relTab.hidden = !hasRels;
-  if (!hasRels && state.tab === 'relations') {
-    ctx.showTab('details');
-    return;
-  }
+  const promptTab = ctx.q<HTMLButtonElement>('[data-tab="prompt"]');
+  const prompts = hasPrompt(ctx, e);
+  promptTab.hidden = !prompts;
   const changesTab = ctx.q<HTMLButtonElement>('[data-tab="changes"]');
   const hasChanges = !!(e && m.changesOf(e.id).length);
   changesTab.hidden = !hasChanges;
-  if (!hasChanges && state.tab === 'changes') {
-    ctx.showTab('details');
-    return;
-  }
+  // What the reader chose stays chosen. A step this tab has nothing for is drawn as details, and the
+  // choice comes back on the next step that has it, so walking a run does not drop the reader out of
+  // the prompt or the relations every time a step in between has none.
+  const offered: Record<InspectorTab, boolean> = {
+    details: true,
+    evidence: true,
+    relations: hasRels,
+    changes: hasChanges,
+    prompt: prompts,
+  };
+  const tab: InspectorTab = offered[state.tab] ? state.tab : 'details';
+  ctx.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
   const title = ctx.q('.acv-inspector-title');
   const meta = ctx.q('.acv-inspector-meta');
   const body = ctx.q('.acv-inspector-body');
@@ -68,9 +76,10 @@ export function drawInspector(ctx: ViewContext): void {
   }
   title.textContent = e.name ? `${e.kind} · ${e.name}` : kindTitle(e.kind, s);
   meta.textContent = `${e.stream.slice(0, 12)} · ${f.time(e.at)}${e.bytes ? ` · ${f.number(e.bytes)} B` : ''}`;
-  if (state.tab === 'details') drawDetails(ctx, body, e);
-  else if (state.tab === 'relations') drawRelations(ctx, body, e);
-  else if (state.tab === 'changes') drawChangesTab(ctx, body, e);
+  if (tab === 'details') drawDetails(ctx, body, e);
+  else if (tab === 'relations') drawRelations(ctx, body, e);
+  else if (tab === 'changes') drawChangesTab(ctx, body, e);
+  else if (tab === 'prompt') drawPrompt(ctx, body, e);
   else void drawEvidence(ctx, body, e);
 }
 

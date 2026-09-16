@@ -67,6 +67,9 @@ services:
       # tab is empty even though the agent is reporting correctly. Enabled for
       # every case: the demo app already emits logs, so this costs nothing and
       # spares a whole extra stack just to see them.
+      #
+      # This REPLACES the bundled list rather than adding to it, so a case that
+      # needs one of OAP's own rules names it here too — see the ai-agent case.
       SW_LOG_LAL_FILES: horizon-e2e
     volumes:
       - ./lal.yaml:/skywalking/config/lal/horizon-e2e.yaml

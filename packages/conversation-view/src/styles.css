@@ -345,7 +345,8 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 /* ---------- inspector ---------- */
 .acv-inspector-head { padding: 8px 10px 7px; border-bottom: 1px solid var(--acv-line); }
 .acv-inspector-headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.acv-pop-btn { flex: none; padding: 2px 7px; font-size: 12px; line-height: 1.2; }
+.acv-pop-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; padding: 4px 7px; line-height: 1; }
+.acv-pop-btn .acv-ico { width: 13px; height: 13px; vertical-align: 0; }
 .acv-main { position: relative; }
 .acv-popped .acv-main { grid-template-columns: minmax(0, 1fr) 0 0; }
 .acv-popped .acv-split-inspector { display: none; }
@@ -483,3 +484,48 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-panel-entry { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 3px 0 0 60px; color: var(--acv-muted); font-size: 10.5px; }
 .acv-to-changes { display: block; margin-top: 10px; }
 .acv-hashes { display: block; margin-top: 2px; font-family: var(--acv-mono); font-size: 9.5px; color: var(--acv-faint); overflow-wrap: anywhere; }
+
+/* The prompt of a call: the bodies it exchanged with the model provider. The panel reuses the
+   inspector's blocks and chips; these are the few shapes it adds. */
+.acv-prompt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.acv-prompt-ids { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.acv-prompt-modes { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 4px; }
+/* The panel's own segmented controls: which side of the call is shown, and how a
+   request is shown. Every colour is a theme token, so they follow the theme the
+   host set; a button with no rule of its own falls back to the browser's grey,
+   which is the one thing that cannot follow it. */
+.acv-chip { min-height: 26px; padding: 3px 11px; border: 1px solid var(--acv-line); border-radius: 999px; background: var(--acv-surface-2); color: var(--acv-muted); cursor: pointer; font-size: 11px; }
+.acv-chip:hover { color: var(--acv-text); background: var(--acv-surface-3); }
+.acv-chip.on { border-color: color-mix(in srgb, var(--acv-focus) 50%, var(--acv-line)); background: color-mix(in srgb, var(--acv-focus) 14%, var(--acv-surface-2)); color: var(--acv-text); }
+.acv-chip.on:hover { background: color-mix(in srgb, var(--acv-focus) 22%, var(--acv-surface-2)); }
+.acv-prompt-offer { display: grid; gap: 8px; justify-items: start; padding: 12px 0; }
+.acv-prompt-progress:empty { display: none; }
+.acv-prompt-section { margin: 10px 0; border: 1px solid var(--acv-line); border-radius: 9px; overflow: hidden; }
+.acv-prompt-head-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.acv-prompt-head-btn:hover { background: color-mix(in srgb, var(--sw-info) 4%, transparent); }
+.acv-prompt-caret { margin-left: auto; color: var(--acv-faint); }
+.acv-prompt-body { padding: 4px 11px 11px; }
+.acv-prompt-message { margin: 10px 0; border: 1px solid var(--acv-line); border-radius: 7px; overflow: hidden; }
+.acv-prompt-message-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 9px; border-bottom: 1px solid var(--acv-line); background: var(--acv-surface-2); }
+.acv-prompt-message-body { padding: 2px 9px 8px; }
+.acv-prompt-role { color: var(--acv-faint); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.acv-prompt-block { margin: 6px 0; }
+/* Every block of a message is the same card, whether it holds prose or JSON; only
+   the edge changes, and it takes the page's own colour for that kind of step. A
+   block that looked like loose text beside a card read as part of its neighbour. */
+.acv-prompt-block > .acv-block { margin: 4px 0 0; }
+.acv-prompt-block > .acv-raw { margin: 4px 0 0; padding: 9px 11px; border-left: 3px solid var(--acv-line); background: var(--acv-surface-2); }
+.acv-prompt-block.tool > .acv-raw,
+.acv-prompt-block.tool > .acv-block { border-left-color: var(--acv-kind-tool); }
+.acv-prompt-block.tool > .acv-kicker { color: var(--acv-kind-tool); }
+.acv-prompt-block.injected > .acv-block { border-left-color: var(--acv-kind-instruction); }
+.acv-prompt-block.injected > .acv-kicker { color: var(--acv-kind-instruction); }
+.acv-prompt-block.thinking > .acv-block { border-left-color: var(--acv-kind-annotation); }
+.acv-prompt-block.thinking > .acv-kicker { color: var(--acv-kind-annotation); }
+.acv-prompt-block.failed > .acv-raw,
+.acv-prompt-block.failed > .acv-block { border-left-color: var(--sw-warn); }
+.acv-prompt-block.failed > .acv-kicker { color: var(--sw-warn); }
+.acv-prompt-tool { margin: 6px 0; padding: 6px 0; border-bottom: 1px solid var(--acv-line); }
+.acv-prompt-tool:last-child { border-bottom: 0; }
+.acv-prompt-tool-name { font-weight: 600; }
+.acv-prompt-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
