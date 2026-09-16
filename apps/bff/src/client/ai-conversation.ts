@@ -34,6 +34,7 @@ import http from 'node:http';
 import https from 'node:https';
 import type { Readable } from 'node:stream';
 import {
+  ASZ_FILES_MEDIA_TYPE,
   ASZ_VIEW_JSON_MEDIA_TYPE,
   ASZ_VIEW_YAML_MEDIA_TYPE,
   type AiConversationRow,
@@ -240,6 +241,60 @@ export function openAiConversationView(
     // for the first byte and a stall mid-stream. Node only emits the event; the
     // destroy is ours, and it rejects before a response or errors the body
     // stream after one.
+    req.on('timeout', () => req.destroy(new AiConversationViewTimeout(opts.timeoutMs)));
+    req.on('error', (err) => reject(err));
+    opts.signal?.addEventListener('abort', () => req.destroy(abortError()), { once: true });
+    req.end();
+  });
+}
+
+export interface AiConversationFilesRequest {
+  conversation: string;
+  serviceName: string;
+  instanceName: string;
+  /** The session the seqs belong to. */
+  session: string;
+  /** The landed seqs of the files, 1 to 32, as the OAP route allows. */
+  seqs: number[];
+  coldStage?: boolean;
+  acceptEncoding?: string;
+}
+
+/** The route's path and query for a session's stored files, as OAP defines them. */
+export function aiConversationFilesPath(q: AiConversationFilesRequest): string {
+  const qs = new URLSearchParams({ service: q.serviceName, instance: q.instanceName, session: q.session });
+  for (const seq of q.seqs) qs.append('seq', String(seq));
+  if (q.coldStage) qs.set('coldStage', 'true');
+  return `/ai-agent/conversations/${encodeURIComponent(q.conversation)}/v1/files?${qs.toString()}`;
+}
+
+/**
+ * The stored files of a session, as OAP streams them. The body is passed to the browser as it
+ * arrives: a file is as large as it was landed, and the page reads one file at a time.
+ */
+export function openAiConversationFiles(
+  opts: AiConversationViewOptions,
+  q: AiConversationFilesRequest,
+): Promise<AiConversationViewUpstream> {
+  const url = new URL(opts.queryUrl.replace(/\/$/, '') + aiConversationFilesPath(q));
+  const lib = url.protocol === 'https:' ? https : http;
+  const headers: Record<string, string> = { accept: ASZ_FILES_MEDIA_TYPE };
+  if (q.acceptEncoding) headers['accept-encoding'] = q.acceptEncoding;
+  if (opts.auth) headers.authorization = basicAuthHeader(opts.auth.username, opts.auth.password);
+
+  return new Promise((resolve, reject) => {
+    if (opts.signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    const req = lib.request(url, { method: 'GET', headers, timeout: opts.timeoutMs }, (res) => {
+      const flat: Record<string, string> = {};
+      for (const [k, v] of Object.entries(res.headers)) {
+        if (typeof v === 'string') flat[k.toLowerCase()] = v;
+        else if (Array.isArray(v)) flat[k.toLowerCase()] = v.join(', ');
+      }
+      resolve({ status: res.statusCode ?? 502, headers: flat, body: res, abort: () => req.destroy(abortError()) });
+    });
     req.on('timeout', () => req.destroy(new AiConversationViewTimeout(opts.timeoutMs)));
     req.on('error', (err) => reject(err));
     opts.signal?.addEventListener('abort', () => req.destroy(abortError()), { once: true });

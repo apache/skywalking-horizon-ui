@@ -292,7 +292,15 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <ConversationViewHost v-else-if="doc" :document="doc" :state="position" @update:state="onPosition" />
+    <ConversationViewHost
+      v-else-if="doc"
+      :document="doc"
+      :state="position"
+      :conversation="conversation"
+      :service="service"
+      :instance="instance"
+      @update:state="onPosition"
+    />
   </div>
 </template>
 

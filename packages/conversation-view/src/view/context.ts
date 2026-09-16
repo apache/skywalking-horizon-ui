@@ -19,8 +19,10 @@ import type { ConversationModel, TalkRow } from '../model.js';
 import type { ViewStrings } from '../strings.js';
 import type { TimeFormatter } from '../format.js';
 import type { AszRef, Glossary, LandedRecord } from '../types.js';
+import type { PromptCache } from '../prompt/cache.js';
+import type { StoredFile } from '../prompt/store.js';
 
-export type InspectorTab = 'details' | 'relations' | 'evidence' | 'changes';
+export type InspectorTab = 'details' | 'relations' | 'evidence' | 'changes' | 'prompt';
 
 /** What the reader is looking at. The three fields a host round-trips through
  *  its URL are the talk, the selected step and the stream; the rest is local. */
@@ -55,6 +57,12 @@ export interface ViewState {
   openTexts: Set<string>;
   /** The inspector drawn as a wide panel over the workbench rather than at its side. */
   inspectorPopped: boolean;
+  /** Which side of a call's prompt is shown, and whether a request is shown whole
+   *  or as what it added. Both are remembered as the reader moves between calls. */
+  promptSide: 'request' | 'response';
+  promptWhole: boolean;
+  /** Prompt sections opened past their heading, keyed `<step>|<section>`. */
+  openPromptSections: Set<string>;
 }
 
 /** Everything a view module needs: the model, the words, the state, and the
@@ -66,6 +74,13 @@ export interface ViewContext {
   f: TimeFormatter;
   glossary: Glossary | null;
   loadRecord?: (ref: AszRef) => Promise<LandedRecord>;
+  /** Reads a session's stored files by seq; see MountOptions.loadFiles. */
+  loadFiles?: (
+    request: { session: string; seqs: number[]; signal: AbortSignal },
+    onFile: (file: StoredFile) => void,
+  ) => Promise<void>;
+  /** The provider bodies loaded so far, by session, and what is being read. */
+  prompts: PromptCache;
   state: ViewState;
   q<T extends Element = HTMLElement>(selector: string): T;
 
