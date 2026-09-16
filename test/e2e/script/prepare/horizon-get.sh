@@ -37,13 +37,19 @@ PASSWORD="${HORIZON_E2E_PASSWORD:-e2e-passw0rd}"
 JAR=$(mktemp)
 trap 'rm -f "${JAR}"' EXIT
 
-curl -sSf -c "${JAR}" -X POST "${BASE}/api/auth/login" \
+# A verify case retries a command that FAILS; one that never returns stops the
+# run instead, and infra-e2e reports nothing at all. So every call gets a
+# deadline far above any honest answer — the largest route here is a whole
+# conversation document, which OAP itself gives up on long before this.
+DEADLINE=120
+
+curl -sSf --max-time "${DEADLINE}" -c "${JAR}" -X POST "${BASE}/api/auth/login" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"${USER}\",\"password\":\"${PASSWORD}\"}" > /dev/null
 
 if [ -n "${BODY}" ]; then
-  curl -sSf -b "${JAR}" -X POST "${BASE}${PATH_}" \
+  curl -sSf --max-time "${DEADLINE}" -b "${JAR}" -X POST "${BASE}${PATH_}" \
     -H 'Content-Type: application/json' -d "${BODY}"
 else
-  curl -sSf -b "${JAR}" "${BASE}${PATH_}"
+  curl -sSf --max-time "${DEADLINE}" -b "${JAR}" "${BASE}${PATH_}"
 fi

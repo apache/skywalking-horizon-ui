@@ -117,6 +117,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
     },
     {
+      // AI agent conversations — its own project because the AI_AGENT layer, and the conversations
+      // behind it, exist only where a Sessionizer has pushed one.
+      name: 'ai-agent',
+      testMatch: '**/specs/ai-agent/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
       // ElasticSearch's browser half — one spec, the pre-v2 trace path, which
       // is the only thing that deployment proves.
       name: 'es',

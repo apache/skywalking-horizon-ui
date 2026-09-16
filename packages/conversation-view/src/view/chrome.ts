@@ -23,7 +23,7 @@
 
 import { esc } from '../dom.js';
 import { fill } from '../strings.js';
-import { icon, ICON_CHANGES } from './changes.js';
+import { icon, ICON_CHANGES, ICON_DOCK, ICON_POP_OUT } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
 
 export function drawStatus(ctx: ViewContext): void {
@@ -119,7 +119,8 @@ export function setInspectorPopped(ctx: ViewContext, on: boolean): void {
   const btn = ctx.q('.acv-pop-btn');
   btn.setAttribute('aria-pressed', String(on));
   btn.title = on ? ctx.s.dockInspector : ctx.s.popOutInspector;
-  btn.textContent = on ? '⤡' : '⤢';
+  // Two icons, not one glyph turned around: popped out, the button docks.
+  btn.innerHTML = icon(on ? ICON_DOCK : ICON_POP_OUT);
 }
 
 export function drawOverview(ctx: ViewContext): void {

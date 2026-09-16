@@ -20,14 +20,19 @@
   inside Vue: mounts it once per document, hands it the UI's texts and locale,
   and round-trips the reader's position (talk / step / stream) so the page can
   keep it in the URL. The renderer owns everything inside the host element.
+
+  It also gives the renderer the one read it cannot make itself: the stored files
+  of a session, which is how a call's prompt is loaded when a reader opens it.
 -->
 <script setup lang="ts">
 import '@skywalking-horizon-ui/conversation-view/style.css';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { bff } from '@/api/client';
 import {
   makeFormatter,
   mountConversationView,
+  type StoredFile,
   type AszViewDocument,
   type ConversationView,
   type PublicState,
@@ -38,6 +43,10 @@ import { conversationStrings } from './conversationStrings';
 const props = defineProps<{
   document: AszViewDocument;
   state?: PublicState;
+  /** Where the document came from; the files route needs all three. */
+  conversation: string;
+  service: string;
+  instance?: string;
 }>();
 const emit = defineEmits<{ (e: 'update:state', state: PublicState): void }>();
 
@@ -57,6 +66,19 @@ function mountView(): void {
     strings: conversationStrings(t),
     formatter: makeFormatter(currentLocale(), t('unavailable')),
     ...(props.state ? { state: props.state } : {}),
+    // The prompt of a call is read on demand. Without a sender there is no files
+    // route to call, and the renderer then offers no prompts at all.
+    ...(props.instance
+      ? {
+          loadFiles: (request: { session: string; seqs: number[]; signal: AbortSignal }, onFile: (file: StoredFile) => void) =>
+            bff.aiConversation.files(
+              props.conversation,
+              { service: props.service, instance: props.instance!, session: request.session, seqs: request.seqs },
+              onFile,
+              { signal: request.signal },
+            ),
+        }
+      : {}),
     onStateChange: (s) => emit('update:state', s),
   });
 }

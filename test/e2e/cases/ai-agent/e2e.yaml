@@ -1,0 +1,100 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# AI agent conversations — the AI_AGENT layer, its Conversations tab, and one
+# conversation drawn in full: the talk, a shell command a child agent ran, and
+# the provider bodies behind a model call.
+#
+# The data is not Horizon's. A real AI Sessionizer builds the `provider-bodies`
+# scenario and pushes it to OAP, which stores it and serves it back through the
+# conversation routes. So this case proves the whole path, which the unit tests
+# cannot: they read a landed file as a fixture, through a stubbed route.
+#
+# Run it:  make -C test/e2e run CASE=ai-agent
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh ai-agent
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+# No `trigger`: the Sessionizer pushes once, in `asz-collect`, before Horizon
+# starts. A conversation is not traffic — it is a chain of rounds already
+# written, and nothing about it changes while the case runs.
+
+verify:
+  # The push completes before Horizon starts, but OAP persists on its own cycle
+  # and the list is folded from stored rounds, so the first read can be early.
+  retry:
+    count: 30
+    interval: 5s
+  cases:
+    # 1. CHECK FIRST: OAP took what the Sessionizer pushed and resolved the
+    #    agent as a service of the AI_AGENT layer. If this fails the push or the
+    #    receiver is broken, and Horizon has nothing to show.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
+          | yq -P '{"aiAgentService": [.[] | select(.name == "e2e-ai-agent") | .layers[] | select(. == "AI_AGENT")] | length}'
+      expected: expected/ai-agent-service.yml
+
+    # 2. The conversation reaches Horizon's own list route, with the counts the
+    #    Sessionizer wrote into its newest round. The page's table is drawn from
+    #    exactly this, so a failure here is the BFF or OAP, not the browser.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/ai_agent/ai-conversations \
+          '{"service":"e2e-ai-agent","windowMinutes":129600}' \
+          | yq -P '{"reachable": .reachable,
+                    "conversation": [.rows[] | select(.title == "provider bodies beside the calls")
+                    | {"title": .title, "instance": .serviceInstanceName, "llmCalls": .llmCalls, "bashRuns": .bashRuns}][0]}'
+      expected: expected/conversation-listed.yml
+
+    # 3. READINESS: the conversation itself reads, with its files. The list above
+    #    is folded from the round records alone, so it answers as soon as a round
+    #    is stored - while the transcript and the provider bodies are other records
+    #    still landing. Opening the page before them draws a document with holes,
+    #    and the browser suite does not reload one. This asks for the same document
+    #    the page will, and retries until it is whole.
+    - query: |
+        conversation=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/ai_agent/ai-conversations \
+          '{"service":"e2e-ai-agent","windowMinutes":129600}' \
+          | yq -P '[.rows[] | select(.title == "provider bodies beside the calls")][0].conversation')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" \
+          "/api/ai-conversation/${conversation}/view?service=e2e-ai-agent&instance=e2e-sender" \
+          | yq -P '{"state": .summary.state, "providerBodies": .summary.provider_bodies, "capturedPrompts": .summary.captured_prompts}'
+      expected: expected/conversation-whole.yml
+
+    # 4. The browser suite: the list, the conversation, the shell command and
+    #    the prompt a model call sent, all on screen.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh ai-agent
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

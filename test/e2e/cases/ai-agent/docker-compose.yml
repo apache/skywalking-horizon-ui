@@ -1,0 +1,122 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# One AI agent conversation, pushed by a real AI Sessionizer, for the pages that read it.
+#
+# The `provider-bodies` scenario is the one that carries everything the conversation page draws:
+# talks with an input and a reply, a shell command run by a child agent, and the request and
+# response bodies behind every model call. OAP stores what the Sessionizer pushes and serves it
+# back through its conversation routes; Horizon draws it. Nothing here is a fixture of Horizon's
+# own - the bytes on the page came out of a Sessionizer.
+#
+# The asz image is distroless and has no shell, so the one-shot steps chain through
+# service_completed_successfully rather than through a script.
+
+x-asz: &asz
+  image: ghcr.io/apache/skywalking-ai-sessionizer:${SW_AI_SESSIONIZER_COMMIT}
+  volumes:
+    - aszdata:/asz/data
+    - ./provider-bodies.yaml:/asz/provider-bodies.yaml:ro
+  networks:
+    - e2e
+
+services:
+  banyandb:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: banyandb
+    networks:
+      - e2e
+
+  oap:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: oap
+    ports:
+      - 12800
+      - 17128
+    environment:
+      SW_STORAGE: banyandb
+      # SW_LOG_LAL_FILES REPLACES OAP's bundled list, and base-compose sets it to
+      # the fixture's own file. `ai-agent` is the bundled rule that turns a pushed
+      # file into a stored conversation, so without it every push is accepted and
+      # dropped and the list stays empty. Both files are named here; a LAL rule
+      # only sees records of the layer it declares, so neither reaches the other's.
+      SW_LOG_LAL_FILES: ai-agent,horizon-e2e
+    depends_on:
+      banyandb:
+        condition: service_healthy
+    networks:
+      - e2e
+
+  # The asz image runs as a non-root user; a fresh named volume is root-owned.
+  asz-volume:
+    image: busybox:1.36
+    command: ["sh", "-c", "chown -R 65532:65532 /asz/data"]
+    volumes:
+      - aszdata:/asz/data
+    networks:
+      - e2e
+
+  asz-build:
+    <<: *asz
+    command: ["scenario", "build", "/asz/provider-bodies.yaml", "--format", "sd", "--out", "/asz/data"]
+    depends_on:
+      asz-volume:
+        condition: service_completed_successfully
+
+  # The receiver and this sender's identity, appended to the asz.yaml the build wrote. The names
+  # here are what the page shows as the agent and the agent runtime, and what the spec asserts.
+  asz-config:
+    image: busybox:1.36
+    command:
+      - sh
+      - -c
+      - "printf 'export:\\n  otlp:\\n    protocol: grpc\\n    endpoint: oap:11800\\n    service_name: e2e-ai-agent\\n    instance_id: e2e-sender\\n' >> /asz/data/asz.yaml"
+    volumes:
+      - aszdata:/asz/data
+    depends_on:
+      asz-build:
+        condition: service_completed_successfully
+    networks:
+      - e2e
+
+  # One pass of the pipeline: parse what is landed and send it, then exit.
+  asz-collect:
+    <<: *asz
+    command: ["collect", "-once", "-config", "/asz/data/asz.yaml"]
+    depends_on:
+      asz-config:
+        condition: service_completed_successfully
+      oap:
+        condition: service_healthy
+
+  horizon:
+    extends:
+      file: ../../script/docker-compose/base-compose.yml
+      service: horizon
+    ports:
+      - 8081
+    depends_on:
+      oap:
+        condition: service_healthy
+      asz-collect:
+        condition: service_completed_successfully
+
+networks:
+  e2e:
+
+volumes:
+  aszdata:

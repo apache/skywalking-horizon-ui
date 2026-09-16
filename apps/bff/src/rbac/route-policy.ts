@@ -178,6 +178,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   'POST /api/layer/:key/ai-conversations':         'ai-conversation:read',
   'GET /api/ai-conversation/:conversation/view':   'ai-conversation:read',
+  'GET /api/ai-conversation/:conversation/files':  'ai-conversation:read',
 
   'POST /api/explore/query':                       'inspect:read',
 

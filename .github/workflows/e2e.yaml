@@ -104,6 +104,19 @@
 #             EvaluationRecordStreamPanel, TracePopout, ZipkinTracePopout,
 #             LayerWidgetTile's card branch
 #
+#   ai-agent  plus a real AI Sessionizer, pushing one conversation   ACTIVE
+#             the `provider-bodies` scenario built and pushed once, which is
+#             a chain of rounds rather than traffic: talks with an input and
+#             a reply, a shell command run by a child agent, and the request
+#             and response bodies behind every model call
+#             tests: the AI_AGENT layer's Conversations tab and one
+#             conversation drawn in full — the transcript both ways, a Bash
+#             call as the lines it ran and what it returned, and the Prompt
+#             tab rebuilding a provider body from the files route, reading
+#             the session once however many calls are opened
+#             components: LayerConversationsView, ConversationPageView,
+#             ConversationViewHost, the conversation-view renderer
+#
 #   audit-banyandb  OAP + BanyanDB, and the audit stored there   ACTIVE
 #             The same four audit assertions `core` runs against PostgreSQL,
 #             against the OTHER backend — one suite, two deployments, so a
@@ -223,6 +236,8 @@ jobs:
             config: test/e2e/cases/browser/e2e.yaml
           - name: genai (+ LLM judge, native and OTLP traces)
             config: test/e2e/cases/genai/e2e.yaml
+          - name: ai-agent (+ AI Sessionizer conversation)
+            config: test/e2e/cases/ai-agent/e2e.yaml
           - name: admin (isolated, mutating)
             config: test/e2e/cases/admin/e2e.yaml
           - name: audit-banyandb (audit on BanyanDB)

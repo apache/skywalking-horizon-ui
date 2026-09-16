@@ -18,6 +18,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { gzipSync } from 'node:zlib';
+import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
@@ -33,6 +34,7 @@ import {
   clampWindowMs,
   passthroughHeaders,
   registerAiConversationRoutes,
+  takesGzip,
   wantsYaml,
 } from './ai-conversation.js';
 
@@ -82,6 +84,20 @@ describe('wantsYaml', () => {
     expect(wantsYaml('application/json')).toBe(false);
     expect(wantsYaml('application/vnd.skywalking.asz.view+yaml')).toBe(true);
     expect(wantsYaml(['text/html', 'text/YAML'])).toBe(true);
+  });
+});
+
+describe('takesGzip', () => {
+  it('asks OAP for gzip only when the client takes it', () => {
+    expect(takesGzip(undefined)).toBe(false);
+    expect(takesGzip('gzip, deflate, br')).toBe(true);
+    expect(takesGzip('GZIP;q=1.0')).toBe(true);
+    expect(takesGzip('deflate, br')).toBe(false);
+    // the body is forwarded as it came, so a client that names gzip to refuse it must get plain bytes
+    expect(takesGzip('gzip;q=0, identity')).toBe(false);
+    expect(takesGzip('*')).toBe(true);
+    expect(takesGzip('*;q=0')).toBe(false);
+    expect(takesGzip('gzip;q=0, *')).toBe(false);
   });
 });
 
@@ -378,5 +394,73 @@ describe('GET /api/ai-conversation/:conversation/view', () => {
     const res = await app.inject({ method: 'GET', url: '/api/ai-conversation/c1/view?service=x', headers: { cookie: c } });
     expect(res.statusCode).toBe(502);
     expect(res.json()).toMatchObject({ error: 'oap_unreachable' });
+  });
+});
+
+describe('GET /api/ai-conversation/:conversation/files', () => {
+  const path =
+    '/api/ai-conversation/c/files?service=agent&instance=me%40host&session=s&seq=1&seq=2';
+
+  it('refuses what the OAP route would refuse, before any call', async () => {
+    const { app, cookie: c } = await build(fakeOap().fetch);
+    const cases: Array<[string, string]> = [
+      ['/api/ai-conversation/c/files?session=s&seq=1', 'service_and_instance_required'],
+      ['/api/ai-conversation/c/files?service=agent&session=s&seq=1', 'service_and_instance_required'],
+      ['/api/ai-conversation/c/files?service=agent&instance=i&seq=1', 'session_required'],
+      ['/api/ai-conversation/c/files?service=agent&instance=i&session=s', 'seq_required'],
+      ['/api/ai-conversation/c/files?service=agent&instance=i&session=s&seq=0', 'seq_invalid'],
+      ['/api/ai-conversation/c/files?service=agent&instance=i&session=s&seq=x', 'seq_invalid'],
+    ];
+    for (const [url, error] of cases) {
+      const res = await app.inject({ method: 'GET', url, headers: { cookie: c } });
+      expect(res.statusCode, url).toBe(400);
+      expect((res.json() as { error: string }).error, url).toBe(error);
+    }
+    const many = Array.from({ length: 33 }, (_, i) => `seq=${i + 1}`).join('&');
+    const over = await app.inject({
+      method: 'GET',
+      url: `/api/ai-conversation/c/files?service=agent&instance=i&session=s&${many}`,
+      headers: { cookie: c },
+    });
+    expect(over.statusCode).toBe(400);
+    expect((over.json() as { error: string }).error).toBe('too_many_seqs');
+  });
+
+  it('asks OAP for those seqs and relays the stream as it came', async () => {
+    let asked = '';
+    const upstream = new PassThrough();
+    const server = createServer((req, res) => {
+      asked = req.url ?? '';
+      res.writeHead(200, { 'content-type': 'application/vnd.skywalking.asz.files+ndjson' });
+      res.end('{"file":"s/provider_body/x.sd","seq":1,"lines":1,"bytes":3,"digest":"d"}\nab\n');
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const port = (server.address() as AddressInfo).port;
+    const { app, cookie: c } = await build(fakeOap().fetch, { oap: { queryUrl: `http://127.0.0.1:${port}` } });
+    const res = await app.inject({ method: 'GET', url: path, headers: { cookie: c } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('application/vnd.skywalking.asz.files+ndjson');
+    expect(res.body).toBe('{"file":"s/provider_body/x.sd","seq":1,"lines":1,"bytes":3,"digest":"d"}\nab\n');
+    expect(asked).toContain('/ai-agent/conversations/c/v1/files');
+    expect(asked).toContain('session=s');
+    expect(asked).toContain('seq=1&seq=2');
+    expect(asked).toContain('instance=me%40host');
+    upstream.destroy();
+    server.close();
+  });
+
+  it('passes a problem document through with its status', async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(404, { 'content-type': 'application/problem+json' });
+      res.end('{"type":"about:blank","title":"Not Found","status":404,"detail":"no round"}');
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const port = (server.address() as AddressInfo).port;
+    const { app, cookie: c } = await build(fakeOap().fetch, { oap: { queryUrl: `http://127.0.0.1:${port}` } });
+    const res = await app.inject({ method: 'GET', url: path, headers: { cookie: c } });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['content-type']).toBe('application/problem+json');
+    expect((res.json() as { detail: string }).detail).toBe('no round');
+    server.close();
   });
 });

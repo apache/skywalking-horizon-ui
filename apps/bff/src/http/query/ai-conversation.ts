@@ -55,12 +55,14 @@ import { requireAuth } from '../../user/middleware.js';
 import {
   AI_CONVERSATION_DOCUMENT_BYTES_HEADER,
   AI_CONVERSATION_DOCUMENT_SUMMARY_HEADER,
+  ASZ_FILES_MAX_SEQS,
 } from '@skywalking-horizon-ui/api-client';
 import { buildOapOpts } from '../../client/graphql.js';
 import { holdDocument } from '../../logic/ai-conversation/hold-document.js';
 import {
   AiConversationViewTimeout,
   listAiConversations,
+  openAiConversationFiles,
   openAiConversationView,
   type AiConversationViewUpstream,
 } from '../../client/ai-conversation.js';
@@ -115,6 +117,29 @@ export function clampLimit(requested: number | undefined, cap: number): number {
 export function wantsYaml(accept: string | string[] | undefined): boolean {
   const v = Array.isArray(accept) ? accept.join(',') : accept ?? '';
   return v.toLowerCase().includes('yaml');
+}
+
+/**
+ * Whether the client takes gzip. The body is forwarded exactly as OAP sends it, so a client that
+ * refuses gzip must not be asked for it upstream. `Accept-Encoding: gzip;q=0` names gzip and refuses
+ * it, and `*` offers everything unless gzip is refused by name, which RFC 9110 spells out.
+ */
+export function takesGzip(accept: string | string[] | undefined): boolean {
+  const v = Array.isArray(accept) ? accept.join(',') : accept ?? '';
+  let any = false;
+  for (const part of v.split(',')) {
+    const [name, ...rest] = part.trim().split(';');
+    const coding = (name ?? '').trim().toLowerCase();
+    if (coding !== 'gzip' && coding !== 'x-gzip' && coding !== '*') continue;
+    const q = rest.map((p) => p.trim().toLowerCase()).find((p) => p.startsWith('q='));
+    const refused = q ? Number(q.slice(2)) === 0 : false;
+    if (coding === '*') {
+      if (!refused) any = true;
+      continue;
+    }
+    return !refused;
+  }
+  return any;
 }
 
 /** The upstream headers the browser must see. `Content-Encoding` is the one
@@ -204,8 +229,7 @@ export function registerAiConversationRoutes(app: FastifyInstance, deps: AiConve
       // Only what the BFF can decode is asked of OAP: gzip when the browser
       // takes gzip, plain bytes otherwise. Forwarding the browser's list could
       // bring back brotli or zstd, which would have to be relayed uncounted.
-      const acceptEncoding = req.headers['accept-encoding'];
-      const browserTakesGzip = typeof acceptEncoding === 'string' && /\bgzip\b/i.test(acceptEncoding);
+      const browserTakesGzip = takesGzip(req.headers['accept-encoding']);
       const yaml = wantsYaml(req.headers.accept);
       let upstream: AiConversationViewUpstream;
       try {
@@ -265,6 +289,81 @@ export function registerAiConversationRoutes(app: FastifyInstance, deps: AiConve
       if (held.decodedBytes !== null) reply.header(AI_CONVERSATION_DOCUMENT_BYTES_HEADER, String(held.decodedBytes));
       if (held.summary) reply.header(AI_CONVERSATION_DOCUMENT_SUMMARY_HEADER, JSON.stringify(held.summary));
       return reply.send(held.body);
+    },
+  );
+
+  // The stored files of one session, by their landed seqs: what the page reads when someone opens a
+  // call's prompt. The bodies are as large as they were landed, so the stream is relayed as it
+  // arrives rather than held, and the browser's own gzip is asked of OAP and passed through.
+  app.get(
+    '/api/ai-conversation/:conversation/files',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { conversation } = req.params as { conversation: string };
+      const q = req.query as { service?: string; instance?: string; session?: string; seq?: string | string[] };
+      const serviceName = typeof q.service === 'string' ? q.service.trim() : '';
+      const instanceName = typeof q.instance === 'string' ? q.instance.trim() : '';
+      const session = typeof q.session === 'string' ? q.session.trim() : '';
+      if (!conversation || !serviceName || !instanceName) {
+        return reply.code(400).send({ error: 'service_and_instance_required' });
+      }
+      if (!session) {
+        return reply.code(400).send({ error: 'session_required' });
+      }
+      const raw = q.seq === undefined ? [] : Array.isArray(q.seq) ? q.seq : [q.seq];
+      const seqs: number[] = [];
+      for (const text of raw) {
+        const n = Number(text);
+        if (!Number.isSafeInteger(n) || n <= 0) {
+          return reply.code(400).send({ error: 'seq_invalid', message: `${text} is not a positive whole number` });
+        }
+        seqs.push(n);
+      }
+      if (!seqs.length) {
+        return reply.code(400).send({ error: 'seq_required' });
+      }
+      if (seqs.length > ASZ_FILES_MAX_SEQS) {
+        return reply.code(400).send({ error: 'too_many_seqs', message: `at most ${ASZ_FILES_MAX_SEQS} seqs a request` });
+      }
+      const cfg = deps.config.current;
+      const browserTakesGzip = takesGzip(req.headers['accept-encoding']);
+      let upstream: AiConversationViewUpstream;
+      try {
+        upstream = await openAiConversationFiles(
+          {
+            queryUrl: cfg.oap.queryUrl,
+            auth: cfg.oap.auth,
+            timeoutMs: cfg.performance.aiConversation.viewTimeoutMs,
+            signal: clientGone(reply),
+          },
+          {
+            conversation,
+            serviceName,
+            instanceName,
+            session,
+            seqs,
+            coldStage: !!req.coldStage,
+            acceptEncoding: browserTakesGzip ? 'gzip' : 'identity',
+          },
+        );
+      } catch (err) {
+        if (err instanceof AiConversationViewTimeout) {
+          return reply.code(504).send({ error: 'oap_timeout', message: err.message });
+        }
+        if (err instanceof Error && err.name === 'AbortError') {
+          return reply.code(499).send();
+        }
+        return reply
+          .code(502)
+          .send({ error: 'oap_unreachable', message: err instanceof Error ? err.message : String(err) });
+      }
+      // Both a problem document and the files themselves go as they came; the browser reads the
+      // framing, and the BFF adds nothing to it.
+      reply.code(upstream.status);
+      for (const [name, value] of Object.entries(passthroughHeaders(upstream.headers))) {
+        reply.header(name, value);
+      }
+      return reply.send(upstream.body);
     },
   );
 }

@@ -30,6 +30,7 @@ import type {
   AszEdge,
   AszFileChange,
   AszNode,
+  AszProviderBody,
   AszRef,
   AszSegment,
   AszStream,
@@ -74,6 +75,8 @@ export interface Step {
   edges: AszEdge[];
   /** Whether workspace change records join to this step (the node's `changes`). */
   hasChanges: boolean;
+  /** Where this step's provider bodies landed, when it has any. */
+  providerBodies?: AszProviderBody[];
   /** Position in the flattened document, for ties and for nodes without a ref. */
   order: number;
   depth: number;
@@ -297,6 +300,7 @@ export class ConversationModel {
             refs: n.refs,
             attrs: n.attrs,
             usage: n.usage,
+            providerBodies: n.provider_bodies,
             flags: n.flags,
             dropped: n.dropped,
             edges: n.edges ?? [],
