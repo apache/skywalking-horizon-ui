@@ -32,7 +32,7 @@ let view: ConversationView | null = null;
 let host: HTMLElement | null = null;
 let asked: Array<{ session: string; seqs: number[] }> = [];
 
-function mount(loader = true): HTMLElement {
+function mount(loader = true, step: string = CALL): HTMLElement {
   asked = [];
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -46,7 +46,7 @@ function mount(loader = true): HTMLElement {
           },
         }
       : {}),
-    state: { step: CALL },
+    state: { step },
   });
   return host;
 }
@@ -105,6 +105,24 @@ describe('the prompt panel', () => {
     expect(body.textContent).toContain('Added by this call');
     // the shared history is named, not repeated
     expect(body.textContent).toMatch(/message\(s\) before are as the call before sent them/);
+  });
+
+  it('calls a growing history growth, however the runtime spells a message', () => {
+    // This call is the first whose history holds a message that has stopped being the newest. Such a
+    // message is sent as a list of one text block while it is newest and as a plain string after,
+    // and reading the two spellings as different messages ended the shared prefix one message early
+    // and reported an ordinary growth step as a rewritten history.
+    const root = mount(undefined, 'call/s6-call-fdae022ac306');
+    tab(root, 'prompt')!.click();
+    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+    return new Promise<void>((done) => setTimeout(() => {
+      panel(root).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
+      const body = panel(root);
+      expect(body.textContent).toContain('Added by this call');
+      expect(body.textContent).not.toContain('was rewritten');
+      expect(body.textContent).not.toContain('replaced by a summary');
+      done();
+    }, 0));
   });
 
   it('shows the response on its own, with what stopped it', async () => {
