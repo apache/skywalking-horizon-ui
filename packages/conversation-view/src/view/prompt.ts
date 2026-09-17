@@ -252,7 +252,7 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
     </div>`;
   if (!state.promptWhole) {
     if (!previous) return `${modes}<div class="acv-empty">${esc(s.promptNoPrevious)}</div>`;
-    return `${modes}${drawDelta(ctx, e, deltaOf(previous, read), read)}`;
+    return `${modes}${drawDelta(ctx, e, deltaOf(previous, read), read, previous.messages.length)}`;
   }
   const system = read.system.length
     ? section(ctx, e, 'system', s.promptSystem, blockSummary(ctx, read.system), read.system.map((b, i) => block(ctx, b, `${e.id}|req|sys|${i}`)).join(''))
@@ -316,7 +316,7 @@ function previousRequest(
   return null;
 }
 
-function drawDelta(ctx: ViewContext, e: Step, delta: PromptDelta, read: ReadRequest): string {
+function drawDelta(ctx: ViewContext, e: Step, delta: PromptDelta, read: ReadRequest, previousCount: number): string {
   const { s, f } = ctx;
   const changed = [
     delta.systemChanged ? s.promptSystem : '',
@@ -325,7 +325,14 @@ function drawDelta(ctx: ViewContext, e: Step, delta: PromptDelta, read: ReadRequ
   ].filter(Boolean);
   const notes = [
     `<div class="acv-faint">${esc(fill(s.promptShared, { count: String(delta.sharedMessages), bytes: f.number(delta.sharedBytes) }))}</div>`,
-    delta.rewritten ? `<div class="acv-warning">${esc(s.promptRewritten)}</div>` : '',
+    // A compaction is not a fault: it is the runtime replacing the context with a summary, which the
+    // conversation records as its own step. Saying which of the two happened is the whole value of
+    // the note -- a warning on every ordinary growth would say nothing.
+    delta.replaced
+      ? `<div class="acv-faint">${esc(fill(s.promptCompacted, { before: String(previousCount), after: String(read.messages.length) }))}</div>`
+      : delta.rewritten
+        ? `<div class="acv-warning">${esc(s.promptRewritten)}</div>`
+        : '',
     changed.length ? `<div class="acv-faint">${esc(fill(s.promptAlsoChanged, { what: changed.join(', ') }))}</div>` : '',
   ].join('');
   const added = delta.added.length

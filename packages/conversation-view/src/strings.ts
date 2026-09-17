@@ -266,6 +266,7 @@ export interface ViewStrings {
   promptBlocks: string;
   promptShared: string;
   promptRewritten: string;
+  promptCompacted: string;
   promptAlsoChanged: string;
   promptAdded: string;
   promptNothingAdded: string;
@@ -569,7 +570,8 @@ export const ENGLISH: ViewStrings = {
   promptSettings: 'Settings',
   promptBlocks: '{count} block(s), {bytes} bytes',
   promptShared: 'The {count} message(s) before are as the call before sent them, {bytes} bytes.',
-  promptRewritten: 'The history was rewritten, which is what a compaction does.',
+  promptRewritten: 'The history before this point was rewritten, and not by a compaction.',
+  promptCompacted: 'The context was replaced by a summary here, so the list starts again: {before} message(s) became {after}.',
   promptAlsoChanged: 'Also changed: {what}.',
   promptAdded: 'Added by this call ({count})',
   promptNothingAdded: 'This request adds no message.',

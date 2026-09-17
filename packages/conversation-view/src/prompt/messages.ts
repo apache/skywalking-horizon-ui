@@ -209,8 +209,12 @@ export interface PromptDelta {
   /** How many messages the two share, and how many bytes they are. */
   sharedMessages: number;
   sharedBytes: number;
-  /** Whether the shared messages differ in their own text, which a compaction does. */
+  /** Whether the shared messages differ in their own text, rather than the list only growing. */
   rewritten: boolean;
+  /** Whether the list was replaced rather than added to: a compaction starts it again from the
+   *  summary that took the place of the context, so it is shorter as well as different. A rewrite
+   *  that is not this is the rare one, and worth saying so. */
+  replaced: boolean;
   /** What else changed outside the messages. */
   systemChanged: boolean;
   toolsChanged: boolean;
@@ -228,6 +232,7 @@ export function deltaOf(previous: ReadRequest, current: ReadRequest): PromptDelt
   const least = Math.min(previous.messages.length, current.messages.length);
   while (shared < least && same(previous.messages[shared]!.raw, current.messages[shared]!.raw, MARKED_IN_MESSAGE)) shared++;
   if (shared < least) rewritten = true;
+  const replaced = rewritten && current.messages.length < previous.messages.length;
   const added = current.messages.slice(shared);
   let sharedBytes = 0;
   for (let i = 0; i < shared; i++) sharedBytes += size(current.messages[i]!.raw);
@@ -236,6 +241,7 @@ export function deltaOf(previous: ReadRequest, current: ReadRequest): PromptDelt
     sharedMessages: shared,
     sharedBytes,
     rewritten,
+    replaced,
     systemChanged: !same(previous.raw['system'], current.raw['system'], MARKED_IN_LIST),
     toolsChanged: !same(previous.raw['tools'], current.raw['tools'], MARKED_IN_LIST),
     settingsChanged: !same(settings(previous), settings(current), NOT_MARKED),
@@ -262,13 +268,21 @@ function size(value: unknown): number {
 }
 
 /**
- * The value as one string, with the provider's cache markers left out.
+ * The value as one string, with the two things the runtime changes about a message it is no longer
+ * caching left out.
  *
- * The marker is a `cache_control` field the runtime moves down the message list as the conversation
- * grows, so a message that only gained or lost one is the same message. It sits on a message, a
- * content block, a system block or a tool, and nowhere deeper: a `cache_control` inside a tool's own
- * input or schema is the agent's data, and two calls that differ only there differ. That is why the
- * walk carries how deep the marker can be rather than removing the name at every depth.
+ * The first is the `cache_control` marker, which the runtime moves down the message list as the
+ * conversation grows, so a message that only gained or lost one is the same message. It sits on a
+ * message, a content block, a system block or a tool, and nowhere deeper: a `cache_control` inside a
+ * tool's own input or schema is the agent's data, and two calls that differ only there differ. That
+ * is why the walk carries how deep the marker can be rather than removing the name at every depth.
+ *
+ * The second is the shape of the content itself. A message of one text block is sent as a list while
+ * it is the newest, and as a plain string once the marker has left it, which is what Claude Code was
+ * measured to write and what the Sessionizer reproduces. The text is the same and the message is the
+ * same, so the two spellings have to compare equal: without this, every message compared unequal the
+ * moment it stopped being the newest, and a history that merely grew was read as one that had been
+ * rewritten.
  *
  * It builds a string instead of an object because a body can carry a `__proto__` key, and assigning
  * that into an object changes the object's prototype instead of keeping the value.
@@ -280,7 +294,22 @@ function canonical(value: unknown, markedTo: number, depth = 0): string {
   const parts: string[] = [];
   for (const k of Object.keys(obj).sort()) {
     if (depth <= markedTo && k === 'cache_control') continue;
-    parts.push(`${JSON.stringify(k)}:${canonical(obj[k], markedTo, depth + 1)}`);
+    const v = k === 'content' && depth < markedTo ? plainContent(obj[k]) : obj[k];
+    parts.push(`${JSON.stringify(k)}:${canonical(v, markedTo, depth + 1)}`);
   }
   return `{${parts.join(',')}}`;
+}
+
+/**
+ * One text block and the plain string it becomes, as the same value. Anything else is left as it is:
+ * a message of several blocks, or of one block that is not text, never takes the short spelling.
+ */
+function plainContent(content: unknown): unknown {
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  if (!Array.isArray(content) || content.length !== 1) return content;
+  const only = content[0] as Record<string, unknown> | null;
+  if (!only || typeof only !== 'object' || only['type'] !== 'text' || typeof only['text'] !== 'string') return content;
+  // Only the type and the text survive: the marker is dropped by the walk above, and a lone text
+  // block carries nothing else the plain spelling could have kept.
+  return [{ type: 'text', text: only['text'] }];
 }
