@@ -31,6 +31,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import DateTimeField from './DateTimeField.vue';
 import { useI18n } from 'vue-i18n';
 import {
   TIME_PRESETS,
@@ -238,17 +239,15 @@ function submitCustom(step: TimeStep): void {
         <template v-for="side in (['start', 'end'] as const)" :key="side">
           <label class="tr-custom-field">
             <span>{{ side === 'start' ? t('Start') : t('End') }}</span>
-            <input
+            <DateTimeField
               v-if="activeStepTab === 'MINUTE'"
               v-model="customDraft[`${activeStepTab}-${side}`]"
-              type="datetime-local"
-              step="60"
               class="tr-custom-input"
             />
             <div v-else-if="activeStepTab === 'HOUR'" class="tr-custom-split">
-              <input
+              <DateTimeField
                 v-model="customDraft[`${activeStepTab}-${side}-date`]"
-                type="date"
+                mode="date"
                 class="tr-custom-input"
               />
               <select
@@ -260,10 +259,10 @@ function submitCustom(step: TimeStep): void {
                 </option>
               </select>
             </div>
-            <input
+            <DateTimeField
               v-else
               v-model="customDraft[`${activeStepTab}-${side}`]"
-              type="date"
+              mode="date"
               class="tr-custom-input"
             />
           </label>

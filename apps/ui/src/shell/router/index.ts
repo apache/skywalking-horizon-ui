@@ -86,6 +86,10 @@ function layerRoute(): RouteRecordRaw {
       // conditions, so they get separate tabs rather than an in-tab toggle.
       // The entry component renders the Zipkin view for this path regardless.
       { path: 'zipkin-trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
+      // One row per trace store, so the route names the store outright rather
+      // than a dispatcher inferring it from the layer's configuration.
+      { path: 'traceql-native-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
+      { path: 'traceql-zipkin-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
       // Owns its provider picker: the view draws it from the `logs:read`
       // evaluation catalog so a logs-only role can pick a provider, where the

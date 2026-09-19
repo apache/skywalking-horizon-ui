@@ -65,7 +65,7 @@ Optional:
 - `group`: sidebar grouping label.
 - `visibility`: set `operate` if this is a self-observability layer.
 - `documentLink`: external docs URL.
-- `traces.source`: `zipkin` or `both` if you ingest traces via Zipkin.
+- `traces.sources`: the trace stores this layer exposes — `native`, `zipkin`, `traceql-native`, `traceql-zipkin`. Omit it and the layer shows the native row; `[]` gives it no trace rows at all.
 - `log.scope`: scope for the Logs tab.
 - `naming`: regex for extracting clusters from service names.
 

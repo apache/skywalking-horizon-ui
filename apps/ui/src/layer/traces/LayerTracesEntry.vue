@@ -30,32 +30,27 @@ import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { useLayers } from '@/shell/useLayers';
 import LayerTracesView from './LayerTracesView.vue';
 import LayerZipkinTracesView from './LayerZipkinTracesView.vue';
+import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
 
-/** `source: 'native' | 'zipkin' | 'both'` — defaults to native when
- *  the layer template doesn't carry a `traces` block. */
-const configuredSource = computed<'native' | 'zipkin' | 'both'>(
-  () => layer.value?.traces?.source ?? 'native',
-);
+
 
 /**
- * Which trace store to render. Native and Zipkin spans have different
- * formats and query conditions, so a layer configured for `both`
- * surfaces TWO sidebar tabs — `/trace` (native) and `/zipkin-trace`
- * (Zipkin) — rather than one tab with an in-place toggle. This entry
- * is route-driven:
+ * Which trace store to render. Native and Zipkin spans have different formats
+ * and query conditions, so a layer that names both stores gets TWO sidebar
+ * rows — `/trace` and `/zipkin-trace` — rather than one row with an in-place
+ * toggle. This entry is route-driven:
  *   - the `/zipkin-trace` route always renders the Zipkin view;
- *   - the `/trace` route renders Zipkin only when the layer is
- *     pure-`zipkin`, otherwise native (covers `native` and the native
- *     half of `both`).
+ *   - the `/trace` route renders Zipkin only for a layer that names the Zipkin
+ *     store and no native one.
  */
 const isZipkinRoute = computed(() => /\/zipkin-trace(\/|$|\?)/.test(route.path));
 const showZipkin = computed(
-  () => isZipkinRoute.value || configuredSource.value === 'zipkin',
+  () => isZipkinRoute.value || traceRowIsZipkin(layer.value?.traces),
 );
 </script>
 

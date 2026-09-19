@@ -53,6 +53,15 @@ import {
   type DslEntry,
 } from './mal-grammar.js';
 import {
+  TRACEQL_LANGUAGE_ID,
+  TRACEQL_MONARCH,
+  TRACEQL_INTRINSICS,
+  TRACEQL_SCOPES,
+  TRACEQL_RESOURCE_ATTRS,
+  TRACEQL_DURATION_UNITS,
+  TRACEQL_STATUS_VALUES,
+} from './traceql-grammar.js';
+import {
   LAL_BLOCK_KEYWORDS,
   LAL_EXTRACTOR_FUNCS,
   LAL_RULE_KEYS,
@@ -113,7 +122,173 @@ export function setupMonaco(): void {
     },
   });
 
+  registerTraceQL();
   registerCompletions();
+}
+
+/** What the TraceQL editor knows about the store it is querying: the tag keys
+ *  the backend reported, and a way to ask for one tag's values. Attached to the
+ *  MODEL so one registration serves every editor instance and every datasource. */
+export interface TraceQLSchema {
+  ds: 'native' | 'zipkin';
+  tagKeys: string[];
+  services: string[];
+  spanNames: string[];
+  valuesFor: (tag: string) => string[];
+  requestValues: (tag: string) => void;
+}
+
+type TraceQLModel = monaco.editor.ITextModel & { __tqlSchema?: TraceQLSchema };
+
+/** Register the language, its highlighting and its schema-driven completion. */
+function registerTraceQL(): void {
+  monaco.languages.register({ id: TRACEQL_LANGUAGE_ID });
+  monaco.languages.setMonarchTokensProvider(
+    TRACEQL_LANGUAGE_ID,
+    TRACEQL_MONARCH as unknown as monaco.languages.IMonarchLanguage,
+  );
+  monaco.languages.setLanguageConfiguration(TRACEQL_LANGUAGE_ID, {
+    brackets: [['{', '}']],
+    autoClosingPairs: [
+      { open: '{', close: '}' },
+      { open: '"', close: '"' },
+    ],
+  });
+
+  monaco.languages.registerCompletionItemProvider(TRACEQL_LANGUAGE_ID, {
+    triggerCharacters: ['{', '.', '=', '"', ' ', '>', '<'],
+    provideCompletionItems(model, position) {
+      const schema = (model as TraceQLModel).__tqlSchema;
+      const line = model.getValueInRange({
+        startLineNumber: position.lineNumber,
+        startColumn: 1,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      });
+      /**
+       * The range a suggestion REPLACES.
+       *
+       * Monaco's word range stops at a dot and at a quote, so using it for a
+       * dotted field turns `resource.ser` into `resource.resource.service.name`,
+       * and using it inside a literal leaves the opening quote behind. Each
+       * kind of suggestion therefore says how far back it reaches.
+       */
+      const rangeBack = (chars: number): monaco.IRange => ({
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: Math.max(1, position.column - chars),
+        endColumn: position.column,
+      });
+      /** A VALUE's range, which also takes in the closing quote the editor
+       *  auto-inserted when the operator typed the opening one — the suggestion
+       *  carries its own quotes, and replacing only the opening one left
+       *  `service.name="svc""`. */
+      const valueRangeBack = (chars: number): monaco.IRange => {
+        const rest = model.getValueInRange({
+          startLineNumber: position.lineNumber,
+          startColumn: position.column,
+          endLineNumber: position.lineNumber,
+          endColumn: model.getLineMaxColumn(position.lineNumber),
+        });
+        const r = rangeBack(chars);
+        return rest.startsWith('"') ? { ...r, endColumn: r.endColumn + 1 } : r;
+      };
+      // `filterText` is the inserted text, not the label, because Monaco filters
+      // a suggestion against whatever the RANGE covers. A value's range takes in
+      // the opening quote, so filtering `GET:/rating` against `\"` matched
+      // nothing and every value list came up empty.
+      const item = (
+        label: string,
+        insert: string,
+        detail: string,
+        kind: monaco.languages.CompletionItemKind,
+        range: monaco.IRange,
+      ): monaco.languages.CompletionItem => ({
+        label,
+        insertText: insert,
+        filterText: insert,
+        detail,
+        kind,
+        range,
+      });
+
+      // After `=` — offer the VALUES the backend reported for this key, which
+      // is the part an operator cannot guess.
+      const afterEquals = /([\w.]+)\s*=\s*("?)([^"]*)$/.exec(line);
+      if (afterEquals && schema) {
+        const key = afterEquals[1]!;
+        // Replace the partial VALUE and its opening quote, so the inserted
+        // literal does not end up quoted twice.
+        const typed = afterEquals[3]!.length + afterEquals[2]!.length;
+        const valueRange = valueRangeBack(typed);
+        // A value the backend reported can contain a quote or a backslash;
+        // it goes in as a literal, so it is escaped like any other.
+        const lit = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+        if (key === 'status') {
+          // The values the LANGUAGE defines, both stores alike. Which of them a
+          // given backend applies is its own business, and a completion list
+          // narrowed by a measurement of one build goes stale on the next.
+          return {
+            suggestions: TRACEQL_STATUS_VALUES.map((v) =>
+              item(v, lit(v), 'status', monaco.languages.CompletionItemKind.Value, valueRange),
+            ),
+          };
+        }
+        if (key.endsWith('service.name') || key === 'resource.service') {
+          return { suggestions: schema.services.map((v) => item(v, lit(v), 'service', monaco.languages.CompletionItemKind.Value, valueRange)) };
+        }
+        if (key === 'name' || key === 'span.name') {
+          return { suggestions: schema.spanNames.map((v) => item(v, lit(v), 'span name', monaco.languages.CompletionItemKind.Value, valueRange)) };
+        }
+        // The reserved resource attributes are not tags and have no value
+        // endpoint of their own beyond the two handled above, so nothing is
+        // offered rather than asking the wrong endpoint.
+        if (key.startsWith('resource.')) return { suggestions: [] };
+        const tag = key.replace(/^span\.|^\./, '');
+        schema.requestValues(tag);
+        return {
+          suggestions: schema.valuesFor(tag).map((v) => item(v, lit(v), tag, monaco.languages.CompletionItemKind.Value, valueRange)),
+        };
+      }
+
+      // After a duration comparison — the units this backend parses. With no
+      // number yet there is nothing to qualify, and the empty list is the
+      // point: it DISMISSES a list still offering fields, which Enter would
+      // otherwise paste over the number being typed.
+      const afterDuration = /duration\s*(?:>=|<=|[<>])\s*(\d+(?:\.\d+)?)?([a-z]*)$/.exec(line);
+      if (afterDuration) {
+        if (!afterDuration[1]) return { suggestions: [] };
+        // Append the unit to the number rather than replacing it: the word
+        // range here covers the digits.
+        const unitRange = rangeBack(afterDuration[2]!.length);
+        return {
+          suggestions: TRACEQL_DURATION_UNITS.map((u) =>
+            item(u, u, 'duration unit', monaco.languages.CompletionItemKind.Unit, unitRange),
+          ),
+        };
+      }
+
+      // Otherwise: the fields. Intrinsics, the reserved resource attributes,
+      // and every span tag the store reported — the schema, in other words.
+      // A field replaces the whole dotted identifier under the cursor, not the
+      // fragment after the last dot.
+      const partial = /[A-Za-z_][\w.]*$/.exec(line)?.[0] ?? '';
+      const fieldRange = rangeBack(partial.length);
+      const suggestions: monaco.languages.CompletionItem[] = [
+        ...TRACEQL_INTRINSICS.map((i) =>
+          item(i.name, i.name === 'duration' ? 'duration>' : `${i.name}="`, i.detail, monaco.languages.CompletionItemKind.Keyword, fieldRange),
+        ),
+        ...TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || !schema || a.ds === schema.ds).map((a) =>
+          item(a.name, `${a.name}="`, a.detail, monaco.languages.CompletionItemKind.Property, fieldRange),
+        ),
+        ...TRACEQL_SCOPES.map((sc) => item(`${sc.name}.`, `${sc.name}.`, sc.detail, monaco.languages.CompletionItemKind.Module, fieldRange)),
+        ...(schema?.tagKeys ?? []).map((k) =>
+          item(`span.${k}`, `span.${k}="`, 'span tag', monaco.languages.CompletionItemKind.Field, fieldRange),
+        ),
+      ];
+      return { suggestions };
+    },
+  });
 }
 
 function registerCompletions(): void {

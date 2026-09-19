@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
-import type { DashboardWidget, InstanceAttributePredicate } from '@skywalking-horizon-ui/api-client';
+import type { DashboardWidget, InstanceAttributePredicate, TracesConfig } from '@skywalking-horizon-ui/api-client';
 
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import Modal from '@/components/primitives/Modal.vue';
@@ -42,6 +42,7 @@ import ProcessConfigEditor from './ProcessConfigEditor.vue';
 import TopologyConfigEditor from './TopologyConfigEditor.vue';
 import DeploymentConfigEditor from './DeploymentConfigEditor.vue';
 import LayerSetupEditor from './LayerSetupEditor.vue';
+import TraceStoresEditor from './TraceStoresEditor.vue';
 import ServiceListMetricsEditor from './ServiceListMetricsEditor.vue';
 import LayerBrowseRail from './LayerBrowseRail.vue';
 import LayerHeaderBar from './LayerHeaderBar.vue';
@@ -344,30 +345,16 @@ function widgetsFor(scope: AdminScope): DashboardWidget[] {
 const instanceTopologyEnabled = computed(() => !!draft.template?.topology?.instanceTopology);
 
 
-/* Trace backend selector. `traces.source` decides which trace store the
- * per-layer Trace tab dispatches to: `native` (SkyWalking query-protocol),
- * `zipkin` (Envoy ALS / rover spans), or `both` (parallel tables). The
- * field IS live — `LayerTracesEntry` reads `layer.traces.source` at
- * runtime — so it belongs in the config UI. Default `both` when unset. */
-type TraceSource = 'native' | 'zipkin' | 'both';
-const traceSource = computed<TraceSource>({
-  get: () => draft.template?.traces?.source ?? 'both',
-  set: (v: TraceSource) => {
-    if (readOnly.value || !draft.template) return;
-    if (draft.template.traces) draft.template.traces.source = v;
-    else draft.template.traces = { source: v };
-  },
-});
-const TRACE_SOURCE_OPTIONS = computed<Array<{ value: TraceSource; label: string; hint: string }>>(() => [
-  { value: 'native', label: t('Native'), hint: t('SkyWalking query-protocol traces (agent-instrumented).') },
-  { value: 'zipkin', label: t('OpenTelemetry & Zipkin'), hint: t('Traces emitted from the OpenTelemetry & Zipkin ecosystem.') },
-  { value: 'both', label: t('Both'), hint: t('Layer carries both native and OpenTelemetry/Zipkin traces — their span formats and query conditions differ, so each gets its own trace tab.') },
-]);
-
-/* Logs has no per-layer config beyond the enable/disable Components
- * toggle. Trace carries one setting — `traces.source` (native / zipkin /
- * both), edited via `traceSource` above — which the per-layer Trace tab
- * honors at runtime to pick the trace backend. */
+/* The Trace tab's own config: which trace stores this layer exposes, what each
+ * row is called, and the service filter for the TraceQL rows. It replaced the
+ * single-source radio, because a layer now has as many trace rows as it names
+ * stores. Absent reads as the native store, and the editor writes an explicit
+ * list from the first edit on — see `TraceStoresEditor`. */
+function setTraces(v: TracesConfig | undefined): void {
+  if (readOnly.value || !draft.template) return;
+  if (v) draft.template.traces = v;
+  else delete draft.template.traces;
+}
 
 /** Menu-preview click: focus the component's scope (if surfaced) and
  *  scroll the scope editor into view so config + preview follow the
@@ -757,33 +744,17 @@ const namingTest = computed<NamingTestResult>(() => {
             <h4>{{ t('{scope} tab', { scope: scopeLabel(activeScope) }) }}</h4>
             <span class="sub">
               {{ activeScope === 'trace'
-                ? t('Pick the trace backend this layer reads from.')
+                ? t('which trace APIs this layer exposes — one sidebar row each')
                 : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
             </span>
           </div>
           <div class="topo-cfg-body">
-            <div v-if="activeScope === 'trace'" class="trace-source-cfg">
-              <div class="trace-source-head">{{ t('Trace source') }}</div>
-              <div class="trace-source-opts">
-                <label
-                  v-for="o in TRACE_SOURCE_OPTIONS"
-                  :key="o.value"
-                  class="trace-source-opt"
-                  :class="{ on: traceSource === o.value }"
-                >
-                  <input
-                    type="radio"
-                    name="trace-source"
-                    :value="o.value"
-                    :checked="traceSource === o.value"
-                    :disabled="readOnly"
-                    @change="traceSource = o.value"
-                  />
-                  <span class="ts-label">{{ o.label }}</span>
-                  <span class="ts-hint">{{ o.hint }}</span>
-                </label>
-              </div>
-            </div>
+            <TraceStoresEditor
+              v-if="activeScope === 'trace'"
+              :traces="draft.template?.traces"
+              :read-only="readOnly"
+              @update="setTraces"
+            />
             <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">
               <template #tab><b>{{ scopeLabel(activeScope) }}</b></template>
             </i18n-t>
@@ -1061,30 +1032,6 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-3);
   line-height: 1.5;
 }
-.trace-source-cfg { display: flex; flex-direction: column; gap: 8px; }
-.trace-source-head {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--sw-fg-3);
-}
-.trace-source-opts { display: flex; flex-direction: column; gap: 6px; }
-.trace-source-opt {
-  display: grid;
-  grid-template-columns: 16px 64px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-1);
-  cursor: pointer;
-  font-size: 11.5px;
-}
-.trace-source-opt.on { border-color: var(--sw-accent); background: var(--sw-bg-2); }
-.trace-source-opt .ts-label { font-weight: 600; color: var(--sw-fg-0); }
-.trace-source-opt .ts-hint { color: var(--sw-fg-3); }
 .topo-cfg-help code {
   font-family: var(--sw-mono);
   color: var(--sw-fg-1);

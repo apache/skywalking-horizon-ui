@@ -7,7 +7,7 @@ what each one is for, and the wire rules that are easy to get wrong. The root
 `client/` is the ONLY layer that talks to OAP. If you are adding a call from
 anywhere else, that is the bug — read the layering rules in the root file first.
 
-## The endpoints — there are four, and they are not interchangeable
+## The endpoints — they are not interchangeable
 
 Configured under `oap:` (see `src/config/schema.ts`). Every one is a separate
 URL, and using the wrong one fails in a way that reads like "OAP is broken".
@@ -17,6 +17,7 @@ URL, and using the wrong one fails in a way that reads like "OAP is broken".
 | `oap.queryUrl` | `http://127.0.0.1:12800` | GraphQL query-protocol + `/status/*` |
 | `oap.adminUrl` | `http://127.0.0.1:17128` | runtime rule mgmt, DSL/MQE/OAL, inspect, live debug, `/ui-management/*` |
 | `oap.zipkinUrl` | `http://127.0.0.1:9412/zipkin` | the Zipkin-compatible trace API |
+| `oap.traceql.nativeUrl` / `.zipkinUrl` | unset | OAP's TraceQL (Tempo) service, one full URL per datasource |
 | `oap.mqe.host` / `.port` | unset | optional MQE override |
 
 Two things that have cost real time:
@@ -33,6 +34,14 @@ Two things that have cost real time:
   admin hostname through DNS to find every node IP and probes each.
 
 `oap.auth` (basic) and `oap.timeoutMs` apply to all of them.
+
+Two things about the TraceQL pair, because both fail quietly. Its `start` / `end`
+are **UNIX seconds** — the only OAP surface that takes them — and on the native
+datasource a trace id travels as hex-encoded UTF-8, which `client/traceql.ts`
+encodes on the way out and decodes on the way back so the encoded form never
+crosses the BFF boundary. There is deliberately no default URL: OAP ships the
+`traceQL` module disabled, so a default would have every Horizon probing a port
+nobody enabled.
 
 ## Cancellation
 
@@ -119,6 +128,7 @@ The conversation VIEW relay holds the whole document before answering (gzip in m
 | `topology.ts`, `deployment.ts`, `instance-topology.ts`, `endpoint-dependency.ts`, `infra-3d-metrics.ts` — metrics | `events.ts` — events live in `records` |
 | | `ebpf.ts` — network profiling |
 | | `trace-tag.ts` — tag key/value autocomplete |
+| | `traceql.ts` — the Tempo API has no `coldStage` parameter at all, so there is nothing to send; a cold trace is read through the native or Zipkin route |
 | | `ai/` — the assistant's own reads |
 
 **Adding a route means placing it in this table.** The default is the right-hand

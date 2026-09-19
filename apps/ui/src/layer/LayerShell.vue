@@ -43,6 +43,7 @@ import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { isBuiltInLayerRow, FALLBACK_LAYER_ROW } from '@skywalking-horizon-ui/api-client';
 import { useLayers, firstLayerTab, layerMenuRows } from '@/shell/useLayers';
+import { resolveTraceStores } from '@skywalking-horizon-ui/api-client';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServices } from '@/layer/useLayerServices';
@@ -219,6 +220,17 @@ watch(
     // it by row alone redirected the URL onto the embedded view, which
     // renders without its own toolbar.
     if (scope === 'zipkin-trace' && L.caps?.traces) return;
+    // Old bookmarks. `/trace` used to render whichever store a layer had —
+    // a pure-Zipkin layer showed its Zipkin explorer under this path. Stores
+    // now own their rows, so send the URL to the layer's first trace row
+    // rather than to its first tab, which would be a dashboard.
+    if (scope === 'trace') {
+      const firstTrace = layerMenuRows(L).find((r) => r.path.endsWith('trace'));
+      if (firstTrace) {
+        void router.replace({ path: `/layer/${L.key}/${firstTrace.path}`, query: route.query });
+        return;
+      }
+    }
     const fallback = firstLayerTab(L);
     if (fallback === scope) return; // already at the best fallback
     void router.replace({ path: `/layer/${L.key}/${fallback}`, query: route.query });
@@ -429,8 +441,11 @@ const comparable = computed(
 // `/zipkin-trace` route always, plus the `/trace` route on a pure-
 // zipkin-source layer (mesh / k8s).
 const isZipkinTrace = computed<boolean>(() => {
-  if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
-  return scopeSegment.value === 'trace' && layer.value?.traces?.source === 'zipkin';
+  // Every TraceQL row is one too: the query names its own service, so the
+  // shell's picked service would sit above a list that has nothing to do
+  // with it — a header describing a different question than the page asks.
+  if (/\/(zipkin-trace|traceql-[a-z]+-trace)(\/|$|\?)/.test(route.path)) return true;
+  return scopeSegment.value === 'trace' && resolveTraceStores(layer.value?.traces).join() === 'zipkin';
 });
 
 // Keep the URL-backed service selection honest for every page that

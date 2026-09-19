@@ -53,6 +53,7 @@ import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatt
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
+import { tracesInclude } from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
 const auth = useAuthStore();
@@ -541,11 +542,9 @@ function widgetColor(w: { id?: string; title?: string; expressions?: string[] })
 
 // Native-trace layers only — the Zipkin view can't consume the drill filter.
 const router = useRouter();
-const layerTracesEnabled = computed<boolean>(() => {
-  if (layer.value?.caps?.traces !== true) return false;
-  const src = layer.value.traces?.source ?? 'native';
-  return src === 'native' || src === 'both';
-});
+const layerTracesEnabled = computed<boolean>(
+  () => layer.value?.caps?.traces === true && tracesInclude(layer.value.traces, 'native'),
+);
 function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
   if (w.type !== 'line' || !layerTracesEnabled.value) return null;
   const m = w.traceDrill?.mode;

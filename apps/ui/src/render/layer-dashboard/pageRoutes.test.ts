@@ -223,13 +223,17 @@ describe('a route the layer exposes no row for', () => {
     key: 'MESH',
     caps: { dashboards: true, traces: true },
     slots: {},
-    traces: { source: 'zipkin' as const },
+    traces: { sources: ['zipkin' as const] },
   };
 
-  it('gives a pure-zipkin layer one Traces row, not two', () => {
+  it('gives a pure-zipkin layer the Zipkin row, and no native one', () => {
+    // Each store owns its row outright. A pure-Zipkin layer used to render its
+    // Zipkin explorer under the `trace` path, which made the path's meaning
+    // depend on the layer — `/trace` on such a layer now redirects to the row
+    // that actually holds its traces (see the layer shell).
     const rows = resolveLayerMenuRows(pureZipkin).map((r) => r.path);
-    expect(rows).toContain('trace');
-    expect(rows).not.toContain('zipkin-trace');
+    expect(rows).toContain('zipkin-trace');
+    expect(rows).not.toContain('trace');
   });
 
   it('emits the second row only when the layer carries both formats', () => {

@@ -54,7 +54,9 @@ function labelFor(path: string): string {
     case 'dependency':
       return slots.endpointDependency ?? t('{endpoint} dependency', { endpoint: slots.endpoints ?? t('Endpoint') });
     case 'trace': return t('Traces');
-    case 'zipkin-trace': return t('OTel & Zipkin Traces');
+    case 'zipkin-trace': return t('Zipkin Traces');
+    case 'traceql-native-trace': return t('TraceQL - Native');
+    case 'traceql-zipkin-trace': return t('TraceQL - Zipkin');
     case 'logs': return t('Logs');
     case 'evaluation-record': return t('Evaluation records');
     case 'browser-errors': return t('Browser Logs');

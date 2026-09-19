@@ -82,6 +82,16 @@ When an upstream control changes — service, instance or endpoint pick, time ra
 
 Each control owns its own reset and its own indicator, and resolves as its query lands. This is the display-layer half of the rule that gates `enabled` in the data layer.
 
+## Trace sources stay in their own data model
+
+Horizon renders traces from more than one API, and each has its own idea of what a span IS. SkyWalking's native model has segments, numeric span ids within them, refs, components and attached events. OTLP — which is what TraceQL answers in — has opaque string span ids, a parent span id, a kind enum, a three-valued status, and resource attributes kept apart from span attributes. Zipkin has a third shape again.
+
+**A trace view speaks its own source's model, end to end.** The TraceQL stack under `layer/traceql/` has its own waterfall, tree, statistics and span dialog, and they share no code with the native ones under `layer/traces/` and `render/widgets/`. The two look deliberately alike; that is a matter of using the same tokens and the same layout vocabulary, not of sharing a component.
+
+**Converting between the models is OAP's job, not ours.** OAP already converts native and Zipkin spans into OTLP to answer TraceQL; doing it a second time on the way out — flattening OTLP into the native span shape so one component can render both — throws away precisely what the operator opened that tab to see, and invents fields the protocol does not have. It was tried: it needed synthetic numeric span ids, smuggled the real id into a tag, and had no honest place to put resource attributes or the instrumentation scope.
+
+What IS shared is presentation that carries no span model: the result list and the distribution scatter (`TraceListRow` — a row of name, duration, start and status, which every source fills in its own adapter), the design tokens, and the layout of the tab itself. If a shared component starts needing to know how a span is shaped, that is the signal it belongs to one source rather than to all of them.
+
 ## Layering
 
 `api/` is the only path to HTTP. `shell/` knows about layers and routes, never about a feature's data. `controls/` owns the time range and the refresh ticker; pages subscribe and never own them. `state/` is global Pinia that survives navigation. `features/<feature>/` and `layer/<tab>/` are self-contained — views, composables and components together. `render/` is template-driven and generic. `components/{primitives,charts,icons}/` is feature-AGNOSTIC: the moment a shared component needs feature data, it moves into the feature rather than the shared pile growing a special case.

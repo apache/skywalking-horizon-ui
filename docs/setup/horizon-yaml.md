@@ -37,6 +37,7 @@ oap:
   queryUrl: string
   adminUrl: string
   zipkinUrl?: string
+  traceql?: { nativeUrl?, zipkinUrl? }
   timeoutMs?: number
   auth?: { username, password }
   mqe?: { host?, port? }

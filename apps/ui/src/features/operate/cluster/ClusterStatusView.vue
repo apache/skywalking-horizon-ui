@@ -17,21 +17,25 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { PreflightModule } from '@skywalking-horizon-ui/api-client';
+import { useQuery } from '@tanstack/vue-query';
+import type { PreflightModule, TraceQLSourceStatus } from '@skywalking-horizon-ui/api-client';
+import { bffClient } from '@/api/client';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
 
-// Two-pane Cluster Status:
+// Three-pane Cluster Status:
 //   - Pane A (graphql / :12800): version, server clock, timezone,
 //     health score. Drives the global topbar status chip and the
 //     global "OAP unreachable" banner.
 //   - Pane B (admin host / :17128): preflight of SWIP-13 selectors
 //     (admin-server, receiver-runtime-rule, dsl-debugging, inspect).
 //     Drives the per-page warning header on admin-host routes.
-// The two halves are queried separately on purpose — a healthy
-// :12800 with a broken admin port is a real, recoverable state
-// (forgot to expose :17128 in the k8s service) and the page must
-// show that clearly.
+//   - Pane C (trace APIs): the Zipkin v2 endpoint and each TraceQL
+//     datasource, which feed the per-layer trace rows other than the
+//     native one.
+// The panes are queried separately on purpose — a healthy :12800 with
+// a broken admin port is a real, recoverable state (forgot to expose
+// :17128 in the k8s service) and the page must show that clearly.
 
 const { t } = useI18n({ useScope: 'global' });
 const {
@@ -51,6 +55,99 @@ const {
   adminError,
   recheck: refetchPreflight,
 } = useAdminFeatures();
+
+/**
+ * Pane D · OAP's TraceQL (Tempo API) service, one datasource per store.
+ *
+ * Read through the façade rather than the Traces tab's own composable — a
+ * feature does not reach into another's data — and answered by the same cached
+ * probe the tab uses, so this page and the tab cannot disagree. It needs
+ * `traces:read`; a role without it sees the pane as unknown rather than as an
+ * outage, because a permission is not a failure.
+ */
+const traceqlQuery = useQuery({
+  queryKey: ['traceql-sources'],
+  queryFn: ({ signal }) => bffClient.traceql.sources(signal),
+  staleTime: 60_000,
+  retry: false,
+});
+const TRACEQL_ROWS = computed<ReadonlyArray<{ ds: 'native' | 'zipkin'; label: string; path: string }>>(() => [
+  { ds: 'native', label: t('SkyWalking-native spans'), path: '/skywalking' },
+  { ds: 'zipkin', label: t('Zipkin spans'), path: '/zipkin' },
+]);
+const traceqlSources = computed<TraceQLSourceStatus[]>(() => traceqlQuery.data.value ?? []);
+const traceqlDenied = computed(() => traceqlQuery.isError.value);
+function traceqlOf(ds: 'native' | 'zipkin'): TraceQLSourceStatus | null {
+  return traceqlSources.value.find((x) => x.ds === ds) ?? null;
+}
+/** Configured sources only: an unconfigured datasource is a deployment that
+ *  does not use it, which is not a state to report as broken. */
+const traceqlConfigured = computed(() => traceqlSources.value.filter((x) => x.configured));
+/** One row of the Trace APIs table: the API, the store it answers over, the
+ *  endpoint, and its state in the admin table's own vocabulary. */
+interface TraceApiRow {
+  api: string;
+  source: string;
+  url: string;
+  state: { cls: string; label: string };
+  version?: string;
+  ds?: 'native' | 'zipkin';
+}
+const traceApiRows = computed<TraceApiRow[]>(() => {
+  const rows: TraceApiRow[] = [
+    {
+      api: 'Zipkin v2 REST',
+      source: t('Zipkin spans'),
+      url: info.value?.zipkinUrl ?? '—',
+      state:
+        zipkinReachable.value === undefined
+          ? { cls: 'is-unknown', label: t('loading…') }
+          : zipkinReachable.value
+            ? { cls: 'is-ok', label: t('reachable') }
+            : { cls: 'is-err', label: t('unreachable') },
+    },
+  ];
+  for (const r of TRACEQL_ROWS.value) {
+    const st = traceqlOf(r.ds);
+    rows.push({
+      api: 'TraceQL',
+      source: r.label,
+      url: st?.url || t('no URL configured'),
+      state: traceqlDenied.value || !st
+        ? { cls: 'is-unknown', label: t('unknown') }
+        : !st.configured
+          ? { cls: 'is-unknown', label: t('not configured') }
+          : st.reachable
+            ? { cls: 'is-ok', label: t('reachable') }
+            : { cls: 'is-err', label: t('unreachable') },
+      ...(st?.version ? { version: st.version } : {}),
+      ds: r.ds,
+    });
+  }
+  return rows;
+});
+
+/**
+ * The Trace APIs pane's verdict: the Zipkin endpoint and every CONFIGURED
+ * TraceQL datasource, read together. An unconfigured datasource is a
+ * deployment that does not use it — not a state to report as broken — and a
+ * probe nobody could read (no `traces:read`) leaves the pane unknown rather
+ * than claiming an outage.
+ */
+const traceApiBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
+  const failing = zipkinReachable.value === false
+    || (!traceqlDenied.value && traceqlConfigured.value.some((x) => !x.reachable));
+  if (failing) return 'err';
+  const known = zipkinReachable.value === true
+    || (!traceqlDenied.value && traceqlConfigured.value.some((x) => x.reachable));
+  return known ? 'ok' : 'unknown';
+});
+const traceApiBadgeLabel = computed<string>(() => {
+  if (traceApiBadgeState.value === 'err') return t('degraded');
+  if (traceApiBadgeState.value === 'ok') return t('reachable');
+  return traceqlQuery.isLoading.value ? t('loading…') : t('not configured');
+});
+
 
 // "Checked Ns ago" advances against a slow ticker, anchored to the BFF's
 // generatedAt (so it reflects the real probe time incl. cache age, not the
@@ -130,18 +227,13 @@ const adminGeneratedAt = computed<string>(() => agoLabel(preflight.value?.genera
 // dot here is NOT a cluster-wide outage. Reachability is undefined
 // until the first /api/oap/info lands.
 const zipkinReachable = computed<boolean | undefined>(() => info.value?.zipkinReachable);
-const zipkinBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
-  if (zipkinReachable.value === undefined) return 'unknown';
-  return zipkinReachable.value ? 'ok' : 'err';
-});
-const zipkinBadgeLabel = computed<string>(() => {
-  if (zipkinReachable.value === undefined) return t('loading…');
-  return zipkinReachable.value ? t('reachable') : t('unreachable');
-});
 
 function refreshAll(): void {
   void refetchInfo();
   void refetchPreflight();
+  // The TraceQL probe is cached for five minutes in the BFF, so a recovered
+  // datasource would go on reading red until something else refetched it.
+  void traceqlQuery.refetch();
 }
 
 /**
@@ -154,7 +246,10 @@ const store = computed(() => preflight.value?.templateStore ?? null);
 const storeBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
   const s = store.value;
   if (!s) return 'unknown';
-  if (s.mode === 'readonly') return 'ok';
+  // Readonly is yellow, as the module table's `readonly · bundled` row is: the
+  // store is not being read at all, which is a deliberate state rather than a
+  // healthy one, and the two places that say it must not disagree.
+  if (s.mode === 'readonly') return 'warn';
   // Unreachable but still rendering is a warning; unreachable with nothing to
   // render is an outage. Collapsing the two is what made a blip look fatal.
   if (s.servingRetained) return 'warn';
@@ -219,7 +314,7 @@ const storeLastSyncShort = computed<string>(() => {
         <div class="kicker">{{ t('Operate') }} · {{ t('Cluster status') }}</div>
         <h1>{{ t('OAP cluster') }}</h1>
         <p class="lede">
-          {{ t('Two-port view of the OAP backend horizon is connected to. Query / GraphQL (:12800) drives every observability page; the admin host (:17128) gates DSL management, Live debugger, Metrics inspect, and Dump; the Zipkin / OTLP endpoint feeds only the Zipkin trace menu. All three are polled independently — if one shows red the others can still be green.') }}
+          {{ t('Every port of the OAP backend Horizon is connected to. Query / GraphQL (:12800) drives every observability page; the admin host (:17128) gates DSL management, Live debugger, Metrics inspect, and Dump; the trace APIs — Zipkin and each TraceQL datasource — feed only the trace rows they serve. Each is polled independently: if one shows red the others can still be green.') }}
         </p>
       </div>
       <button type="button" class="refresh" @click="refreshAll">{{ t('refresh both') }}</button>
@@ -379,28 +474,46 @@ const storeLastSyncShort = computed<string>(() => {
       </div>
     </section>
 
-    <!-- ── Pane C · Zipkin / OTLP trace endpoint ─────────────────── -->
+    <!-- ── Pane C · Trace APIs ───────────────────────────────────
+         The endpoints behind the trace rows. The NATIVE trace query is not
+         here: it rides the GraphQL port, so Pane A already answers for it. -->
     <section class="pane">
       <header class="pane-head">
-        <h2>{{ t('Zipkin / OTLP traces') }} <span class="port">{{ t('v2 REST') }}</span></h2>
-        <span class="sw-badge" :class="`is-${zipkinBadgeState}`">
-          <span class="state-dot" />{{ zipkinBadgeLabel }}
+        <h2>{{ t('Trace APIs') }} <span class="port">{{ t('Zipkin v2 · Tempo') }}</span></h2>
+        <span class="sw-badge" :class="`is-${traceApiBadgeState}`">
+          <span class="state-dot" />{{ traceApiBadgeLabel }}
         </span>
       </header>
 
       <p class="pane-lede">
-        {{ t("OAP's Zipkin v2 endpoint, source for the OpenTelemetry & Zipkin trace menu (shown when a layer's trace source is zipkin or both). This is the only page affected — if it's unreachable, native traces and every other observability page keep working.") }}
+        {{ t("The endpoints behind a layer's trace rows, each probed on its own. Native traces are not here — they are answered by the GraphQL port above. A red dot in this pane is not a cluster-wide outage: only the trace rows fed by that endpoint are affected, and every other page keeps working.") }}
       </p>
 
-      <div class="grid">
-        <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>{{ t('Endpoint') }}</h4></div>
-          <div class="kpi-body">
-            <div class="kpi-value mono">{{ zipkinBadgeLabel }}</div>
-            <div class="kpi-label">{{ info?.zipkinUrl ?? '—' }}</div>
-          </div>
-        </div>
-      </div>
+      <table class="mod-table">
+        <thead>
+          <tr>
+            <th>{{ t('API') }}</th>
+            <th>{{ t('Source') }}</th>
+            <th>{{ t('State') }}</th>
+            <th>{{ t('Endpoint') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in traceApiRows" :key="`${r.api}-${r.source}`" :class="{ off: r.state.cls === 'is-err' }">
+            <td class="modname"><code>{{ r.api }}</code></td>
+            <td class="modname">{{ r.source }}</td>
+            <td>
+              <span class="sw-badge" :class="r.state.cls">
+                <span class="state-dot" />{{ r.state.label }}
+              </span>
+              <div v-if="r.version" class="state-foot">
+                <span class="sel">{{ t('Tempo API {version}', { version: r.version }) }}</span>
+              </div>
+            </td>
+            <td class="modpath"><code>{{ r.url }}</code></td>
+          </tr>
+        </tbody>
+      </table>
 
       <div v-if="zipkinReachable === false" class="last-error block">
         <strong>{{ t('Zipkin endpoint unreachable') }}</strong>
@@ -408,6 +521,16 @@ const storeLastSyncShort = computed<string>(() => {
         <p class="hint">
           {{ t("Tried {url}. Confirm OAP's Zipkin receiver / query is enabled and the oap.zipkinUrl in horizon's config points at the right host:port (shared GraphQL port → <queryUrl>/zipkin; standalone → :9412/zipkin). Only the Zipkin trace menu is affected.", { url: `${info?.zipkinUrl ?? ''}/api/v2/services` }) }}
         </p>
+      </div>
+
+      <div v-for="row in TRACEQL_ROWS" :key="`e-${row.ds}`">
+        <div v-if="traceqlOf(row.ds)?.configured && traceqlOf(row.ds)?.reachable === false" class="last-error block">
+          <strong>{{ t('{name} datasource unreachable', { name: row.label }) }}</strong>
+          <code v-if="traceqlOf(row.ds)?.error">{{ traceqlOf(row.ds)?.error }}</code>
+          <p class="hint">
+            {{ t("Tried {url}. Enable OAP's traceQL module (SW_TRACEQL=default with the datasource switched on) and confirm oap.traceql points at its host:port and context path — {path} by default on port 3200.", { url: `${traceqlOf(row.ds)?.url ?? ''}/api/status/buildinfo`, path: row.path }) }}
+          </p>
+        </div>
       </div>
     </section>
   </div>

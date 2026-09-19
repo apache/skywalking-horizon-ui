@@ -81,6 +81,7 @@ import { OverviewApi } from './scopes/overview';
 import { LayerApi } from './scopes/layer';
 import { TraceApi } from './scopes/trace';
 import { ZipkinApi } from './scopes/zipkin';
+import { TraceQLApi } from './scopes/traceql';
 import { LogApi } from './scopes/log';
 import { EvaluationRecordApi } from './scopes/evaluation-record';
 import { BrowserErrorsApi } from './scopes/browser-errors';
@@ -167,6 +168,7 @@ export type {
   TraceAttachedEvent,
   TraceRef,
   NativeSpan,
+  TraceListRow,
   NativeTraceListRow,
   NativeTraceListResponse,
   NativeTraceDetailResponse,
@@ -1024,6 +1026,7 @@ export class BffClient {
   readonly layer = new LayerApi(this);
   readonly trace = new TraceApi(this);
   readonly zipkin = new ZipkinApi(this);
+  readonly traceql = new TraceQLApi(this);
   readonly log = new LogApi(this);
   readonly evaluationRecord = new EvaluationRecordApi(this);
   readonly browserErrors = new BrowserErrorsApi(this);

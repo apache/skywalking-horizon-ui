@@ -31,18 +31,21 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { LayerCaps, LayerDef, LayerSlots } from '@skywalking-horizon-ui/api-client';
+import type { LayerCaps, LayerDef, LayerSlots, TracesConfig } from '@skywalking-horizon-ui/api-client';
 import {
   resolveLayerMenuRows,
   firstLayerMenuRow,
   isSingleFeatureLayer,
+  resolveTraceStores,
   DEFAULT_LAYER_ROW_ORDER,
+  TRACE_STORES,
+  TRACE_STORE_ROWS,
 } from '@skywalking-horizon-ui/api-client';
 import { allLayerTemplates, type LayerTemplate } from '../../logic/layers/loader.js';
 import { componentsSchema } from '../../logic/templates/bundled-schema.js';
 import { capsForTemplate } from '../../logic/layers/caps.js';
 
-type Legacy = { caps: LayerCaps; slots: LayerSlots; traces?: { source?: string } };
+type Legacy = { caps: LayerCaps; slots: LayerSlots; traces?: TracesConfig };
 
 /** The sidebar's `v-if` chain, in template order (SidebarLayerChildren.vue). */
 function oracleSidebarRows(L: Legacy): string[] {
@@ -56,8 +59,13 @@ function oracleSidebarRows(L: Legacy): string[] {
   if (hasTopology) rows.push('topology');
   if (L.caps.deployment) rows.push('deployment');
   if (L.caps.endpointDependency) rows.push('dependency');
-  if (L.caps.traces) rows.push('trace');
-  if (L.caps.traces && L.traces?.source === 'both') rows.push('zipkin-trace');
+  // One row per declared trace store, and no default: the frozen sidebar
+  // pushed `trace` for any traces-capable layer and `zipkin-trace` only for
+  // `both`, which meant a pure-Zipkin layer showed its Zipkin explorer under
+  // the `trace` path. Stores now own their rows outright.
+  if (L.caps.traces) {
+    for (const store of resolveTraceStores(L.traces)) rows.push(TRACE_STORE_ROWS[store]);
+  }
   if (L.caps.logs) rows.push('logs');
   if (L.caps.evaluationRecord) rows.push('evaluation-record');
   if (L.caps.browserErrors) rows.push('browser-errors');
@@ -196,8 +204,9 @@ describe('default order vs. the component list', () => {
       components: { service: false, [key]: true },
       // Two components are gated on a config block as well as their flag.
       ...(key === 'deployment' ? { deployment: { roles: [], roleToRole: [] } } : {}),
-      // `traces` carries two rows when the layer ships both span formats.
-      ...(key === 'traces' ? { traces: { source: 'both' as const } } : {}),
+      // `traces` carries one row per store the layer declares; this probe
+      // declares them all, to enumerate what the component can produce.
+      ...(key === 'traces' ? { traces: { sources: [...TRACE_STORES] } } : {}),
     } as unknown as LayerTemplate;
     const caps = capsForTemplate(t, t);
     return resolveLayerMenuRows({ caps, slots: {}, traces: t.traces }).map((r) => r.path);
@@ -217,13 +226,14 @@ describe('default order vs. the component list', () => {
     expect([...DEFAULT_LAYER_ROW_ORDER].sort()).toEqual([...produced].sort());
   });
 
-  it('is one row per component, plus the second trace row', () => {
-    // 18 components → 19 rows: `traces` is the only one that resolves to
-    // two (native and Zipkin span formats get their own tabs).
-    expect(DEFAULT_LAYER_ROW_ORDER).toHaveLength(COMPONENT_KEYS.length + 1);
+  it('is one row per component, plus one per extra trace store', () => {
+    // `traces` is the only component that resolves to more than one row: each
+    // trace store a layer can declare owns its own tab, because a store is a
+    // different body of spans rather than a different view of one.
+    expect(DEFAULT_LAYER_ROW_ORDER).toHaveLength(COMPONENT_KEYS.length + TRACE_STORES.length - 1);
     const multi = COMPONENT_KEYS.filter((k) => rowsForComponent(k).length > 1);
     expect(multi).toEqual(['traces']);
-    expect(rowsForComponent('traces')).toEqual(['trace', 'zipkin-trace']);
+    expect(rowsForComponent('traces')).toEqual(TRACE_STORES.map((s) => TRACE_STORE_ROWS[s]));
   });
 });
 

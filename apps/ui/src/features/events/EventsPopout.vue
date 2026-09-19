@@ -25,6 +25,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/components/primitives/Modal.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import EventsGantt from './EventsGantt.vue';
 import EventsDetailPanel from './EventsDetailPanel.vue';
 import { useEventsWindow, PRESETS, MAX_CUSTOM_MS } from './useEventsWindow';
@@ -97,11 +98,11 @@ function onClose(): void {
       <div v-if="win.customOpen.value" class="evtp__custom">
         <label class="evtp__custom-field">
           <span>{{ t('Start') }}</span>
-          <input v-model="win.customStartInput.value" type="datetime-local" step="60" />
+          <DateTimeField v-model="win.customStartInput.value" />
         </label>
         <label class="evtp__custom-field">
           <span>{{ t('End') }}</span>
-          <input v-model="win.customEndInput.value" type="datetime-local" step="60" />
+          <DateTimeField v-model="win.customEndInput.value" />
         </label>
         <div v-if="win.customError.value" class="evtp__custom-err">{{ win.customError.value }}</div>
         <div class="evtp__custom-actions">

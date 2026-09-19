@@ -26,6 +26,7 @@
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -136,12 +137,10 @@ function submit(): void {
               <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">{{ t('now') }}</button>
               <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">{{ t('set time') }}</button>
             </div>
-            <input
+            <DateTimeField
               v-if="newTask.monitorTime === 'set'"
-              type="datetime-local"
-              class="ti-input"
-              :value="new Date(newTask.monitorTimeAt.getTime() - newTask.monitorTimeAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)"
-              @input="(ev: Event) => (newTask.monitorTimeAt = new Date((ev.target as HTMLInputElement).value))"
+              :model-value="new Date(newTask.monitorTimeAt.getTime() - newTask.monitorTimeAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)"
+              @update:model-value="(v: string) => (newTask.monitorTimeAt = new Date(v))"
             />
           </div>
           <div class="field">

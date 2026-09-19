@@ -247,7 +247,11 @@ watch(openSpan, (s) => emit('update:modalOpen', !!s));
   color: var(--sw-fg-2);
   padding: 0 10px;
   height: 24px;
+  /* A <button> does not inherit the page font: without this the switch read
+     in the browser's default face beside Inter everywhere else. */
+  font: inherit;
   font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
   border-right: 1px solid var(--sw-line-2);
 }

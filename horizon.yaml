@@ -91,6 +91,14 @@ oap:
   # OAP Zipkin v2 REST host. Use `<queryUrl>/zipkin` when OAP shares the
   # GraphQL port (typical for the demo / k8s deploys).
   zipkinUrl: "${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}"
+  # OAP's TraceQL (Tempo API) service — one full URL per datasource, context
+  # path included (default port 3200, paths /skywalking and /zipkin). Empty
+  # means that source is off; OAP ships the traceQL module disabled, so there
+  # is deliberately no default to probe. Enable it with SW_TRACEQL=default and
+  # SW_TRACEQL_ENABLE_DATASOURCE_{SKYWALKING,ZIPKIN}=true on the OAP side.
+  traceql:
+    nativeUrl: "${HORIZON_OAP_TRACEQL_NATIVE_URL:}"
+    zipkinUrl: "${HORIZON_OAP_TRACEQL_ZIPKIN_URL:}"
   timeoutMs: ${HORIZON_OAP_TIMEOUT_MS:15000}
   # Optional MQE host/port override (defaults to the query host). JSON env, e.g.
   # HORIZON_OAP_MQE='{"host":"mqe.internal","port":12800}'.

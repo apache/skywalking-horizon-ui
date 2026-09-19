@@ -46,7 +46,7 @@ import type {
   ExploreWindow,
   NativeSpan,
   NativeTraceListResponse,
-  NativeTraceListRow,
+  TraceListRow,
   TraceQueryOrder,
   TraceQueryState,
 } from '@/api/client';
@@ -63,6 +63,7 @@ import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import ChipInput from '@/components/primitives/ChipInput.vue';
 
@@ -536,10 +537,9 @@ const isZipkin = computed(() => traceSource.value === 'zipkin');
 
 /** Adapt a Zipkin list row to the shared list/distribution row model.
  *  Zipkin durations + timestamps are µs; the shared widgets read ms. */
-function zipkinToNativeRow(r: ZipkinTraceListRow): NativeTraceListRow {
+function zipkinToListRow(r: ZipkinTraceListRow): TraceListRow {
   return {
     key: r.traceId,
-    segmentId: r.traceId,
     endpointNames: [r.rootName ?? r.rootService ?? '—'],
     duration: Math.round((r.duration ?? 0) / 1000),
     start: String(Math.round((r.timestamp ?? 0) / 1000)),
@@ -548,10 +548,10 @@ function zipkinToNativeRow(r: ZipkinTraceListRow): NativeTraceListRow {
   };
 }
 
-const rows = computed<NativeTraceListRow[]>(() => {
+const rows = computed<TraceListRow[]>(() => {
   if (!hasQueried.value) return [];
   return isZipkin.value
-    ? zipkinRows.value.map(zipkinToNativeRow)
+    ? zipkinRows.value.map(zipkinToListRow)
     : native.value?.traces ?? [];
 });
 const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...rows.value.map((r) => r.duration))));
@@ -560,7 +560,7 @@ const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...ro
 // the list to them; a single click still opens one trace's detail.
 const brushedKeys = ref<string[]>([]);
 const brushedSet = computed(() => new Set(brushedKeys.value));
-const displayRows = computed<NativeTraceListRow[]>(() =>
+const displayRows = computed<TraceListRow[]>(() =>
   brushedKeys.value.length > 0 ? rows.value.filter((r) => brushedSet.value.has(r.key)) : rows.value,
 );
 function onScatterBrush(keys: string[]): void { brushedKeys.value = keys; }
@@ -606,11 +606,14 @@ const zipkinSpans = computed<ZipkinSpan[]>(() => zipkinRowSpans.value ?? fetched
 const waterfallSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
 const detailLoading = computed(() => (isZipkin.value ? zipkinDetailFetching.value : detailFetching.value));
 
-function openRow(row: NativeTraceListRow): void {
+function openRow(row: TraceListRow): void {
   selectedRowKey.value = row.key;
   selectedTraceIds.value = row.traceIds;
   selectedTraceId.value = row.traceIds[0] ?? null;
-  embeddedSpans.value = row.spans ?? null;
+  // Spans ride on the native RESPONSE, never on the presentation row.
+  embeddedSpans.value = isZipkin.value
+    ? null
+    : (native.value?.traces ?? []).find((t) => t.key === row.key)?.spans ?? null;
 }
 function closeDetail(): void {
   selectedTraceId.value = null;
@@ -820,9 +823,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 <span>{{ t('Time') }}</span>
                 <template v-if="isCustomRange">
                   <span class="cf-range">
-                    <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+                    <DateTimeField v-model="customStart" class="cf-range-num" />
                     <span class="cf-range-sep">–</span>
-                    <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+                    <DateTimeField v-model="customEnd" class="cf-range-num" />
                     <button class="iq-range-reset" type="button" :title="t('Back to presets')" @click="leaveCustomRange">×</button>
                   </span>
                 </template>

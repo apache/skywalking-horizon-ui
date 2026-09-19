@@ -1,31 +1,32 @@
 # OAP Version Requirement
 
-## Native: OAP 11.x; partial support: OAP 10.x
+## The short answer
 
-Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes the modules and GraphQL fields that v11 ships. **OAP 10.x is partially supported, and only with `templates.mode: readonly`** — see [Running Horizon against OAP 10.x](#running-horizon-against-oap-10x) below, which is a required step, not a tuning option. With that set, the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) uses the query GraphQL port.
+- **OAP 11.x** — everything works. This is what Horizon is built against, and what to run.
+- **OAP 10.3 / 10.4** — you can upgrade Horizon on its own, without touching OAP. Set `templates.mode: readonly` and the observability pages work; the admin-port features do not exist on that OAP, so those pages stay hidden.
+- **Anything older** — upgrade OAP. Horizon assumes the layer concept, the MQE baseline and a native trace detail that settled in 10.3.
 
-OAP 10 **does have persistent UI-template management**. It exposes `getTemplate` / `getAllTemplates` queries and `addTemplate` / `changeTemplate` / `disableTemplate` mutations through the query-port GraphQL `UIConfigurationManagement` API; writes are controlled by `SW_ENABLE_UPDATE_UI_TEMPLATE`. OAP 11 retired that legacy GraphQL surface and replaced it with `/ui-management/templates*` on the admin REST port. Horizon currently implements only the OAP 11 REST protocol, not an adapter for the OAP 10 GraphQL protocol. That Horizon-side protocol gap — not an absence of template storage in OAP 10 — is why readonly mode is required.
+The rest of this page is the detail behind those three lines.
 
-The other features on OAP's **admin port** — Inspect, DSL Management, Live Debugger, Alarm Rule editor, and Cluster Status → Admin pane — depend on modules (`admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `inspect`) that a v10 OAP does not run. Horizon never compares the OAP version number; it probes the capabilities it consumes. When the admin-port modules are absent, those sidebar entries are hidden.
-
-Older 9.x OAPs are not supported — the layer concept, the MQE language baseline Horizon assumes, and the admin port layout all settled later.
+## What you get on each
 
 ### Feature matrix vs OAP version
 
-| Horizon feature | OAP 10.x (partial) | OAP 11.x (native) |
+| Horizon feature | OAP 10.3 / 10.4 | OAP 11.x |
 |---|---|---|
 | Layer dashboards, overviews | ✓ | ✓ |
 | Alarms (read) | ✓ — falls back to legacy `getAlarm` when `queryAlarms` is absent | ✓ — uses `queryAlarms` (server-side layer filter) |
-| Traces (native + Zipkin), Logs, Topology | Partial — logs, Zipkin, and topology use compatible surfaces; native trace detail requires OAP 10.3+, and endpoint-backed selectors require OAP 10.2+ with the current Horizon queries | ✓ |
+| Traces (native + Zipkin), Logs, Topology | ✓ | ✓ |
+| **Traces over TraceQL** (the Tempo API) | ✗ — the `traceQL` module is not there | ✓ — turn the module on and point Horizon at the datasources you enabled |
 | Profiling (trace / async / pprof / eBPF) | ✓ — per the profiling modules you've turned on | ✓ |
 | Cluster Status — Query pane | ✓ | ✓ |
-| MQE execution / metric reads | ✓ — falls back to `core.restHost`/`core.restPort` when `sharing-server` is absent | ✓ — uses `sharing-server.default.restPort` (the v11 default) |
+| MQE execution / metric reads | ✓ | ✓ |
 | Cluster Status — Admin pane (admin-server, runtime-rule, dsl-debugging, inspect) | ✗ — admin-port modules don't exist on v10; pane is hidden | ✓ |
 | DSL Management, Live Debugger, Alarm Rule editor | ✗ — needs `receiver-runtime-rule` + `dsl-debugging` (v11-only) | ✓ |
 | **Inspect page** (metric catalog + entity enumerator) | ✗ — `/inspect/*` endpoints don't exist | ✓ — requires `SW_INSPECT=default` on OAP |
 | **OAP UI-template sync** (admin pages edit OAP-stored dashboards) | ✗ in Horizon — OAP 10 stores and manages templates through legacy GraphQL, but Horizon does not consume that protocol, so the store reads as unreachable and layer-driven pages block. `templates.mode: readonly` is required. | ✓ — Horizon consumes `/ui-management/templates*` on the admin REST port |
 
-### Running Horizon against OAP 10.x
+### Running Horizon against OAP 10.3 / 10.4
 
 Set **`templates.mode: readonly`** (env `HORIZON_TEMPLATES_MODE=readonly`). On a v10 OAP this is mandatory, not optional.
 
@@ -40,15 +41,14 @@ templates:
 
 Editing dashboards from Horizon's admin pages requires an OAP 11 deployment. Setting `SW_ENABLE_UPDATE_UI_TEMPLATE=true` on OAP 10 enables its legacy GraphQL mutations for compatible clients, but it does not make Horizon's REST client compatible; Horizon's pages remain display-only in readonly mode.
 
-### What "partial support on v10" means in practice
+### What an OAP 10.3 / 10.4 deployment misses
 
 - **Most data-plane pages use the v10 query port.** Dashboards, overviews, alarms (read), logs, topology, and profiling use the GraphQL query port (default `:12800`). Schema details still vary by minor: current Horizon sends `queryTrace(..., duration)` (available from OAP 10.3) and `findEndpoint(..., duration)` (available from OAP 10.2), without a fallback for earlier 10.x schemas.
 - **Template management uses a different protocol.** OAP 10 serves its `ui_template` store through query-port GraphQL. OAP 11 serves it through admin-port REST. Horizon consumes only the latter, so OAP 10 requires readonly mode even though its own template API and stored templates exist.
 - **Admin port is dark on v10.** The entire admin port (default `:17128`) is gone — `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, and `inspect` are not run by a v10 OAP. Features that depend on those modules (Inspect, DSL Management, Live Debugger, Alarm Rule editor, and Cluster Status → Admin pane) are unavailable and the corresponding sidebar entries are hidden.
-- **MQE target resolution** falls back to OAP's `core.restHost`/`core.restPort` instead of the v11 `sharing-server.default.restPort` default. Works fine, just a different code path.
 - **Admin template editing** is read-only — with `templates.mode: readonly` the dashboard / overview / alert admin pages render the bundled JSON and every save is blocked. Display still works.
 
-For the complete triage set listed here, including native trace detail, use OAP 10.3+ with `templates.mode: readonly`; earlier 10.x minors have the trace and endpoint limitations in the matrix. If you need the admin-port features or want to edit OAP-stored dashboards from Horizon, you need v11.
+**So: on OAP 10.3 or 10.4, upgrading Horizon alone is a supported move** — use `templates.mode: readonly`; earlier 10.x minors have the trace and endpoint limitations in the matrix. If you need the admin-port features or want to edit OAP-stored dashboards from Horizon, you need v11.
 
 ## Where the version is shown
 

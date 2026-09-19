@@ -122,7 +122,7 @@ const LONG_ID = '1234567890abcdef1234567890abcdef';
 describe('native: a trace id is looked up with no window unless one is sent', () => {
   it('sends the id and no queryDuration when no window is sent, even with the Cold pill on', async () => {
     const oap = fakeOap();
-    await callCold(oap, 'POST', '/api/layer/general/traces', { source: 'native', traceId: 'abc.1.2', pageSize: 20 });
+    await callCold(oap, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['native'] }), source: 'native', traceId: 'abc.1.2', pageSize: 20 });
     expect(oap.asked.conditions).toHaveLength(1);
     expect(oap.asked.conditions[0]).toMatchObject({ traceId: 'abc.1.2' });
     expect(oap.asked.conditions[0]).not.toHaveProperty('queryDuration');
@@ -130,13 +130,13 @@ describe('native: a trace id is looked up with no window unless one is sent', ()
 
   it('bounds the id by the window it is sent with, and asks for the cold stage within it', async () => {
     const oap = fakeOap();
-    await callCold(oap, 'POST', '/api/layer/general/traces', { source: 'native', traceId: 'abc.1.2', windowMinutes: 60, pageSize: 20 });
+    await callCold(oap, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['native'] }), source: 'native', traceId: 'abc.1.2', windowMinutes: 60, pageSize: 20 });
     expect(oap.asked.conditions[0]).toMatchObject({ traceId: 'abc.1.2', queryDuration: { step: 'SECOND', coldStage: true } });
   });
 
   it('keeps the window, and the cold stage with it, when no trace id is given', async () => {
     const oap = fakeOap();
-    await callCold(oap, 'POST', '/api/layer/general/traces', { source: 'native', windowMinutes: 30, pageSize: 20 });
+    await callCold(oap, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['native'] }), source: 'native', windowMinutes: 30, pageSize: 20 });
     expect(oap.asked.conditions[0]).toMatchObject({ queryDuration: { step: 'SECOND', coldStage: true } });
   });
 
@@ -227,7 +227,7 @@ describe('Zipkin: trace ids are read through traceMany, within a window only whe
 
   it('reads the ids the same way from the layer route and from Trace inspect', async () => {
     const layer = fakeOap(() => json([trace('0000000000000abc')]));
-    await callCold(layer, 'POST', '/api/layer/general/traces', { source: 'zipkin', traceIds: ['abc'] });
+    await callCold(layer, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['zipkin'] }), source: 'zipkin', traceIds: ['abc'] });
     expect(layer.asked.zipkin.map((u) => u.pathname.split('/').pop())).toEqual(['traceMany']);
     expect(params(layer.asked.zipkin[0]!)).toEqual({ traceIds: '0000000000000abc' });
 
@@ -239,7 +239,7 @@ describe('Zipkin: trace ids are read through traceMany, within a window only whe
 
   it('bounds the ids by the window from the layer route and from Trace inspect alike', async () => {
     const layer = fakeOap(() => json([trace('0000000000000abc')]));
-    await callCold(layer, 'POST', '/api/layer/general/traces', { source: 'zipkin', traceIds: ['abc'], windowMinutes: 30 });
+    await callCold(layer, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['zipkin'] }), source: 'zipkin', traceIds: ['abc'], windowMinutes: 30 });
     expect(params(layer.asked.zipkin[0]!)).toMatchObject({ traceIds: '0000000000000abc', lookback: '1800000', coldStage: 'true' });
 
     const explore = fakeOap(() => json([trace('0000000000000abc')]));

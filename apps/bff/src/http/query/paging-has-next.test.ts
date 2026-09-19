@@ -415,10 +415,14 @@ describe('events — an exactly-full window is complete, not truncated', () => {
 
 describe('native traces — the capped badge the list never had', () => {
   const URL = '/api/layer/mesh/traces';
+  // A layer declares its trace stores; nothing defaults. These cases are about
+  // the capped badge, so they state the store rather than inherit one.
+  const NATIVE_PREVIEW = JSON.stringify({ sources: ['native'] });
 
   it('a result that exactly fills the limit is complete', async () => {
     const out = await post(registerTraceRoutes, fakeOap(5).fetch, URL, {
       source: 'native',
+      previewConfig: NATIVE_PREVIEW,
       ...IDENTITY,
       pageSize: 5,
     });
@@ -429,6 +433,7 @@ describe('native traces — the capped badge the list never had', () => {
   it('one row beyond the limit is reported as capped, and never rendered', async () => {
     const out = await post(registerTraceRoutes, fakeOap(6).fetch, URL, {
       source: 'native',
+      previewConfig: NATIVE_PREVIEW,
       ...IDENTITY,
       pageSize: 5,
     });

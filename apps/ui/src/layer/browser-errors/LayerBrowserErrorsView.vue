@@ -24,6 +24,7 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import {
   resolveRecordRange,
   recordRangeWarning,
@@ -447,9 +448,9 @@ function loc(row: BrowserErrorRow): string {
           <span>{{ t('Time range') }}</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customStart" class="cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customEnd" class="cf-range-num" />
               <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="windowMinutes = 30">×</button>
             </div>
           </template>

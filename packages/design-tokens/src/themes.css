@@ -37,6 +37,17 @@
  * theme store sets `<html data-theme>` and CSS does the rest.
  */
 
+/* Native form controls — date inputs and their calendar popups, spinners,
+ * scrollbars, the default focus ring — read `color-scheme`, not our tokens.
+ * `tokens.css` states `dark` on `:root` for the dark palette it defines, and
+ * nothing turned it back: on a LIGHT theme the browser went on drawing the
+ * calendar icon white on a white field, and opened a dark popup over a light
+ * page. Keyed on the appearance rather than on one theme id, so a light theme
+ * added later is covered by having declared what it is. */
+[data-appearance="light"] {
+  color-scheme: light;
+}
+
 /* ── horizon (default — declared explicitly for parity with the others) ── */
 [data-theme="horizon"] {
   --sw-bg-0: #0a0d12;

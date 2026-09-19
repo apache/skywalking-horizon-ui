@@ -33,6 +33,7 @@
  * config (i.e. preview silently no-ops rather than erroring).
  */
 
+import { TRACE_STORES, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import type {
   TopologyConfig,
   EndpointDependencyConfig,
@@ -136,13 +137,55 @@ export function parsePreviewEndpointDep(raw: string | undefined): EndpointDepend
   return o as unknown as EndpointDependencyConfig;
 }
 
-/** `traces` block — just the source selector. */
+/** `traces` block — the store checklist, or the legacy single-source enum a
+ *  stored template may still carry. */
 export function parsePreviewTraces(raw: string | undefined): TracesConfig | null {
   const o = parseJson(raw);
   if (!o) return null;
+  // A draft block naming neither `sources` nor `source` is previewed as what
+  // PUBLISHING it would produce, which is the native store: silence is the
+  // compatibility fallback, and only an explicit `sources: []` means none.
+  // Forcing an empty list here previewed no traces for a template that, once
+  // saved, reads them.
+  if (!Array.isArray(o.sources) && o.source === undefined) {
+    const stores = previewStores(o.stores);
+    return stores ? { stores } : {};
+  }
+  if (Array.isArray(o.sources)) {
+    const sources = o.sources.filter((s): s is TraceStore =>
+      typeof s === 'string' && (TRACE_STORES as readonly string[]).includes(s),
+    );
+    const stores = previewStores(o.stores);
+    return stores ? { sources, stores } : { sources };
+  }
   const source = o.source;
   if (source !== 'native' && source !== 'zipkin' && source !== 'both') return null;
   return { source } as TracesConfig;
+}
+
+/** The per-store settings of a previewed `traces` block — the row's name and
+ *  the service filter, which the picker applies. Taken only in the shapes the
+ *  editor writes; anything else is left out rather than trusted. */
+function previewStores(raw: unknown): TracesConfig['stores'] | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const out: NonNullable<TracesConfig['stores']> = {};
+  for (const store of TRACE_STORES) {
+    const v = (raw as Record<string, unknown>)[store];
+    if (!v || typeof v !== 'object') continue;
+    const cfg: { name?: string; serviceFilter?: { pattern: string; flags?: string } } = {};
+    const name = (v as { name?: unknown }).name;
+    if (typeof name === 'string' && name.trim()) cfg.name = name;
+    const filter = (v as { serviceFilter?: unknown }).serviceFilter;
+    if (filter && typeof filter === 'object') {
+      const pattern = (filter as { pattern?: unknown }).pattern;
+      const flags = (filter as { flags?: unknown }).flags;
+      if (typeof pattern === 'string' && pattern.trim()) {
+        cfg.serviceFilter = { pattern, ...(typeof flags === 'string' ? { flags } : {}) };
+      }
+    }
+    if (cfg.name || cfg.serviceFilter) out[store] = cfg;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 /** `processTopology` block — the network-profiling edge-detail metric

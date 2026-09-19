@@ -279,7 +279,10 @@
   background: var(--sw-bg-3); border-radius: 3px;
   padding: 1px 5px; border: 1px solid var(--sw-line-2);
 }
-.sw-top-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+/* `min-width: 0` so the row can give way on a narrow window: without it the
+   widest chip's text sets a floor the topbar cannot go below, and the whole
+   bar overflows the viewport instead of the label ellipsizing. */
+.sw-top-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
 
 /* main */
 .sw-main {

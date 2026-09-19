@@ -25,11 +25,12 @@
  *      port is discovered, and vice versa.
  *
  *   2. Admin-server `GET /debugging/config/dump` — a flat
- *      `Map<String,String>` with keys like `core.default.restPort`
- *      and (when the sharing-server module is enabled)
- *      `sharing-server.default.restPort`. Prefer the sharing-server
- *      values because OAP 11.x defaults the query GraphQL there; fall
- *      back to core's REST otherwise (the v10 layout).
+ *      `Map<String,String>` carrying `core.default.restPort`, which is
+ *      where OAP serves the query GraphQL, and
+ *      `receiver-sharing-server.default.restPort`, a second listener
+ *      that ships disabled (`0`) and that an operator may turn on to
+ *      move receiver + query traffic off the core port. Prefer the
+ *      sharing server only when it is actually listening.
  *
  *   3. Host fallback: if the discovered bind host is empty / wildcard
  *      (`0.0.0.0`, `::`), reuse the admin URL's hostname. Port-forward
@@ -47,7 +48,7 @@ import type { HorizonConfig } from '../config/schema.js';
 export interface MqeTarget {
   /** e.g. `http://oap-rest.cluster.local:12800` — no trailing slash. */
   baseUrl: string;
-  /** Human-readable rationale for the operator: `sharing-server`,
+  /** Human-readable rationale for the operator: `receiver-sharing-server`,
    *  `core.restPort`, `horizon.yaml override`, `admin host fallback`,
    *  combinations thereof. */
   via: string;
@@ -134,7 +135,7 @@ async function resolveMqeTarget(deps: ResolveDeps): Promise<MqeTarget> {
 
   if (finalPort === undefined) {
     throw new Error(
-      'mqe target: could not discover REST port from /debugging/config/dump (neither sharing-server nor core REST appears in the dump)',
+      'mqe target: could not discover REST port from /debugging/config/dump (neither the sharing server nor core REST appears in the dump)',
     );
   }
 
@@ -161,10 +162,17 @@ interface PickResult {
 }
 
 function pickFromDump(dump: Record<string, string>, adminHost: string): PickResult {
-  // Prefer sharing-server over core (OAP 11.x defaults the query
-  // GraphQL on the sharing-server REST; the v10 layout has it on core).
-  const sharingHost = dump['sharing-server.default.restHost'];
-  const sharingPortStr = dump['sharing-server.default.restPort'];
+  // OAP serves the query GraphQL on CORE's REST listener, and that has not
+  // moved between releases. The sharing server is a separate listener an
+  // operator may turn on to take receiver + query traffic off that port; it
+  // ships disabled (`restPort: 0`), and `parsePort` rejects 0, so this prefers
+  // it only where it is actually listening.
+  //
+  // The module is `receiver-sharing-server`. Reading it as `sharing-server`
+  // matched nothing in any config dump, so this branch never ran — harmless
+  // while core is right, wrong for a deployment that moved the port.
+  const sharingHost = dump['receiver-sharing-server.default.restHost'];
+  const sharingPortStr = dump['receiver-sharing-server.default.restPort'];
   const coreHost = dump['core.default.restHost'];
   const corePortStr = dump['core.default.restPort'];
 
@@ -174,8 +182,8 @@ function pickFromDump(dump: Record<string, string>, adminHost: string): PickResu
   const preferSharing = sharingPort !== undefined;
   const host = preferSharing ? sharingHost : coreHost;
   const port = preferSharing ? sharingPort : corePort;
-  const moduleLabel = preferSharing ? 'sharing-server.restHost' : 'core.restHost';
-  const portLabel = preferSharing ? 'sharing-server.restPort' : 'core.restPort';
+  const moduleLabel = preferSharing ? 'receiver-sharing-server.restHost' : 'core.restHost';
+  const portLabel = preferSharing ? 'receiver-sharing-server.restPort' : 'core.restPort';
 
   // Wildcard host fallback. OAP commonly binds on 0.0.0.0; the operator
   // reaches it through the admin URL's host.

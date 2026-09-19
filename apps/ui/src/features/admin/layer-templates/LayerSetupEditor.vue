@@ -36,7 +36,7 @@ import { useI18n } from 'vue-i18n';
 import { isBuiltInOrder, pruneMenuOrder } from './menuOrder';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { AdminScope, ComponentKey, SlotKey } from './layer-dashboards.scopes';
-import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
+import { resolveLayerMenuRows, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import { componentsToCaps } from '@/shell/layerFromTemplate';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -255,8 +255,10 @@ function labelForRow(path: string): string {
     case 'topology': return slots.topology || t('Topology');
     case 'deployment': return slots.deployment || t('Deployment');
     case 'dependency': return slots.endpointDependency || t('Dependency');
-    case 'trace': return t('Traces');
-    case 'zipkin-trace': return t('OTel & Zipkin Traces');
+    case 'trace': return storeName('native') || t('Traces');
+    case 'zipkin-trace': return storeName('zipkin') || t('Zipkin Traces');
+    case 'traceql-native-trace': return storeName('traceql-native') || t('TraceQL - Native');
+    case 'traceql-zipkin-trace': return storeName('traceql-zipkin') || t('TraceQL - Zipkin');
     case 'logs': return t('Logs');
     case 'browser-errors': return t('Browser Logs');
     case 'pod-logs': return t('Pod Logs');
@@ -268,6 +270,12 @@ function labelForRow(path: string): string {
     case 'async-profiling': return t('Async Profiling');
     default: return path;
   }
+}
+
+/** A trace row's name as the template overrides it — the preview shows what
+ *  the sidebar will, not the built-in label it is replacing. */
+function storeName(store: TraceStore): string {
+  return template.value.traces?.stores?.[store]?.name?.trim() ?? '';
 }
 
 /** A stored arrangement exists. Independent of whether dragging is on:

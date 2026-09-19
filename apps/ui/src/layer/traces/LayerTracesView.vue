@@ -44,7 +44,7 @@ const { t } = useI18n({ useScope: 'global' });
 import type {
   LayerDef,
   NativeSpan,
-  NativeTraceListRow,
+  TraceListRow,
   TraceListResponse,
   TraceQueryOrder,
   TraceQueryState,
@@ -69,6 +69,7 @@ import { useSetupStore } from '@/state/setup';
 import { useColdStageStore } from '@/controls/coldStage';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 
@@ -501,11 +502,13 @@ onMounted(() => {
 
 const railOpen = ref<boolean>(true);
 
-function selectNative(row: NativeTraceListRow): void {
+function selectNative(row: TraceListRow): void {
   selectedRowKey.value = row.key;
   selectedTraceIds.value = row.traceIds;
   selectedTraceId.value = row.traceIds[0] ?? null;
-  embeddedSpans.value = row.spans ?? null;
+  // The list emits a presentation row, which carries no spans. `queryTraces`
+  // embeds them on the RESPONSE, so the row's key is what finds them.
+  embeddedSpans.value = (native.value?.traces ?? []).find((t) => t.key === row.key)?.spans ?? null;
 }
 function closeDetail(): void {
   selectedTraceId.value = null;
@@ -547,7 +550,7 @@ function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
 // Picking dots filters the list; the inline detail still opens via a list row.
-function onScatterSelect(row: NativeTraceListRow): void {
+function onScatterSelect(row: TraceListRow): void {
   togglePick(row.key);
 }
 function onScatterBrush(keys: string[]): void {
@@ -675,9 +678,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             <span>{{ t('Time range') }}</span>
             <template v-if="isCustomRange">
               <div class="cf-range">
-                <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+                <DateTimeField v-model="customStart" class="cf-range-num" :aria-label="t('From')" />
                 <span class="cf-range-sep">–</span>
-                <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+                <DateTimeField v-model="customEnd" class="cf-range-num" :aria-label="t('To')" />
                 <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="leaveCustomRange">×</button>
               </div>
             </template>
@@ -863,11 +866,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 @media (max-width: 1100px) { .tr-top-strip { grid-template-columns: 1fr; } }
 .tr-top-strip .tr-toolbar,
 .tr-top-strip .tr-scatter { margin: 0; }
+.tr-top-strip .tr-scatter { min-height: var(--sw-trace-strip-h); }
 .tr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
-.tr-toolbar-head { display: flex; align-items: baseline; gap: 10px; }
+.tr-toolbar-head { display: flex; align-items: center; gap: 10px; }
 .tr-run-btn { margin-left: auto; }
 .seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }
-.seg button { background: var(--sw-bg-2); color: var(--sw-fg-2); border: none; padding: 2px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+/* Same height as the Run button beside it, so the switch and the action read
+   as one bar rather than a small control floating next to a large one. */
+.seg button {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+  border: none;
+  height: 26px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
 .seg button + button { border-left: 1px solid var(--sw-line-2); }
 .seg button.on { background: var(--sw-accent); color: #fff; }
 .kicker {

@@ -25,6 +25,7 @@
  * busiest, so a truncated list never disagrees with its own total.
  */
 import { computed } from 'vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import { useI18n } from 'vue-i18n';
 import { MAX_TOKEN_USAGE_HOURS, type TokenUsageHour } from '@/api/scopes/admin-audit';
 import { TOKEN_PRESETS, CUSTOM_RANGE_SENTINEL } from './useTokenUsagePage';
@@ -114,16 +115,16 @@ function share(total: number): string {
         <span>{{ t('Time range') }}</span>
         <template v-if="isCustom">
           <div class="cf-range">
-            <input
-              :value="props.customStart" type="datetime-local"
-              class="cf-input cf-range-num" :title="t('Snaps to a group boundary — a group is one hour')"
-              @input="emit('update:customStart', ($event.target as HTMLInputElement).value)"
+            <DateTimeField
+              :model-value="props.customStart"
+              class="cf-range-num" :title="t('Snaps to a group boundary — a group is one hour')"
+              @update:model-value="emit('update:customStart', $event)"
             />
             <span class="cf-range-sep">–</span>
-            <input
-              :value="props.customEnd" type="datetime-local"
-              class="cf-input cf-range-num" :title="t('Snaps to a group boundary — a group is one hour')"
-              @input="emit('update:customEnd', ($event.target as HTMLInputElement).value)"
+            <DateTimeField
+              :model-value="props.customEnd"
+              class="cf-range-num" :title="t('Snaps to a group boundary — a group is one hour')"
+              @update:model-value="emit('update:customEnd', $event)"
             />
             <button class="sw-btn small primary" type="button" @click="emit('apply')">{{ t('Query') }}</button>
             <button

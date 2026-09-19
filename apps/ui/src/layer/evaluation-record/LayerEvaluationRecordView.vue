@@ -45,6 +45,7 @@ import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStream
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
 import RelatedTraceSpanPicker, { type RelatedSpanPick } from '@/layer/evaluation-record/RelatedTraceSpanPicker.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -802,9 +803,9 @@ watch([drillArmed, providerReady], ([armed, ready]) => {
           <span>Time range</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customStart" class="cf-range-num" />
               <span class="cf-range-sep">to</span>
-              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customEnd" class="cf-range-num" />
               <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">Back</button>
             </div>
           </template>

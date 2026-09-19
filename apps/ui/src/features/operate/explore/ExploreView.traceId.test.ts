@@ -196,7 +196,7 @@ describe('Trace inspect — the Trace ID mode looks traces up by id', () => {
     const bff = fakeBff();
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountInspect();
-    const bounds = () => w.findAll('.iq-time input[type="datetime-local"]');
+    const bounds = () => w.findAll('.iq-time .dtf-input');
     const [filterFrom, filterTo, idFrom, idTo] = [localDt(3), localDt(2), localDt(48), localDt(47)];
     await w.get('.iq-time select').setValue('-1');
     await bounds()[0]!.setValue(filterFrom);
@@ -208,7 +208,10 @@ describe('Trace inspect — the Trace ID mode looks traces up by id', () => {
     await bounds()[1]!.setValue(idTo);
 
     await pick(w, 'Filter');
-    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([filterFrom, filterTo]);
+    // The field SHOWS a space where the model carries `T` — it is Horizon's
+    // own control now, not the browser's.
+    const shown = (v: string) => v.replace('T', ' ');
+    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([shown(filterFrom), shown(filterTo)]);
     await run(w);
     expect(bff.asked[0]!.window).toEqual({ startMs: new Date(filterFrom).getTime(), endMs: new Date(filterTo).getTime() });
   });

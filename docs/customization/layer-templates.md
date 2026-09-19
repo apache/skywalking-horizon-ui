@@ -31,7 +31,7 @@ There is **one template per layer**. Horizon ships bundled templates for the com
   },
   "topology": { ... },
   "endpointDependency": { ... },
-  "traces": { "source": "native" },
+  "traces": { "sources": ["native"] },
   "log": { ... },
   "naming": { ... }
 }
@@ -56,7 +56,7 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 | `dashboards` | object | — | Per-scope widget arrays (the bulk of the template). |
 | `topology` | object | — | Topology MQE override for the service-map view. |
 | `endpointDependency` | object | — | API-dependency dashboard MQE override. |
-| `traces` | `{ source?: 'native' \| 'zipkin' \| 'both' }` | `native` | Trace backend selection for this layer. |
+| `traces` | `{ sources?: TraceStore[], stores?: {…} }` | `native` | Which trace stores this layer exposes, and each row's name and service filter. Absent reads as the native store; `"sources": []` is how a layer says it has no trace rows. |
 | `log` | object | — | Logs tab scope (service / instance / endpoint). |
 | `naming` | object | — | Service-name parsing rule (extracts cluster or other tokens from the OAP-reported name). |
 
@@ -508,15 +508,39 @@ Edited in the admin under the layer's **API dependency** scope.
 
 ## `traces`
 
+Which trace stores this layer exposes. It is a **checklist**, not a single choice: each store named becomes its own row in the layer's sidebar, because their span models and query conditions differ and one row with a toggle would hide that.
+
 ```json
-"traces": { "source": "native" }
+"traces": {
+  "sources": ["native", "traceql-native"],
+  "stores": {
+    "traceql-native": {
+      "name": "OTLP traces",
+      "serviceFilter": { "pattern": "^agent::", "flags": "i" }
+    }
+  }
+}
 ```
 
-| Source | Behavior |
-|---|---|
-| `native` (default) | Traces queried via OAP's native trace query. |
-| `zipkin` | Traces queried via the Zipkin v2 endpoint at `oap.zipkinUrl`. |
-| `both` | Both sources, with a UI toggle. |
+| Store | Row | Answered by |
+|---|---|---|
+| `native` | `trace` | OAP's native trace query. |
+| `zipkin` | `zipkin-trace` | OAP's Zipkin v2 API at `oap.zipkinUrl`, which also carries the OpenTelemetry spans OAP converts into Zipkin form. |
+| `traceql-native` | `traceql-native-trace` | The TraceQL (Grafana Tempo) API over the native spans, at `oap.traceql.nativeUrl`. |
+| `traceql-zipkin` | `traceql-zipkin-trace` | The same API over the Zipkin spans, at `oap.traceql.zipkinUrl`. |
+
+**A template written before the checklist needs no change.** One carrying the old `source` enum is read as the store(s) it named (`both` as native plus Zipkin); one with no `traces` block at all is read as the **native** store, which is the row such a layer has always shown. Saying a layer has *no* trace rows is explicit: `"sources": []`. The editor opens on the resolved set rather than the literal one, so the first change made THERE — ticking a store, renaming a row, editing a filter — writes the resolved set out as a `sources` list and the fallback stops applying. Editing something else on the layer and saving leaves the old spelling alone. The `traces` component flag must also be on for any row to appear.
+
+`stores` carries per-store settings, all optional:
+
+| Field | Applies to | Behavior |
+|---|---|---|
+| `name` | any store | The row's label in the sidebar, replacing the built-in one — **Menu name** in the editor. A store's useful name belongs to the deployment rather than to the protocol. |
+| `serviceFilter` | the TraceQL stores | `{ "pattern": "…", "flags": "i" }` — a regular expression that narrows the **service picker** on that tab, with `flags` carrying `i` when the editor's **Ignore case** is ticked. The Tempo API has no notion of a layer, so it lists every service of the underlying store; this is how a layer that owns a subset says which. It shapes the picker only — result rows are never filtered, so cross-service traces still appear. A pattern Horizon will not run filters nothing rather than emptying the picker: one that does not compile, one over 200 characters, and one that can backtrack badly — a repeat applied to a group that itself repeats or branches (`(a+)+`), or a second variable-length repeat anywhere in the pattern (`^a*a*b$`, and `[a-z]+::.*`, which wants to be `^[a-z]+::` since the match is a search). |
+
+Edited in the admin under the layer's **Trace** scope: tick the stores the layer reads from, give each a **Menu name**, and — for the TraceQL rows — a **Service filter** with **Ignore case**.
+
+> **Compatibility.** `"traces": { "source": "native" | "zipkin" | "both" }` — the single-source enum of earlier releases — is still read from a stored template and resolves to the matching stores (`both` → native + Zipkin). It is never written: the first edit in the admin replaces it with `sources`.
 
 ## `log`
 
@@ -677,4 +701,4 @@ The Logs tab disappears from the layer page nav. Existing direct-URL navigation 
 }
 ```
 
-`traceDrill` makes the line's data points clickable — a click opens the layer's Traces tab pre-filtered to the slow (`latency` mode) or error (`error` mode) traces around the clicked moment. It needs the layer's `traces` component enabled with the native trace source. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill).
+`traceDrill` makes the line's data points clickable — a click opens the layer's Traces tab pre-filtered to the slow (`latency` mode) or error (`error` mode) traces around the clicked moment. It needs the layer's `traces` component enabled and the `native` trace store among its `traces.sources` — the drill filter is a native-trace query. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill).

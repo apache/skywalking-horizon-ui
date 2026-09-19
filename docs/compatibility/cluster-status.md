@@ -1,10 +1,10 @@
 # Cluster Status Check Sequence
 
-The Cluster Status page (`/operate/cluster`, sidebar **Operate → Cluster**) is the operator's single pane for "is the OAP backend healthy and configured correctly?" It runs **three independent checks in parallel** — the Query and Admin OAP ports plus a Zipkin/OTLP trace-source probe — they do not block each other, and the page surfaces each pane's result independently.
+The Cluster Status page (`/operate/cluster`, sidebar **Operate → Cluster**) is the operator's single pane for "is the OAP backend healthy and configured correctly?" It runs its checks **in parallel** — the Query and Admin OAP ports, plus one probe per trace API (the Zipkin endpoint and each TraceQL datasource) — they do not block each other, and the page surfaces each pane's result independently.
 
-The panes are independent: a healthy `:12800` with broken `:17128` is a real and recoverable state (forgot to expose the admin port behind a Kubernetes Service), and Horizon makes that diagnosis obvious. The Zipkin/OTLP pane is informational for the trace menu — a red dot there is not a cluster-wide outage.
+The panes are independent: a healthy `:12800` with broken `:17128` is a real and recoverable state (forgot to expose the admin port behind a Kubernetes Service), and Horizon makes that diagnosis obvious. The Trace APIs pane is informational for the trace rows it feeds — a red dot there is not a cluster-wide outage.
 
-The page header carries a single **refresh both** button that re-runs every check immediately — use it after fixing a network rule or an OAP selector instead of waiting for the next poll.
+The page header carries a single **refresh both** button that re-runs every check — use it after fixing a network rule or an OAP selector instead of waiting for the next poll. A trace API that answered is re-probed at most every five minutes, so a green row may be up to that old; one that FAILED is re-probed within seconds, so a recovery shows up promptly.
 
 ## Pane A — Query / GraphQL port (`:12800`)
 
@@ -98,9 +98,30 @@ The badge distinguishes two situations that look alike and are not:
 
 See [Layer templates](../customization/layer-templates.md) for what renders in each case and why the bundled templates are never substituted.
 
-## Pane C — Zipkin / OTLP traces
+## Pane C — Trace APIs
 
-A third pane probes OAP's Zipkin v2 REST endpoint and reports reachability. It feeds only the Zipkin/OTLP trace menu — a red dot here is **not** a cluster-wide outage; the rest of the UI keeps working and only Zipkin/OTLP trace views are affected.
+A third pane probes every endpoint behind a layer's trace rows and lists them in one table — API, source, state, endpoint:
+
+| API | Source | Endpoint |
+|---|---|---|
+| **Zipkin v2 REST** | Zipkin spans | `oap.zipkinUrl` — the Zipkin / OTel trace rows. |
+| **TraceQL** | SkyWalking-native spans | `oap.traceql.nativeUrl` — the TraceQL rows over native spans. |
+| **TraceQL** | Zipkin spans | `oap.traceql.zipkinUrl` — the TraceQL rows over Zipkin spans. |
+
+A TraceQL row also prints the Tempo API version the datasource reported.
+
+**Native traces are not in this pane.** They are answered by the GraphQL port, so Pane A already reports on them.
+
+Each row's state reads one of:
+
+| State | Meaning |
+|---|---|
+| **reachable** | The endpoint answered a build-info probe. That is the connection, not the search — a reachable endpoint can still answer a query with nothing, or refuse one. |
+| **unreachable** | A URL is configured but nothing answered. The error and the exact URL tried are shown below the table, with the OAP settings to check. |
+| **not configured** | No URL is set for that TraceQL datasource in `oap.traceql`. |
+| **unknown** | The probe could not be read — usually a role without `traces:read`. |
+
+The pane badge reads **degraded** when any configured endpoint is failing, and a failure is scoped to the rows that endpoint feeds: the rest of the UI, including the other trace rows, keeps working. See [OAP Connection → TraceQL trace stores](../setup/oap.md#traceql-trace-stores-oaptraceql) for the settings.
 
 ## Reading the page during an incident
 
@@ -109,4 +130,5 @@ The triage flow during "Horizon shows banners I don't understand":
 1. **Is the Query pane green?** If not, OAP itself is down / unreachable — fix OAP first, the rest is downstream.
 2. **Does the Admin pane say "Admin host unreachable"?** The admin port isn't answering at all — expose port 17128 and confirm `SW_ADMIN_SERVER=default`. Don't chase individual selectors yet.
 3. **Admin host up but a row reads unreachable?** That one feature's endpoint isn't served — usually its selector is off. The row's Gates column says what breaks and which env-var enables it (e.g. `SW_INSPECT=default`); set it on OAP, restart, then hit **refresh both**.
-4. **Is the health score `> 0`?** OAP is up but degraded — pull `details` from `checkHealth` (visible in the Query pane) and triage on the OAP side.
+4. **A trace row on a layer says its source is not answering?** Read Pane C: it says whether that endpoint is unconfigured (no URL) or unreachable (URL set, nothing answering), and prints the URL it tried.
+5. **Is the health score `> 0`?** OAP is up but degraded — pull `details` from `checkHealth` (visible in the Query pane) and triage on the OAP side.

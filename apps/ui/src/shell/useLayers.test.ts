@@ -80,8 +80,18 @@ describe('firstLayerTab — routing decision per layer caps', () => {
     expect(firstLayerTab(L({ endpointDependency: true }))).toBe('dependency');
   });
 
-  it('returns `trace` when only traces', () => {
+  it('returns the row of the trace store the layer names', () => {
+    // The component flag turns the feature on; the checklist says which store.
+    const withNative = { ...L({ traces: true }), traces: { sources: ['native' as const] } };
+    expect(firstLayerTab(withNative)).toBe('trace');
+    const withTraceQL = { ...L({ traces: true }), traces: { sources: ['traceql-native' as const] } };
+    expect(firstLayerTab(withTraceQL)).toBe('traceql-native-trace');
+    // A layer that names none resolves to the native store, so a template
+    // written before the checklist keeps the row it has always had.
     expect(firstLayerTab(L({ traces: true }))).toBe('trace');
+    // Saying none is explicit, and then there is no trace row.
+    const none = { ...L({ traces: true }), traces: { sources: [] } };
+    expect(firstLayerTab(none)).not.toBe('trace');
   });
 
   it('returns `logs` when only logs', () => {
@@ -106,7 +116,11 @@ describe('firstLayerTab — routing decision per layer caps', () => {
     );
     expect(firstLayerTab(L({ endpoints: true, serviceMap: true }))).toBe('endpoint');
     expect(firstLayerTab(L({ serviceMap: true, traces: true }))).toBe('topology');
-    expect(firstLayerTab(L({ traces: true, logs: true }))).toBe('trace');
+    // Traces still sits ahead of logs — with a store named, since the flag
+    // alone no longer produces a row.
+    expect(
+      firstLayerTab({ ...L({ traces: true, logs: true }), traces: { sources: ['native' as const] } }),
+    ).toBe('trace');
     expect(firstLayerTab(L({ logs: true, traceProfiling: true }))).toBe('logs');
   });
 });

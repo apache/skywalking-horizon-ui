@@ -61,6 +61,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { WINDOW_OPTS as POD_WINDOW_OPTS, INTERVAL_OPTS as POD_INTERVAL_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
@@ -800,9 +801,9 @@ watch(logSource, (next, prev) => {
               <span>{{ t('Time') }}</span>
               <template v-if="isCustomRange">
                 <span class="cf-range">
-                  <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+                  <DateTimeField v-model="customStart" class="cf-range-num" />
                   <span class="cf-range-sep">–</span>
-                  <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+                  <DateTimeField v-model="customEnd" class="cf-range-num" />
                   <button class="iq-range-reset" type="button" :title="t('Back to presets')" @click="cond.windowMinutes = 30">×</button>
                 </span>
               </template>

@@ -53,10 +53,11 @@ The Query and Admin panes are **independent**, refreshed in parallel. A third Zi
 - The pane badge summarizes the rows: **all reachable**, **N/M reachable**, or **unreachable** when the admin host itself is down.
 - **Failure modes:** see [Cluster Status Check Sequence](../compatibility/cluster-status.md#pane-b--admin-host-17128).
 
-## Zipkin / OTLP traces pane
+## Trace APIs pane
 
-A third pane probes OAP's Zipkin v2 REST endpoint and reports reachability. It feeds only the Zipkin/OTLP trace menu — a red dot here is **not** a cluster-wide outage. The rest of the UI keeps working when this pane is red; only Zipkin/OTLP trace views are affected.
+A third pane probes every endpoint behind a layer's trace rows — OAP's Zipkin v2 REST endpoint and each TraceQL datasource — and lists them in one table with its state and the URL tried. It feeds only the trace rows each endpoint serves: a red row here is **not** a cluster-wide failure, and the rest of the UI keeps working. Native traces are answered by the query port, so the Query pane already reports on them.
 
+See [Cluster Status → Trace APIs](../compatibility/cluster-status.md#pane-c--trace-apis) for the states and what each one means.
 ## Reading the page during an incident
 
 1. **Both panes green?** Backend is fine; the problem is elsewhere (network from browser, BFF process, OAP-side data ingestion).

@@ -30,6 +30,7 @@ import LayerTracesView from '@/layer/traces/LayerTracesView.vue';
 import ChatCapturedTag from './ChatCapturedTag.vue';
 import { useLayers } from '@/shell/useLayers';
 import type { TracesSpec } from './types';
+import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
 
 const props = defineProps<{ n: number; spec: TracesSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
@@ -45,10 +46,8 @@ const layerDef = computed(() =>
   layers.value.find((L) => L.key.toUpperCase() === props.spec.layer.toUpperCase()),
 );
 const noTraces = computed(() => !captured.value && !layerDef.value?.caps?.traces);
-// 'native' | 'zipkin' | 'both' — only pure-'zipkin' can't be embedded here.
-const isZipkinOnly = computed(
-  () => !captured.value && (layerDef.value?.traces?.source ?? 'native') === 'zipkin',
-);
+// Only a layer whose trace row IS Zipkin can't be embedded here.
+const isZipkinOnly = computed(() => !captured.value && traceRowIsZipkin(layerDef.value?.traces));
 
 function openZipkinTab(): void {
   const href = router.resolve({ path: `/layer/${props.spec.layer.toLowerCase()}/zipkin-trace` }).href;

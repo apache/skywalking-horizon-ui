@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { NativeTraceListRow, ZipkinTraceListRow } from '@/api/client';
+import type { TraceListRow, ZipkinTraceListRow } from '@/api/client';
 
 /**
- * Adapt a Zipkin trace-list row onto the shared `NativeTraceListRow`
- * shape the trace distribution scatter + list widgets consume.
+ * Adapt a Zipkin trace-list row onto the shared {@link TraceListRow} shape the
+ * trace distribution scatter + list widgets consume. Nothing of Zipkin's span
+ * model comes with it — the detail view reads the Zipkin spans itself.
  *
  * Two unit conversions matter — Zipkin reports microseconds, the shared
  * widgets assume the native milli-scale:
@@ -29,10 +30,9 @@ import type { NativeTraceListRow, ZipkinTraceListRow } from '@/api/client';
  * `key` / `traceIds` stay the Zipkin `traceId` so the host's pick set
  * and row selection key on the trace id.
  */
-export function zipkinRowToNative(r: ZipkinTraceListRow): NativeTraceListRow {
+export function zipkinRowToListRow(r: ZipkinTraceListRow): TraceListRow {
   return {
     key: r.traceId,
-    segmentId: '',
     endpointNames: [r.rootName ?? r.rootService ?? '—'],
     duration: Math.round((r.duration ?? 0) / 1000),
     start: String((r.timestamp ?? 0) / 1000),

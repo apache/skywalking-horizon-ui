@@ -290,7 +290,7 @@ The trace time window centers on the clicked bucket: ±5 minutes around the poin
 }
 ```
 
-The drill applies only to `line` widgets, and only on layers whose Traces tab uses the native trace source (`native` or `both`) — the Zipkin trace view cannot consume the drill filter. It is inactive while comparing entities. In the widget editor it is the **Trace drill** control, shown on `line` widgets.
+The drill applies only to `line` widgets, and only on layers whose trace stores include the native one — the Zipkin trace view cannot consume the drill filter. It is inactive while comparing entities. In the widget editor it is the **Trace drill** control, shown on `line` widgets.
 
 The bundled `GENERAL` template ships the drill enabled across its service / instance / endpoint dashboards: `latency` mode on the latency widgets (Avg Response Time, Response Time Percentile, and the instance / endpoint latency lines) and `error` mode on the error-shaped ones (Error Rate, Apdex, and the success-rate lines).
 

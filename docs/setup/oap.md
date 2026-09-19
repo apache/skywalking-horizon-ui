@@ -7,6 +7,9 @@ oap:
   queryUrl: http://127.0.0.1:12800
   adminUrl: http://127.0.0.1:17128
   zipkinUrl: http://127.0.0.1:9412/zipkin
+  traceql:
+    nativeUrl: http://127.0.0.1:3200/skywalking
+    zipkinUrl: http://127.0.0.1:3200/zipkin
   timeoutMs: 15000
   auth:
     username: skywalking
@@ -19,7 +22,9 @@ oap:
 |---|---|---|---|---|
 | `queryUrl` | URL string | `http://127.0.0.1:12800` | no | OAP GraphQL query endpoint. Load-balanceable — any OAP node answers. Used by all read pages. Must be a valid URL. |
 | `adminUrl` | URL string | `http://127.0.0.1:17128` | no | OAP admin REST endpoint. Hosts runtime-rule, dsl-debugging, inspect, status, debugging/config endpoints. Single URL; OAP handles cluster-internal fan-out. |
-| `zipkinUrl` | URL string | `http://127.0.0.1:9412/zipkin` | no | Zipkin v2 REST endpoint. Used when a layer's `traces.source` is `zipkin` or `both`. Defaults assume the standalone Armeria binding; for Docker / shared-port deployments use `<queryUrl>/zipkin`. |
+| `zipkinUrl` | URL string | `http://127.0.0.1:9412/zipkin` | no | Zipkin v2 REST endpoint. Used when a layer exposes the Zipkin trace store. Defaults assume the standalone Armeria binding; for Docker / shared-port deployments use `<queryUrl>/zipkin`. |
+| `traceql.nativeUrl` | URL string | empty | no | OAP's TraceQL (Grafana Tempo API) service over the SkyWalking-native spans, context path included. **Empty means off** — there is deliberately no default, because OAP ships the module disabled. See [TraceQL trace stores](#traceql-trace-stores-oaptraceql). |
+| `traceql.zipkinUrl` | URL string | empty | no | The same service over the Zipkin spans, context path included. Empty means off. |
 | `timeoutMs` | number | `15000` | no | Per-request HTTP timeout (milliseconds) for all OAP calls. Applies to query, admin, Zipkin. Must be positive integer. |
 | `auth.username` | string | — | required if `auth` block present | Basic-auth username. Sent on every outbound OAP call. |
 | `auth.password` | string | — | required if `auth` block present | Basic-auth password. Sent on every outbound OAP call. Use `${VAR}` interpolation, not a literal. |
@@ -32,9 +37,35 @@ oap:
 |---|---|
 | `queryUrl` | GraphQL (`version`, `getTimeInfo`, `checkHealth`, `listLayers`, `listServices`, `getMenuItems`, `listLayerLevels`, `execExpression`, alarm queries, trace queries, log queries, topology queries, profiling queries). |
 | `adminUrl` | `/debugging/config/dump`, `/runtime/rule/*`, `/dsl-debugging/*`, `/inspect/metrics`, `/inspect/entities`, `/status/alarm/*`, and — in live template mode — `/ui-management/templates*`. |
-| `zipkinUrl` | Zipkin v2 trace queries when a layer declares `traces.source: zipkin` or `both`. |
+| `zipkinUrl` | Zipkin v2 trace queries, for a layer that exposes the Zipkin trace store. |
+| `traceql.*` | TraceQL searches, tag and tag-value lookups, and trace-by-id reads, for a layer that exposes a TraceQL trace store. |
 
 `queryUrl` is always required. `adminUrl` is required for OAP 11 admin features and for Horizon's live template mode; it is not required for an OAP 10 deployment running `templates.mode: readonly`. Configured query and admin URLs are health-checked independently. See [Cluster Status Check Sequence](../compatibility/cluster-status.md) for the per-pane behavior.
+
+## TraceQL trace stores (`oap.traceql`)
+
+OAP can answer for its traces in [Grafana Tempo's](https://grafana.com/docs/tempo/latest/traceql/) query language over Tempo's HTTP API, with one datasource per underlying store: the SkyWalking-native spans, and the Zipkin spans (which also carry OpenTelemetry traces OAP converted). Each datasource is a separate context path on OAP's TraceQL server, so Horizon takes one full URL each rather than deriving them — and either one alone is a valid configuration.
+
+It is a separate server from the query port, **off in OAP by default**, and enabled there with:
+
+```
+SW_TRACEQL=default
+SW_TRACEQL_ENABLE_DATASOURCE_SKYWALKING=true
+SW_TRACEQL_ENABLE_DATASOURCE_ZIPKIN=true
+```
+
+Its default port is `3200`, with the context paths `/skywalking` and `/zipkin`. Point Horizon at the ones you enabled:
+
+```yaml
+oap:
+  traceql:
+    nativeUrl: http://<oap-host>:3200/skywalking
+    zipkinUrl: http://<oap-host>:3200/zipkin
+```
+
+Leaving a URL empty turns that source off: its sidebar row still appears for a layer that names it, and the tab states that no URL is configured rather than searching something else. A configured URL that does not answer is reported the same way, on the page rather than in a log.
+
+Which layers expose these stores is a layer-template decision, not a connection one — see [Layer Dashboard Templates → `traces`](../customization/layer-templates.md#traces) and [Traces](../operate/traces.md).
 
 ## MQE endpoint override (`oap.mqe`)
 

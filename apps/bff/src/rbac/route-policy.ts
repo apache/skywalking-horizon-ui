@@ -160,6 +160,11 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/zipkin/trace/:traceId':                'traces:read',
   'GET /api/zipkin/autocomplete/keys':             'traces:read',
   'GET /api/zipkin/autocomplete/values':           'traces:read',
+  'GET /api/traceql/sources':                      'traces:read',
+  'GET /api/traceql/:ds/search':                   'traces:read',
+  'GET /api/traceql/:ds/trace/:traceId':           'traces:read',
+  'GET /api/traceql/:ds/tags':                     'traces:read',
+  'GET /api/traceql/:ds/tag-values':               'traces:read',
 
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',

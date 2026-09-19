@@ -29,7 +29,7 @@
       the header toggles `toggle-rail`.
 
   Props:
-    rows         — NativeTraceListRow[] to render.
+    rows         — TraceListRow[] to render.
     selectedKey  — the row.key of the active trace (null when none).
     maxDuration  — largest duration across the visible set, for bar
                    scaling. 0 collapses every bar.
@@ -48,13 +48,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { relativeAgo } from '@/utils/formatters';
-import type { NativeTraceListRow } from '@/api/client';
+import type { TraceListRow } from '@/api/client';
 
 const { t } = useI18n({ useScope: 'global' });
 
 withDefaults(
   defineProps<{
-    rows: NativeTraceListRow[];
+    rows: TraceListRow[];
     selectedKey: string | null;
     maxDuration: number;
     title?: string;
@@ -65,7 +65,7 @@ withDefaults(
   { title: '', countHint: null, foldable: false, railOpen: true },
 );
 const emit = defineEmits<{
-  (e: 'select', row: NativeTraceListRow): void;
+  (e: 'select', row: TraceListRow): void;
   (e: 'toggle-rail'): void;
 }>();
 
@@ -97,14 +97,20 @@ function rowDurationColor(durationMs: number): string {
       v-for="row in rows"
       :key="row.key"
       class="tr-row-card"
-      :class="{ err: row.isError, ok: !row.isError, on: selectedKey === row.key }"
+      :class="{ err: row.isError && !row.errorUnknown, ok: !row.isError && !row.errorUnknown, on: selectedKey === row.key }"
       @click="emit('select', row)"
     >
       <div class="tr-row-head">
-        <span class="tr-ep mono" :class="{ red: row.isError, blue: !row.isError }">{{ row.endpointNames[0] ?? '—' }}</span>
-        <span class="status-flag" :class="row.isError ? 'flag-err' : 'flag-ok'">
+        <span class="tr-ep mono" :class="{ red: row.isError && !row.errorUnknown, blue: !row.isError && !row.errorUnknown }">{{ row.endpointNames[0] ?? '—' }}</span>
+        <!-- The slot stays occupied when the answer is unknown: an absent chip
+             is invisible, and invisible reads as fine. -->
+        <span
+          class="status-flag"
+          :class="row.errorUnknown ? 'flag-unknown' : row.isError ? 'flag-err' : 'flag-ok'"
+          :title="row.errorUnknown ? t('This trace source does not report failure') : undefined"
+        >
           <span class="flag-dot" />
-          {{ row.isError ? t('ERR') : t('OK') }}
+          {{ row.errorUnknown ? '—' : row.isError ? t('ERR') : t('OK') }}
         </span>
       </div>
       <div class="tr-row-bar" :title="t('{dur} ms — {pct}% of slowest', { dur: row.duration, pct: Math.round((row.duration / (maxDuration || 1)) * 100) })">
@@ -112,7 +118,7 @@ function rowDurationColor(durationMs: number): string {
           class="tr-row-bar-fill"
           :style="{
             width: maxDuration > 0 ? Math.max(2, (row.duration / maxDuration) * 100) + '%' : '0%',
-            background: row.isError ? 'var(--sw-err)' : rowDurationColor(row.duration),
+            background: row.isError && !row.errorUnknown ? 'var(--sw-err)' : rowDurationColor(row.duration),
           }"
         />
         <span class="tr-row-bar-label mono">{{ row.duration }} ms</span>
@@ -138,7 +144,7 @@ function rowDurationColor(durationMs: number): string {
         v-for="row in rows"
         :key="row.key"
         class="tr-row-card compact"
-        :class="{ on: selectedKey === row.key, err: row.isError, ok: !row.isError }"
+        :class="{ on: selectedKey === row.key, err: row.isError && !row.errorUnknown, ok: !row.isError && !row.errorUnknown }"
         @click="emit('select', row)"
       >
         <div class="rail-row-top">
@@ -151,12 +157,18 @@ function rowDurationColor(durationMs: number): string {
           >
             {{ row.duration }} ms
           </span>
-          <span class="status-flag" :class="row.isError ? 'flag-err' : 'flag-ok'">
+          <!-- Same three states as the flat list: a source that does not
+               report failure must not read as a success here either. -->
+          <span
+            class="status-flag"
+            :class="row.errorUnknown ? 'flag-unknown' : row.isError ? 'flag-err' : 'flag-ok'"
+            :title="row.errorUnknown ? t('This trace source does not report failure') : undefined"
+          >
             <span class="flag-dot" />
-            {{ row.isError ? t('ERR') : t('OK') }}
+            {{ row.errorUnknown ? '—' : row.isError ? t('ERR') : t('OK') }}
           </span>
         </div>
-        <div class="tr-ep rail-ep mono" :class="{ red: row.isError }">{{ row.endpointNames[0] ?? '—' }}</div>
+        <div class="tr-ep rail-ep mono" :class="{ red: row.isError && !row.errorUnknown }">{{ row.endpointNames[0] ?? '—' }}</div>
         <div class="tr-row-meta">
           <span class="mono dim ml-auto">{{ fmtRelativeAgo(parseNativeStart(row.start)) }}</span>
         </div>
@@ -282,7 +294,8 @@ function rowDurationColor(durationMs: number): string {
   gap: 6px;
   margin-bottom: 4px;
 }
-.rail-row-top .status-flag { margin-left: auto; }
+.rail-row-top .status-flag.flag-unknown { color: var(--sw-fg-3); border-color: var(--sw-line-2); background: transparent; }
+.status-flag { margin-left: auto; }
 .rail-ep {
   display: block;
   font-size: 11px;
