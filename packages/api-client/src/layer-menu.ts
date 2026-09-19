@@ -63,6 +63,7 @@ export interface LayerMenuRow {
  * themselves ride the config bundle, not the menu.
  */
 import type { InstanceAttributePredicate } from './instance-filter.js';
+import { resolveTraceStores, type TraceStore, type TracesConfig } from './trace.js';
 
 export interface DashboardPageRef {
   id: string;
@@ -101,7 +102,7 @@ export type LayerDefaultFilters = Partial<Record<'service' | 'instance' | 'endpo
 export interface LayerMenuInput {
   caps?: LayerCaps;
   slots?: LayerSlots;
-  traces?: { source?: 'native' | 'zipkin' | 'both' };
+  traces?: TracesConfig;
   extPages?: LayerExtPages;
   /** Operator-defined row order. Absent means the default order below.
    *  Entries are row PATHS (`service`, `service/agents`, `pprof`), never
@@ -142,6 +143,8 @@ export const DEFAULT_LAYER_ROW_ORDER = [
   'dependency',
   'trace',
   'zipkin-trace',
+  'traceql-native-trace',
+  'traceql-zipkin-trace',
   'logs',
   'evaluation-record',
   'browser-errors',
@@ -157,6 +160,30 @@ export const DEFAULT_LAYER_ROW_ORDER = [
 
 export type BuiltInLayerRow = (typeof DEFAULT_LAYER_ROW_ORDER)[number];
 
+/** The row each trace store owns. Row paths are stable identifiers — a stored
+ *  menu order names them and the router resolves them — so they never change
+ *  when an operator renames a row. */
+export const TRACE_STORE_ROWS: Readonly<Record<TraceStore, string>> = {
+  native: 'trace',
+  zipkin: 'zipkin-trace',
+  'traceql-native': 'traceql-native-trace',
+  'traceql-zipkin': 'traceql-zipkin-trace',
+};
+
+function hasStore(L: LayerMenuInput, store: TraceStore): boolean {
+  return Boolean(L.caps?.traces) && resolveTraceStores(L.traces).includes(store);
+}
+
+/** An operator's name for a trace row, when the template overrides the
+ *  default. Returned so the sidebar can prefer it over its own label table. */
+function traceRowName(L: LayerMenuInput, path: string): string | undefined {
+  const store = (Object.keys(TRACE_STORE_ROWS) as TraceStore[]).find(
+    (s) => TRACE_STORE_ROWS[s] === path,
+  );
+  const name = store ? L.traces?.stores?.[store]?.name : undefined;
+  return name && name.trim() ? name.trim() : undefined;
+}
+
 /** What each built-in row needs to render and when it appears. Order is
  *  NOT expressed here — see {@link DEFAULT_LAYER_ROW_ORDER}. */
 const ROW_DEFS: Record<BuiltInLayerRow, { icon: LayerMenuRowIcon; when: (L: LayerMenuInput) => boolean }> = {
@@ -169,13 +196,13 @@ const ROW_DEFS: Record<BuiltInLayerRow, { icon: LayerMenuRowIcon; when: (L: Laye
   },
   deployment: { icon: 'topo', when: (L) => Boolean(L.caps?.deployment) },
   dependency: { icon: 'ep', when: (L) => Boolean(L.caps?.endpointDependency) },
-  trace: { icon: 'trace', when: (L) => Boolean(L.caps?.traces) },
-  // Second trace row: the layer carries BOTH native and Zipkin spans, so
-  // each format gets its own tab. Depends on the trace component itself.
-  'zipkin-trace': {
-    icon: 'trace',
-    when: (L) => Boolean(L.caps?.traces) && L.traces?.source === 'both',
-  },
+  // One row per trace store the layer declares. There is no default: a layer
+  // that names no store has no trace rows, because which stores exist is a
+  // fact about a deployment rather than something to guess at.
+  trace: { icon: 'trace', when: (L) => hasStore(L, 'native') },
+  'zipkin-trace': { icon: 'trace', when: (L) => hasStore(L, 'zipkin') },
+  'traceql-native-trace': { icon: 'trace', when: (L) => hasStore(L, 'traceql-native') },
+  'traceql-zipkin-trace': { icon: 'trace', when: (L) => hasStore(L, 'traceql-zipkin') },
   logs: { icon: 'log', when: (L) => Boolean(L.caps?.logs) },
   'evaluation-record': { icon: 'log', when: (L) => Boolean(L.caps?.evaluationRecord) },
   'browser-errors': { icon: 'web', when: (L) => Boolean(L.caps?.browserErrors) },
@@ -221,7 +248,8 @@ export function resolveLayerMenuRows(layer: LayerMenuInput | undefined | null): 
   for (const path of DEFAULT_LAYER_ROW_ORDER) {
     const def = ROW_DEFS[path];
     if (!def.when(layer)) continue;
-    rows.push({ path, icon: def.icon });
+    const name = traceRowName(layer, path);
+    rows.push(name ? { path, icon: def.icon, name } : { path, icon: def.icon });
     const host = EXT_PAGE_HOST.find(([, hostPath]) => hostPath === path);
     if (!host) continue;
     for (const page of layer.extPages?.[host[0]] ?? []) {

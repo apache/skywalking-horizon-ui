@@ -35,14 +35,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NativeTraceListRow } from '@/api/client';
+import type { TraceListRow } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const props = withDefaults(
   defineProps<{
-    rows: NativeTraceListRow[];
+    rows: TraceListRow[];
     maxDuration: number;
     /** The host's active/picked row key. Renders the matching dot enlarged
      *  + outlined; null dims nothing. */
@@ -56,7 +56,7 @@ const props = withDefaults(
   { highlightKeys: () => [] },
 );
 const emit = defineEmits<{
-  (e: 'select', row: NativeTraceListRow): void;
+  (e: 'select', row: TraceListRow): void;
   (e: 'brush', keys: string[]): void;
 }>();
 
@@ -80,7 +80,10 @@ function parseNativeStart(v: string): number {
   return Number.isFinite(ts) ? ts : 0;
 }
 
-interface ScatterPoint { id: string; rowKey: string; x: number; y: number; isError: boolean; label: string; row: NativeTraceListRow; }
+/** `status` is three-valued, as the row is: a trace whose state nobody could
+ *  establish is drawn apart from one known to have succeeded. */
+type PointStatus = 'ok' | 'error' | 'unknown';
+interface ScatterPoint { id: string; rowKey: string; x: number; y: number; status: PointStatus; label: string; row: TraceListRow; }
 const scatterPoints = computed<ScatterPoint[]>(() => {
   const out: ScatterPoint[] = [];
   for (const tr of props.rows) {
@@ -90,7 +93,7 @@ const scatterPoints = computed<ScatterPoint[]>(() => {
       rowKey: tr.key,
       x: ts,
       y: tr.duration,
-      isError: tr.isError,
+      status: tr.errorUnknown ? 'unknown' : tr.isError ? 'error' : 'ok',
       label: tr.endpointNames[0] ?? '—',
       row: tr,
     });
@@ -236,9 +239,9 @@ function onScatterDot(p: ScatterPoint, ev: MouseEvent): void {
           :cx="p.cx"
           :cy="p.cy"
           :r="isHot(p.rowKey) ? 6 : 3.2"
-          :fill="p.isError ? 'var(--sw-err)' : 'var(--sw-accent)'"
+          :fill="p.status === 'error' ? 'var(--sw-err)' : p.status === 'unknown' ? 'var(--sw-fg-3)' : 'var(--sw-accent)'"
           :fill-opacity="isHot(p.rowKey) ? 1 : (hasHot ? 0.35 : 0.9)"
-          :stroke="isHot(p.rowKey) ? 'var(--sw-fg-0)' : (p.isError ? 'var(--sw-err)' : 'var(--sw-accent-2)')"
+          :stroke="isHot(p.rowKey) ? 'var(--sw-fg-0)' : p.status === 'error' ? 'var(--sw-err)' : p.status === 'unknown' ? 'var(--sw-fg-3)' : 'var(--sw-accent-2)'"
           :stroke-width="isHot(p.rowKey) ? 1.8 : 0.8"
           vector-effect="non-scaling-stroke"
           pointer-events="none"

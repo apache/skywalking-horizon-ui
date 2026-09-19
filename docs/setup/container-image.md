@@ -65,6 +65,8 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_OAP_QUERY_URL` | `http://127.0.0.1:12800` | url | OAP GraphQL / query host. |
 | `HORIZON_OAP_ADMIN_URL` | `http://127.0.0.1:17128` | url | OAP admin host (runtime-rule / inspect / status). |
 | `HORIZON_OAP_ZIPKIN_URL` | `http://127.0.0.1:9412/zipkin` | url | OAP Zipkin v2 host. |
+| `HORIZON_OAP_TRACEQL_NATIVE_URL` | _(empty)_ | url | OAP's TraceQL (Tempo API) datasource over the native spans, context path included — `http://oap:3200/skywalking`. Empty means the row is off. |
+| `HORIZON_OAP_TRACEQL_ZIPKIN_URL` | _(empty)_ | url | The same over the Zipkin spans — `http://oap:3200/zipkin`. Empty means the row is off. |
 | `HORIZON_OAP_TIMEOUT_MS` | `15000` | int | Outbound OAP request timeout. |
 | `HORIZON_OAP_MQE` | (none) | JSON | MQE endpoint override for the Metrics Inspect page, e.g. `{"host":"mqe.internal","port":12800}` (both fields optional). Defaults to the query host — see [OAP Connection](oap.md#mqe-endpoint-override-oapmqe). |
 | `HORIZON_OAP_AUTH` | (none) | JSON | OAP basic-auth, e.g. `{"username":"sw","password":"sw"}`. |
@@ -351,7 +353,8 @@ For Kubernetes, the standard pipelines (fluent-bit `tail` plugin with `Parser js
 - The BFF needs **egress** to:
   - OAP query port (default 12800).
   - OAP admin port (default 17128).
-  - OAP Zipkin port (default 9412) if any layer uses `traces.source: zipkin` or `both`.
+  - OAP Zipkin port (default 9412) if any layer exposes the Zipkin trace store.
+  - OAP TraceQL port (default 3200) if any layer exposes a TraceQL trace store.
   - LDAP server (default 636 / 389) if `auth.backend: ldap`.
 
 See [Network Ports](../compatibility/ports.md) for the full port matrix.

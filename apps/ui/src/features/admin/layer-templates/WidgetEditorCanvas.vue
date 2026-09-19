@@ -38,7 +38,7 @@ import type {
   DashboardWidget,
   DashboardTab,
 } from '@skywalking-horizon-ui/api-client';
-import { collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import { tracesInclude, collectWidgetIds } from '@skywalking-horizon-ui/api-client';
 import { useExtPages } from './useExtPages';
 import { useCanvasResize } from './useCanvasResize';
 import { useCanvasReorder } from './useCanvasReorder';
@@ -410,9 +410,7 @@ function setWidgetTraceDrill(v: string): void {
 }
 const layerTracesEnabled = computed<boolean>(() => {
   const tpl = props.draft.template;
-  if (!tpl?.components?.traces) return false;
-  const src = tpl.traces?.source ?? 'native';
-  return src === 'native' || src === 'both';
+  return Boolean(tpl?.components?.traces) && tracesInclude(tpl?.traces, 'native');
 });
 
 // `format: 'enum'` value→label editor — the valueMap is a coded-value → label

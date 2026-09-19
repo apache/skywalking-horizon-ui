@@ -181,9 +181,19 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 .time-cluster {
   position: relative;
   display: flex;
+  min-width: 0;
 }
 .time-trigger {
   cursor: pointer;
+  min-width: 0;
+}
+/* The label is the long one — "This page uses its own time range" — so it is
+   the part that clips. The whole sentence stays in the button's tooltip. */
+.time-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tr-menu {
   position: absolute;

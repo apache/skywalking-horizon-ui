@@ -18,6 +18,7 @@
 // Type-only, so the cycle with `layer-menu.ts` (which needs LayerCaps /
 // LayerSlots) is erased at compile time.
 import type { LayerDefaultFilters, LayerExtPages, LayerMenuRow } from './layer-menu.js';
+import type { TracesConfig } from './trace.js';
 
 /**
  * Wire types for `GET /api/menu`. The BFF aliases three OAP GraphQL queries
@@ -229,11 +230,11 @@ export interface LayerDef {
    *  agent-traced layers carry per-service logs. Drives the UI scope +
    *  the BFF query filter ride-along. */
   log?: LogConfig;
-  /** Traces-tab config — picks which trace backend (native vs Zipkin
-   *  vs both) the UI surfaces. Mesh / k8s layers ship Zipkin-format
-   *  spans (Envoy ALS, rover) so they set `source: 'zipkin'`; agent-
-   *  traced layers default to `native`. */
-  traces?: { source?: 'native' | 'zipkin' | 'both' };
+  /** Which trace stores this layer exposes, and each one's row name and
+   *  service filter. One row per store, and no default — a layer that names
+   *  none has no trace rows. Mesh / k8s layers carry Zipkin-format spans
+   *  (Envoy ALS, rover); agent-traced layers carry native ones. */
+  traces?: TracesConfig;
   /** Per-layer service-name parsing rule. When present, the UI runs
    *  every service name through this regex to derive `{ display, cluster }`
    *  and clusters topology nodes by cluster. Absent ⇒ no clustering. */

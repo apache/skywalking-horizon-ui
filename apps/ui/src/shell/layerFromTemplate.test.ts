@@ -169,7 +169,7 @@ describe('componentsToCaps — parity with the menu route', () => {
         pprofProfiling: true, continuousProfiling: true, aiConversations: true,
       },
       deployment: { roles: [] },
-      traces: { source: 'both' },
+      traces: { sources: ['native', 'zipkin', 'traceql-native', 'traceql-zipkin'] },
     });
     expect(paths(def)).toEqual([...DEFAULT_LAYER_ROW_ORDER]);
   });

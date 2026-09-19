@@ -35,6 +35,7 @@ import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import LongValue from '@/components/primitives/LongValue.vue';
 import {
   serviceColorFrom, kindColor, fmtMs, fmtDateTime, fmtAttachedTs,
 } from './traceDetailShared';
@@ -112,7 +113,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
           <dl class="kv">
             <template v-for="(tag, i) in span.tags" :key="i">
               <dt class="mono">{{ tag.key }}</dt>
-              <dd class="mono wba">{{ tag.value }}</dd>
+              <dd class="mono wba"><LongValue :value="tag.value" :label="tag.key" /></dd>
             </template>
           </dl>
         </section>
@@ -138,13 +139,13 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
             <dl v-if="ev.summary && ev.summary.length > 0" class="kv">
               <template v-for="(s, j) in ev.summary" :key="`s${j}`">
                 <dt class="mono">{{ s.key }}</dt>
-                <dd class="mono wba">{{ s.value }}</dd>
+                <dd class="mono wba"><LongValue :value="s.value" :label="s.key" /></dd>
               </template>
             </dl>
             <dl v-if="ev.tags && ev.tags.length > 0" class="kv">
               <template v-for="(tag, j) in ev.tags" :key="`t${j}`">
                 <dt class="mono dim">{{ t('tag') }} · {{ tag.key }}</dt>
-                <dd class="mono wba">{{ tag.value }}</dd>
+                <dd class="mono wba"><LongValue :value="tag.value" :label="tag.key" /></dd>
               </template>
             </dl>
           </div>

@@ -344,6 +344,15 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
 .dim { color: var(--sw-fg-3); }
 .wba { word-break: break-all; }
 .hint { font-size: 10.5px; color: var(--sw-fg-3); }
+/* The native detail's label: a plain word beside the id, not a kicker. The
+   three trace details name the same thing, so they name it the same way. */
+.ztr-detail-head .kicker {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--sw-fg-3);
+  font-weight: 500;
+}
 .kicker {
   font-size: 10px;
   text-transform: uppercase;
@@ -367,7 +376,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
   border-bottom: 1px solid var(--sw-line);
   flex: 0 0 auto;
 }
-.ztr-tid { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-fg-2); font-size: 11px; }
+.ztr-tid { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-fg-1); font-size: 12px; }
 .ztr-detail-close { margin-left: auto; }
 .ztr-empty {
   padding: 36px;
@@ -398,7 +407,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
 }
 .kpi-val {
   font-family: var(--sw-mono);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--sw-fg-0);
   font-weight: 700;
 }
@@ -450,7 +459,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
 .t-tick { white-space: nowrap; }
 .t-tick.first { text-align: left; }
 .t-tick.last { text-align: right; }
-.tp-row { padding: 3px 12px; cursor: pointer; }
+.tp-row { padding: 3px 12px; cursor: pointer; font-size: 11px; }
 .tp-row:hover { background: var(--sw-bg-2); }
 .tp-row.err { background: rgba(239, 68, 68, 0.06); }
 .tp-row.on { background: var(--sw-accent-soft); }
@@ -515,7 +524,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 .comp-icon { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; background: transparent; }

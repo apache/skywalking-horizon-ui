@@ -32,7 +32,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type {
-  NativeTraceListRow,
+  TraceListRow,
   ZipkinSpan,
   ZipkinTraceListResponse,
   ZipkinTraceListRow,
@@ -43,9 +43,10 @@ const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useZipkinAutocomplete } from '@/layer/traces/useZipkinAutocomplete';
 import { NO_TIME_RANGE, useTraceQueryMode } from '@/layer/traces/useTraceQueryMode';
-import { zipkinRowToNative } from '@/layer/traces/zipkinTraceRows';
+import { zipkinRowToListRow } from '@/layer/traces/zipkinTraceRows';
 import { useColdStageStore } from '@/controls/coldStage';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import ChipInput from '@/components/primitives/ChipInput.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
@@ -102,10 +103,10 @@ const TIME_PRESETS = computed<Array<{ label: string; ms: number }>>(() => [
   { label: t('Last 24 hours'), ms: 24 * 60 * 60_000 },
   { label: t('Custom range…'), ms: CUSTOM_RANGE },
 ]);
-// `<input type="datetime-local">` produces "YYYY-MM-DDTHH:MM" in the
-// browser's local zone (no seconds, no tz). We pre-seed with a sane
-// pair (now − default lookback → now) so flipping to Custom shows
-// readable values instead of an empty input.
+// The custom range is held as "YYYY-MM-DDTHH:MM" in the browser's local zone
+// (no seconds, no tz), which is what `DateTimeField` reads and writes. We
+// pre-seed a sane pair (now − default lookback → now) so flipping to Custom
+// shows readable values instead of an empty field.
 function toLocalDtValue(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -317,7 +318,7 @@ const spanNameSelectOptions = computed(() => [
 // A row click commits a selection to local state (inline detail in the side
 // rail). A shared `?traceId=` link still opens the global popout.
 const selectedTraceId = ref<string | null>(null);
-function selectNative(row: NativeTraceListRow): void {
+function selectRow(row: TraceListRow): void {
   selectedTraceId.value = row.key;
 }
 function closeDetail(): void {
@@ -383,16 +384,16 @@ onMounted(() => {
   runQuery();
 });
 
-// Adapt each Zipkin row onto `NativeTraceListRow` (µs → ms, traceId stays the
-// row key) so the shared native-trace widgets can render them.
-const nativeRows = computed<NativeTraceListRow[]>(() =>
+// Adapt each Zipkin row onto the shared presentation row (µs → ms, traceId
+// stays the row key) so the list and the distribution can render them.
+const listRows = computed<TraceListRow[]>(() =>
   [...shownTraces.value]
     .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-    .map(zipkinRowToNative),
+    .map(zipkinRowToListRow),
 );
 const maxTraceDuration = computed<number>(() => {
   let m = 0;
-  for (const r of nativeRows.value) if (r.duration > m) m = r.duration;
+  for (const r of listRows.value) if (r.duration > m) m = r.duration;
   return m;
 });
 // Picking dots / brushing a box narrows the list to the picked set; no extra
@@ -403,7 +404,7 @@ const isPicking = computed(() => pickedTraceIds.value.size > 0);
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
-function onScatterSelect(row: NativeTraceListRow): void {
+function onScatterSelect(row: TraceListRow): void {
   const s = new Set(pickedTraceIds.value);
   if (s.has(row.key)) s.delete(row.key);
   else s.add(row.key);
@@ -416,9 +417,9 @@ function onScatterBrush(keys: string[]): void {
 }
 watch(traces, () => { pickedTraceIds.value = new Set(); });
 
-const visibleRows = computed<NativeTraceListRow[]>(() => {
-  if (pickedTraceIds.value.size === 0) return nativeRows.value;
-  return nativeRows.value.filter((r) => pickedTraceIds.value.has(r.key));
+const visibleRows = computed<TraceListRow[]>(() => {
+  if (pickedTraceIds.value.size === 0) return listRows.value;
+  return listRows.value.filter((r) => pickedTraceIds.value.has(r.key));
 });
 </script>
 
@@ -544,19 +545,11 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         </label>
         <label v-if="isCustomRange" class="cf">
           <span>{{ t('From') }}</span>
-          <input
-            v-model="customStart"
-            class="cf-input mono"
-            type="datetime-local"
-          />
+          <DateTimeField v-model="customStart" />
         </label>
         <label v-if="isCustomRange" class="cf">
           <span>{{ t('To') }}</span>
-          <input
-            v-model="customEnd"
-            class="cf-input mono"
-            type="datetime-local"
-          />
+          <DateTimeField v-model="customEnd" />
         </label>
       </div>
     </header>
@@ -578,7 +571,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
           >{{ t('Reset') }}</button>
         </header>
         <TraceDistribution
-          :rows="nativeRows"
+          :rows="listRows"
           :max-duration="maxTraceDuration"
           :selected-key="null"
           :highlight-keys="pickedKeys"
@@ -597,7 +590,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
                the over-fetch is the only honest "there is more" signal. The
                count is the FETCHED set: brushing the scatter filters the list
                below, but it cannot change how many rows the query returned. -->
-          <span v-if="hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: nativeRows.length }) }}</span>
+          <span v-if="hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: listRows.length }) }}</span>
           <span v-if="missingTraceIds.length > 0" class="hint warn">{{ t('Not found: {ids}', { ids: missingTraceIds.join(', ') }) }}</span>
         </header>
         <div v-if="failed" class="banner err">
@@ -622,7 +615,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
           :rows="visibleRows"
           :selected-key="selectedTraceId"
           :max-duration="maxTraceDuration"
-          @select="selectNative"
+          @select="selectRow"
         />
       </article>
     </section>
@@ -637,7 +630,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         :max-duration="maxTraceDuration"
         :title="t('Traces')"
         :count-hint="visibleRows.length"
-        @select="selectNative"
+        @select="selectRow"
         @toggle-rail="railOpen = !railOpen"
       />
 
@@ -683,11 +676,23 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 @media (max-width: 1100px) { .ztr-top-strip { grid-template-columns: 1fr; } }
 .ztr-top-strip .ztr-toolbar,
 .ztr-top-strip .ztr-scatter { margin: 0; }
+.ztr-top-strip .ztr-scatter { min-height: var(--sw-trace-strip-h); }
 .ztr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
-.ztr-head { display: flex; align-items: baseline; gap: 10px; }
+.ztr-head { display: flex; align-items: center; gap: 10px; }
 .ztr-run-btn { margin-left: auto; }
 .seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }
-.seg button { background: var(--sw-bg-2); color: var(--sw-fg-2); border: none; padding: 2px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+/* Same height as the Run button beside it, so the switch and the action read
+   as one bar rather than a small control floating next to a large one. */
+.seg button {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+  border: none;
+  height: 26px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
 .seg button + button { border-left: 1px solid var(--sw-line-2); }
 .seg button.on { background: var(--sw-accent); color: #fff; }
 .kicker {

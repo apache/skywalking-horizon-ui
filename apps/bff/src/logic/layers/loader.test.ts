@@ -19,7 +19,7 @@ import { describe, it, expect } from 'vitest';
 import {
   topologyConfigFor,
   endpointDependencyConfigFor,
-  tracesConfigFor,
+  traceStoresFor,
   widgetsForScope,
   type LayerTemplate,
 } from './loader.js';
@@ -142,7 +142,7 @@ describe('widgetsForScope — scope-resolution + fallback chain', () => {
   });
 });
 
-describe('topologyConfigFor / endpointDependencyConfigFor / tracesConfigFor — defaults', () => {
+describe('topologyConfigFor / endpointDependencyConfigFor / traceStoresFor — defaults', () => {
   it('topologyConfigFor returns operator override when set', () => {
     const override = {
       nodeMetrics: [],
@@ -166,12 +166,27 @@ describe('topologyConfigFor / endpointDependencyConfigFor / tracesConfigFor — 
     expect(endpointDependencyConfigFor(null)).toBeDefined();
   });
 
-  it('tracesConfigFor defaults source to "both" when unspecified', () => {
-    expect(tracesConfigFor(null)).toEqual({ source: 'both' });
-    expect(tracesConfigFor(tpl({}))).toEqual({ source: 'both' });
+  // Silence is COMPATIBILITY: every template written before the checklist
+  // relied on the Traces row existing without describing it, so reading
+  // nothing as "no trace rows" would take that row off those layers.
+  it('traceStoresFor reads a template that says nothing as the native store', () => {
+    expect(traceStoresFor(null)).toEqual(['native']);
+    expect(traceStoresFor(tpl({}))).toEqual(['native']);
+    expect(traceStoresFor(tpl({ traces: {} }))).toEqual(['native']);
   });
-  it('tracesConfigFor honors the template override (e.g. zipkin for mesh)', () => {
-    const t = tpl({ traces: { source: 'zipkin' } });
-    expect(tracesConfigFor(t)).toEqual({ source: 'zipkin' });
+  // An explicit empty LIST is the one way to say none, and is what the editor
+  // writes when every box is unticked.
+  it('traceStoresFor names nothing only when the template says so', () => {
+    expect(traceStoresFor(tpl({ traces: { sources: [] } }))).toEqual([]);
+  });
+  it('traceStoresFor reads the checklist', () => {
+    const t = tpl({ traces: { sources: ['traceql-native', 'native'] } });
+    // Canonical order, so two templates naming the same set render alike.
+    expect(traceStoresFor(t)).toEqual(['native', 'traceql-native']);
+  });
+  it('traceStoresFor still reads the legacy enum from a stored template', () => {
+    expect(traceStoresFor(tpl({ traces: { source: 'zipkin' } }))).toEqual(['zipkin']);
+    expect(traceStoresFor(tpl({ traces: { source: 'both' } }))).toEqual(['native', 'zipkin']);
+    expect(traceStoresFor(tpl({ traces: { source: 'native' } }))).toEqual(['native']);
   });
 });

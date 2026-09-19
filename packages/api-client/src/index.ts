@@ -72,6 +72,7 @@ export {
   menuOrderIssues,
   DEFAULT_LAYER_ROW_ORDER,
   FALLBACK_LAYER_ROW,
+  TRACE_STORE_ROWS,
 } from './layer-menu.js';
 export type {
   LayerMenuRow,
@@ -121,6 +122,8 @@ export type {
 } from './service-hierarchy.js';
 export type {
   TraceSource,
+  TraceStore,
+  TraceStoreConfig,
   TracesConfig,
   TraceQueryApi,
   TraceKeyValue,
@@ -130,6 +133,7 @@ export type {
   TraceRef,
   NativeSpan,
   NativeTraceListRow,
+  TraceListRow,
   NativeTraceListResponse,
   NativeTraceDetailResponse,
   TraceQueryOrder,
@@ -144,6 +148,21 @@ export type {
   TraceListResponse,
   TraceDetailResponse,
 } from './trace.js';
+export { TRACE_STORES, backtracksBadly, resolveTraceStores, serviceFilterOf, tracesInclude, traceRowIsZipkin } from './trace.js';
+export type {
+  TraceQLDatasource,
+  TraceQLServiceEntry,
+  TraceQLTraceRow,
+  TraceQLTraceListResponse,
+  TraceQLSpanAttribute,
+  TraceQLSpanEvent,
+  TraceQLSpan,
+  TraceQLTraceDetailResponse,
+  TraceQLTagScope,
+  TraceQLTagsResponse,
+  TraceQLTagValuesResponse,
+  TraceQLSourceStatus,
+} from './traceql.js';
 export type {
   LogKeyValue,
   LogRow,

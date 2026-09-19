@@ -47,9 +47,52 @@ const emit = defineEmits<{
   commit: [];
 }>();
 
+const root = ref<HTMLElement | null>(null);
 const inputEl = ref<HTMLInputElement | null>(null);
 const open = ref(false);
 const activeIdx = ref(-1);
+
+/**
+ * The panel renders in a Teleport, positioned from the input's viewport rect,
+ * as {@link TypeaheadSelect} does and for the same reason: an absolutely
+ * positioned panel is cropped by any ancestor that clips, and every host here
+ * puts this field inside an `.sw-card`, which does. Half the suggestion list
+ * was cut off by the card's edge with no way to reach the rest.
+ */
+const panelStyle = ref<Record<string, string>>({});
+const GAP = 3;
+const EDGE = 8;
+
+function place(): void {
+  const el = inputEl.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom - GAP - EDGE;
+  const above = r.top - GAP - EDGE;
+  // Flip up only when below cannot hold a usable list AND above is roomier,
+  // or the panel jumps as the list filters.
+  const up = below < 140 && above > below;
+  panelStyle.value = {
+    left: `${Math.max(EDGE, Math.min(r.left, window.innerWidth - r.width - EDGE))}px`,
+    width: `${r.width}px`,
+    maxHeight: `${Math.max(120, Math.min(300, up ? above : below))}px`,
+    ...(up ? { bottom: `${window.innerHeight - r.top + GAP}px` } : { top: `${r.bottom + GAP}px` }),
+  };
+}
+
+/** Re-measure on ANY ancestor scroll (capture), not just the window's: the
+ *  input moves with the container it sits in, and a panel pinned to stale
+ *  coordinates detaches from it. */
+function trackInput(on: boolean): void {
+  const fn = on ? window.addEventListener : window.removeEventListener;
+  fn('scroll', place, true);
+  fn('resize', place);
+}
+watch(open, (v) => {
+  trackInput(v);
+  if (v) void nextTick(place);
+});
+onBeforeUnmount(() => trackInput(false));
 
 // Effective suggest window — hosts may pass a custom-range sentinel (-1);
 // fall back to a sane default so the suggest call still hits real data.
@@ -136,6 +179,9 @@ const suggestions = computed<string[]>(() => {
     .map((v) => `${key}=${v}`);
 });
 
+// A list that grew or shrank changes the panel's height, so its placement is
+// re-measured — it is positioned from the input, not laid out beside it.
+watch(() => suggestions.value.length, () => { if (open.value) void nextTick(place); });
 watch(suggestions, () => {
   activeIdx.value = -1;
 });
@@ -213,7 +259,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="tgi">
+  <div ref="root" class="tgi">
     <input
       ref="inputEl"
       class="tgi__input mono"
@@ -228,22 +274,24 @@ onBeforeUnmount(() => {
       @blur="onBlur"
       @keydown="onKeydown"
     />
-    <div v-if="open && suggestions.length > 0" class="tgi__panel">
-      <ul class="tgi__list" role="listbox">
-        <li
-          v-for="(s, i) in suggestions"
-          :key="s"
-          class="tgi__row"
-          role="option"
-          :aria-selected="i === activeIdx"
-          :class="{ 'is-active': i === activeIdx }"
-          @mouseenter="activeIdx = i"
-          @mousedown.prevent="applySuggestion(s)"
-        >
-          <span class="tgi__row-label">{{ s }}</span>
-        </li>
-      </ul>
-    </div>
+    <Teleport to="body">
+      <div v-if="open && suggestions.length > 0" class="tgi__panel" :style="panelStyle">
+        <ul class="tgi__list" role="listbox">
+          <li
+            v-for="(s, i) in suggestions"
+            :key="s"
+            class="tgi__row"
+            role="option"
+            :aria-selected="i === activeIdx"
+            :class="{ 'is-active': i === activeIdx }"
+            @mouseenter="activeIdx = i"
+            @mousedown.prevent="applySuggestion(s)"
+          >
+            <span class="tgi__row-label">{{ s }}</span>
+          </li>
+        </ul>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -261,11 +309,14 @@ onBeforeUnmount(() => {
 .tgi__input.mono { font-family: var(--sw-mono); }
 .tgi__input:focus { outline: none; border-color: var(--sw-accent); }
 
+/* Fixed, in `body`: the coordinates come from `place()` because the panel no
+   longer sits next to the input in the DOM. The z-index clears the cards and
+   the sticky toolbars it now draws over, and stays under the modal layer. */
 .tgi__panel {
-  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 60;
+  position: fixed; z-index: 1200;
   background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 5px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  max-height: 300px; overflow-y: auto;
+  overflow-y: auto;
 }
 .tgi__list { list-style: none; margin: 0; padding: 5px; }
 .tgi__row {

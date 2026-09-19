@@ -234,7 +234,7 @@ describe('Zipkin Traces — the Trace ID mode reads traces by id', () => {
 
   it('keeps each mode\'s custom range apart', async () => {
     const w = await mountZipkinTab();
-    const bounds = () => w.findAll('.ztr-conditions input[type="datetime-local"]');
+    const bounds = () => w.findAll('.ztr-conditions .dtf-input');
     const timeSelect = () => w.findAll('.ztr-conditions select').find((s) => s.find('option[value="-1"]').exists())!;
     const [filterFrom, filterTo, idFrom, idTo] = [localDt(3), localDt(2), localDt(48), localDt(47)];
     await timeSelect().setValue('-1');
@@ -251,7 +251,10 @@ describe('Zipkin Traces — the Trace ID mode reads traces by id', () => {
     expect(byId).toMatchObject({ endTs: String(new Date(idTo).getTime()), lookback: String(new Date(idTo).getTime() - new Date(idFrom).getTime()) });
 
     await switchTo(w, 'Filter');
-    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([filterFrom, filterTo]);
+    // The field SHOWS a space where the model carries `T` — it is Horizon's
+    // own control now, not the browser's.
+    const shown = (v: string) => v.replace('T', ' ');
+    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([shown(filterFrom), shown(filterTo)]);
   });
 
   it('drops the distribution pick when the same lookup runs again', async () => {

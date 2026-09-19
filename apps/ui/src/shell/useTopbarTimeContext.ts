@@ -29,7 +29,12 @@ import { useTimeRangeStore } from '@/controls/timeRange';
  * Add more per-page-picker routes here as Logs / Traces / etc. opt out.
  */
 const TIME_RANGE_OPT_OUT = [
+  // Every trace row owns its own time range and runs from its own button —
+  // native, Zipkin, and the TraceQL pair over either store.
   /^\/layer\/[^/]+\/trace$/,
+  /^\/layer\/[^/]+\/zipkin-trace$/,
+  /^\/layer\/[^/]+\/traceql-native-trace$/,
+  /^\/layer\/[^/]+\/traceql-zipkin-trace$/,
   // Logs carry their own time picker (the condition bar); the level /
   // keyword filters make rolling-window refresh awkward mid-investigation.
   /^\/layer\/[^/]+\/logs$/,

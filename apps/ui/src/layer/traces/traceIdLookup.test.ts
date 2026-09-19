@@ -288,7 +288,7 @@ describe('Traces tab — the Trace ID mode looks a trace up by its id', () => {
     const bff = fakeBff();
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountTracesTab();
-    const bounds = () => w.findAll('.tr-conditions input[type="datetime-local"]');
+    const bounds = () => w.findAll('.tr-conditions .dtf-input');
     const customChoice = () => w.findAll('.tr-conditions select').find((s) => s.find('option[value="-1"]').exists())!;
     const [filterFrom, filterTo, idFrom, idTo] = [localDt(3), localDt(2), localDt(48), localDt(47)];
     await customChoice().setValue('-1');
@@ -301,12 +301,15 @@ describe('Traces tab — the Trace ID mode looks a trace up by its id', () => {
     await bounds()[1]!.setValue(idTo);
 
     await switchTo(w, 'Filter');
-    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([filterFrom, filterTo]);
+    // The field SHOWS a space where the model carries `T` — it is Horizon's
+    // own control now, not the browser's.
+    const shown = (v: string) => v.replace('T', ' ');
+    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([shown(filterFrom), shown(filterTo)]);
     await run(w);
     expect(bff.listReads[0]).toMatchObject({ startMs: new Date(filterFrom).getTime(), endMs: new Date(filterTo).getTime() });
 
     await switchTo(w, 'Trace ID');
-    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([idFrom, idTo]);
+    expect(bounds().map((b) => (b.element as HTMLInputElement).value)).toEqual([shown(idFrom), shown(idTo)]);
   });
 
   it('says the cold stage is not searched while the Cold pill is on and no time range is picked', async () => {

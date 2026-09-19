@@ -133,11 +133,11 @@ describe('a Zipkin by-id lookup that OAP answers 404', () => {
 
 describe('the Cold pill on the trace routes’ Zipkin branches', () => {
   it('sends coldStage and the requested window on the layer list when the source is Zipkin', async () => {
-    const on = await call(true, 'POST', '/api/layer/general/traces', { source: 'zipkin', pageSize: 5, startMs: 1700000000000, endMs: 1700432000000 });
+    const on = await call(true, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['zipkin'] }), source: 'zipkin', pageSize: 5, startMs: 1700000000000, endMs: 1700432000000 });
     const zipkin = on.filter((u) => u.pathname.endsWith('/api/v2/traces'));
     expect(zipkin).toHaveLength(1);
     expect(params(zipkin[0]!)).toMatchObject({ coldStage: 'true', endTs: '1700432000000', lookback: '432000000' });
-    const rolling = await call(false, 'POST', '/api/layer/general/traces', { source: 'zipkin', pageSize: 5, windowMinutes: 90 });
+    const rolling = await call(false, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['zipkin'] }), source: 'zipkin', pageSize: 5, windowMinutes: 90 });
     const p = params(rolling.find((u) => u.pathname.endsWith('/api/v2/traces'))!);
     expect(p.coldStage).toBeUndefined();
     expect(p.lookback).toBe(String(90 * 60_000));

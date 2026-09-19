@@ -478,7 +478,42 @@ function buildLayerSchemas(complete: boolean) {
       endpointDependency: endpointDependencySchema.optional(),
       processTopology: processTopologySchema.optional(),
       deployment: deploymentSchema.optional(),
-      traces: z.object({ source: z.enum(['native', 'zipkin', 'both']).optional() }).strict().optional(),
+      traces: z
+        .object({
+          // The checklist. Absent or empty means the layer has NO trace rows —
+          // there is deliberately no default, because which trace stores exist
+          // is a fact about a deployment.
+          sources: z.array(z.enum(['native', 'zipkin', 'traceql-native', 'traceql-zipkin'])).optional(),
+          // Per-store settings: the row's sidebar label, and the regex that
+          // narrows its service picker — the Tempo API has no notion of a
+          // layer, so a layer owning a subset of a store's services has no
+          // protocol-level way to say which.
+          stores: z
+            .object(
+              Object.fromEntries(
+                (['native', 'zipkin', 'traceql-native', 'traceql-zipkin'] as const).map((k) => [
+                  k,
+                  z
+                    .object({
+                      name: text.optional(),
+                      serviceFilter: z
+                        .object({ pattern: text, flags: z.string().max(8).optional() })
+                        .strict()
+                        .optional(),
+                    })
+                    .strict()
+                    .optional(),
+                ]),
+              ),
+            )
+            .strict()
+            .optional(),
+          // Legacy single-source enum: still READ from stored templates, never
+          // written. Resolved by `resolveTraceStores`.
+          source: z.enum(['native', 'zipkin', 'both']).optional(),
+        })
+        .strict()
+        .optional(),
       log: z.object({ scope: z.enum(['service', 'instance', 'endpoint']).optional() }).strict().optional(),
       naming: z
         .object({

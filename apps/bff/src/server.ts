@@ -48,6 +48,7 @@ import { registerEndpointDependencyRoute } from './http/query/endpoint-dependenc
 import { registerTraceRoutes } from './http/query/trace.js';
 import { registerTraceTagRoutes } from './http/query/trace-tag.js';
 import { registerZipkinRoutes } from './http/query/zipkin.js';
+import { registerTraceQLRoutes } from './http/query/traceql.js';
 import { registerLogRoute } from './http/query/log.js';
 import { registerEvaluationRecordRoute } from './http/query/evaluation-record.js';
 import { registerBrowserErrorsRoute } from './http/query/browser-errors.js';
@@ -358,6 +359,10 @@ registerTraceRoutes(app, {
 });
 registerTraceTagRoutes(app, { ...authDeps });
 registerZipkinRoutes(app, { ...authDeps });
+registerTraceQLRoutes(app, {
+  ...authDeps,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerLogRoute(app, { ...authDeps });
 registerEvaluationRecordRoute(app, { ...authDeps });
 registerBrowserErrorsRoute(app, { ...authDeps });

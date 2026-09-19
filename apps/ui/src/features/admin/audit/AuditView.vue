@@ -24,6 +24,7 @@
  * unread summary asks the operator to guess what to filter for.
  */
 import { computed, onMounted, ref } from 'vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditKind } from '@/api/scopes/admin-audit';
 import AuditList from './AuditList.vue';
@@ -141,9 +142,9 @@ onMounted(() => void page.refresh());
           <span>{{ t('Time range') }}</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="page.filters.value.customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="page.filters.value.customStart" class="cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model="page.filters.value.customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <DateTimeField v-model="page.filters.value.customEnd" class="cf-range-num" />
               <button
                 class="sw-btn small ghost"
                 type="button"

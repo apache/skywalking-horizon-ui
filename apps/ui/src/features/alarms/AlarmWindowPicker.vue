@@ -27,6 +27,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import { PRESETS, MAX_CUSTOM_MS, type AlarmWindow } from './useAlarmWindow';
 
 const { t } = useI18n();
@@ -57,11 +58,11 @@ useEscapeToClose(() => w.customOpen.value, () => w.closeCustom());
   <div v-else-if="part === 'editor' && w.customOpen.value" class="ax__custom">
     <label class="ax__custom-field">
       <span>{{ t('Start') }}</span>
-      <input v-model="w.customStartInput.value" type="datetime-local" step="60" />
+      <DateTimeField v-model="w.customStartInput.value" />
     </label>
     <label class="ax__custom-field">
       <span>{{ t('End') }}</span>
-      <input v-model="w.customEndInput.value" type="datetime-local" step="60" />
+      <DateTimeField v-model="w.customEndInput.value" />
     </label>
     <div v-if="w.customError.value" class="ax__custom-err">{{ w.customError.value }}</div>
     <div class="ax__custom-actions">

@@ -64,7 +64,7 @@ const SIDEBAR_ORDER_BEFORE = [
 ];
 
 /** Every cap on, so each row's predicate passes and the resolver has to
- *  emit the complete list. `traces.source: 'both'` is what surfaces the
+ *  emit the complete list. Naming every trace store is what surfaces the
  *  second (Zipkin) trace row. */
 const EVERY_ROW: LayerMenuInput = {
   caps: {
@@ -88,7 +88,7 @@ const EVERY_ROW: LayerMenuInput = {
     asyncProfiling: true,
   } satisfies LayerCaps,
   slots: {},
-  traces: { source: 'both' },
+  traces: { sources: ['native', 'zipkin', 'traceql-native', 'traceql-zipkin'] },
 };
 
 describe('DEFAULT_LAYER_ROW_ORDER', () => {
@@ -131,7 +131,16 @@ describe('DEFAULT_LAYER_ROW_ORDER', () => {
   it('lands a layer on the first entry of the list that it exposes', () => {
     expect(firstLayerMenuRow(EVERY_ROW)).toBe('service');
     expect(firstLayerMenuRow({ caps: { instances: true, logs: true }, slots: {} })).toBe('instance');
+    // The component flag with no checklist reads as the native store, so a
+    // layer written before the checklist lands where it always did.
     expect(firstLayerMenuRow({ caps: { logs: true, traces: true }, slots: {} })).toBe('trace');
+    expect(
+      firstLayerMenuRow({ caps: { logs: true, traces: true }, slots: {}, traces: { sources: ['native'] } }),
+    ).toBe('trace');
+    // A layer that says it has no trace rows lands on the next row it exposes.
+    expect(
+      firstLayerMenuRow({ caps: { logs: true, traces: true }, slots: {}, traces: { sources: [] } }),
+    ).toBe('logs');
     expect(firstLayerMenuRow({ caps: {}, slots: {} })).toBe('service');
     expect(firstLayerMenuRow(undefined)).toBe('service');
   });
@@ -189,6 +198,7 @@ describe('extension pages in the default order', () => {
 describe('menuOrder — the operator-defined order', () => {
   const LAYER: LayerMenuInput = {
     caps: { dashboards: true, instances: true, logs: true, traces: true },
+    traces: { sources: ['native'] },
     slots: {},
     extPages: { service: [{ id: 'agents', name: 'Agents' }] },
   };

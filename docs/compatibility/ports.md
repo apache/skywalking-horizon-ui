@@ -1,12 +1,13 @@
 # Network Ports
 
-Horizon can talk to OAP on three ports. The query port is always required; the admin port is required only for OAP 11 admin features or live template mode; the Zipkin port is used only if you query traces through Zipkin.
+Horizon can talk to OAP on four ports. The query port is always required; the admin port is required only for OAP 11 admin features or live template mode; the Zipkin port is used only if you query traces through Zipkin.
 
 | Port | Protocol | OAP module | Horizon usage | Required |
 |---|---|---|---|---|
 | **12800** | HTTP / GraphQL | `query-graphql`, `sharing-server` | All metric, alarm, trace, log, topology, profiling reads. Cluster Status → Query pane. Menu / layer enumeration. MQE execution. | **Yes.** |
 | **17128** | HTTP / REST | `admin-server` and the admin features mounted on it (`receiver-runtime-rule`, `dsl-debugging`, `inspect`, `ui-management`) | Runtime rule list / create / update / delete. DSL debugging. Inspect API. Dashboard-template store reads / writes (live template mode). Config dump plus the per-feature reachability probes behind Cluster Status → Admin pane. | **Yes** (for Cluster, Inspect, DSL Management, Live Debugger pages, and the dashboard-template store in live template mode). |
-| **9412** | HTTP / Zipkin v2 REST | `query-zipkin` | Trace export endpoint when a layer is configured with `traces.source: zipkin` or `both`. Always probed for the Cluster Status → Zipkin/OTLP pane. | Functionally only when a layer's trace source is `zipkin` or `both`. |
+| **9412** | HTTP / Zipkin v2 REST | `query-zipkin` | Trace export endpoint for a layer that exposes the Zipkin trace store. Always probed for the Cluster Status → Zipkin/OTLP pane. | Functionally only when a layer exposes the Zipkin trace store. |
+| **3200** | HTTP / Grafana Tempo API | `traceQL` | TraceQL searches, tag lookups and trace-by-id reads for a layer that exposes a TraceQL trace store. Two context paths, `/skywalking` and `/zipkin`, configured separately. | Functionally only when a layer exposes a TraceQL trace store. Off in OAP by default. |
 
 ## `horizon.yaml` configuration
 

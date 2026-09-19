@@ -15,6 +15,15 @@
  * limitations under the License.
  */
 
+/* The trace tabs' top strip. Native, Zipkin and TraceQL each draw their own
+   conditions card beside a shared duration distribution, and the grid row is as
+   tall as the taller of the two — so without one number the three tabs, and the
+   query modes inside them, each settle at a different height and the shortest
+   leaves the distribution too small to read. */
+:root {
+  --sw-trace-strip-h: 290px;
+}
+
 html,
 body,
 #app {

@@ -48,6 +48,9 @@ import { registerInstanceRoute } from './instance.js';
 import { registerEndpointRoute } from './endpoint.js';
 
 const SERVICE_NAME = 'songs.sample-services';
+/** A layer declares its trace stores; there is no default. These tests are
+ *  about scoping, so they state the store rather than inherit one. */
+const NATIVE_PREVIEW = JSON.stringify({ sources: ['native'] });
 const SERVICE_ID = 'c29uZ3M=.1';
 const INSTANCE_ID = 'c29uZ3M=.1_aW5zdC0x';
 /** The pair as every picker holds it, spelled for a query string. */
@@ -187,7 +190,7 @@ describe('traces scope on the id they were given, and refuse a lone name', () =>
       method: 'POST',
       url: '/api/layer/mesh/traces',
       headers: { cookie: `horizon_sid=${sid}`, 'content-type': 'application/json' },
-      payload: { source: 'native', ...body },
+      payload: { source: 'native', previewConfig: NATIVE_PREVIEW, ...body },
     });
     return res.json();
   };

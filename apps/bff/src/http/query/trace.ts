@@ -44,7 +44,7 @@ import type {
   TraceQueryOrder,
   TraceQueryState,
   TraceSource,
-  TracesConfig,
+  TraceStore,
   UITemplateClient,
   ZipkinTraceDetailResponse,
   ZipkinTraceListResponse,
@@ -59,7 +59,8 @@ import {
   type OapPaging,
   type PagedQuerySpec,
 } from '../../logic/paging/read-page.js';
-import { tracesConfigFor } from '../../logic/layers/loader.js';
+import { resolveTraceStores } from '@skywalking-horizon-ui/api-client';
+import { traceStoresFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { parsePreviewTraces } from '../../logic/layers/preview.js';
@@ -453,9 +454,9 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       const body = (req.body ?? {}) as TraceListBody;
       // Admin Preview: draft `traces` block wins (bypasses remote + block).
       const previewCfg = parsePreviewTraces(body.previewConfig);
-      let tracesCfg: TracesConfig;
+      let stores: TraceStore[];
       if (previewCfg) {
-        tracesCfg = previewCfg;
+        stores = resolveTraceStores(previewCfg);
       } else {
         const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
         if (eff.blocked) {
@@ -463,15 +464,20 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
           // traces rather than guessing the source from a default config.
           return reply.send({ generatedAt: Date.now(), source: body.source ?? 'native' });
         }
-        tracesCfg = tracesConfigFor(eff.template);
+        stores = traceStoresFor(eff.template);
       }
-      const requestedSource: TraceSource = body.source ?? tracesCfg.source;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const maxPageSize = deps.config.current.performance.limits.maxPageSize.traces;
 
-      const wantNative = requestedSource === 'both' || requestedSource === 'native';
-      const wantZipkin = requestedSource === 'both' || requestedSource === 'zipkin';
+      // A layer that declares no store reads nothing — that is what "no
+      // default" means, and it is also what an empty `traces: {}` always meant.
+      // The caller may narrow to one of the layer's stores (the two tabs ask
+      // for their own), but it cannot ask for one the layer does not declare.
+      const wantNative = stores.includes('native') && body.source !== 'zipkin';
+      const wantZipkin = stores.includes('zipkin') && body.source !== 'native';
+      const requestedSource: TraceSource =
+        wantNative && wantZipkin ? 'both' : wantZipkin ? 'zipkin' : 'native';
       // Fan out in parallel; partial failures don't drop the whole
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([

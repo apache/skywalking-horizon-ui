@@ -55,12 +55,10 @@ describe('menu order after a component toggle', () => {
   it('drops BOTH rows when one component owns two', () => {
     // Traces owns `trace` and `zipkin-trace`. A per-component table that
     // mapped one row each would have left the second entry behind.
-    const on = { service: true, traces: true };
-    const withZipkin = { ...on, tracesSource: undefined };
     const rows = resolveLayerMenuRows({
-      caps: componentsToCaps(withZipkin),
+      caps: componentsToCaps({ service: true, traces: true }),
       slots: {},
-      traces: { source: 'both' },
+      traces: { sources: ['native', 'zipkin'] },
     }).map((r) => r.path);
     expect(rows).toEqual(expect.arrayContaining(['trace', 'zipkin-trace']));
 

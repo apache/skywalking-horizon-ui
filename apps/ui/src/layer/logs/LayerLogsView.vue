@@ -51,6 +51,7 @@ import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
+import DateTimeField from '@/components/primitives/DateTimeField.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -547,9 +548,9 @@ watch(
           <span>{{ t('Time range') }}</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="customStart" type="datetime-local" name="log-start" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customStart" class="cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model="customEnd" type="datetime-local" name="log-end" class="cf-input cf-range-num" />
+              <DateTimeField v-model="customEnd" class="cf-range-num" />
               <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="windowMinutes = 30">×</button>
             </div>
           </template>

@@ -35,6 +35,7 @@
 import { readdirSync, readFileSync, watch as fsWatch } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveTraceStores, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import type {
   DashboardScope,
   DashboardWidget,
@@ -707,11 +708,16 @@ export function processTopologyConfigFor(
   return BOOSTER_PROCESS_TOPOLOGY_DEFAULTS;
 }
 
-/** Resolve the traces tab config. Defaults to surfacing both
- *  SkyWalking-native and Zipkin trace lists side-by-side. */
-export function tracesConfigFor(template: LayerTemplate | null): TracesConfig {
-  if (template?.traces) return template.traces;
-  return { source: 'both' };
+/**
+ * The trace stores a layer exposes — its checklist, legacy enum resolved.
+ *
+ * A template that says NOTHING resolves to the native store — every template
+ * written before the checklist relied on the Traces row existing without
+ * describing it. Saying none is spelled `sources: []`, which the editor writes
+ * when every box is unticked.
+ */
+export function traceStoresFor(template: LayerTemplate | null): TraceStore[] {
+  return resolveTraceStores(template?.traces ?? null);
 }
 
 /** Resolve the logs tab config — defaults to per-service scope. */

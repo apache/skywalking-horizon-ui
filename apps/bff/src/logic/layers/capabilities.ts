@@ -29,7 +29,7 @@ import {
   instanceTopologyConfigFor,
   deploymentConfigFor,
   endpointDependencyConfigFor,
-  tracesConfigFor,
+  traceStoresFor,
   logConfigFor,
   type LayerTemplate,
   type LayerComponentFlags,
@@ -68,7 +68,7 @@ export interface LayerCapabilities {
     instanceBadge?: string;
   };
   components: string[];
-  tracesSource: string;
+  traceStores: string[];
   logsScope: string;
   metricCounts: { service: number; instance: number; endpoint: number };
   relations: {
@@ -176,7 +176,10 @@ function buildCapabilities(template: LayerTemplate): LayerCapabilities {
     components: componentList(t.components),
     // Gate on the component flag — the config resolvers default to 'both'/'service'
     // even for layers that carry no traces/logs, which would mislead the tool choice.
-    tracesSource: t.components.traces ? (tracesConfigFor(t).source ?? 'both') : 'none',
+    // The stores this layer declares, or none — the model is told exactly
+    // what the sidebar shows, with no default standing in for a layer that
+    // named nothing.
+    traceStores: t.components.traces ? traceStoresFor(t) : [],
     logsScope: t.components.logs ? (logConfigFor(t).scope ?? 'service') : 'none',
     metricCounts: {
       service: scopeCount(t, 'service'),
