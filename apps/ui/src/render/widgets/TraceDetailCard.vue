@@ -43,12 +43,9 @@
   Emits:
     close            — the × was clicked.
     change-trace-id  — a different id was picked from the multi-id select.
-    update:modalOpen — the span-detail modal opened / closed. Hosts use
-                       this to order their own Esc cascade (close the
-                       modal first, then the inline detail).
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan } from '@/api/client';
 import TraceWaterfallView from './TraceWaterfallView.vue';
@@ -71,12 +68,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'change-trace-id', id: string): void;
-  (e: 'update:modalOpen', open: boolean): void;
 }>();
-/** Public method so a host can close the span-detail modal as the
- *  first step of its own Esc cascade. */
-function closeSpanModal(): void { openSpan.value = null; }
-defineExpose({ closeSpanModal });
 
 const nativeSpans = computed<NativeSpan[]>(() => props.spans);
 
@@ -118,13 +110,12 @@ const nativeRootStart = computed(() => {
   return spans.length > 0 ? Math.min(...spans.map((s) => s.startTime)) : null;
 });
 
-// The modal's open/close is surfaced to the host (`update:modalOpen`)
-// so the host owns the single Esc cascade (modal first, then inline
-// detail) — avoiding two competing capture-phase window listeners.
+// The modal registers its own Escape with the shared helper, which answers
+// the innermost open box — so the host needs neither to be told it opened nor
+// to order the steps.
 const openSpan = ref<NativeSpan | null>(null);
 function openNativeSpan(s: NativeSpan): void { openSpan.value = s; }
 function closeSpan(): void { openSpan.value = null; }
-watch(openSpan, (s) => emit('update:modalOpen', !!s));
 </script>
 
 <template>

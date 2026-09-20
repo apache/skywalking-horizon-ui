@@ -27,7 +27,8 @@
      widget. The first group is active by default.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useI18n } from 'vue-i18n';
 import type { DashboardTopItem } from '@skywalking-horizon-ui/api-client';
 import { fmtMetric } from '@/utils/formatters';
@@ -94,16 +95,12 @@ const showTabs = computed(() => effectiveGroups.value.length > 1);
 const expanded = ref(false);
 function openExpanded(): void {
   expanded.value = true;
-  window.addEventListener('keydown', onKeydown);
 }
 function closeExpanded(): void {
   expanded.value = false;
-  window.removeEventListener('keydown', onKeydown);
 }
-function onKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') closeExpanded();
-}
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+// Escape closes the pop-out and nothing above it.
+useEscapeToClose(() => expanded.value, closeExpanded);
 
 // The pop-out trigger lives in the host widget's title bar (so it can't
 // overlap the in-widget tab row); the host calls this via a template ref.

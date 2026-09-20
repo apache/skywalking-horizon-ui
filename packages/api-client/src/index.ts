@@ -163,6 +163,15 @@ export type {
   TraceQLTagValuesResponse,
   TraceQLSourceStatus,
 } from './traceql.js';
+export type { SpanOutcome } from './span-status.js';
+export {
+  TRACE_ERROR_TAGS,
+  attributesReportError,
+  attributesReportOutcome,
+  tagsReportError,
+  spanOutcome,
+  traceOutcome,
+} from './span-status.js';
 export type {
   LogKeyValue,
   LogRow,

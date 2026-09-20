@@ -27,15 +27,14 @@
     loading  — show a "loading…" hint while detail fetches.
 
   Emits:
-    close             — the × was clicked.
-    update:modalOpen  — the span-detail modal opened / closed; hosts use
-                        this to order their Esc cascade (modal first, then
-                        the inline detail).
+    close — the × was clicked.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { tagsReportError } from '@skywalking-horizon-ui/api-client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import LongValue from '@/components/primitives/LongValue.vue';
 import type { ZipkinSpan } from '@/api/client';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -50,13 +49,10 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'update:modalOpen', open: boolean): void;
 }>();
 
 /** Public method so a host can close the span-detail modal as the first
  *  step of its own Esc cascade. */
-function closeSpanModal(): void { selectedSpanId.value = null; }
-defineExpose({ closeSpanModal });
 
 function copyTraceId(): void {
   if (!props.traceId) return;
@@ -201,8 +197,7 @@ function selectSpan(s: ZipkinSpan): void {
 }
 function clearSpan(): void { selectedSpanId.value = null; }
 watch(() => props.traceId, () => { selectedSpanId.value = null; });
-watch(selectedSpan, (s) => emit('update:modalOpen', !!s));
-useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
+useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
 </script>
 
 <template>
@@ -243,7 +238,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
             v-for="row in detailRows"
             :key="row.span.id"
             class="tp-row"
-            :class="{ err: row.span.tags?.error != null, on: selectedSpanId === row.span.id }"
+            :class="{ err: tagsReportError(row.span.tags), on: selectedSpanId === row.span.id }"
             @click="selectSpan(row.span)"
           >
             <div class="tp-track">
@@ -254,14 +249,14 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
                   left: detailLeftPct(row.offsetUs) + '%',
                   width: detailWidthPct(row.durUs) + '%',
                   background: detailColor(row.span.localEndpoint?.serviceName),
-                  borderColor: row.span.tags?.error != null ? 'var(--sw-err)' : 'transparent',
+                  borderColor: tagsReportError(row.span.tags) ? 'var(--sw-err)' : 'transparent',
                 }"
               >
                 <span class="bar-inner">
                   <span
                     class="status-flag sm"
-                    :class="row.span.tags?.error != null ? 'flag-err' : 'flag-ok'"
-                    :title="row.span.tags?.error != null ? t('Span errored') : t('Span OK')"
+                    :class="tagsReportError(row.span.tags) ? 'flag-err' : 'flag-ok'"
+                    :title="tagsReportError(row.span.tags) ? t('Span errored') : t('Span OK')"
                   ><span class="flag-dot" /></span>
                   <svg class="comp-icon comp-icon-generic" viewBox="0 0 18 18" :aria-label="t('generic span')">
                     <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
@@ -310,7 +305,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
                   <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
                   <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(selectedSpan.timestamp) }}</dd>
                   <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-                  <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="selectedSpan.tags?.error != null ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ selectedSpan.tags?.error != null ? t('true') : t('false') }}</span></dd>
+                  <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="tagsReportError(selectedSpan.tags) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ tagsReportError(selectedSpan.tags) ? t('true') : t('false') }}</span></dd>
                 </dl>
               </section>
               <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="sd-section">
@@ -318,7 +313,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
                 <dl class="kv">
                   <template v-for="(v, k) in selectedSpan.tags" :key="k">
                     <dt class="mono">{{ k }}</dt>
-                    <dd class="mono wba" :class="{ err: k === 'error' }">{{ v }}</dd>
+                    <dd class="mono wba" :class="{ err: k === 'error' }"><LongValue :value="v" :label="String(k)" /></dd>
                   </template>
                 </dl>
               </section>

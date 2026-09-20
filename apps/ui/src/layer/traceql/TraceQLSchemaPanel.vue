@@ -30,6 +30,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useI18n } from 'vue-i18n';
 import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import {
@@ -46,25 +47,20 @@ const root = ref<HTMLElement | null>(null);
 function closeOnOutside(e: Event): void {
   if (!root.value?.contains(e.target as Node)) emit('update:open', false);
 }
-function closeOnEscape(e: KeyboardEvent): void {
-  if (e.key === 'Escape') emit('update:open', false);
-}
+// Escape goes through the shared helper, so this panel takes its turn in the
+// one-Escape-one-box order rather than closing alongside whatever else is open.
+useEscapeToClose(
+  () => props.open,
+  () => emit('update:open', false),
+);
 watch(
   () => props.open,
   (open) => {
-    if (open) {
-      document.addEventListener('pointerdown', closeOnOutside);
-      document.addEventListener('keydown', closeOnEscape);
-    } else {
-      document.removeEventListener('pointerdown', closeOnOutside);
-      document.removeEventListener('keydown', closeOnEscape);
-    }
+    if (open) document.addEventListener('pointerdown', closeOnOutside);
+    else document.removeEventListener('pointerdown', closeOnOutside);
   },
 );
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', closeOnOutside);
-  document.removeEventListener('keydown', closeOnEscape);
-});
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside));
 
 const { t } = useI18n({ useScope: 'global' });
 const resourceAttrs = computed(() => TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || a.ds === props.ds));

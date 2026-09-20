@@ -29,7 +29,7 @@
   switches between the filter and a lookup by trace id.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, toRef, watch } from 'vue';
+import { computed, onUnmounted, reactive, ref, toRef, watch } from 'vue';
 import {
   resolveRecordRange,
   recordRangeWarning,
@@ -37,6 +37,7 @@ import {
   SLOW_RECORD_RANGE_HOURS,
 } from '@/utils/recordTimeRange';
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { bffClient } from '@/api/client';
 import { serviceRef } from '@/utils/serviceRef';
 import type {
@@ -626,24 +627,11 @@ function changeSelectedTraceId(id: string): void {
   embeddedSpans.value = null;
 }
 
-// Both detail cards (native + zipkin) expose `closeSpanModal`; only one
-// mounts at a time, so a single ref drives the shared Esc cascade.
-const detailCard = ref<{ closeSpanModal: () => void } | null>(null);
-const spanModalOpen = ref<boolean>(false);
-function onPageKeyDown(e: KeyboardEvent): void {
-  if (e.key !== 'Escape') return;
-  if (spanModalOpen.value) {
-    detailCard.value?.closeSpanModal();
-    e.preventDefault();
-    e.stopPropagation();
-  } else if (selectedTraceId.value) {
-    closeDetail();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}
-onMounted(() => window.addEventListener('keydown', onPageKeyDown, true));
-onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true));
+// Escape closes the inline detail. The span modal above it registers with the
+// same helper and is answered first, because the innermost open box wins — so
+// does a long value's popout above THAT, which a cascade written here could
+// not have known about.
+useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
 </script>
 
 <template>
@@ -927,26 +915,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <div class="iq-detail">
             <ZipkinTraceDetailCard
               v-if="isZipkin"
-              ref="detailCard"
               :spans="zipkinSpans"
               :trace-id="selectedTraceId"
               :loading="detailLoading"
               @close="closeDetail"
-              @update:modal-open="spanModalOpen = $event"
             />
             <template v-else>
               <div v-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
               <div v-else-if="waterfallSpans.length === 0" class="iq-empty sm">{{ t('No spans (older than the detail window).') }}</div>
               <TraceDetailCard
                 v-else
-                ref="detailCard"
                 :spans="waterfallSpans"
                 :trace-id="selectedTraceId"
                 :trace-ids="selectedTraceIds"
                 :loading="detailFetching"
                 @close="closeDetail"
                 @change-trace-id="changeSelectedTraceId"
-                @update:modal-open="spanModalOpen = $event"
               />
             </template>
           </div>

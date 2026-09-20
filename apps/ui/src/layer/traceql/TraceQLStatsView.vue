@@ -24,7 +24,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
-import { buildServiceColors, fmtMs, kindLabel, otlpKindName, serviceColorFrom } from './traceqlDetailShared';
+import { buildServiceColors, fmtMs, kindLabel, otlpKindName, serviceColorFrom, spanStatus } from './traceqlDetailShared';
 
 const props = defineProps<{ spans: TraceQLSpan[] }>();
 const { t } = useI18n({ useScope: 'global' });
@@ -67,7 +67,7 @@ const rows = computed<StatRow[]>(() => {
       maxUs: 0,
     };
     row.count += 1;
-    if (s.status === 'error') row.errors += 1;
+    if (spanStatus(s) === 'error') row.errors += 1;
     row.totalUs += s.durationUs;
     row.maxUs = Math.max(row.maxUs, s.durationUs);
     acc.set(key, row);

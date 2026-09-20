@@ -38,6 +38,7 @@ import {
   kindLabel,
   latencyColor,
   serviceColorFrom,
+  spanStatus,
   statusColor,
 } from './traceqlDetailShared';
 
@@ -183,7 +184,7 @@ watch(treeSvgEl, async () => {
       >
         <rect :width="NODE_W" :height="NODE_H" rx="4" class="tqt-box" :style="{ stroke: serviceColorFrom(colors, n.span.service) }" />
         <rect :width="3" :height="NODE_H" rx="1" :style="{ fill: serviceColorFrom(colors, n.span.service) }" />
-        <circle :cx="NODE_W - 8" :cy="10" :r="3.5" :style="{ fill: statusColor(n.span.status) }" />
+        <circle :cx="NODE_W - 8" :cy="10" :r="3.5" :style="{ fill: statusColor(spanStatus(n.span)) }" />
         <!-- The text lives in HTML, not in <text>: an SVG string neither wraps
              nor ellipsizes, so a long span name ran straight out of its box. -->
         <foreignObject :x="0" :y="0" :width="NODE_W" :height="NODE_H">

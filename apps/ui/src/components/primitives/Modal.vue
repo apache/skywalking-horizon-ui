@@ -15,8 +15,8 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from './useEscapeToClose';
 
 const { t } = useI18n();
 
@@ -44,12 +44,13 @@ const emit = defineEmits<{ close: [] }>();
 function onBackdrop(): void {
   if (props.dismissable) emit('close');
 }
-function onKey(e: KeyboardEvent): void {
-  if (props.open && props.dismissable && e.key === 'Escape') emit('close');
-}
-
-onMounted(() => window.addEventListener('keydown', onKey));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+// Through the shared helper, so ONE Escape closes ONE box: this dialog opens
+// inside others — a long value inside a span detail inside a trace popout —
+// and its own window listener meant a keypress closed every layer at once.
+useEscapeToClose(
+  () => props.open && props.dismissable,
+  () => emit('close'),
+);
 </script>
 
 <template>

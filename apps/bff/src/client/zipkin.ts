@@ -42,7 +42,7 @@ import type {
   ZipkinTraceListResponse,
   ZipkinTraceListRow,
 } from '@skywalking-horizon-ui/api-client';
-import { normalizeZipkinTraceId } from '@skywalking-horizon-ui/api-client';
+import { normalizeZipkinTraceId, tagsReportError } from '@skywalking-horizon-ui/api-client';
 import { wireFetch } from './wire-log.js';
 import type { HorizonConfig } from '../config/schema.js';
 
@@ -160,19 +160,17 @@ async function zipkinFetch<T>(opts: ZipkinClientOpts, path: string): Promise<T> 
  * doesn't ship a "traces summary" endpoint; the list endpoint
  * returns `Span[][]` (one inner array per trace), so we compute
  * the headline fields ourselves from the root span — the one with no
- * parent, else the earliest. A span counts as an error when it carries an
- * `error` tag, an HTTP 5xx `http.status_code`, or `otel.status_code=ERROR`:
- * one rule for every Zipkin list, so a trace reads the same however it was
- * found.
+ * parent, else the earliest. Whether a span counts as an error is the shared
+ * span-status table's answer, so a Zipkin trace reads the same however it was
+ * found AND the same as it does on the TraceQL row over those very spans —
+ * this used to be its own rule (an `error` tag, a `http.status_code` starting
+ * with `5`, `otel.status_code=ERROR`), which disagreed with both.
  */
 export function summariseZipkinTrace(spans: ZipkinSpan[]): ZipkinTraceListRow {
   const root = spans.find((s) => !s.parentId)
     ?? spans.slice().sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))[0]
     ?? null;
-  const errorCount = spans.reduce((n, s) => {
-    const t = s.tags ?? {};
-    return t['error'] != null || t['http.status_code']?.startsWith('5') || t['otel.status_code'] === 'ERROR' ? n + 1 : n;
-  }, 0);
+  const errorCount = spans.reduce((n, s) => (tagsReportError(s.tags) ? n + 1 : n), 0);
   return {
     traceId: root?.traceId ?? '',
     rootName: root?.name ?? null,

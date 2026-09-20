@@ -114,7 +114,41 @@ When a layer enables Zipkin, the Zipkin tab queries an upstream Zipkin store thr
 
 As with the native tab, conditions are staged and only applied on **Run query**, and the **Filter** / **Trace ID** switch beside the title picks between them and a lookup by id.
 
-Each Zipkin result shows its duration and error state, with a duration bar colored fast-to-slow (errored traces are forced to the error color). Selecting a trace renders the Zipkin span waterfall, and a span detail panel exposes the span's duration, kind, and Zipkin tags. Because the two stores have different span formats, there is no field mapping between native and Zipkin results — Zipkin spans keep their Zipkin shape.
+Each Zipkin result shows its duration and error state, with a duration bar colored fast-to-slow (errored traces are forced to the error color). Zipkin ships no status field, so that state is read from the span's tags — see [How a span's status is decided](#how-a-spans-status-is-decided). Selecting a trace renders the Zipkin span waterfall, and a span detail panel exposes the span's duration, kind, and Zipkin tags. Because the two stores have different span formats, there is no field mapping between native and Zipkin results — Zipkin spans keep their Zipkin shape.
+
+## How a span's status is decided
+
+**Only native traces carry a status from the backend.** OAP reports whether a native span errored, and the Traces tab shows what it reported. The other two stores have nothing to report: a **Zipkin** span has no status field at all, and an **OTLP** span converted from one arrives with its status `unset` — OAP's converter sets none. A Tempo search result carries no status either.
+
+So for those, the status is read from the attributes the span carries, by one table shared across every store — the Zipkin row, the TraceQL rows, and each one's result list. An attribute not listed here is never read as a status.
+
+| Attribute | `error` when | `ok` when | says nothing when |
+|---|---|---|---|
+| `error` | any other value, an empty one included | `false`, `0` | — |
+| `http.status_code` | 400 and above | below 400 | not a number, empty included |
+| `http.response.status_code` | 400 and above | below 400 | not a number, empty included |
+| `rpc.status_code` | any other code, named or numeric | `0`, `OK` | empty |
+| `grpc.status_code` | any other code, named or numeric | `0`, `OK` | empty |
+| `rpc.grpc.status_code` | any other code, named or numeric | `0`, `OK` | empty |
+| `otel.status_code` | `ERROR`, `STATUS_CODE_ERROR`, `2` | `OK`, `STATUS_CODE_OK`, `1` | `UNSET`, or anything else |
+| `status.code` | `ERROR`, `STATUS_CODE_ERROR`, `2` | `OK`, `STATUS_CODE_OK`, `1` | `UNSET`, or anything else |
+| `exception.type` | present, an empty one included | — | — |
+| `error.kind` | present, an empty one included | — | — |
+| `error.type` | present, an empty one included | — | — |
+| `error.message` | present, an empty one included | — | — |
+| `error.object` | present, an empty one included | — | — |
+
+**An empty `error` is a failure, and that is deliberate.** In Zipkin the tag's presence is the signal and its value is only the message, so a span that failed without one writes `error=""`. The single place it is read the other way is a **TraceQL search** result: OAP writes every projected attribute onto every span of a trace there, filling in the ones a span does not have with an empty value, so an empty attribute in that one response means the span never carried it. Opening the trace reads the span's real attributes and settles it.
+
+Two attributes on one span can disagree, and so can two spans in one trace. **Failure wins both times, and success is never assumed:** a span reporting a 200 alongside an `exception.type` is failed, a trace is failed as soon as one span is, and a trace is successful only when a span says so and none says otherwise. A trace nothing spoke for stays unknown.
+
+Resolution goes in this order:
+
+1. **A span** — its own status if it has one, otherwise the markers above, otherwise unknown (shown as `unset` on the TraceQL rows, which is OTLP's own word for it).
+
+2. **A trace** — failed as soon as one span is, successful only when a span says so and none says otherwise, unknown when nothing spoke.
+
+Two markers on one span can disagree, and so can two spans in one trace. **Failure wins both times, and success is never assumed:** a span reporting a 200 alongside an `exception.type` is failed. A trace nothing spoke for stays unknown rather than being called a success.
 
 ## TraceQL traces
 
@@ -174,7 +208,7 @@ With **No time range**, OAP 11.0.0 and earlier on BanyanDB look an id up in the 
 - **An `unreachable` chip on the list** — the trace store did not answer, and the reason is printed in a banner above the results. For native traces this points at OAP or its storage backend; for Zipkin it points at the configured Zipkin endpoint; for a TraceQL row it points at that datasource's URL, or says no URL is configured for it. The stores fail independently — one being down does not blank the others.
 - **A TraceQL search comes back refused** — the message under the results is OAP's own. It answers what that deployment can do with the query you sent, which is a property of the OAP you are running rather than of Horizon; take it to the OAP side.
 - **A TraceQL row says the source is not configured** — its URL is empty in `oap.traceql`. A URL that IS set but does not answer reads **unreachable** instead: the module is off in OAP, or the port is wrong. See [TraceQL trace stores](../setup/oap.md#traceql-trace-stores-oaptraceql).
-- **A TraceQL result's status is unknown rather than OK** — the Tempo search response carries no verdict of its own, so Horizon settles each row from the error markers a span carries and then, once the list is on screen, by reading the traces still undecided; the list header counts those down. What survives is a trace whose spans all report `unset` — OpenTelemetry's "no verdict", which is not turned into a success. Running the query again restarts the check.
+- **A TraceQL result's status is unknown rather than OK** — the Tempo search response carries no verdict of its own, so Horizon settles each row from the markers a span carries and then, once the list is on screen, by reading the traces still undecided; the list header counts those down. What survives is a trace no span spoke for: none set a status, and none carried a marker either — see [How a span's status is decided](#how-a-spans-status-is-decided). That is not turned into a success. Running the query again restarts the check.
 - **Run query is greyed out** — the tab does not yet know which service to read. It says which: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. The native and Zipkin tabs read for one service, so they wait instead of querying the whole layer — a lookup by trace id needs none, and the TraceQL rows can search **All services**, because the Tempo API takes a service as an ordinary condition rather than as the subject of the query.
 - **Rows are segments, not whole traces** — that is expected on storage backends without whole-trace support; the banner says so. Click a segment to fetch its full trace.
 - **A trace looked up by its id is not found** — a time range you picked has to cover when the trace happened, so widen it or pick **No time range**. With no time range, OAP 11.0.0 and earlier on BanyanDB cover only the last 24 hours, and the cold stage is not read. Open the trace from the log row that named it (which carries its timestamp), or pick a time range around when it happened, with **Cold** on if it has aged into cold storage.

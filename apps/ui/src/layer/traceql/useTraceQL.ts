@@ -33,6 +33,7 @@ import type {
   TraceQLSourceStatus,
   TraceQLTraceRow,
 } from '@skywalking-horizon-ui/api-client';
+import { traceOutcome } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 
@@ -202,18 +203,16 @@ export function useTraceQLTraceIds(
         const start = Math.min(...spans.map((s) => s.startUs));
         const end = Math.max(...spans.map((s) => s.startUs + s.durationUs));
         const root = spans.find((s) => !s.parentSpanId) ?? spans[0]!;
-        // A trace is failed when a span says so. Spans that say `unset` say
-        // nothing, so a trace of only-unset spans stays UNKNOWN rather than
-        // being called a success.
-        const anyError = spans.some((s) => s.status === 'error');
-        const anyKnown = spans.some((s) => s.status !== 'unset');
+        // A trace is failed when a span says so. A trace no span spoke for
+        // stays UNKNOWN rather than being called a success.
+        const outcome = traceOutcome(spans);
         return {
           key: detail.traceId,
           endpointNames: [root.name || root.service || '—'],
           duration: Math.round((end - start) / 1000),
           start: String(Math.round(start / 1000)),
-          isError: anyError,
-          errorUnknown: !anyKnown,
+          isError: outcome === 'error',
+          errorUnknown: outcome === null,
           traceIds: [detail.traceId],
         } satisfies TraceListRow;
       }),
@@ -306,11 +305,11 @@ export function useTraceQLStatusResolver(
             queryFn: () => bffClient.traceql.trace(source, traceId, win ?? undefined, mine.signal),
             staleTime: 30_000,
           });
-          const spans = detail?.spans ?? [];
-          // A trace of only-unset spans stays unknown: `unset` is the absence
-          // of a verdict, not a success.
-          if (spans.some((sp) => sp.status !== 'unset') && !mine.signal.aborted) {
-            onStatus({ traceId, isError: spans.some((sp) => sp.status === 'error') });
+          // A trace nothing spoke for stays unknown: neither an `unset`
+          // status nor a missing marker is a success.
+          const outcome = traceOutcome(detail?.spans ?? []);
+          if (outcome !== null && !mine.signal.aborted) {
+            onStatus({ traceId, isError: outcome === 'error' });
           }
         } catch {
           // A status nobody could read stays unknown.

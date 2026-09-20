@@ -191,7 +191,12 @@ function onKey(e: KeyboardEvent): void {
     const o = displayRows.value[activeIdx.value];
     if (o) pick(o);
   } else if (e.key === 'Escape') {
-    open.value = false;
+    if (open.value) {
+      // Consumed here: the keypress bubbles to window, where every open box
+      // is listening, and closing this list must not close them too.
+      e.stopPropagation();
+      open.value = false;
+    }
   }
 }
 

@@ -27,7 +27,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
-import { buildSpanTree, kindLabel, otlpKindName, rootSpanOf, statusColor } from './traceqlDetailShared';
+import { buildSpanTree, kindLabel, otlpKindName, rootSpanOf, spanStatus, statusColor } from './traceqlDetailShared';
 
 function span(spanId: string, parentSpanId: string, startUs = 0, durationUs = 10): TraceQLSpan {
   return {
@@ -125,5 +125,26 @@ describe('span status colour', () => {
     expect(statusColor('error')).toBe('var(--sw-err)');
     expect(statusColor('ok')).toBe('var(--sw-ok)');
     expect(statusColor('unset')).toBe('var(--sw-fg-3)');
+  });
+});
+
+describe('the status a span is shown as', () => {
+  const withAttrs = (status: TraceQLSpan['status'], a: Record<string, string>): TraceQLSpan =>
+    ({ ...span('s', ''), status, attributes: Object.entries(a).map(([key, value]) => ({ key, value })) });
+
+  it('reads a marker when OTLP left the field unset', () => {
+    // OAP's Zipkin converter sets no status, so the whole store read `unset`
+    // while every span said plainly what it did.
+    expect(spanStatus(withAttrs('unset', { 'http.status_code': '500' }))).toBe('error');
+    expect(spanStatus(withAttrs('unset', { 'http.status_code': '200' }))).toBe('ok');
+  });
+
+  it('keeps unset when nothing reports either way', () => {
+    expect(spanStatus(span('s', ''))).toBe('unset');
+    expect(spanStatus(withAttrs('unset', { 'http.method': 'GET' }))).toBe('unset');
+  });
+
+  it('does not let a marker overturn the span\'s own status', () => {
+    expect(spanStatus(withAttrs('error', { 'http.status_code': '200' }))).toBe('error');
   });
 });

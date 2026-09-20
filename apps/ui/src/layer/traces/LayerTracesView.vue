@@ -36,7 +36,7 @@
   list row's bar instead.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
@@ -49,6 +49,7 @@ import type {
   TraceQueryOrder,
   TraceQueryState,
 } from '@/api/client';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerTraces, useTraceDetail } from '@/layer/traces/useLayerTraces';
@@ -565,38 +566,11 @@ const visibleTraces = computed(() => {
   return all.filter((t) => pickedTraceIds.value.has(t.key));
 });
 
-// The span-detail modal lives inside TraceDetailCard and reports open/close via
-// `update:modalOpen`; the page owns the single Esc cascade so the two dismissal
-// steps stay ordered without competing capture-phase listeners.
-const detailCard = ref<InstanceType<typeof TraceDetailCard> | null>(null);
-const spanModalOpen = ref<boolean>(false);
-
-/**
- * Esc cascade for the inline detail layout (popout has its own
- * separate handler). Order of dismissal:
- *   1. Span detail modal — if open, Esc closes it first.
- *   2. Inline detail — Esc closes the rail+detail back to browsing.
- *
- * Capture phase so it fires before native form-input handlers
- * (operators often have an input focused when they hit Esc).
- */
-function onPageKeyDown(e: KeyboardEvent): void {
-  if (e.key !== 'Escape') return;
-  // Let an open tag-autocomplete dropdown consume Escape (close itself)
-  // rather than tearing down the trace detail behind it.
-  if (document.querySelector('.tgi__panel')) return;
-  if (spanModalOpen.value) {
-    detailCard.value?.closeSpanModal();
-    e.preventDefault();
-    e.stopPropagation();
-  } else if (selectedTraceId.value) {
-    closeDetail();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}
-onMounted(() => window.addEventListener('keydown', onPageKeyDown, true));
-onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true));
+// Escape closes the inline detail. The span modal above it registers with the
+// same helper and is answered first, because the innermost open box wins — so
+// does a long value's popout above THAT, which a cascade written here could
+// not have known about.
+useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
 </script>
 
 <template>
@@ -842,14 +816,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
         @toggle-rail="railOpen = !railOpen"
       />
       <TraceDetailCard
-        ref="detailCard"
         :spans="detailSpans"
         :trace-id="selectedTraceId"
         :trace-ids="selectedTraceIds"
         :loading="detailFetching"
         @close="closeDetail"
         @change-trace-id="changeSelectedTraceId"
-        @update:modal-open="spanModalOpen = $event"
       />
     </section>
   </div>

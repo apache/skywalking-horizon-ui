@@ -25,6 +25,7 @@
  * and a parent is a span id string, because that is what the data is.
  */
 
+import { spanOutcome } from '@skywalking-horizon-ui/api-client';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 
 const SERVICE_PALETTE = [
@@ -113,6 +114,18 @@ export function kindGlyphFamily(kind: string): 'entry' | 'exit' | 'local' | 'pro
     case 'SPAN_KIND_INTERNAL': return 'local';
     default: return 'other';
   }
+}
+
+/**
+ * The status a span is SHOWN as.
+ *
+ * The OTLP status when the span set one; otherwise whatever its attributes
+ * report, because OAP's Zipkin converter leaves the field `unset` on every
+ * span it produces and the evidence — an `http.status_code`, an `error` tag —
+ * is in the attributes instead. Reading only the field paints a 500 grey.
+ */
+export function spanStatus(span: TraceQLSpan): TraceQLSpan['status'] {
+  return spanOutcome(span) ?? 'unset';
 }
 
 export function statusColor(status: TraceQLSpan['status']): string {
