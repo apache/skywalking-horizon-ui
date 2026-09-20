@@ -27,6 +27,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue';
+import { useEscapeToClose } from './useEscapeToClose';
 
 const props = defineProps<{
   open: boolean;
@@ -96,9 +97,6 @@ function onDocClick(e: MouseEvent): void {
   if (props.anchor?.contains(e.target as Node)) return;
   emit('close');
 }
-function onKey(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && props.open) emit('close');
-}
 function onResize(): void {
   if (props.open) reposition();
 }
@@ -126,14 +124,19 @@ watch(
   { immediate: true },
 );
 
+// Escape closes THIS panel only: its own listener fired alongside every other
+// box's, so one keypress collapsed the whole stack it might sit in.
+useEscapeToClose(
+  () => props.open,
+  () => emit('close'),
+);
+
 document.addEventListener('click', onDocClick);
-document.addEventListener('keydown', onKey);
 window.addEventListener('resize', onResize);
 window.addEventListener('scroll', onResize, true);
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick);
-  document.removeEventListener('keydown', onKey);
   window.removeEventListener('resize', onResize);
   window.removeEventListener('scroll', onResize, true);
   panelObserver?.disconnect();

@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { traceOutcome } from '@skywalking-horizon-ui/api-client';
 import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import TraceQLDetailCard from './TraceQLDetailCard.vue';
 import { useTraceQLTrace } from './useTraceQL';
@@ -50,11 +51,12 @@ watch(
   () => detail.spans.value,
   (list) => {
     if (list.length === 0) return;
-    // `unset` is OTLP's absence of a verdict: a trace of only-unset spans
-    // stays unknown, exactly as the deferred check leaves it. Reporting
-    // `false` here would turn opening a trace into a claim of success.
-    if (!list.some((s) => s.status !== 'unset')) return;
-    emit('status', { traceId: props.traceId, isError: list.some((s) => s.status === 'error') });
+    // A trace no span spoke for stays unknown, exactly as the deferred check
+    // leaves it. Reporting `false` here would turn opening a trace into a
+    // claim of success.
+    const outcome = traceOutcome(list);
+    if (outcome === null) return;
+    emit('status', { traceId: props.traceId, isError: outcome === 'error' });
   },
   { immediate: true },
 );

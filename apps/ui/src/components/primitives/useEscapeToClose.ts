@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 
 /**
  * Close a dismissible box (popout / modal / drawer / side panel / popover)
@@ -23,22 +23,73 @@ import { onBeforeUnmount, onMounted } from 'vue';
  *
  * Pass an `isOpen` getter so the listener is a no-op while the box is shut
  * (and so it reads the LATEST open state on every keypress — a prop, a
- * ref, a store flag); `close` runs only when open. The window listener is
- * torn down on unmount.
+ * ref, a store flag); `close` runs only when open.
  *
  *   useEscapeToClose(() => props.show, () => emit('close'));
  *   useEscapeToClose(() => openStage.value !== null, () => (openStage.value = null));
  *
- * Boxes that nest another dismissible box (a span panel inside a trace
- * popout) own a bespoke two-level handler instead — this is for the common
- * single-level case.
+ * ONE Escape closes ONE box, the innermost. Every box registers here and a
+ * single listener picks the one opened MOST RECENTLY, so a value popout over
+ * a span dialog over a trace popout unwinds a layer per keypress. Each box
+ * having its own window listener meant one keypress closed the whole stack:
+ * the inner box handled it and every outer box handled it too.
+ *
+ * Mount order cannot decide this — a child registers BEFORE its parent — so
+ * what is tracked is when each box last became open.
+ *
+ * TWO BOXES CAN OPEN IN THE SAME UPDATE, and then nothing opened "last": a
+ * link naming a span opens a trace the query cache already holds, so the
+ * popout and the span panel inside it become open together. Ties fall back to
+ * the order the boxes were REGISTERED, so a component owning both layers must
+ * declare the OUTER one first — otherwise that keypress closes the trace and
+ * takes the span panel with it.
  */
-export function useEscapeToClose(isOpen: () => boolean, close: () => void): void {
-  function onKey(e: KeyboardEvent): void {
-    if (e.key !== 'Escape') return;
-    if (!isOpen()) return;
-    close();
+
+interface Box {
+  isOpen: () => boolean;
+  close: () => void;
+  /** When this box last opened. Highest among the open boxes is innermost. */
+  openedAt: number;
+}
+
+const boxes = new Set<Box>();
+let opens = 0;
+let listening = false;
+
+function onKey(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') return;
+  let top: Box | null = null;
+  for (const b of boxes) {
+    if (!b.isOpen()) continue;
+    if (!top || b.openedAt > top.openedAt) top = b;
   }
-  onMounted(() => window.addEventListener('keydown', onKey));
-  onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+  top?.close();
+}
+
+export function useEscapeToClose(isOpen: () => boolean, close: () => void): void {
+  const box: Box = { isOpen, close, openedAt: 0 };
+  watch(
+    isOpen,
+    (open) => {
+      if (open) {
+        opens += 1;
+        box.openedAt = opens;
+      }
+    },
+    { immediate: true },
+  );
+  onMounted(() => {
+    boxes.add(box);
+    if (!listening) {
+      window.addEventListener('keydown', onKey);
+      listening = true;
+    }
+  });
+  onBeforeUnmount(() => {
+    boxes.delete(box);
+    if (boxes.size === 0 && listening) {
+      window.removeEventListener('keydown', onKey);
+      listening = false;
+    }
+  });
 }

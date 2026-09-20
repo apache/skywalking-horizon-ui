@@ -41,7 +41,7 @@ function row(key: string, unknown = true): TraceListRow {
   };
 }
 
-function span(status: TraceQLSpan['status']): TraceQLSpan {
+function span(status: TraceQLSpan['status'], attributes: Array<{ key: string; value: string }> = []): TraceQLSpan {
   return {
     spanId: 's1',
     parentSpanId: '',
@@ -51,26 +51,30 @@ function span(status: TraceQLSpan['status']): TraceQLSpan {
     startUs: 0,
     durationUs: 10,
     status,
-    attributes: [],
+    attributes,
     resourceAttributes: [],
     events: [],
   };
 }
 
-/** A BFF whose trace reads resolve when the test says so. */
-function fakeBff(statusOf: (id: string) => TraceQLSpan['status']) {
+/** A BFF whose trace reads answer with the spans the test names. */
+function fakeBffSpans(spansOf: (id: string) => TraceQLSpan[]) {
   const reads: string[] = [];
   const fetchSpy = vi.fn(async (input: string | URL | Request) => {
     const path = new URL(String(input), 'http://ui').pathname;
     const id = decodeURIComponent(path.split('/trace/')[1] ?? '');
     reads.push(id);
     return new Response(
-      JSON.stringify({ ds: 'native', traceId: id, spans: [span(statusOf(id))], reachable: true, notFound: false }),
+      JSON.stringify({ ds: 'native', traceId: id, spans: spansOf(id), reachable: true, notFound: false }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     );
   });
   vi.stubGlobal('fetch', fetchSpy);
   return { reads };
+}
+
+function fakeBff(statusOf: (id: string) => TraceQLSpan['status']) {
+  return fakeBffSpans((id) => [span(statusOf(id))]);
 }
 
 /** Mount the composable, which needs a query client to live in. */
@@ -134,6 +138,29 @@ describe('deferred trace status', () => {
     await flushPromises();
     // `unset` is the absence of a verdict; reporting `false` would paint it
     // green on no evidence at all.
+    expect(h1.seen).toEqual([]);
+  });
+
+  it('settles an unset span on the markers it carries', async () => {
+    // Every span OAP converts from Zipkin is `unset`, so without this the
+    // whole store stays permanently unknown however plainly it reports a 500.
+    fakeBffSpans((id) => [span('unset', [{ key: 'http.status_code', value: id === 'bad' ? '500' : '200' }])]);
+    const h1 = harness();
+    mounted = h1.wrapper;
+    await h1.api().resolve([row('bad'), row('good')]);
+    await flushPromises();
+    expect(h1.seen).toEqual([
+      { traceId: 'bad', isError: true },
+      { traceId: 'good', isError: false },
+    ]);
+  });
+
+  it('still leaves a trace whose markers say nothing unknown', async () => {
+    fakeBffSpans(() => [span('unset', [{ key: 'http.method', value: 'GET' }])]);
+    const h1 = harness();
+    mounted = h1.wrapper;
+    await h1.api().resolve([row('a')]);
+    await flushPromises();
     expect(h1.seen).toEqual([]);
   });
 

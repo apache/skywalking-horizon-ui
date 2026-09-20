@@ -34,6 +34,7 @@ import {
   kindLabel,
   otlpKindName,
   serviceColorFrom,
+  spanStatus,
   statusColor,
 } from './traceqlDetailShared';
 
@@ -59,11 +60,11 @@ const pct = (v: number): string => `${Math.min(100, (v / total.value) * 100)}%`;
       v-for="row in rows"
       :key="row.key"
       class="tqw-row"
-      :class="{ on: selectedSpan === row.span, err: row.span.status === 'error' }"
+      :class="{ on: selectedSpan === row.span, err: spanStatus(row.span) === 'error' }"
       @click="emit('select-span', row.span)"
     >
       <span class="tqw-svc" :style="{ background: serviceColorFrom(colors, row.span.service) }" />
-      <span class="tqw-status" :style="{ background: statusColor(row.span.status) }" />
+      <span class="tqw-status" :style="{ background: statusColor(spanStatus(row.span)) }" />
       <SpanKindGlyph
         class="tqw-kind"
         :family="kindGlyphFamily(row.span.kind)"
@@ -79,7 +80,7 @@ const pct = (v: number): string => `${Math.min(100, (v / total.value) * 100)}%`;
             left: pct(row.offsetUs),
             width: pct(Math.max(row.span.durationUs, total / 400)),
             background: serviceColorFrom(colors, row.span.service),
-            outlineColor: row.span.status === 'error' ? 'var(--sw-err)' : 'transparent',
+            outlineColor: spanStatus(row.span) === 'error' ? 'var(--sw-err)' : 'transparent',
           }"
         />
         <span

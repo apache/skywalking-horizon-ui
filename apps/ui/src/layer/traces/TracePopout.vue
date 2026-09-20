@@ -29,9 +29,10 @@
       trace refs there hot-swap the popout to the linked trace.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useEmptyTraceRetry } from './useEmptyTraceRetry';
@@ -206,26 +207,14 @@ function copyShareableUrl(): void {
 function selectSpan(s: NativeSpan): void { selectedSpan.value = s; }
 function clearSpan(): void { selectedSpan.value = null; }
 
-/** Esc-to-close. If a span is selected the first Esc closes the
- *  side panel (keeps the popout open). A second Esc — or Esc with
- *  no span selected — closes the popout itself. Always listening
- *  while the component is mounted; the no-op guard prevents
- *  intercepting Esc when the popout isn't open. */
-function onKeyDown(e: KeyboardEvent): void {
-  if (e.key !== 'Escape') return;
-  if (!openTraceId.value) return;
-  if (selectedSpan.value) {
-    selectedSpan.value = null;
-    e.preventDefault();
-    e.stopPropagation();
-  } else {
-    closeTrace();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}
-onMounted(() => window.addEventListener('keydown', onKeyDown, true));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
+// Two boxes, unwound innermost first: the span panel, then the popout under it.
+// Registering both says WHAT is open rather than ordering the steps by hand,
+// so a long value's popout opened over the span panel is answered before either.
+// The OUTER box is declared first on purpose: a link naming a span opens a
+// cached trace with both already open, and nothing opened "last" then — the
+// helper falls back to declaration order, which has to run outermost first.
+useEscapeToClose(() => openTraceId.value !== null, closeTrace);
+useEscapeToClose(() => openTraceId.value !== null && selectedSpan.value !== null, () => (selectedSpan.value = null));
 function isSelfRef(refTraceId: string): boolean { return refTraceId === openTraceId.value; }
 function jumpToTrace(id: string): void { openTrace(id); }
 function nativeSpanError(s: NativeSpan): boolean { return s.isError; }

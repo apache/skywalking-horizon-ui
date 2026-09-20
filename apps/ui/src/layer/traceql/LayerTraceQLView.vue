@@ -41,6 +41,7 @@ import TraceQLSchemaPanel from './TraceQLSchemaPanel.vue';
 import TraceQLWindowFields from './TraceQLWindowFields.vue';
 import { buildTraceQL, lintTraceQL, serviceInExpression, type BuilderRows } from './traceqlLint';
 import { TRACEQL_POPOUT_QUERY } from './traceqlDetailShared';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { TRACEQL_STATUS_VALUES } from '@/monaco/traceql-grammar';
 import {
   useTraceQLOptions,
@@ -237,6 +238,10 @@ function closeUrlTrace(): void {
   delete query[TRACEQL_POPOUT_QUERY];
   void router.replace({ query });
 }
+// Escape closes it, as it does the native trace popout. The shared helper
+// answers the innermost open box first, so this is the third keypress: value
+// popout, then span detail, then the trace.
+useEscapeToClose(() => urlTraceId.value !== null, closeUrlTrace);
 const railOpen = ref(true);
 // Picking dots / brushing a box narrows the LIST to those traces; no query
 // fires. The inline detail still opens from a list row, so a pick and a
@@ -870,7 +875,18 @@ const issueText: Record<string, string> = {
   padding: 40px 16px;
   overflow: auto;
 }
-.tql-overlay-card { width: min(1100px, 100%); }
+/* A trace of three spans drew a card a few rows tall, floating in the middle
+   of a dimmed page — it read as a fragment rather than a view. The floor keeps
+   the card a page, and yields to a short window rather than overflowing it.
+   The height has to reach the CARD, which is a child: putting it on this
+   wrapper alone stretched something transparent and changed nothing. */
+.tql-overlay-card {
+  width: min(1100px, 100%);
+  min-height: min(640px, calc(100vh - 80px));
+  display: flex;
+  flex-direction: column;
+}
+.tql-overlay-card :deep(> *) { flex: 1 1 auto; min-height: 0; }
 .tql-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 80px); overflow: hidden; }
 .pick-kicker { color: var(--sw-accent-2); font-weight: 700; }
 .reset-btn { margin-left: 6px; }

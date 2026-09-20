@@ -239,6 +239,9 @@ function onKeydown(e: KeyboardEvent): void {
   } else if (e.key === 'Escape') {
     if (open.value) {
       e.preventDefault();
+      // The keypress bubbles to window, where every open box listens; closing
+      // this suggestion list must not close what the field sits inside.
+      e.stopPropagation();
       open.value = false;
     }
   } else if (e.key === 'Tab') {

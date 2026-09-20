@@ -48,8 +48,8 @@ import type {
   TraceQLTagScope,
   TraceQLTraceRow,
 } from '@skywalking-horizon-ui/api-client';
+import { attributesReportError } from '@skywalking-horizon-ui/api-client';
 import { wireFetch } from './wire-log.js';
-import { attributesReportError } from './traceql-error-tags.js';
 import type { HorizonConfig } from '../config/schema.js';
 
 export interface TraceQLClientOpts {
@@ -330,7 +330,9 @@ function toRow(ds: TraceQLDatasource, t: WireSearchTrace, focus: string | null):
     if (svc && !services.includes(svc)) services.push(svc);
     // Which attributes reach a search result is an OAP setting, so failure is
     // read from whichever of the known markers the span happens to carry.
-    if (!anyError && attributesReportError(attrList(s.attributes))) anyError = true;
+    // `emptyIsAbsent` because THIS response is padded: OAP writes every
+    // projected key on every span of a span set, the missing ones as `""`.
+    if (!anyError && attributesReportError(attrList(s.attributes), { emptyIsAbsent: true })) anyError = true;
     if (focus && svc === focus) {
       const startNs = num(s.startTimeUnixNano);
       // The service's FIRST span — where it enters the trace. A service can be

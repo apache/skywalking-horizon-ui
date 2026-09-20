@@ -37,6 +37,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
+import { useEscapeToClose } from './useEscapeToClose';
 
 const props = withDefaults(
   defineProps<{
@@ -279,29 +280,28 @@ function onDocPointer(e: Event): void {
   if (panelEl.value?.contains(target)) return;
   open.value = false;
 }
-function onDocKey(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && open.value) {
-    open.value = false;
-    inputEl.value?.focus();
-  }
-}
 const panelEl = ref<HTMLElement | null>(null);
 watch(open, (v) => {
   track(v);
   if (v) {
     void nextTick(place);
     document.addEventListener('pointerdown', onDocPointer);
-    document.addEventListener('keydown', onDocKey);
   } else {
     document.removeEventListener('pointerdown', onDocPointer);
-    document.removeEventListener('keydown', onDocKey);
   }
 });
 onBeforeUnmount(() => {
   track(false);
   document.removeEventListener('pointerdown', onDocPointer);
-  document.removeEventListener('keydown', onDocKey);
 });
+
+// Escape closes the CALENDAR and nothing else. Its own listener meant one
+// keypress also closed whatever the field sits inside — a profiling task
+// dialog, say — losing the form along with the calendar.
+useEscapeToClose(
+  () => open.value,
+  () => { open.value = false; inputEl.value?.focus(); },
+);
 </script>
 
 <template>

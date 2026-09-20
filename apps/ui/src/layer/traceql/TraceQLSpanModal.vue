@@ -28,7 +28,7 @@
 import { useI18n } from 'vue-i18n';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
-import { fmtDateTime, fmtMs, kindColor, kindLabel, otlpKindName, statusColor } from './traceqlDetailShared';
+import { fmtDateTime, fmtMs, kindColor, kindLabel, otlpKindName, spanStatus, statusColor } from './traceqlDetailShared';
 import LongValue from '@/components/primitives/LongValue.vue';
 
 defineProps<{ span: TraceQLSpan; traceId: string }>();
@@ -49,7 +49,7 @@ useEscapeToClose(
           <span class="mono">{{ span.name || '—' }}</span>
         </h4>
         <span class="tqm-kind mono">{{ kindLabel(span.kind) }}</span>
-        <span class="tqm-status mono" :style="{ color: statusColor(span.status) }">{{ span.status }}</span>
+        <span class="tqm-status mono" :style="{ color: statusColor(spanStatus(span)) }">{{ spanStatus(span) }}</span>
         <button type="button" class="sw-btn small ghost tqm-close" @click="emit('close')">×</button>
       </header>
 
@@ -109,16 +109,21 @@ useEscapeToClose(
         <h5>{{ t('Events') }}</h5>
         <ul class="tqm-events">
           <li v-for="(ev, i) in span.events" :key="i">
+            <!-- WHEN, then WHAT: events are read down the column as a
+                 sequence, so the time leads and the names line up after it. -->
             <div class="tqm-event-head mono">
-              <span>{{ ev.name || '—' }}</span>
-              <span class="dim">{{ fmtDateTime(ev.timeUs) }}</span>
+              <span class="tqm-event-time">{{ fmtDateTime(ev.timeUs) }}</span>
+              <span class="tqm-event-name">{{ ev.name || '—' }}</span>
             </div>
-            <dl v-if="ev.attributes.length" class="tqm-kv nested">
-              <template v-for="a in ev.attributes" :key="a.key">
-                <dt class="mono">{{ a.key }}</dt>
-                <dd class="mono break"><LongValue :value="a.value" :label="a.key" /></dd>
-              </template>
-            </dl>
+            <template v-if="ev.attributes.length">
+              <span class="tqm-event-attrs-label">{{ t('attributes') }}</span>
+              <dl class="tqm-kv nested">
+                <template v-for="a in ev.attributes" :key="a.key">
+                  <dt class="mono">{{ a.key }}</dt>
+                  <dd class="mono break"><LongValue :value="a.value" :label="a.key" /></dd>
+                </template>
+              </dl>
+            </template>
           </li>
         </ul>
       </section>
@@ -133,11 +138,17 @@ useEscapeToClose(
   background: rgba(0, 0, 0, 0.5);
   z-index: 45;
   display: flex;
-  align-items: center;
+  /* Aligned from the TOP, like the trace popout it opens over, and inset from
+     it — centred and 82vh tall, this dialog was TALLER than that card, so the
+     two sets of edges crossed and read as one crowded shape rather than a
+     dialog on top of a card. */
+  align-items: flex-start;
   justify-content: center;
-  padding: 24px 16px;
+  padding: 72px 16px;
 }
-.tqm { width: min(720px, 100%); max-height: 82vh; overflow: auto; padding: 12px 14px; }
+/* 32px inside the trace card's own box (40px down, min(640, 100vh - 80) tall)
+   on every side, so it always reads as sitting within it. */
+.tqm { width: min(720px, 100%); max-height: min(576px, calc(100vh - 144px)); overflow: auto; padding: 12px 14px; }
 .tqm-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .tqm-head h4 {
   margin: 0;
@@ -174,7 +185,11 @@ useEscapeToClose(
 .tqm-fields > section > h5 { grid-column: 1 / -1; }
 /* Events keep a grid of their own — each is a card, indented under its head. */
 .tqm-kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0; font-size: 11px; }
-.tqm-kv.nested { margin: 2px 0 6px 12px; }
+/* Three levels, read as a tree: when + what, then its attributes, then each
+   key and value — the same truncate / open / copy the span's own attributes
+   get, because a stack trace on an event is as long as one on a span. */
+.tqm-event-attrs-label { display: block; margin: 2px 0 0 14px; font-size: 10px; color: var(--sw-fg-3); }
+.tqm-kv.nested { margin: 1px 0 8px 28px; }
 .tqm-kv dt,
 .tqm-fields dt { color: var(--sw-fg-3); font-size: 10.5px; }
 .tqm-kv dd,
@@ -196,6 +211,11 @@ h5 {
 .tqm-fields > section:first-child h5 { margin-top: 0; }
 .tqm-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .tqm-event-head { display: flex; gap: 10px; align-items: baseline; font-size: 11px; }
+.tqm-event-time { color: var(--sw-fg-3); font-size: 10px; flex: 0 0 auto; }
+.tqm-event-name { color: var(--sw-fg-0); }
+/* `margin-left: auto` pushed this to the far edge, which is why the event
+   head read name-first with the time trailing. Kept for the title's own
+   subtitle, which still wants it. */
 .dim { color: var(--sw-fg-3); font-size: 10px; margin-left: auto; }
 .mono { font-family: var(--sw-mono); }
 </style>

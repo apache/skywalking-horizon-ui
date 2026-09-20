@@ -22,7 +22,7 @@
   the parent-id-walking ZipkinTracePopout.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   resolveRecordRange,
   recordRangeWarning,
@@ -40,6 +40,7 @@ import type {
 import { normalizeZipkinTraceId } from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useZipkinAutocomplete } from '@/layer/traces/useZipkinAutocomplete';
 import { NO_TIME_RANGE, useTraceQueryMode } from '@/layer/traces/useTraceQueryMode';
@@ -348,24 +349,11 @@ const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallback
 const selectedSpans = computed<ZipkinSpan[]>(() => selectedRowSpans.value ?? fetchedSpans.value);
 const selectedLoading = computed<boolean>(() => Boolean(fallbackTraceId.value) && fetchLoading.value);
 
-// Esc cascade: the detail card owns the span modal — close it first
-// (via the card's `closeSpanModal`), then the inline detail.
-const detailCard = ref<{ closeSpanModal: () => void } | null>(null);
-const spanModalOpen = ref<boolean>(false);
-function onPageKeyDown(e: KeyboardEvent): void {
-  if (e.key !== 'Escape') return;
-  if (spanModalOpen.value) {
-    detailCard.value?.closeSpanModal();
-    e.preventDefault();
-    e.stopPropagation();
-  } else if (selectedTraceId.value) {
-    closeDetail();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}
-onMounted(() => window.addEventListener('keydown', onPageKeyDown, true));
-onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true));
+// Escape closes the inline detail. The span modal above it registers with the
+// same helper and is answered first, because the innermost open box wins — so
+// does a long value's popout above THAT, which a cascade written here could
+// not have known about.
+useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
 
 // Embedded (chat): seed the focus Zipkin service + window and auto-run once —
 // the same "commit refs + refetch on mount" contract the native trace view uses.
@@ -635,12 +623,10 @@ const visibleRows = computed<TraceListRow[]>(() => {
       />
 
       <ZipkinTraceDetailCard
-        ref="detailCard"
         :spans="selectedSpans"
         :trace-id="selectedTraceId"
         :loading="selectedLoading"
         @close="closeDetail"
-        @update:modal-open="spanModalOpen = $event"
       />
     </section>
   </div>

@@ -59,10 +59,13 @@ function jsonResponse(payload: unknown): Response {
 let router: Router;
 let wrapper: VueWrapper | null = null;
 
-/** Open the popout the way every caller does — by the address. */
-async function openPopout(extra: Record<string, string> = {}): Promise<VueWrapper> {
+/** Open the popout the way every caller does — by the address. Pass a client
+ *  that outlives the mount to reopen against a trace it has already read. */
+async function openPopout(
+  extra: Record<string, string> = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+): Promise<VueWrapper> {
   await router.push({ path: '/layer/mesh/trace', query: { traceId: TRACE, traceType: 'OTLP', ...extra } });
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   wrapper = mount(ZipkinTracePopout, {
     global: { plugins: [router, i18n, [VueQueryPlugin, { queryClient }]] },
   });
@@ -128,6 +131,31 @@ describe('Zipkin trace popout — a picked span opens in a dialog over the water
     await w.get('.span-modal-backdrop').trigger('click');
     expect(w.find('.span-modal').exists()).toBe(false);
     expect(w.find('.zk-popout').exists()).toBe(true);
+  });
+
+  it('closes the dialog first when a link names a span in an ALREADY-READ trace', async () => {
+    // A link that names a span (an evaluation record's trace link, a log row)
+    // opens the popout with the dialog already up. When the trace still has to
+    // be read the popout opens first and the dialog follows, but when the
+    // cache already holds it the two become open in the SAME update — neither
+    // opened "last", and the first Escape used to take the whole popout down
+    // rather than the dialog on top of it.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } },
+    });
+    await openPopout({}, client);
+    wrapper?.unmount();
+    wrapper = null;
+
+    const w = await openPopout({ traceSpanId: 's2' }, client);
+    expect(w.find('.span-modal').exists()).toBe(true);
+
+    await pressEscape();
+    expect(w.find('.span-modal').exists()).toBe(false);
+    expect(w.find('.zk-popout').exists()).toBe(true);
+
+    await pressEscape();
+    expect(w.find('.zk-popout').exists()).toBe(false);
   });
 
   it('closes the dialog on the first Escape and the popout on the second', async () => {

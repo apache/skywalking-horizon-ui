@@ -30,11 +30,14 @@
   layer it lands on.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
+import { tagsReportError } from '@skywalking-horizon-ui/api-client';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import LongValue from '@/components/primitives/LongValue.vue';
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useRoute } from 'vue-router';
@@ -219,34 +222,14 @@ function widthPct(us: number): number {
   return Math.max(0.8, Math.min(100, (us / total) * 100));
 }
 
-// Escape unwinds one layer at a time: clear span detail first (if a span is
-// pinned), then close the whole popout. Operators expect Escape not to nuke
-// their trace context when they only meant to dismiss the span dialog.
-function onKeydown(ev: KeyboardEvent): void {
-  if (ev.key !== 'Escape') return;
-  if (selectedSpan.value) {
-    ev.preventDefault();
-    clearSpan();
-    return;
-  }
-  if (openTraceId.value) {
-    ev.preventDefault();
-    closeTrace();
-  }
-}
-
-// The keydown listener is wired through Vue's lifecycle so it is torn down
-// on unmount (the correct shape for HMR / split-mount).
-onMounted(() => {
-  if (typeof window !== 'undefined') {
-    window.addEventListener('keydown', onKeydown);
-  }
-});
-onBeforeUnmount(() => {
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', onKeydown);
-  }
-});
+// Two boxes, unwound innermost first: the span detail, then the popout under it.
+// Registering both says WHAT is open rather than ordering the steps by hand,
+// so a long value's popout opened over the span detail is answered before either.
+// The OUTER box is declared first on purpose: a link naming a span opens a
+// cached trace with both already open, and nothing opened "last" then — the
+// helper falls back to declaration order, which has to run outermost first.
+useEscapeToClose(() => openTraceId.value !== null, closeTrace);
+useEscapeToClose(() => openTraceId.value !== null && selectedSpan.value !== null, clearSpan);
 
 function copyTraceId(): void {
   if (!traceIdRef.value) return;
@@ -296,7 +279,7 @@ function copyTraceId(): void {
             v-for="row in waterfall"
             :key="row.span.id"
             class="tp-row"
-            :class="{ on: selectedSpanId === row.span.id, err: row.span.tags?.error != null }"
+            :class="{ on: selectedSpanId === row.span.id, err: tagsReportError(row.span.tags) }"
             @click="selectSpan(row.span)"
           >
             <div class="tp-track">
@@ -307,14 +290,14 @@ function copyTraceId(): void {
                   left: offsetPct(row.startOffsetUs) + '%',
                   width: widthPct(row.durationUs) + '%',
                   background: serviceColor(row.span.localEndpoint?.serviceName),
-                  borderColor: row.span.tags?.error != null ? 'var(--sw-err)' : 'transparent',
+                  borderColor: tagsReportError(row.span.tags) ? 'var(--sw-err)' : 'transparent',
                 }"
               >
                 <span class="bar-inner">
                   <span
                     class="status-flag sm"
-                    :class="row.span.tags?.error != null ? 'flag-err' : 'flag-ok'"
-                    :title="row.span.tags?.error != null ? t('Span errored') : t('Span OK')"
+                    :class="tagsReportError(row.span.tags) ? 'flag-err' : 'flag-ok'"
+                    :title="tagsReportError(row.span.tags) ? t('Span errored') : t('Span OK')"
                   ><span class="flag-dot" /></span>
                   <svg class="comp-icon comp-icon-generic" viewBox="0 0 18 18" :aria-label="t('generic span')">
                     <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
@@ -362,7 +345,7 @@ function copyTraceId(): void {
                 <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
                 <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(selectedSpan.timestamp) }}</dd>
                 <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-                <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="selectedSpan.tags?.error != null ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ selectedSpan.tags?.error != null ? t('true') : t('false') }}</span></dd>
+                <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="tagsReportError(selectedSpan.tags) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ tagsReportError(selectedSpan.tags) ? t('true') : t('false') }}</span></dd>
               </dl>
             </section>
             <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="sd-section">
@@ -370,7 +353,7 @@ function copyTraceId(): void {
               <dl class="kv">
                 <template v-for="(v, k) in selectedSpan.tags" :key="k">
                   <dt class="mono">{{ k }}</dt>
-                  <dd class="mono wba" :class="{ err: k === 'error' }">{{ v }}</dd>
+                  <dd class="mono wba" :class="{ err: k === 'error' }"><LongValue :value="v" :label="String(k)" /></dd>
                 </template>
               </dl>
             </section>
