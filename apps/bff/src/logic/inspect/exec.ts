@@ -34,7 +34,6 @@
 import type { FastifyReply } from 'fastify';
 import type { FetchLike, ExpressionResult, MqeEntity } from '@skywalking-horizon-ui/api-client';
 import { INSPECT_STEPS, isInspectDate, type InspectStep } from '@skywalking-horizon-ui/api-client';
-import type { MqeTarget } from '../../util/mqe-target.js';
 
 interface DurationInput {
   start: string;
@@ -149,11 +148,11 @@ interface GraphQlEnvelope {
  *  `ExpressionResult` on success. Throws a {@link MqeFireError} with
  *  the GraphQL error array attached on failure. */
 export async function fireMqe(
-  target: MqeTarget,
+  queryUrl: string,
   req: ExecBody,
   deps: ExecDeps,
 ): Promise<ExpressionResult> {
-  const url = `${target.baseUrl.replace(/\/$/, '')}/graphql`;
+  const url = `${queryUrl.replace(/\/$/, '')}/graphql`;
   const payload = {
     query: GRAPHQL_QUERY,
     variables: {

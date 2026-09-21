@@ -18,6 +18,8 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { i18n } from '@/i18n';
+import type { ProcessTopologyConfig } from '@skywalking-horizon-ui/api-client';
+import { nextTick } from 'vue';
 import ProcessConfigEditor from './ProcessConfigEditor.vue';
 
 const config = () => ({
@@ -44,5 +46,23 @@ describe('ProcessConfigEditor MQE explorer coverage', () => {
       global: { plugins: [i18n] },
     });
     expect(wrapper.find('.mqe-run').exists()).toBe(false);
+  });
+});
+
+describe('editing a config written in the older spelling', () => {
+  it('rewrites it to one list, so edits land on the draft', async () => {
+    // The component is REUSED when a layer changes or Reset to remote runs,
+    // so normalising on mount alone left the rows bound to copies and threw
+    // every edit away.
+    const wrapper = mount(ProcessConfigEditor, {
+      props: { config: config(), layerKey: 'GENERAL' },
+      global: { plugins: [i18n] },
+    });
+    await nextTick();
+    const written = wrapper.emitted('update:config')?.at(-1)?.[0] as ProcessTopologyConfig;
+    expect(written.edgeMetrics).toEqual([
+      { id: 'write', label: 'Write', mqe: 'process_relation_client_write_cpm', aggregation: 'avg', side: 'client' },
+      { id: 'read', label: 'Read', mqe: 'process_relation_server_read_cpm', aggregation: 'avg', side: 'server' },
+    ]);
   });
 });

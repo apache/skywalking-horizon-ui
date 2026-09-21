@@ -27,7 +27,7 @@
 import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
-import type { Catalog } from '@skywalking-horizon-ui/api-client';
+import type { Catalog, TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import { tokens } from '@skywalking-horizon-ui/design-tokens';
 // Local shim mapping the vantage rrDark slot names to horizon's nested
 // token tree so the Monaco theme below stays readable. The slot semantics
@@ -130,7 +130,7 @@ export function setupMonaco(): void {
  *  the backend reported, and a way to ask for one tag's values. Attached to the
  *  MODEL so one registration serves every editor instance and every datasource. */
 export interface TraceQLSchema {
-  ds: 'native' | 'zipkin';
+  ds: TraceQLDatasource;
   tagKeys: string[];
   services: string[];
   spanNames: string[];
@@ -275,10 +275,14 @@ function registerTraceQL(): void {
       const partial = /[A-Za-z_][\w.]*$/.exec(line)?.[0] ?? '';
       const fieldRange = rangeBack(partial.length);
       const suggestions: monaco.languages.CompletionItem[] = [
-        ...TRACEQL_INTRINSICS.map((i) =>
+        // Only the intrinsics THIS store can filter — `kind` is a column
+        // where the spans were stored as OTLP and nowhere else, and OAP
+        // refuses it outright on the others. The schema panel already hides
+        // it; offering it here contradicted that.
+        ...TRACEQL_INTRINSICS.filter((i) => !i.ds || !schema || i.ds.includes(schema.ds)).map((i) =>
           item(i.name, i.name === 'duration' ? 'duration>' : `${i.name}="`, i.detail, monaco.languages.CompletionItemKind.Keyword, fieldRange),
         ),
-        ...TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || !schema || a.ds === schema.ds).map((a) =>
+        ...TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || !schema || a.ds.includes(schema.ds)).map((a) =>
           item(a.name, `${a.name}="`, a.detail, monaco.languages.CompletionItemKind.Property, fieldRange),
         ),
         ...TRACEQL_SCOPES.map((sc) => item(`${sc.name}.`, `${sc.name}.`, sc.detail, monaco.languages.CompletionItemKind.Module, fieldRange)),

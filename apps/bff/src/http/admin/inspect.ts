@@ -59,7 +59,6 @@ import { sessionHasVerb } from '../../rbac/policy.js';
 import type { Session } from '../../user/sessions.js';
 import { buildOapClients, type OapClients } from '../../client/index.js';
 import { AttributionCache, attributeOrUnknown } from '../../logic/inspect/attribution.js';
-import { MqeTargetCache } from '../../util/mqe-target.js';
 import { parseExecBody, fireMqe, MqeFireError } from '../../logic/inspect/exec.js';
 import { ServerTimeCache } from '../../util/time.js';
 import { wireFetch } from '../../client/wire-log.js';
@@ -91,7 +90,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
    * /api/inspect/catalog busts it explicitly for the SPA's manual
    * refresh button. */
   const attribution = new AttributionCache();
-  const mqeTarget = new MqeTargetCache();
   const serverTime = new ServerTimeCache();
 
   function clients(): OapClients {
@@ -184,7 +182,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       const value = await serverTime.get({
         config: () => deps.config.current,
         fetch: fetchImpl,
-        mqeTarget,
       });
       return reply.send(value);
     },
@@ -204,11 +201,7 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       const cfg = deps.config.current;
       const fetchImpl = wireFetch(deps.fetch ?? globalThis.fetch.bind(globalThis));
       try {
-        const target = await mqeTarget.resolve({
-          config: () => cfg,
-          fetch: fetchImpl,
-        });
-        const result = await fireMqe(target, body, {
+        const result = await fireMqe(cfg.oap.queryUrl, body, {
           fetch: fetchImpl,
           timeoutMs: cfg.oap.timeoutMs,
           ...(cfg.oap.auth ? { auth: cfg.oap.auth } : {}),

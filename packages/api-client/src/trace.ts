@@ -45,14 +45,20 @@ export type TraceSource = 'native' | 'zipkin' | 'both';
  *                       OpenTelemetry spans OAP converts into Zipkin form
  *  - `traceql-native` — the Tempo API over native spans
  *  - `traceql-zipkin` — the Tempo API over Zipkin spans
+ *  - `traceql-otlp`   — the Tempo API over the OTLP spans OAP stores as they
+ *                       arrived, converting nothing. It is not the same store
+ *                       as `traceql-zipkin`: which of the two holds a
+ *                       deployment's OTLP traces depends on whether its
+ *                       receiver keeps them natively or converts them.
  */
-export type TraceStore = 'native' | 'zipkin' | 'traceql-native' | 'traceql-zipkin';
+export type TraceStore = 'native' | 'zipkin' | 'traceql-native' | 'traceql-zipkin' | 'traceql-otlp';
 
 export const TRACE_STORES: readonly TraceStore[] = [
   'native',
   'zipkin',
   'traceql-native',
   'traceql-zipkin',
+  'traceql-otlp',
 ];
 
 /**

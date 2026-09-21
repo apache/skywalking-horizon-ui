@@ -17,7 +17,9 @@
 
 /** Which trace store answers a TraceQL query. Each is a separate OAP
  *  datasource on its own URL; they share this API and this renderer. */
-export type TraceQLDatasource = 'native' | 'zipkin';
+/** Which of OAP's TraceQL datasources answers — one context path each on the
+ *  Tempo port. `otlp` serves the spans `receiver-otel` stored natively. */
+export type TraceQLDatasource = 'native' | 'zipkin' | 'otlp';
 
 /** The queried service's own entry into a trace — where it starts relative to
  *  the trace and how long its first span ran. Only available when the query
@@ -123,8 +125,13 @@ export interface TraceQLTagValuesResponse {
  *  the socket — can be told apart. */
 export interface TraceQLSourceStatus {
   ds: TraceQLDatasource;
+  /** The datasource's full URL — empty when this OAP does not serve it. */
   url: string;
   configured: boolean;
+  /** False when the service ANSWERED but does not serve this datasource — a
+   *  404, which is OAP saying the datasource is not enabled. Absent when the
+   *  question never got that far. Distinct from `reachable`: nothing is down. */
+  served?: boolean;
   reachable: boolean;
   version?: string;
   error?: string;

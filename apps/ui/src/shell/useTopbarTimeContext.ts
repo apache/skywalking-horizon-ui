@@ -35,6 +35,7 @@ const TIME_RANGE_OPT_OUT = [
   /^\/layer\/[^/]+\/zipkin-trace$/,
   /^\/layer\/[^/]+\/traceql-native-trace$/,
   /^\/layer\/[^/]+\/traceql-zipkin-trace$/,
+  /^\/layer\/[^/]+\/traceql-otlp-trace$/,
   // Logs carry their own time picker (the condition bar); the level /
   // keyword filters make rolling-window refresh awkward mid-investigation.
   /^\/layer\/[^/]+\/logs$/,

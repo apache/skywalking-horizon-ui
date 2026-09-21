@@ -28,7 +28,7 @@ import { configSchema } from '../../config/schema.js';
 import { buildTraceQLOpts, encodeNativeTraceId } from '../../client/traceql.js';
 import { fillTraceStatuses, statusTermIn, withStatusError } from './status.js';
 
-const NATIVE_URL = 'http://oap.test:3200/skywalking';
+const TRACEQL_URL = 'http://oap.test:3200';
 
 function row(traceId: string, isError?: boolean): TraceQLTraceRow {
   return {
@@ -63,7 +63,7 @@ function backend(ids: string[]) {
       { status: 200, headers: { 'content-type': 'application/json' } },
     );
   };
-  const opts = buildTraceQLOpts(configSchema.parse({ oap: { traceql: { nativeUrl: NATIVE_URL } } }), 'native', fetch)!;
+  const opts = buildTraceQLOpts(configSchema.parse({ oap: { traceql: { url: TRACEQL_URL, nativePath: '/skywalking' } } }), 'native', fetch)!;
   return { opts, asked };
 }
 
@@ -133,7 +133,7 @@ describe('traceql trace-list status', () => {
   it('costs the statuses, not the list, when the second search fails', async () => {
     const fetch: FetchLike = async () => new Response('nope', { status: 500 });
     const opts = buildTraceQLOpts(
-      configSchema.parse({ oap: { traceql: { nativeUrl: NATIVE_URL } } }),
+      configSchema.parse({ oap: { traceql: { url: TRACEQL_URL, nativePath: '/skywalking' } } }),
       'native',
       fetch,
     )!;

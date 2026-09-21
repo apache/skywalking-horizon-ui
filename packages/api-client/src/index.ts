@@ -90,6 +90,7 @@ export type {
   InstanceTopologyConfig,
   EndpointDependencyConfig,
   ProcessTopologyConfig,
+  ProcessRelationSide,
   ProcessRelationMetric,
   ProcessRelationMetricsResponse,
   ProcessRelationEndpointRef,
@@ -103,6 +104,7 @@ export type {
   EndpointDependencyCall,
   EndpointDependencyResponse,
 } from './topology.js';
+export { resolveEdgeMetrics } from './topology.js';
 export type {
   DeploymentMetricDef,
   ClusterByRule,

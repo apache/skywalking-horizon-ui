@@ -79,9 +79,12 @@ const COMPONENT_TOGGLES = computed((): Array<{ key: ComponentKey; label: string;
   { key: 'evaluationRecord', label: t('Evaluation Record'), hint: t('GenAI evaluation record explorer scoped to this layer.') },
   { key: 'browserErrors', label: t('Browser Logs'), hint: t('BROWSER-layer JS error logs with source-map de-obfuscation of the minified stack.') },
   { key: 'podLogs', label: t('Pod Logs'), hint: t('On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.') },
+  { key: 'aiConversations', label: t('Conversations'), hint: t('AI agent conversations recorded against this layer’s services.') },
   { key: 'traceProfiling', label: t('Trace Profiling'), hint: t('Trace-driven thread profiling — the original SkyWalking profile.') },
   { key: 'ebpfProfiling', label: t('eBPF Profiling'), hint: t('Kernel-level CPU / off-CPU profiling via eBPF agents.') },
+  { key: 'networkProfiling', label: t('Network Profiling'), hint: t('Process-to-process network profiling via the Rover eBPF agent.') },
   { key: 'asyncProfiling', label: t('Async Profiling'), hint: t('JVM async-profiler integration (Java-only).') },
+  { key: 'pprofProfiling', label: t('pprof (Go)'), hint: t('Go runtime pprof profiles (Go-only).') },
   { key: 'continuousProfiling', label: t('Continuous Profiling'), hint: t('Auto-trigger policies — rules that make an eBPF agent start an ON_CPU / OFF_CPU / NETWORK task by itself. Needs the same Rover agent as eBPF Profiling; there is no continuous trace / async / pprof profiling.') },
 ]);
 
@@ -191,7 +194,26 @@ const ROW_TO_ADMIN_SCOPE: Record<string, AdminScope | undefined> = {
   dependency: 'dependency',
   trace: 'trace',
   logs: 'logs',
+  // EVERY row opens the tab that configures it. A row that opened nothing was
+  // a button the operator had no way to read as a label.
+  //
+  // All five trace rows share ONE tab: what a layer configures about traces is
+  // which stores it exposes and how each is named, which is one checklist, not
+  // one panel per store.
+  'zipkin-trace': 'trace',
+  'traceql-native-trace': 'trace',
+  'traceql-zipkin-trace': 'trace',
+  'traceql-otlp-trace': 'trace',
+  'evaluation-record': 'evaluationRecord',
+  'browser-errors': 'browserErrors',
+  'pod-logs': 'podLogs',
+  conversations: 'aiConversations',
+  'trace-profiling': 'traceProfiling',
+  'ebpf-profiling': 'ebpfProfiling',
   'network-profiling': 'networkProfiling',
+  'continuous-profiling': 'continuousProfiling',
+  pprof: 'pprofProfiling',
+  'async-profiling': 'asyncProfiling',
 };
 
 /** The order this layer resolves to with NO stored arrangement — what
@@ -259,7 +281,12 @@ function labelForRow(path: string): string {
     case 'zipkin-trace': return storeName('zipkin') || t('Zipkin Traces');
     case 'traceql-native-trace': return storeName('traceql-native') || t('TraceQL - Native');
     case 'traceql-zipkin-trace': return storeName('traceql-zipkin') || t('TraceQL - Zipkin');
+    case 'traceql-otlp-trace': return storeName('traceql-otlp') || t('TraceQL - OTLP');
     case 'logs': return t('Logs');
+    // Rows whose name was never added here fell through to `default` and were
+    // drawn as their raw path — `evaluation-record` rather than its name.
+    case 'evaluation-record': return t('Evaluation records');
+    case 'conversations': return t('Conversations');
     case 'browser-errors': return t('Browser Logs');
     case 'pod-logs': return t('Pod Logs');
     case 'trace-profiling': return t('Trace Profiling');

@@ -22,9 +22,16 @@
   (no role / thresholds).
 -->
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ProcessTopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
+import type {
+  ProcessRelationSide,
+  ProcessTopologyConfig,
+  TopologyMetricDef,
+} from '@skywalking-horizon-ui/api-client';
+import { resolveEdgeMetrics } from '@skywalking-horizon-ui/api-client';
+
+type EdgeMetric = TopologyMetricDef & { side?: ProcessRelationSide };
 import { nextFreeId } from './free-id';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
@@ -34,30 +41,50 @@ const { t } = useI18n({ useScope: 'global' });
 const config = defineModel<ProcessTopologyConfig | undefined>('config');
 const props = defineProps<{ layerKey?: string; readOnly?: boolean }>();
 
-function ensure(): ProcessTopologyConfig {
-  if (!config.value) config.value = { edgeClientMetrics: [], edgeServerMetrics: [] };
-  if (!config.value.edgeClientMetrics) config.value.edgeClientMetrics = [];
-  if (!config.value.edgeServerMetrics) config.value.edgeServerMetrics = [];
-  return config.value;
+/** Opens on the RESOLVED list, so a template still written as two side lists
+ *  is edited as the one list it means — and the first edit writes that form
+ *  out, as the trace-store checklist does. */
+function ensure(): ProcessTopologyConfig & { edgeMetrics: EdgeMetric[] } {
+  if (!config.value) config.value = {};
+  if (!config.value.edgeMetrics) {
+    config.value = { edgeMetrics: resolveEdgeMetrics(config.value) };
+  }
+  return config.value as ProcessTopologyConfig & { edgeMetrics: EdgeMetric[] };
 }
-onMounted(() => {
-  if (!props.readOnly) ensure();
-});
+const edgeMetrics = computed<EdgeMetric[]>(() => config.value?.edgeMetrics ?? resolveEdgeMetrics(config.value));
 
-const clientMetrics = computed(() => config.value?.edgeClientMetrics ?? []);
-const serverMetrics = computed(() => config.value?.edgeServerMetrics ?? []);
+/** Normalise whenever the config is REPLACED, not just on mount: switching
+ *  layer or resetting to remote reuses this component, and a replacement in
+ *  the old spelling would leave the rows bound to `resolveEdgeMetrics`'s
+ *  copies — edits landing on a clone the draft never sees. */
+watch(
+  // `readOnly` too: a config opened read-only is never normalised, so if the
+  // same draft becomes editable the rows would still be bound to the
+  // resolver's copies and every edit would land on a clone.
+  [config, () => props.readOnly] as const,
+  ([c, ro]) => {
+    if (ro) return;
+    if (!c || !c.edgeMetrics) ensure();
+  },
+  { immediate: true },
+);
+
 
 function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
   const id = nextFreeId('metric_', taken.map((m) => m.id));
   return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
-function addClient(): void {
+function addMetric(side?: ProcessRelationSide): void {
   if (props.readOnly) return;
-  ensure().edgeClientMetrics.push(blankMetric(clientMetrics.value));
+  const m = blankMetric(edgeMetrics.value);
+  ensure().edgeMetrics.push(side ? { ...m, side } : m);
 }
-function addServer(): void {
+function setSide(i: number, raw: string): void {
   if (props.readOnly) return;
-  ensure().edgeServerMetrics.push(blankMetric(serverMetrics.value));
+  const m = ensure().edgeMetrics[i];
+  if (!m) return;
+  if (raw === 'client' || raw === 'server') m.side = raw;
+  else delete m.side;
 }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
   if (props.readOnly) return;
@@ -80,51 +107,42 @@ function remove(list: TopologyMetricDef[], i: number): void {
     <div class="topo-cfg-body">
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>{{ t('Client-side metrics') }}</h5>
-          <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addClient">{{ t('＋ Add') }}</button>
+          <h5>{{ t('Edge metrics') }}</h5>
+          <span class="sub">{{ t('Each names the end of the conversation it describes. The eBPF probe watches both, and a metric that describes the exchange itself — the HTTP/1.x families — belongs to neither.') }}</span>
+          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addMetric('client')">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
+        <div v-if="edgeMetrics.length === 0" class="topo-cfg-empty">{{ t('No edge metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(m, i) in clientMetrics"
+            v-for="(m, i) in edgeMetrics"
             :key="rowKey(m)"
-            v-model:metric="clientMetrics[i]"
+            v-model:metric="edgeMetrics[i]"
             :layer-key="layerKey"
             :read-only="readOnly"
             site-scope="process-relation"
             mqe-placeholder="process_relation_client_write_cpm"
             :can-move-up="i > 0"
-            :can-move-down="i < clientMetrics.length - 1"
-            @move-up="move(clientMetrics, i, -1)"
-            @move-down="move(clientMetrics, i, 1)"
-            @remove="remove(clientMetrics, i)"
-          />
-        </div>
-      </div>
-
-      <div class="topo-cfg-section">
-        <header class="topo-cfg-head">
-          <h5>{{ t('Server-side metrics') }}</h5>
-          <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" :disabled="readOnly" @click="addServer">{{ t('＋ Add') }}</button>
-        </header>
-        <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
-        <div v-else class="metric-list">
-          <MetricDefinitionRow
-            v-for="(m, i) in serverMetrics"
-            :key="rowKey(m)"
-            v-model:metric="serverMetrics[i]"
-            :layer-key="layerKey"
-            :read-only="readOnly"
-            site-scope="process-relation"
-            mqe-placeholder="process_relation_server_write_cpm"
-            :can-move-up="i > 0"
-            :can-move-down="i < serverMetrics.length - 1"
-            @move-up="move(serverMetrics, i, -1)"
-            @move-down="move(serverMetrics, i, 1)"
-            @remove="remove(serverMetrics, i)"
-          />
+            :can-move-down="i < edgeMetrics.length - 1"
+            @move-up="move(edgeMetrics, i, -1)"
+            @move-down="move(edgeMetrics, i, 1)"
+            @remove="remove(edgeMetrics, i)"
+          >
+            <template #lead>
+              <label class="mf side-pick">
+                <span>{{ t('side') }}</span>
+                <select
+                  class="mf-input"
+                  :disabled="readOnly"
+                  :value="m.side ?? ''"
+                  @change="setSide(i, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="client">{{ t('client') }}</option>
+                  <option value="server">{{ t('server') }}</option>
+                  <option value="">{{ t('both') }}</option>
+                </select>
+              </label>
+            </template>
+          </MetricDefinitionRow>
         </div>
       </div>
     </div>

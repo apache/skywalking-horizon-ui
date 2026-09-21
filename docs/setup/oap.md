@@ -8,8 +8,10 @@ oap:
   adminUrl: http://127.0.0.1:17128
   zipkinUrl: http://127.0.0.1:9412/zipkin
   traceql:
-    nativeUrl: http://127.0.0.1:3200/skywalking
-    zipkinUrl: http://127.0.0.1:3200/zipkin
+    url: http://127.0.0.1:3200
+    nativePath: /skywalking
+    zipkinPath: /zipkin
+    otlpPath: /otlp
   timeoutMs: 15000
   auth:
     username: skywalking
@@ -23,13 +25,13 @@ oap:
 | `queryUrl` | URL string | `http://127.0.0.1:12800` | no | OAP GraphQL query endpoint. Load-balanceable — any OAP node answers. Used by all read pages. Must be a valid URL. |
 | `adminUrl` | URL string | `http://127.0.0.1:17128` | no | OAP admin REST endpoint. Hosts runtime-rule, dsl-debugging, inspect, status, debugging/config endpoints. Single URL; OAP handles cluster-internal fan-out. |
 | `zipkinUrl` | URL string | `http://127.0.0.1:9412/zipkin` | no | Zipkin v2 REST endpoint. Used when a layer exposes the Zipkin trace store. Defaults assume the standalone Armeria binding; for Docker / shared-port deployments use `<queryUrl>/zipkin`. |
-| `traceql.nativeUrl` | URL string | empty | no | OAP's TraceQL (Grafana Tempo API) service over the SkyWalking-native spans, context path included. **Empty means off** — there is deliberately no default, because OAP ships the module disabled. See [TraceQL trace stores](#traceql-trace-stores-oaptraceql). |
-| `traceql.zipkinUrl` | URL string | empty | no | The same service over the Zipkin spans, context path included. Empty means off. |
+| `traceql.url` | URL string | empty | no | OAP's TraceQL (Grafana Tempo API) service — host and port only, no path. One server answers for every datasource. **Empty means off** — there is deliberately no default, because OAP ships the module disabled. See [TraceQL trace stores](#traceql-trace-stores-oaptraceql). |
+| `traceql.nativePath` | string | `/skywalking` | no | Context path of the datasource over the SkyWalking-native spans — OAP's `restContextPathSkywalking`. |
+| `traceql.zipkinPath` | string | `/zipkin` | no | Context path of the datasource over the Zipkin spans — OAP's `restContextPathZipkin`. |
+| `traceql.otlpPath` | string | `/otlp` | no | Context path of the datasource over the OTLP spans OAP stored as they arrived — OAP's `restContextPathOTLP`. Needs `receiver-otel.otlpTraceStorage: otlp`. |
 | `timeoutMs` | number | `15000` | no | Per-request HTTP timeout (milliseconds) for all OAP calls. Applies to query, admin, Zipkin. Must be positive integer. |
 | `auth.username` | string | — | required if `auth` block present | Basic-auth username. Sent on every outbound OAP call. |
 | `auth.password` | string | — | required if `auth` block present | Basic-auth password. Sent on every outbound OAP call. Use `${VAR}` interpolation, not a literal. |
-| `mqe.host` | string | — | no | Override host for the MQE (`execExpression`) calls the Metrics Inspect page fires. When the whole `mqe` block is unset, those calls go to `queryUrl` like every other GraphQL query. See [MQE endpoint override](#mqe-endpoint-override-oapmqe). |
-| `mqe.port` | number | — | no | Override port for the same calls. Must be positive integer. |
 
 ## How the BFF uses each URL
 
@@ -59,25 +61,17 @@ Its default port is `3200`, with the context paths `/skywalking` and `/zipkin`. 
 ```yaml
 oap:
   traceql:
-    nativeUrl: http://<oap-host>:3200/skywalking
-    zipkinUrl: http://<oap-host>:3200/zipkin
+    url: http://<oap-host>:3200
+    nativePath: /skywalking
+    zipkinPath: /zipkin
+    otlpPath: /otlp
 ```
 
-Leaving a URL empty turns that source off: its sidebar row still appears for a layer that names it, and the tab states that no URL is configured rather than searching something else. A configured URL that does not answer is reported the same way, on the page rather than in a log.
+**One endpoint, one path per datasource.** OAP's TraceQL service binds a single host and port (`restHost` / `restPort`, `3200` by default) and serves each datasource under its own context path, so Horizon takes the endpoint once and the paths default to OAP's own. Change a path only if you changed `restContextPath*` on OAP.
+
+**Setting `url` is the whole switch.** Horizon probes each datasource: one this OAP does not enable answers 404 and is reported on the Cluster Status page with what to switch on, beside the ones that are genuinely down. Leaving `url` empty turns the feature off — a layer's sidebar row still appears if its template names the store, and the tab states that no URL is configured rather than searching something else. A configured URL that does not answer is reported the same way, on the page rather than in a log.
 
 Which layers expose these stores is a layer-template decision, not a connection one — see [Layer Dashboard Templates → `traces`](../customization/layer-templates.md#traces) and [Traces](../operate/traces.md).
-
-## MQE endpoint override (`oap.mqe`)
-
-The Metrics Inspect page executes MQE expressions (`execExpression`) against a resolved MQE endpoint. By default that endpoint **is `queryUrl`** — the same GraphQL surface as every other query, with the same scheme and basic-auth — so most deployments never set `oap.mqe`. Set the override only when the MQE surface must be reached at a different address than `queryUrl`:
-
-- **Both `host` and `port` set** — MQE calls go to `http://<host>:<port>` (plain HTTP), with no discovery.
-- **Only one of the two set** — the missing half is discovered from the OAP admin host's configuration dump: the sharing-server REST bind when present (the OAP 11.x default layout), otherwise core's REST bind. A wildcard bind host (`0.0.0.0`, `::`) is replaced with `adminUrl`'s hostname. The combined result is plain HTTP as well.
-- **Neither set (default)** — MQE calls use `queryUrl` verbatim.
-
-The resolved target is cached for about a minute, so a hot-reloaded `oap.mqe` edit takes effect within a minute.
-
-Env form (JSON, both fields optional): `HORIZON_OAP_MQE='{"host":"mqe.internal","port":12800}'`.
 
 ## Basic auth handling
 

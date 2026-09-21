@@ -526,8 +526,9 @@ Which trace stores this layer exposes. It is a **checklist**, not a single choic
 |---|---|---|
 | `native` | `trace` | OAP's native trace query. |
 | `zipkin` | `zipkin-trace` | OAP's Zipkin v2 API at `oap.zipkinUrl`, which also carries the OpenTelemetry spans OAP converts into Zipkin form. |
-| `traceql-native` | `traceql-native-trace` | The TraceQL (Grafana Tempo) API over the native spans, at `oap.traceql.nativeUrl`. |
-| `traceql-zipkin` | `traceql-zipkin-trace` | The same API over the Zipkin spans, at `oap.traceql.zipkinUrl`. |
+| `traceql-native` | `traceql-native-trace` | The TraceQL (Grafana Tempo) API over the native spans, at `oap.traceql.url` + `nativePath`. |
+| `traceql-zipkin` | `traceql-zipkin-trace` | The same API over the Zipkin spans, at `oap.traceql.url` + `zipkinPath`. |
+| `traceql-otlp` | `traceql-otlp-trace` | The same API over the OTLP spans OAP stored as they arrived, at `oap.traceql.url` + `otlpPath`. |
 
 **A template written before the checklist needs no change.** One carrying the old `source` enum is read as the store(s) it named (`both` as native plus Zipkin); one with no `traces` block at all is read as the **native** store, which is the row such a layer has always shown. Saying a layer has *no* trace rows is explicit: `"sources": []`. The editor opens on the resolved set rather than the literal one, so the first change made THERE — ticking a store, renaming a row, editing a filter — writes the resolved set out as a `sources` list and the fallback stops applying. Editing something else on the layer and saving leaves the old spelling alone. The `traces` component flag must also be on for any row to appear.
 

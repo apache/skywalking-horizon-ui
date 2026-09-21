@@ -43,9 +43,13 @@ import {
 } from '../../client/traceql.js';
 import { resetTraceQLAvailability } from '../../logic/traceql/availability.js';
 import { registerTraceQLRoutes } from './traceql.js';
+import { traceqlUrlFor } from '../../client/traceql.js';
 
-const NATIVE_URL = 'http://oap.test:3200/skywalking';
-const ZIPKIN_URL = 'http://oap.test:3200/zipkin';
+/** One TraceQL service, one context path per datasource — the shape OAP has. */
+const TRACEQL_URL = 'http://oap.test:3200';
+const NATIVE_URL = `${TRACEQL_URL}/skywalking`;
+const ZIPKIN_URL = `${TRACEQL_URL}/zipkin`;
+const OTLP_URL = `${TRACEQL_URL}/otlp`;
 
 /** A real id from the demo, in both shapes OAP actually emits. */
 const DOTTED = '7ac11a5bf004469780c148737a161cb2.38.17897214704563381';
@@ -55,8 +59,19 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-function cfgWith(traceql: { nativeUrl?: string; zipkinUrl?: string }): ReturnType<typeof configSchema.parse> {
-  return configSchema.parse({ oap: { traceql } });
+/** Tests name the datasources they expose; the config carries the endpoint
+ *  once and a path each, so an absent one is a path this OAP does not serve. */
+function cfgWith(ds: { nativeUrl?: string; zipkinUrl?: string; otlpUrl?: string }): ReturnType<typeof configSchema.parse> {
+  return configSchema.parse({
+    oap: {
+      traceql: {
+        url: TRACEQL_URL,
+        nativePath: ds.nativeUrl ? '/skywalking' : '',
+        zipkinPath: ds.zipkinUrl ? '/zipkin' : '',
+        otlpPath: ds.otlpUrl ? '/otlp' : '',
+      },
+    },
+  });
 }
 
 function attr(key: string, value: string) {
@@ -235,12 +250,141 @@ describe('search: the window is seconds, and the rows are reduced', () => {
     const [zipkinRow] = await traceqlSearch(zipkin, { startMs: 1, endMs: 2, limit: 5 });
     expect(zipkinRow!.isError).toBe(true);
   });
+
+  it('settles a failure from the trace-wide counts, and never a success', async () => {
+    // A span set holds the spans that MATCHED, capped at `spss`, so an `ok`
+    // among them says nothing about the ones the filter excluded. serviceStats
+    // does count the whole trace — but only its failures are conclusive.
+    const withStats = (stats?: Record<string, { errorCount: number }>): FetchLike => async () => {
+      const body = searchBody();
+      body.traces[0]!.spanSets[0]!.spans[0]!.attributes.push(attr('status', 'ok'));
+      if (stats) (body.traces[0] as Record<string, unknown>).serviceStats = stats;
+      return json(body);
+    };
+    const row = async (stats?: Record<string, { errorCount: number }>) => {
+      const opts = buildTraceQLOpts(cfgWith({ otlpUrl: OTLP_URL }), 'otlp', withStats(stats))!;
+      const [r] = await traceqlSearch(opts, { startMs: 1, endMs: 2, limit: 5 });
+      return r!.isError;
+    };
+    // An ok span and no trace-wide count: unknown, and the list reads it.
+    expect(await row()).toBeUndefined();
+    // Counted clean, and STILL unknown: OAP counts by its own rule — a Zipkin
+    // 503 with no `error` tag is zero errors — while Horizon reads a wider
+    // set of markers when it opens the trace.
+    expect(await row({ a: { errorCount: 0 }, b: { errorCount: 0 } })).toBeUndefined();
+    // A service the span set never listed failed: settled, without a read.
+    expect(await row({ a: { errorCount: 0 }, b: { errorCount: 2 } })).toBe(true);
+  });
+
+  it('does not take OAP\'s Zipkin status projection as Horizon\'s verdict', async () => {
+    // Same rule as the counts, same reason: the converter writes `error` when
+    // the tags merely CONTAIN the key, so a span that wrote `error="false"`
+    // arrives projected as failed.
+    const projected: FetchLike = async () => {
+      const body = searchBody();
+      body.traces[0]!.spanSets[0]!.spans[0]!.attributes.push(attr('status', 'error'));
+      return json(body);
+    };
+    const zipkin = buildTraceQLOpts(cfgWith({ zipkinUrl: ZIPKIN_URL }), 'zipkin', projected)!;
+    expect((await traceqlSearch(zipkin, { startMs: 1, endMs: 2, limit: 5 }))[0]!.isError).toBeUndefined();
+    const otlp = buildTraceQLOpts(cfgWith({ otlpUrl: OTLP_URL }), 'otlp', projected)!;
+    expect((await traceqlSearch(otlp, { startMs: 1, endMs: 2, limit: 5 }))[0]!.isError).toBe(true);
+  });
+
+  it('does not take OAP\'s Zipkin error count as Horizon\'s verdict', async () => {
+    // ZipkinOTLPConverter counts a span whose tags merely CONTAIN `error`,
+    // whatever the value — so `error="false"`, a span reporting success,
+    // counts as one. Horizon reads that value and calls it ok, so the count
+    // is not conclusive there and the row is left to be read.
+    const counted: FetchLike = async () => {
+      const body = searchBody();
+      (body.traces[0] as Record<string, unknown>).serviceStats = { a: { errorCount: 3 } };
+      return json(body);
+    };
+    const zipkin = buildTraceQLOpts(cfgWith({ zipkinUrl: ZIPKIN_URL }), 'zipkin', counted)!;
+    expect((await traceqlSearch(zipkin, { startMs: 1, endMs: 2, limit: 5 }))[0]!.isError).toBeUndefined();
+    // The OTLP store derives its status from the span the SDK exported, which
+    // is the rule Horizon reads, so there the count settles it.
+    const otlp = buildTraceQLOpts(cfgWith({ otlpUrl: OTLP_URL }), 'otlp', counted)!;
+    expect((await traceqlSearch(otlp, { startMs: 1, endMs: 2, limit: 5 }))[0]!.isError).toBe(true);
+  });
+
+  it('reads a FAILURE from the status OAP projects onto a search span', async () => {
+    // OAP writes `status` on every search-result span so a list can show
+    // failures without reading each trace. One failing span fails the trace
+    // whatever the query matched, which is why this direction settles.
+    const withStatus = (status: string): FetchLike => async () => {
+      const body = searchBody();
+      body.traces[0]!.spanSets[0]!.spans[0]!.attributes.push(attr('status', status));
+      return json(body);
+    };
+    const row = async (status: string) => {
+      const opts = buildTraceQLOpts(cfgWith({ otlpUrl: OTLP_URL }), 'otlp', withStatus(status))!;
+      const [r] = await traceqlSearch(opts, { startMs: 1, endMs: 2, limit: 5 });
+      return r!.isError;
+    };
+    expect(await row('error')).toBe(true);
+    // `ok` settles nothing on its own — it speaks for one matched span, not
+    // for the trace. Success needs the trace-wide count; see the test above.
+    expect(await row('ok')).toBeUndefined();
+    expect(await row('unset')).toBeUndefined();
+  });
+
+  it('reads an attribute of any OTLP type, not only a string', async () => {
+    // The `/otlp` datasource serves the spans as the SDK exported them, so an
+    // attribute keeps its own type — `http.status_code` arrives as an int.
+    // Reading `stringValue` alone dropped every one of them.
+    const typed: FetchLike = async () => {
+      const body = searchBody();
+      body.traces[0]!.spanSets[0]!.spans[0]!.attributes.push(
+        { key: 'http.status_code', value: { intValue: '503' } } as never,
+      );
+      return json(body);
+    };
+    const opts = buildTraceQLOpts(cfgWith({ otlpUrl: OTLP_URL }), 'otlp', typed)!;
+    const [r] = await traceqlSearch(opts, { startMs: 1, endMs: 2, limit: 5 });
+    expect(r!.isError).toBe(true);
+  });
+});
+
+describe('where a datasource answers', () => {
+  const cfg = (traceql: Record<string, string>) => configSchema.parse({ oap: { traceql } });
+
+  it('joins the one endpoint with each datasource path', () => {
+    const c = cfg({ url: TRACEQL_URL, nativePath: '/skywalking', zipkinPath: '/zipkin', otlpPath: '/otlp' });
+    expect(traceqlUrlFor(c, 'native')).toBe(NATIVE_URL);
+    expect(traceqlUrlFor(c, 'zipkin')).toBe(ZIPKIN_URL);
+    expect(traceqlUrlFor(c, 'otlp')).toBe(OTLP_URL);
+  });
+
+  it('does not double the slash, whichever side carries it', () => {
+    expect(traceqlUrlFor(cfg({ url: 'http://oap.test:3200/', nativePath: '/skywalking' }), 'native'))
+      .toBe(NATIVE_URL);
+    expect(traceqlUrlFor(cfg({ url: TRACEQL_URL, nativePath: 'skywalking' }), 'native'))
+      .toBe(NATIVE_URL);
+  });
+
+  it('uses OAP\'s own context paths without being told them', () => {
+    // The paths are OAP's defaults, so setting the endpoint is enough. A
+    // datasource this OAP does not enable answers 404 and is reported as not
+    // served — which the probe decides, not the config.
+    const c = cfg({ url: TRACEQL_URL });
+    expect(traceqlUrlFor(c, 'native')).toBe(NATIVE_URL);
+    expect(traceqlUrlFor(c, 'zipkin')).toBe(ZIPKIN_URL);
+    expect(traceqlUrlFor(c, 'otlp')).toBe(OTLP_URL);
+  });
+
+  it('answers empty when there is nothing to ask', () => {
+    // No service configured at all, or a path deliberately blanked here.
+    expect(traceqlUrlFor(cfg({ nativePath: '/skywalking' }), 'native')).toBe('');
+    expect(traceqlUrlFor(cfg({ url: TRACEQL_URL, zipkinPath: '' }), 'zipkin')).toBe('');
+  });
 });
 
 describe('the routes', () => {
   beforeEach(() => resetTraceQLAvailability());
 
-  async function build(fetchImpl: FetchLike, traceql: { nativeUrl?: string; zipkinUrl?: string }) {
+  async function build(fetchImpl: FetchLike, traceql: { nativeUrl?: string; zipkinUrl?: string; otlpUrl?: string }) {
     const cfg = cfgWith(traceql);
     const config: ConfigSource = {
       current: cfg,
@@ -267,6 +411,7 @@ describe('the routes', () => {
     expect(sources).toMatchObject([
       { ds: 'native', configured: true },
       { ds: 'zipkin', configured: false, reachable: false },
+      { ds: 'otlp', configured: false, reachable: false },
     ]);
   });
 
@@ -306,7 +451,9 @@ describe('the routes', () => {
     const { app, sid } = await build(async () => json({}), { nativeUrl: NATIVE_URL });
     const res = await app.inject({
       method: 'GET',
-      url: '/api/traceql/otlp/search?startMs=1&endMs=2',
+      // A name OAP has no datasource for. `otlp` used to stand here and is a
+      // real one now, which is the whole point of the route validating.
+      url: '/api/traceql/jaeger/search?startMs=1&endMs=2',
       headers: { cookie: `horizon_sid=${sid}` },
     });
     expect(res.statusCode).toBe(400);

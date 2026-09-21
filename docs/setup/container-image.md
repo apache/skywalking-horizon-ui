@@ -68,7 +68,6 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_OAP_TRACEQL_NATIVE_URL` | _(empty)_ | url | OAP's TraceQL (Tempo API) datasource over the native spans, context path included — `http://oap:3200/skywalking`. Empty means the row is off. |
 | `HORIZON_OAP_TRACEQL_ZIPKIN_URL` | _(empty)_ | url | The same over the Zipkin spans — `http://oap:3200/zipkin`. Empty means the row is off. |
 | `HORIZON_OAP_TIMEOUT_MS` | `15000` | int | Outbound OAP request timeout. |
-| `HORIZON_OAP_MQE` | (none) | JSON | MQE endpoint override for the Metrics Inspect page, e.g. `{"host":"mqe.internal","port":12800}` (both fields optional). Defaults to the query host — see [OAP Connection](oap.md#mqe-endpoint-override-oapmqe). |
 | `HORIZON_OAP_AUTH` | (none) | JSON | OAP basic-auth, e.g. `{"username":"sw","password":"sw"}`. |
 | `HORIZON_AUTH_BACKEND` | `local` | `local` \| `ldap` | Auth backend. |
 | `HORIZON_AUTH_LOCAL_USERS` | `[]` | JSON | Local users: `[{"username":"admin","passwordHash":"$argon2id$…","roles":["admin"]}]` (hash via `pnpm --filter bff cli:hash`). |

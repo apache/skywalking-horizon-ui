@@ -96,13 +96,17 @@ oap:
   # means that source is off; OAP ships the traceQL module disabled, so there
   # is deliberately no default to probe. Enable it with SW_TRACEQL=default and
   # SW_TRACEQL_ENABLE_DATASOURCE_{SKYWALKING,ZIPKIN}=true on the OAP side.
+  # OAP's TraceQL (Grafana Tempo API) service. One endpoint serves every
+  # datasource under its own context path, and the paths below are OAP's own
+  # defaults — change one only if you changed `restContextPath*` on OAP.
+  # Setting the URL is the whole switch: Horizon probes each path, and a
+  # datasource this OAP does not enable simply does not answer.
   traceql:
-    nativeUrl: "${HORIZON_OAP_TRACEQL_NATIVE_URL:}"
-    zipkinUrl: "${HORIZON_OAP_TRACEQL_ZIPKIN_URL:}"
+    url: "${HORIZON_OAP_TRACEQL_URL:}"
+    nativePath: "${HORIZON_OAP_TRACEQL_NATIVE_PATH:/skywalking}"
+    zipkinPath: "${HORIZON_OAP_TRACEQL_ZIPKIN_PATH:/zipkin}"
+    otlpPath: "${HORIZON_OAP_TRACEQL_OTLP_PATH:/otlp}"
   timeoutMs: ${HORIZON_OAP_TIMEOUT_MS:15000}
-  # Optional MQE host/port override (defaults to the query host). JSON env, e.g.
-  # HORIZON_OAP_MQE='{"host":"mqe.internal","port":12800}'.
-  mqe: ${HORIZON_OAP_MQE:null}
   # Optional basic-auth for outbound OAP calls. JSON env, e.g.
   # HORIZON_OAP_AUTH='{"username":"skywalking","password":"skywalking"}'.
   auth: ${HORIZON_OAP_AUTH:null}

@@ -305,7 +305,7 @@ const edgeTimeFmt = new Intl.DateTimeFormat(undefined, {
 });
 const edgeXLabels = computed<string[]>(() => {
   const m = relationMetrics.value;
-  const n = m?.client[0]?.values.length ?? m?.server[0]?.values.length ?? 0;
+  const n = m?.client[0]?.values.length ?? m?.server[0]?.values.length ?? m?.shared[0]?.values.length ?? 0;
   if (n <= 0) return [];
   const task = currentTask.value;
   const startMs =
@@ -499,20 +499,23 @@ function fmtTime(ms: number): string {
         <!-- The metric set is operator-configurable in the admin. -->
         <div v-else-if="relationMetrics" class="edge-cols">
           <section
-            v-for="side in (['client', 'server'] as const)"
+            v-for="side in (['client', 'server', 'shared'] as const)"
             :key="side"
             class="edge-col"
           >
-            <h5 class="edge-col-head" :class="side">{{ side === 'client' ? t('Client side') : t('Server side') }}</h5>
-            <div v-if="!relationMetrics[side].length" class="muted sm">{{ side === 'client' ? t('No client metrics configured.') : t('No server metrics configured.') }}</div>
+            <h5 class="edge-col-head" :class="side">{{ side === 'client' ? t('Client side') : side === 'server' ? t('Server side') : t('Both sides') }}</h5>
+            <div v-if="!relationMetrics[side].length" class="muted sm">{{ side === 'client' ? t('No client metrics configured.') : side === 'server' ? t('No server metrics configured.') : t('No shared metrics configured.') }}</div>
             <div v-else class="edge-col-grid">
               <div v-for="m in relationMetrics[side]" :key="m.id" class="edge-widget sw-card">
                 <div class="ew-head">
                   <span class="ew-label">{{ m.label }}</span>
-                  <span class="ew-val mono">{{ fmtMetric(latestValue(m.values), m.unit) }}</span>
+                  <span v-if="(m.series?.length ?? 0) < 2" class="ew-val mono">{{ fmtMetric(latestValue(m.values), m.unit) }}</span>
+                  <span v-else class="ew-val mono dim">{{ t('{n} series', { n: m.series!.length }) }}</span>
                 </div>
                 <TimeChart
-                  :series="[{ label: m.label, data: m.values, unit: m.unit }]"
+                  :series="m.series?.length
+                    ? m.series.map((s) => ({ label: s.label || m.label, data: s.values, unit: m.unit }))
+                    : [{ label: m.label, data: m.values, unit: m.unit }]"
                   :x-labels="edgeXLabels"
                   :height="150"
                   :unit="m.unit"
@@ -940,6 +943,8 @@ function fmtTime(ms: number): string {
 }
 .edge-col-head.client { color: var(--sw-accent); border-bottom-color: var(--sw-accent); }
 .edge-col-head.server { color: var(--sw-info, #5a9cf8); border-bottom-color: var(--sw-info, #5a9cf8); }
+/* Metrics of the exchange itself — HTTP/1.x — belong to neither column. */
+.edge-col-head.shared { color: var(--sw-fg-2); border-bottom-color: var(--sw-line-2); }
 .edge-widget { padding: 8px 10px; }
 .ew-head {
   display: flex;

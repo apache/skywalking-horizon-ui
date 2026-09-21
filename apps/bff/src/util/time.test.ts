@@ -24,7 +24,6 @@ import {
 } from './time.js';
 import { fmtMinute } from './window.js';
 import type { HorizonConfig } from '../config/schema.js';
-import type { MqeTargetCache } from './mqe-target.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 
 afterEach(() => {
@@ -138,15 +137,8 @@ function makeDeps(
     lastInit = init;
     return respond(init);
   };
-  const mqeTarget = {
-    resolve: async () => ({
-      baseUrl: opts.baseUrl ?? 'http://oap:12800',
-      via: 'test',
-      configured: {},
-    }),
-  } as unknown as MqeTargetCache;
   return {
-    deps: { config: () => cfg, fetch, mqeTarget },
+    deps: { config: () => cfg, fetch },
     calls: () => calls,
     lastInit: () => lastInit,
     lastUrl: () => lastUrl,
@@ -275,23 +267,6 @@ describe('ServerTimeCache — resolving the OAP clock', () => {
     const out = await new ServerTimeCache().get(p.deps);
     expect(out.source).toBe('fallback');
     expect(out.error).toContain('not parseable');
-  });
-
-  it('falls back when the MQE target cannot be resolved at all', async () => {
-    const p = makeDeps(async () => jsonResponse(okBody('+0800')));
-    const deps: ServerTimeDeps = {
-      ...p.deps,
-      mqeTarget: {
-        resolve: async () => {
-          throw new Error('admin dump unreachable');
-        },
-      } as unknown as MqeTargetCache,
-    };
-    const out = await new ServerTimeCache().get(deps);
-    expect(out.source).toBe('fallback');
-    expect(out.error).toContain('admin dump unreachable');
-    expect(out.mqeBaseUrl).toBeUndefined();
-    expect(p.calls()).toBe(0);
   });
 
   it('reports the BFF’s own clock on a fallback, never a silent UTC zero', async () => {

@@ -63,7 +63,9 @@ const time = useTimeRangeStore();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 /** The row decides the store — each store has its own row. */
 const ds = computed<TraceQLDatasource>(() =>
-  /traceql-zipkin-trace/.test(route.path) ? 'zipkin' : 'native',
+  /traceql-zipkin-trace/.test(route.path) ? 'zipkin'
+    : /traceql-otlp-trace/.test(route.path) ? 'otlp'
+      : 'native',
 );
 
 const { statusOf } = useTraceQLSources();

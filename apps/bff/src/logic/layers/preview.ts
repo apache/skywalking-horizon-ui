@@ -44,7 +44,10 @@ import type {
 } from './loader.js';
 
 const MAX_RAW_BYTES = 32_000;
-const MAX_METRICS = 32;
+/** A preview config comes from the browser, so every list is bounded. 64
+ *  clears the largest bundled set — network profiling ships 38 edge metrics —
+ *  with room to add a few while editing. */
+const MAX_METRICS = 64;
 const MAX_MQE_LEN = 512;
 
 function isMetricList(v: unknown): v is TopologyMetricDef[] {
@@ -188,13 +191,19 @@ function previewStores(raw: unknown): TracesConfig['stores'] | null {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-/** `processTopology` block — the network-profiling edge-detail metric
- *  lists (ProcessRelation scope, client + server). */
+/** `processTopology` block — the network-profiling edge-detail metrics
+ *  (ProcessRelation scope). `edgeMetrics` is what the editor writes; the two
+ *  side lists are still accepted from a draft that predates it. Refusing the
+ *  new spelling made Preview fall back to the published template without
+ *  saying so, which reads as the edit having no effect. */
 export function parsePreviewProcessTopology(raw: string | undefined): ProcessTopologyConfig | null {
   const o = parseJson(raw);
   if (!o) return null;
-  if (o.edgeClientMetrics !== undefined && !isMetricList(o.edgeClientMetrics)) return null;
-  if (o.edgeServerMetrics !== undefined && !isMetricList(o.edgeServerMetrics)) return null;
-  if (o.edgeClientMetrics === undefined && o.edgeServerMetrics === undefined) return null;
+  for (const key of ['edgeMetrics', 'edgeClientMetrics', 'edgeServerMetrics']) {
+    if (o[key] !== undefined && !isMetricList(o[key])) return null;
+  }
+  if (o.edgeMetrics === undefined
+    && o.edgeClientMetrics === undefined
+    && o.edgeServerMetrics === undefined) return null;
   return o as unknown as ProcessTopologyConfig;
 }

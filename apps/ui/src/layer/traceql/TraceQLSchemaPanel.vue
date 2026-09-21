@@ -63,7 +63,9 @@ watch(
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside));
 
 const { t } = useI18n({ useScope: 'global' });
-const resourceAttrs = computed(() => TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || a.ds === props.ds));
+// The panel is the store's schema, so it lists what THIS store can filter.
+const resourceAttrs = computed(() => TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds || a.ds.includes(props.ds)));
+const intrinsics = computed(() => TRACEQL_INTRINSICS.filter((i) => !i.ds || i.ds.includes(props.ds)));
 </script>
 
 <template>
@@ -77,7 +79,7 @@ const resourceAttrs = computed(() => TRACEQL_RESOURCE_ATTRS.filter((a) => !a.ds 
       <section>
         <h5>{{ t('Intrinsics') }}</h5>
         <ul>
-          <li v-for="i in TRACEQL_INTRINSICS" :key="i.name">
+          <li v-for="i in intrinsics" :key="i.name">
             <button type="button" class="tqs-chip mono" @click="emit('insert', i.name)">{{ i.name }}</button>
             <span class="ops mono">{{ operatorsFor(i.name).join(' ') }}</span>
             <span class="dim">{{ t(i.detail) }}</span>

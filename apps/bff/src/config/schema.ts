@@ -132,18 +132,13 @@ const oapSchema = z
       })
       .strict()
       .optional(),
-    mqe: z
-      .object({
-        host: z.string().optional(),
-        port: z.number().int().positive().optional(),
-      })
-      .strict()
-      .default({}),
     zipkinUrl: z.string().url().default('http://127.0.0.1:9412/zipkin'),
     traceql: z
       .object({
-        nativeUrl: z.string().url().or(z.literal('')).default(''),
-        zipkinUrl: z.string().url().or(z.literal('')).default(''),
+        url: z.string().url().or(z.literal('')).default(''),
+        nativePath: z.string().default('/skywalking'),
+        zipkinPath: z.string().default('/zipkin'),
+        otlpPath: z.string().default('/otlp'),
       })
       .strict()
       .default({}),

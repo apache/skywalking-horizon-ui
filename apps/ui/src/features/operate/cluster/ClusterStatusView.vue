@@ -18,7 +18,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
-import type { PreflightModule, TraceQLSourceStatus } from '@skywalking-horizon-ui/api-client';
+import type { PreflightModule, TraceQLSourceStatus, TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
@@ -71,13 +71,14 @@ const traceqlQuery = useQuery({
   staleTime: 60_000,
   retry: false,
 });
-const TRACEQL_ROWS = computed<ReadonlyArray<{ ds: 'native' | 'zipkin'; label: string; path: string }>>(() => [
+const TRACEQL_ROWS = computed<ReadonlyArray<{ ds: TraceQLDatasource; label: string; path: string }>>(() => [
   { ds: 'native', label: t('SkyWalking-native spans'), path: '/skywalking' },
   { ds: 'zipkin', label: t('Zipkin spans'), path: '/zipkin' },
+  { ds: 'otlp', label: t('Natively stored OTLP spans'), path: '/otlp' },
 ]);
 const traceqlSources = computed<TraceQLSourceStatus[]>(() => traceqlQuery.data.value ?? []);
 const traceqlDenied = computed(() => traceqlQuery.isError.value);
-function traceqlOf(ds: 'native' | 'zipkin'): TraceQLSourceStatus | null {
+function traceqlOf(ds: TraceQLDatasource): TraceQLSourceStatus | null {
   return traceqlSources.value.find((x) => x.ds === ds) ?? null;
 }
 /** Configured sources only: an unconfigured datasource is a deployment that
@@ -91,7 +92,12 @@ interface TraceApiRow {
   url: string;
   state: { cls: string; label: string };
   version?: string;
-  ds?: 'native' | 'zipkin';
+  ds?: TraceQLDatasource;
+  /** What the endpoint said, and what to do about it — carried BY the row.
+   *  These were two stacks of banners under the table, so the reader had to
+   *  match a message back to the row it belonged to. */
+  error?: string;
+  hint?: string;
 }
 const traceApiRows = computed<TraceApiRow[]>(() => {
   const rows: TraceApiRow[] = [
@@ -105,6 +111,12 @@ const traceApiRows = computed<TraceApiRow[]>(() => {
           : zipkinReachable.value
             ? { cls: 'is-ok', label: t('reachable') }
             : { cls: 'is-err', label: t('unreachable') },
+      ...(zipkinReachable.value === false
+        ? {
+          ...(info.value?.zipkinError ? { error: info.value.zipkinError } : {}),
+          hint: t("Tried {url}. Confirm OAP's Zipkin receiver / query is enabled and the oap.zipkinUrl in horizon's config points at the right host:port (shared GraphQL port → <queryUrl>/zipkin; standalone → :9412/zipkin). Only the Zipkin trace menu is affected.", { url: `${info.value?.zipkinUrl ?? ''}/api/v2/services` }),
+        }
+        : {}),
     },
   ];
   for (const r of TRACEQL_ROWS.value) {
@@ -112,6 +124,9 @@ const traceApiRows = computed<TraceApiRow[]>(() => {
     rows.push({
       api: 'TraceQL',
       source: r.label,
+      // A 404 and a dead port are ONE state: the datasource did not answer.
+      // What differs is why, which the row's note below says — a status that
+      // splits on the reason makes the reader decode two words for one fact.
       url: st?.url || t('no URL configured'),
       state: traceqlDenied.value || !st
         ? { cls: 'is-unknown', label: t('unknown') }
@@ -121,6 +136,17 @@ const traceApiRows = computed<TraceApiRow[]>(() => {
             ? { cls: 'is-ok', label: t('reachable') }
             : { cls: 'is-err', label: t('unreachable') },
       ...(st?.version ? { version: st.version } : {}),
+      // A 404 is OAP answering; it needs a sentence, not an error. Only a
+      // real failure carries the endpoint's own words.
+      ...(st?.configured && st.served === false
+        ? { hint: t('This OAP does not enable the {name} datasource. Switch it on with SW_TRACEQL_ENABLE_DATASOURCE_* and it appears here; until then the rows fed by it stay empty.', { name: r.label }) }
+        : {}),
+      ...(st?.configured && st.served !== false && st.reachable === false
+        ? {
+          ...(st.error ? { error: st.error } : {}),
+          hint: t("Tried {url}. Enable OAP's traceQL module (SW_TRACEQL=default with the datasource switched on) and confirm oap.traceql points at its host:port and context path — {path} by default on port 3200.", { url: `${st.url}/api/status/buildinfo`, path: r.path }),
+        }
+        : {}),
       ds: r.ds,
     });
   }
@@ -499,7 +525,8 @@ const storeLastSyncShort = computed<string>(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in traceApiRows" :key="`${r.api}-${r.source}`" :class="{ off: r.state.cls === 'is-err' }">
+          <template v-for="r in traceApiRows" :key="`${r.api}-${r.source}`">
+          <tr :class="{ off: r.state.cls === 'is-err' }">
             <td class="modname"><code>{{ r.api }}</code></td>
             <td class="modname">{{ r.source }}</td>
             <td>
@@ -512,31 +539,37 @@ const storeLastSyncShort = computed<string>(() => {
             </td>
             <td class="modpath"><code>{{ r.url }}</code></td>
           </tr>
+          <tr v-if="r.error || r.hint" class="row-note">
+            <td colspan="4">
+              <code v-if="r.error">{{ r.error }}</code>
+              <p v-if="r.hint" class="hint">{{ r.hint }}</p>
+            </td>
+          </tr>
+          </template>
         </tbody>
       </table>
-
-      <div v-if="zipkinReachable === false" class="last-error block">
-        <strong>{{ t('Zipkin endpoint unreachable') }}</strong>
-        <code v-if="info?.zipkinError">{{ info.zipkinError }}</code>
-        <p class="hint">
-          {{ t("Tried {url}. Confirm OAP's Zipkin receiver / query is enabled and the oap.zipkinUrl in horizon's config points at the right host:port (shared GraphQL port → <queryUrl>/zipkin; standalone → :9412/zipkin). Only the Zipkin trace menu is affected.", { url: `${info?.zipkinUrl ?? ''}/api/v2/services` }) }}
-        </p>
-      </div>
-
-      <div v-for="row in TRACEQL_ROWS" :key="`e-${row.ds}`">
-        <div v-if="traceqlOf(row.ds)?.configured && traceqlOf(row.ds)?.reachable === false" class="last-error block">
-          <strong>{{ t('{name} datasource unreachable', { name: row.label }) }}</strong>
-          <code v-if="traceqlOf(row.ds)?.error">{{ traceqlOf(row.ds)?.error }}</code>
-          <p class="hint">
-            {{ t("Tried {url}. Enable OAP's traceQL module (SW_TRACEQL=default with the datasource switched on) and confirm oap.traceql points at its host:port and context path — {path} by default on port 3200.", { url: `${traceqlOf(row.ds)?.url ?? ''}/api/status/buildinfo`, path: row.path }) }}
-          </p>
-        </div>
-      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
+.row-note td {
+  padding: 2px 10px 10px;
+  border-top: none;
+}
+.row-note code {
+  display: block;
+  font-size: 10.5px;
+  color: var(--sw-err);
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.row-note .hint {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  line-height: 1.5;
+}
 .cluster {
   padding: 20px 20px 60px;
   max-width: 1440px;

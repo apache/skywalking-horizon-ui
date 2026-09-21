@@ -145,6 +145,7 @@ export const DEFAULT_LAYER_ROW_ORDER = [
   'zipkin-trace',
   'traceql-native-trace',
   'traceql-zipkin-trace',
+  'traceql-otlp-trace',
   'logs',
   'evaluation-record',
   'browser-errors',
@@ -168,6 +169,7 @@ export const TRACE_STORE_ROWS: Readonly<Record<TraceStore, string>> = {
   zipkin: 'zipkin-trace',
   'traceql-native': 'traceql-native-trace',
   'traceql-zipkin': 'traceql-zipkin-trace',
+  'traceql-otlp': 'traceql-otlp-trace',
 };
 
 function hasStore(L: LayerMenuInput, store: TraceStore): boolean {
@@ -203,6 +205,7 @@ const ROW_DEFS: Record<BuiltInLayerRow, { icon: LayerMenuRowIcon; when: (L: Laye
   'zipkin-trace': { icon: 'trace', when: (L) => hasStore(L, 'zipkin') },
   'traceql-native-trace': { icon: 'trace', when: (L) => hasStore(L, 'traceql-native') },
   'traceql-zipkin-trace': { icon: 'trace', when: (L) => hasStore(L, 'traceql-zipkin') },
+  'traceql-otlp-trace': { icon: 'trace', when: (L) => hasStore(L, 'traceql-otlp') },
   logs: { icon: 'log', when: (L) => Boolean(L.caps?.logs) },
   'evaluation-record': { icon: 'log', when: (L) => Boolean(L.caps?.evaluationRecord) },
   'browser-errors': { icon: 'web', when: (L) => Boolean(L.caps?.browserErrors) },

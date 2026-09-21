@@ -380,6 +380,14 @@ export interface AdminLayerTemplate {
      *  three targets as `ebpfProfiling`, so it belongs on the layers that
      *  carry it — there is no continuous trace / async / pprof profiling. */
     continuousProfiling?: boolean;
+    // These three are in the stored template and drive a sidebar row, and
+    // were missing here — so the editor had no checkbox for them and a layer
+    // carrying one showed a row the operator could neither explain nor turn
+    // off. `mesh` and `k8s_service` carry networkProfiling, `general` pprof,
+    // `ai_agent` conversations.
+    networkProfiling?: boolean;
+    pprofProfiling?: boolean;
+    aiConversations?: boolean;
   };
   metrics: {
     orderBy?: string;

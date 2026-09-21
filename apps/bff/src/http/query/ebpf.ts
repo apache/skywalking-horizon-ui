@@ -50,6 +50,7 @@ import type {
   TopologyMetricDef,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
+import { resolveEdgeMetrics } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { GraphqlOptions } from '../../client/graphql.js';
@@ -301,7 +302,13 @@ function sanitiseNetworkSamplings(
 
 interface MqeEnv {
   error?: string | null;
-  results?: Array<{ values?: Array<{ value: string | number | null }> }>;
+  results?: Array<{
+    /** Labels distinguish the results of a multi-result metric — a percentile
+     *  publishes one per rank, a status-code metric one per code. Without them
+     *  the extra results are indistinguishable and get dropped. */
+    metric?: { labels?: Array<{ key?: string; value?: string }> };
+    values?: Array<{ value: string | number | null }>;
+  }>;
 }
 
 /**
@@ -333,17 +340,29 @@ function processRelationFragment(
     ` destServiceInstanceName: ${JSON.stringify(dst.serviceInstanceName)},` +
     ` destProcessName: ${JSON.stringify(dst.processName)} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
-    `    ) { error results { values { value } } }`
+    `    ) { error results { metric { labels { key value } } values { value } } }`
   );
 }
 
-function relationSeries(env: MqeEnv | undefined): Array<number | null> {
-  if (!env || env.error) return [];
-  const values = env.results?.[0]?.values ?? [];
-  return values.map((v) => {
+function numbers(values: Array<{ value: string | number | null }> | undefined): Array<number | null> {
+  return (values ?? []).map((v) => {
     if (v.value === null || v.value === undefined) return null;
     const n = Number(v.value);
     return Number.isFinite(n) ? n : null;
+  });
+}
+
+/** EVERY result, each under its labels. A percentile metric answers with one
+ *  result per rank and a status-code metric one per code; keeping only the
+ *  first drew one of them, unnamed, as if it were the whole metric. */
+function relationSeriesAll(env: MqeEnv | undefined): Array<{ label?: string; values: Array<number | null> }> {
+  if (!env || env.error) return [];
+  return (env.results ?? []).map((r) => {
+    const label = (r.metric?.labels ?? [])
+      .map((l) => l.value)
+      .filter((v): v is string => !!v)
+      .join(' · ');
+    return { ...(label ? { label } : {}), values: numbers(r.values) };
   });
 }
 
@@ -729,7 +748,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
             previewConfig?: string;
           }
         | undefined;
-      const payload: ProcessRelationMetricsResponse = { client: [], server: [], reachable: true };
+      const payload: ProcessRelationMetricsResponse = { client: [], server: [], shared: [], reachable: true };
       const src = body?.source;
       const dst = body?.dest;
       if (!src?.processName || !dst?.processName) {
@@ -769,17 +788,13 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       const w = { start: fmtMinute(startMs, offset), end: fmtMinute(endMs, offset) };
 
       // Build one aliased execExpression per metric across both sides.
-      const aliasMap = new Map<string, { side: 'client' | 'server'; metric: TopologyMetricDef }>();
+      const aliasMap = new Map<string, { side?: 'client' | 'server'; metric: TopologyMetricDef }>();
       const fragments: string[] = [];
-      const push = (side: 'client' | 'server', list: TopologyMetricDef[]) => {
-        list.forEach((m, i) => {
-          const alias = `${side}_${i}`;
-          aliasMap.set(alias, { side, metric: m });
-          fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, false));
-        });
-      };
-      push('client', cfg.edgeClientMetrics);
-      push('server', cfg.edgeServerMetrics);
+      resolveEdgeMetrics(cfg).forEach((m, i) => {
+        const alias = `m_${i}`;
+        aliasMap.set(alias, { ...(m.side ? { side: m.side } : {}), metric: m });
+        fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, false));
+      });
       if (fragments.length === 0) return reply.send(payload);
 
       const query = `query HorizonProcessRelationMetrics {\n  ${fragments.join('\n  ')}\n}`;
@@ -787,14 +802,22 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       try {
         const raw = await graphqlPost<Record<string, MqeEnv>>(opts, query);
         for (const [alias, { side, metric }] of aliasMap) {
+          const series = relationSeriesAll(raw[alias]);
+          // Carried whenever a result NAMES itself, not only when there are
+          // several: a status-code metric answering for one code is the case
+          // where the label matters most — without it an all-500 window reads
+          // the same as an all-200 one.
+          const labelled = series.length > 1 || series.some((x) => x.label);
           const out: ProcessRelationMetric = {
             id: metric.id,
             label: metric.label,
             unit: metric.unit,
-            values: relationSeries(raw[alias]),
+            values: series[0]?.values ?? [],
+            ...(labelled ? { series } : {}),
           };
           if (side === 'client') payload.client.push(out);
-          else payload.server.push(out);
+          else if (side === 'server') payload.server.push(out);
+          else payload.shared.push(out);
         }
         return reply.send(payload);
       } catch (err) {

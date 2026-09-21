@@ -16,10 +16,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import { lintTraceQL, buildTraceQL, serviceInExpression } from '@/layer/traceql/traceqlLint';
 /** Nothing to warn about: every field is one the schema has. */
-const clean = (q: string, ds?: 'native' | 'zipkin') => lintTraceQL(q, ds).length === 0;
-const ids = (q: string) => lintTraceQL(q).map((i) => i.id);
+const clean = (q: string, ds?: TraceQLDatasource) => lintTraceQL(q, ds).length === 0;
+const ids = (q: string, ds?: TraceQLDatasource) => lintTraceQL(q, ds).map((i) => i.id);
 
 describe('lint', () => {
   it('passes every form the language defines, whatever a backend does with it', () => {
@@ -51,12 +52,29 @@ describe('lint', () => {
   });
 
   it('warns about a bare name that is not an intrinsic', () => {
-    expect(ids('{kind=server}')).toEqual(['unknown-field']);
     expect(ids('{traceDuration>1s}')).toEqual(['unknown-field']);
-    // The three intrinsics are bare by grammar.
+    // Intrinsics are bare by grammar.
     expect(clean('{duration>100ms}')).toBe(true);
     expect(clean('{status="ok"}')).toBe(true);
     expect(clean('{name="/checkout"}')).toBe(true);
+  });
+
+  it('places an intrinsic only the OTLP store has', () => {
+    // `kind` is a column where the spans were stored as OTLP and nowhere else,
+    // so naming it on another store is a query that cannot match — OAP refuses
+    // it outright. It is the schema's answer, not a guess about the backend.
+    expect(clean('{kind="server"}', 'otlp')).toBe(true);
+    expect(ids('{kind="server"}', 'native')).toEqual(['other-store-attribute']);
+    expect(ids('{kind="server"}', 'zipkin')).toEqual(['other-store-attribute']);
+  });
+
+  it('knows which store each reserved resource attribute belongs to', () => {
+    expect(clean('{resource.service.instance.id="a"}', 'otlp')).toBe(true);
+    expect(ids('{resource.service.instance.id="a"}', 'native')).toEqual(['other-store-attribute']);
+    // The peer attribute belongs to two of the three.
+    expect(clean('{resource.remote.service="a"}', 'zipkin')).toBe(true);
+    expect(clean('{resource.remote.service="a"}', 'otlp')).toBe(true);
+    expect(ids('{resource.remote.service="a"}', 'native')).toEqual(['other-store-attribute']);
   });
 
   it('warns about the other store’s resource attribute', () => {
