@@ -231,7 +231,7 @@ function fmtMs(ms: number): string {
   padding: 6px 10px;
   border-bottom: 1px solid var(--sw-line);
 }
-.sp-table td { padding: 5px 10px; border-bottom: 1px solid var(--sw-line-soft, var(--sw-line)); color: var(--sw-fg-2); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-table td { padding: 5px 10px; border-bottom: 1px solid var(--sw-line, var(--sw-line)); color: var(--sw-fg-2); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-table .num { text-align: right; }
 .sp-table tr.llm td { color: var(--sw-fg-1); }
 .sp-table tr.llm { background: var(--sw-accent-soft); }

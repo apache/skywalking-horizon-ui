@@ -382,7 +382,7 @@ const openStageState = computed<ROStageState | null>(() => {
 }
 .kv li { display: flex; justify-content: space-between; }
 .kv b { color: var(--sw-fg-3); font-weight: 400; }
-.kv span { font-family: var(--sw-mono-font, monospace); color: var(--sw-fg-0); }
+.kv span { font-family: var(--sw-mono, monospace); color: var(--sw-fg-0); }
 .dim { color: var(--sw-fg-3); margin: 0; font-style: italic; }
 .bar {
   margin-top: 6px;
@@ -409,5 +409,5 @@ details summary { font-size: 10.5px; color: var(--sw-fg-3); cursor: pointer; mar
 .probes tr[data-status='ok']     td { color: var(--sw-fg-1); }
 .probes tr[data-status='empty']  td { color: var(--sw-fg-3); }
 .probes tr[data-status='failed'] td { color: var(--sw-err); }
-.mono { font-family: var(--sw-mono-font, monospace); }
+.mono { font-family: var(--sw-mono, monospace); }
 </style>

@@ -210,7 +210,7 @@ const hasToasts = computed(() => center.toasts.length > 0);
 }
 .toast-bar-fill {
   height: 100%;
-  background: var(--sw-danger, #e5534b);
+  background: var(--sw-err, #e5534b);
   transition: width 50ms linear;
 }
 .toast-enter-from,

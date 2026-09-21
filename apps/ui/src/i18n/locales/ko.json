@@ -3378,7 +3378,6 @@
   "SkyWalking-native spans": "SkyWalking 네이티브 스팬",
   "Tried {url}. Enable OAP's traceQL module (SW_TRACEQL=default with the datasource switched on) and confirm oap.traceql points at its host:port and context path — {path} by default on port 3200.": "{url}을(를) 시도했습니다. OAP의 traceQL 모듈을 활성화하고(SW_TRACEQL=default 및 데이터소스 켜기), oap.traceql이 해당 host:port와 컨텍스트 경로를 가리키는지 확인하세요 — 기본값은 3200 포트의 {path}입니다.",
   "Trace APIs": "트레이스 API",
-  "Zipkin v2 · Tempo": "Zipkin v2 · Tempo",
   "Zipkin v2 REST": "Zipkin v2 REST",
   "degraded": "일부 장애",
   "Tempo API {version}": "Tempo API {version}",

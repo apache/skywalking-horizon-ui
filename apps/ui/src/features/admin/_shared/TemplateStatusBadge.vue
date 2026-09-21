@@ -88,9 +88,9 @@ export default { label, title };
   padding: 1px 6px;
   border-radius: 8px;
   text-transform: uppercase;
-  border: 1px solid var(--sw-border, #2a2f38);
+  border: 1px solid var(--sw-line-2, #2a2f38);
   background: rgba(255, 255, 255, 0.03);
-  color: var(--sw-text-muted, #8a93a0);
+  color: var(--sw-fg-3, #8a93a0);
 }
 .tsb--synced {
   color: var(--sw-ok, #2e7d4e);
@@ -103,7 +103,7 @@ export default { label, title };
   background: rgba(184, 133, 0, 0.12);
 }
 .tsb--disabled {
-  color: var(--sw-danger, #c0392b);
+  color: var(--sw-err, #c0392b);
   border-color: rgba(192, 57, 43, 0.5);
   background: rgba(192, 57, 43, 0.08);
   text-decoration: line-through;
@@ -114,15 +114,15 @@ export default { label, title };
   background: rgba(58, 142, 208, 0.08);
 }
 .tsb--bundled-fallback {
-  color: var(--sw-text-muted, #8a93a0);
+  color: var(--sw-fg-3, #8a93a0);
 }
 /* Solid, not outlined — the other five chips report a state the operator
  * chose; this one reports an ambiguity they have to go fix on OAP, and
  * has to win the row at a glance. Same fill as the CONFLICT banner chip. */
 .tsb--conflict {
   color: #fff;
-  background: var(--sw-danger, #c0392b);
-  border-color: var(--sw-danger, #c0392b);
+  background: var(--sw-err, #c0392b);
+  border-color: var(--sw-err, #c0392b);
   font-weight: 700;
 }
 </style>

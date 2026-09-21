@@ -3378,7 +3378,6 @@
   "SkyWalking-native spans": "Spans natifs SkyWalking",
   "Tried {url}. Enable OAP's traceQL module (SW_TRACEQL=default with the datasource switched on) and confirm oap.traceql points at its host:port and context path — {path} by default on port 3200.": "{url} a été tenté. Activez le module traceQL d’OAP (SW_TRACEQL=default avec la source de données activée) et vérifiez que oap.traceql pointe vers son host:port et son chemin de contexte — {path} par défaut sur le port 3200.",
   "Trace APIs": "API de traces",
-  "Zipkin v2 · Tempo": "Zipkin v2 · Tempo",
   "Zipkin v2 REST": "REST Zipkin v2",
   "degraded": "dégradé",
   "Tempo API {version}": "API Tempo {version}",

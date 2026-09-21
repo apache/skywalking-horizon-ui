@@ -157,7 +157,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
   flex: 0 0 auto;
 }
 .layer-key {
-  font-family: var(--sw-mono-font, monospace);
+  font-family: var(--sw-mono, monospace);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--sw-fg-0);
@@ -187,7 +187,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
   font-size: 11.5px;
   font-family: inherit;
 }
-.inp.mono { font-family: var(--sw-mono-font, ui-monospace, monospace); font-size: 11px; }
+.inp.mono { font-family: var(--sw-mono, ui-monospace, monospace); font-size: 11px; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
 .inp[disabled] { opacity: 0.55; cursor: default; }
 .color-pick[disabled] { opacity: 0.55; cursor: default; }

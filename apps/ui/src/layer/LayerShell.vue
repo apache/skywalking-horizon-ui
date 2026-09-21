@@ -857,11 +857,11 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
 }
 .kpi-hour-note {
   font-size: 11px;
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
   margin-bottom: 2px;
 }
 .kpi-hour-mark {
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
   font-weight: 600;
   margin-left: 2px;
 }

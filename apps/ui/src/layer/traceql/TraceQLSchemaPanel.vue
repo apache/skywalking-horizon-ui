@@ -149,7 +149,7 @@ const intrinsics = computed(() => TRACEQL_INTRINSICS.filter((i) => !i.ds || i.ds
   gap: 10px 16px;
   padding: 8px 10px;
   background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-1);
+  border: 1px solid var(--sw-line);
   border-radius: 4px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }

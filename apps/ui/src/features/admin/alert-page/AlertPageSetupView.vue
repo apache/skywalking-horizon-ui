@@ -715,6 +715,6 @@ function prettyLayer(k: string): string {
   font-weight: var(--sw-fw-semibold);
 }
 .aps__btn--primary:not(:disabled):hover {
-  background: var(--sw-accent-light, #fb923c);
+  background: var(--sw-accent-2, #fb923c);
 }
 </style>

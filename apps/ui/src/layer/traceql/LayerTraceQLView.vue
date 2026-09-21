@@ -830,7 +830,7 @@ const issueText: Record<string, string> = {
   font-size: 11px;
   color: var(--sw-fg-1);
   background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-1);
+  border: 1px solid var(--sw-line);
   border-radius: 4px;
   padding: 5px 8px;
 }
@@ -902,7 +902,7 @@ const issueText: Record<string, string> = {
   align-items: baseline;
   gap: 10px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--sw-line-1);
+  border-bottom: 1px solid var(--sw-line);
   flex: 0 0 auto;
 }
 .tql-list-head h4 { margin: 0; font-size: 12px; font-weight: 600; }

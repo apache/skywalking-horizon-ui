@@ -351,7 +351,7 @@ function mockRanking(w: OverviewWidget): RankingRow[] {
 .odc__pv-alarm { display: flex; gap: 8px; padding: 4px 0; align-items: baseline; border-bottom: 1px dashed var(--sw-line); }
 .odc__pv-alarm:last-child { border-bottom: none; }
 .odc__pv-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; align-self: center; }
-.odc__pv-dot.is-err { background: var(--sw-danger, #c0392b); }
+.odc__pv-dot.is-err { background: var(--sw-err, #c0392b); }
 .odc__pv-dot.is-ok { background: var(--sw-ok, #2e7d4e); }
 .odc__pv-alarm-text { flex: 1; min-width: 0; }
 .odc__pv-alarm-msg { font-size: 11.5px; color: var(--sw-fg-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

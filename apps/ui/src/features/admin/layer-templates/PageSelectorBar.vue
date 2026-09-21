@@ -279,7 +279,7 @@ function commitRename(): void {
 }
 .page-chip:hover {
   color: var(--sw-fg-0);
-  border-color: var(--sw-line-1);
+  border-color: var(--sw-line);
 }
 .page-chip.on {
   background: rgba(249, 115, 22, 0.12);

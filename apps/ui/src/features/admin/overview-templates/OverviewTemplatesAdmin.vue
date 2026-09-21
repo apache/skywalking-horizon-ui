@@ -1167,5 +1167,5 @@ function removeWidget(idx: number): void {
   background: var(--sw-accent); border-color: var(--sw-accent);
   color: #0a0d12; font-weight: 600;
 }
-.ot__btn--primary:not(:disabled):hover { background: var(--sw-accent-light, #fb923c); }
+.ot__btn--primary:not(:disabled):hover { background: var(--sw-accent-2, #fb923c); }
 </style>

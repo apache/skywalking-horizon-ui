@@ -858,7 +858,7 @@ export { parseHexColor };
   font-size: 11.5px;
   font-family: inherit;
 }
-.inp.mono { font-family: var(--sw-mono-font, ui-monospace, monospace); font-size: 11px; }
+.inp.mono { font-family: var(--sw-mono, ui-monospace, monospace); font-size: 11px; }
 .inp.small { width: 100px; }
 .inp.search { height: 22px; width: 180px; margin-left: auto; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
@@ -880,7 +880,7 @@ export { parseHexColor };
   padding: 6px 8px;
   border-bottom: 1px solid var(--sw-line);
 }
-.lvl-order { font-size: 10.5px; color: var(--sw-fg-3); width: 28px; font-family: var(--sw-mono-font, monospace); }
+.lvl-order { font-size: 10.5px; color: var(--sw-fg-3); width: 28px; font-family: var(--sw-mono, monospace); }
 .lvl-id    { width: 130px; }
 .lvl-label { width: 170px; }
 .lvl-spacer { flex: 1; }
@@ -901,7 +901,7 @@ export { parseHexColor };
   padding: 2px 6px;
   border-radius: 10px;
   background: var(--sw-bg-3);
-  font-family: var(--sw-mono-font, monospace);
+  font-family: var(--sw-mono, monospace);
   font-size: 10.5px;
   color: var(--sw-fg-1);
 }

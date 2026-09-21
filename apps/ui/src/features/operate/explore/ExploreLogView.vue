@@ -911,9 +911,9 @@ watch(logSource, (next, prev) => {
 .seg button.on { background: var(--sw-accent); color: #fff; }
 .iq-target { border: 1px solid var(--sw-line); border-radius: 6px; padding: 8px 10px; }
 .iq-target-h { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 11px; color: var(--sw-fg-2); font-weight: 600; }
-.iq-target-h .dim { color: var(--sw-fg-4); font-weight: 400; }
+.iq-target-h .dim { color: var(--sw-fg-3); font-weight: 400; }
 .iq-link { background: none; border: none; color: var(--sw-accent); font-size: 11px; cursor: pointer; padding: 0; margin-left: auto; }
-.iq-link:disabled { color: var(--sw-fg-4); cursor: not-allowed; }
+.iq-link:disabled { color: var(--sw-fg-3); cursor: not-allowed; }
 .iq-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
 /* The conditions grid carries few fields (the log sources expose Tags /
    Trace ID / Time / Limit, or just Category / Keywords + Window), so it
@@ -954,7 +954,7 @@ watch(logSource, (next, prev) => {
 .cf.cf-chk { justify-content: flex-end; }
 .cf small { font-weight: 400; font-size: 9.5px; margin-left: 4px; font-style: italic; }
 .iq-chk { display: inline-flex; align-items: center; gap: 6px; height: 28px; }
-.iq-chk .dim { color: var(--sw-fg-4); }
+.iq-chk .dim { color: var(--sw-fg-3); }
 .cf-input {
   height: 28px; padding: 0 8px; background: var(--sw-bg-2); border: 1px solid var(--sw-line-2);
   border-radius: 4px; color: var(--sw-fg-0); font: inherit; font-size: 11px; width: 100%; box-sizing: border-box;
@@ -1011,7 +1011,7 @@ watch(logSource, (next, prev) => {
 }
 .iq-kw-inp:focus { outline: none; }
 .iq-resolved-tog { background: none; border: none; color: var(--sw-fg-3); font-size: 11px; cursor: pointer; }
-.iq-resolved-tog .dim { color: var(--sw-fg-4); margin-left: 6px; }
+.iq-resolved-tog .dim { color: var(--sw-fg-3); margin-left: 6px; }
 .iq-resolved-body { margin: 0; padding: 8px 12px; font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); background: var(--sw-bg-0); overflow: auto; max-height: 160px; border: 1px solid var(--sw-line); border-radius: 5px; }
 .kicker { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sw-accent); font-weight: 600; }
 

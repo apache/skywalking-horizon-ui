@@ -673,17 +673,17 @@ const lifecycleMaxTotal = computed<number>(() =>
 .kpi-source {
   margin-top: 4px;
   font-size: 11px;
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
 }
 .kpi-source code {
-  font-family: var(--sw-font-mono);
-  color: var(--sw-text-muted);
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-3);
 }
 .lc-row__source {
   display: block;
-  font-family: var(--sw-font-mono);
+  font-family: var(--sw-mono);
   font-size: 10px;
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
 }
 .kpi .sw-card-head {
   display: flex;

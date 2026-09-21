@@ -504,7 +504,7 @@ const unavailable = computed(() => rows.value.length === 0);
   max-width: 320px;
   font-family: var(--sw-mono);
 }
-.pef-input.invalid { border-color: var(--sw-danger); }
+.pef-input.invalid { border-color: var(--sw-err); }
 .pef-input:disabled { opacity: 0.55; }
 .pef-regex {
   display: inline-flex;

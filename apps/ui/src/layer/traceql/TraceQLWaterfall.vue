@@ -111,7 +111,7 @@ const pct = (v: number): string => `${Math.min(100, (v / total.value) * 100)}%`;
   /* The native waterfall's row metrics — same padding, same 11px, so the two
      trace details read at one size rather than two. */
   padding: 2px 8px 2px 0;
-  border-bottom: 1px solid var(--sw-line-1);
+  border-bottom: 1px solid var(--sw-line);
   cursor: pointer;
   font-size: 11px;
   min-height: 28px;
