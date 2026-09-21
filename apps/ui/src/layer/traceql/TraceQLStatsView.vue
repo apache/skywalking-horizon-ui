@@ -119,7 +119,7 @@ const rows = computed<StatRow[]>(() => {
 .raw { color: var(--sw-fg-3); opacity: 0.75; font-size: 9.5px; }
 .tqs-wrap { overflow: auto; max-height: 60vh; }
 .tqs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--sw-line-1); }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--sw-line); }
 th {
   position: sticky;
   top: 0;

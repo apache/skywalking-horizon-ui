@@ -128,7 +128,7 @@ function copyAll(): void {
   max-height: min(60vh, 520px);
   overflow: auto;
   background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line-1);
+  border: 1px solid var(--sw-line);
   border-radius: 6px;
   font-size: 11.5px;
   line-height: 1.5;

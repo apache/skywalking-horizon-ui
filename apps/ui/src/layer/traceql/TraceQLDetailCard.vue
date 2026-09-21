@@ -148,7 +148,7 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--sw-line-1);
+  border-bottom: 1px solid var(--sw-line);
   flex-wrap: wrap;
 }
 .tqc-label { font-size: 12px; font-weight: 500; color: var(--sw-fg-3); }

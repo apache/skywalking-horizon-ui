@@ -197,10 +197,10 @@ const targetDetail = computed<string>(() => {
   border-left-color: var(--sw-line-2);
 }
 .prop.is-approved {
-  border-left-color: var(--sw-green, #2ea043);
+  border-left-color: var(--sw-ok, #2ea043);
 }
 .prop.is-failed {
-  border-left-color: var(--sw-red, #d1242f);
+  border-left-color: var(--sw-err, #d1242f);
 }
 .prop__head {
   display: flex;
@@ -236,7 +236,7 @@ const targetDetail = computed<string>(() => {
 .prop__target {
   font-size: var(--sw-fs-xs);
   color: var(--sw-fg-2);
-  font-family: var(--sw-font-mono, monospace);
+  font-family: var(--sw-mono, monospace);
 }
 .prop__actions {
   display: flex;
@@ -270,7 +270,7 @@ const targetDetail = computed<string>(() => {
   color: var(--sw-fg-1);
 }
 .prop__out--err {
-  color: var(--sw-red, #d1242f);
+  color: var(--sw-err, #d1242f);
 }
 .prop__out--warn {
   color: var(--sw-warn);

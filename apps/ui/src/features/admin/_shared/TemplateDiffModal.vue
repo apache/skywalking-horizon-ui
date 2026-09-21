@@ -242,7 +242,7 @@ async function onReset(): Promise<void> {
   letter-spacing: 0.08em;
   color: var(--rr-dim, #6b7280);
 }
-.tdm__col--l .tdm__col-name { color: var(--sw-text-muted, #8a93a0); font-weight: 600; }
+.tdm__col--l .tdm__col-name { color: var(--sw-fg-3, #8a93a0); font-weight: 600; }
 .tdm__col--r .tdm__col-name { color: var(--sw-warn, #b88500); font-weight: 600; }
 .tdm__col-name { font-family: var(--rr-font-mono, ui-monospace, monospace); }
 .tdm__col-note { color: var(--rr-ink2); font-size: 11px; }
@@ -261,7 +261,7 @@ async function onReset(): Promise<void> {
   margin: 0 0 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--sw-danger, #c0392b);
+  color: var(--sw-err, #c0392b);
 }
 .tdm__reset-lede {
   margin: 0 0 12px;
@@ -279,7 +279,7 @@ async function onReset(): Promise<void> {
   white-space: nowrap;
 }
 .tdm__reset-key {
-  color: var(--sw-danger, #c0392b);
+  color: var(--sw-err, #c0392b);
   font-family: var(--rr-font-mono, ui-monospace, monospace);
   font-weight: 600;
 }

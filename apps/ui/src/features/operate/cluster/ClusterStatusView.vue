@@ -505,7 +505,7 @@ const storeLastSyncShort = computed<string>(() => {
          here: it rides the GraphQL port, so Pane A already answers for it. -->
     <section class="pane">
       <header class="pane-head">
-        <h2>{{ t('Trace APIs') }} <span class="port">{{ t('Zipkin v2 · Tempo') }}</span></h2>
+        <h2>{{ t('Trace APIs') }}</h2>
         <span class="sw-badge" :class="`is-${traceApiBadgeState}`">
           <span class="state-dot" />{{ traceApiBadgeLabel }}
         </span>
@@ -797,7 +797,7 @@ const storeLastSyncShort = computed<string>(() => {
   color: var(--sw-fg-3);
 }
 .state-foot .sel-off {
-  color: var(--sw-fg-4);
+  color: var(--sw-fg-3);
   text-decoration: line-through;
 }
 .modpath code {

@@ -368,7 +368,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
 
 <style scoped>
 .hour-mark {
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
   font-weight: 600;
   margin-left: 1px;
 }
@@ -378,7 +378,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
   gap: 4px;
   margin-left: 10px;
   font-size: 11px;
-  color: var(--sw-text-dim);
+  color: var(--sw-fg-3);
   white-space: nowrap;
 }
 .picker {

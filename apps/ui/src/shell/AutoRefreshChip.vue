@@ -206,7 +206,7 @@ const refreshTooltip = computed<string>(() => {
   .refresh-now.fetching :deep(svg) { animation: none; }
 }
 .rf-menu .rf-toggle {
-  border-bottom: 1px solid var(--sw-border);
+  border-bottom: 1px solid var(--sw-line-2);
   color: var(--sw-fg-2);
 }
 .rf-menu .rf-toggle.on {

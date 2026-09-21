@@ -87,7 +87,7 @@ const hasDetail = computed(() =>
   gap: 6px;
   font-size: 10.5px;
 }
-.err-icon { color: var(--sw-danger, #e5534b); flex: none; }
+.err-icon { color: var(--sw-err, #e5534b); flex: none; }
 .err-owner { color: var(--sw-fg-1); font-weight: 600; }
 .err-time { margin-left: auto; color: var(--sw-fg-3, var(--sw-fg-2)); font-variant-numeric: tabular-nums; }
 .err-summary {

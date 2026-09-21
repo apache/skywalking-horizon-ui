@@ -170,7 +170,7 @@ const noValue = computed<boolean>(() => {
   line-height: 1.4;
 }
 .cwr-mqe {
-  font-family: var(--sw-font-mono);
+  font-family: var(--sw-mono);
   font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
   word-break: break-word;

@@ -67,21 +67,21 @@ export default { chipLabel };
 
 <style scoped>
 .sbb {
-  border: 1px solid var(--sw-border, #2a2f38);
+  border: 1px solid var(--sw-line-2, #2a2f38);
   border-radius: 4px;
   padding: 8px 12px;
   margin: 0 0 12px 0;
-  background: var(--sw-bg-elev, #161a20);
+  background: var(--sw-bg-2, #161a20);
   font-size: 12px;
   line-height: 1.45;
 }
 .sbb--unreachable {
-  border-color: var(--sw-danger, #c0392b);
+  border-color: var(--sw-err, #c0392b);
   background: rgba(192, 57, 43, 0.08);
 }
 .sbb--conflict,
 .sbb--unreadable {
-  border-color: var(--sw-danger, #c0392b);
+  border-color: var(--sw-err, #c0392b);
   background: rgba(192, 57, 43, 0.06);
 }
 .sbb--diverged {
@@ -93,8 +93,8 @@ export default { chipLabel };
   background: rgba(46, 125, 78, 0.06);
 }
 .sbb--unknown {
-  border-color: var(--sw-muted, #4a525c);
-  background: var(--sw-bg-elev, #161a20);
+  border-color: var(--sw-fg-3, #4a525c);
+  background: var(--sw-bg-2, #161a20);
 }
 /* Deliberate read-only (templates.mode=readonly) — not an error (no red), but
  * warning-yellow so it's unmistakable that the whole surface is uneditable; a
@@ -117,13 +117,15 @@ export default { chipLabel };
   padding: 3px 8px;
   border-radius: 3px;
   text-transform: uppercase;
-  color: var(--sw-text-strong, #e8edf2);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--sw-fg-0);
+  /* A token, not a white wash: `rgba(255,255,255,.06)` is invisible on a
+     light theme, which left this chip unreadable on Daybreak. */
+  background: var(--sw-bg-3);
   white-space: nowrap;
 }
-.sbb--unreachable .sbb__chip { background: var(--sw-danger, #c0392b); color: #fff; }
+.sbb--unreachable .sbb__chip { background: var(--sw-err, #c0392b); color: #fff; }
 .sbb--conflict .sbb__chip,
-.sbb--unreadable .sbb__chip  { background: var(--sw-danger, #c0392b); color: #fff; }
+.sbb--unreadable .sbb__chip  { background: var(--sw-err, #c0392b); color: #fff; }
 .sbb--diverged .sbb__chip    { background: var(--sw-warn, #b88500); color: #1a1a1a; }
 .sbb--clean .sbb__chip       { background: var(--sw-ok, #2e7d4e); color: #fff; }
 .sbb__text {
@@ -131,16 +133,16 @@ export default { chipLabel };
   min-width: 0;
 }
 .sbb__msg {
-  color: var(--sw-text-strong, #e8edf2);
+  color: var(--sw-fg-0, #e8edf2);
 }
 .sbb__detail {
   margin-top: 2px;
-  color: var(--sw-text-muted, #8a93a0);
+  color: var(--sw-fg-3, #8a93a0);
   font-size: 11px;
 }
 .sbb__err {
   margin-top: 4px;
-  color: var(--sw-danger, #c0392b);
+  color: var(--sw-err, #c0392b);
   font-size: 11px;
 }
 </style>

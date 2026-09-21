@@ -636,7 +636,7 @@ function onPanelZoneFocus(zoneKey: string): void {
   color: var(--sw-fg-1);
 }
 .cfg-error strong { color: var(--sw-err); font-size: 13px; }
-.cfg-error__detail { color: var(--sw-fg-2); font-family: var(--sw-font-mono, monospace); font-size: 11px; }
+.cfg-error__detail { color: var(--sw-fg-2); font-family: var(--sw-mono, monospace); font-size: 11px; }
 .cfg-error__hint { color: var(--sw-fg-3); max-width: 420px; line-height: 1.5; }
 .cfg-error__back { margin-top: 6px; color: var(--sw-accent); text-decoration: none; }
 .cfg-error__back:hover { text-decoration: underline; }

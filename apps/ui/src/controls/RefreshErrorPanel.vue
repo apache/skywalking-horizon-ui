@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
   color: var(--sw-fg-2);
 }
 .rerr-btn.unread :deep(svg) {
-  color: var(--sw-danger, #e5534b);
+  color: var(--sw-err, #e5534b);
 }
 .rerr-badge {
   position: absolute;
@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
   height: 12px;
   padding: 0 2px;
   border-radius: 6px;
-  background: var(--sw-danger, #e5534b);
+  background: var(--sw-err, #e5534b);
   color: #fff;
   font-size: 8.5px;
   line-height: 12px;
