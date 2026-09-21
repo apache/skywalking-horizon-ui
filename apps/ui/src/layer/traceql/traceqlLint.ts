@@ -29,6 +29,7 @@
  * does not have.
  */
 
+import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import {
   TRACEQL_INTRINSICS,
   TRACEQL_RESOURCE_ATTRS,
@@ -96,8 +97,8 @@ function structuralIssue(text: string, syntax: string): TraceQLIssue | null {
 }
 
 /** Every issue in `q`. An empty expression is fine — it is the match-all `{}`.
- *  `ds` picks the schema, whose resource attributes differ between the two. */
-export function lintTraceQL(q: string, ds: 'native' | 'zipkin' = 'native'): TraceQLIssue[] {
+ *  `ds` picks the schema, whose fields differ between the three stores. */
+export function lintTraceQL(q: string, ds: TraceQLDatasource = 'native'): TraceQLIssue[] {
   const text = q.trim();
   if (!text) return [];
   const syntax = withoutLiterals(text);
@@ -114,9 +115,10 @@ export function lintTraceQL(q: string, ds: 'native' | 'zipkin' = 'native'): Trac
     if (id) out.push({ id, found: field });
   }
 
-  // A resource attribute the OTHER datasource defines: the schema panel lists
-  // one of these per store, and the two are not interchangeable.
-  const foreign = TRACEQL_RESOURCE_ATTRS.filter((a) => a.ds && a.ds !== ds);
+  // A field ANOTHER datasource defines: the schema panel lists what this store
+  // has, and a name from a different one cannot match here.
+  const foreign = [...TRACEQL_RESOURCE_ATTRS, ...TRACEQL_INTRINSICS]
+    .filter((a) => a.ds && !a.ds.includes(ds));
   for (const attr of foreign) {
     if (new RegExp(`(?:^|[\\s{(&|!])${attr.name.replace(/\./g, '\\.')}\\s*(?:!=|=~|!~|=)`).test(syntax)) {
       out.push({ id: 'other-store-attribute', found: attr.name });

@@ -139,13 +139,40 @@ export interface InstanceTopologyConfig {
  *  OAP exposes a client family and a server family (the conversation is
  *  observed from both sides of the eBPF probe), so both lists exist —
  *  mirrors `process_relation_client_*` / `process_relation_server_*`. */
+/** Which end of the conversation a process-relation metric describes. The eBPF
+ *  probe observes both, and OAP publishes a family for each — but not every
+ *  metric has a side: the HTTP/1.x request and response families describe the
+ *  exchange itself. A metric says which it is; nothing is inferred from its
+ *  name. */
+export type ProcessRelationSide = 'client' | 'server';
+
 export interface ProcessTopologyConfig {
-  /** Per-edge MQE under ProcessRelation, client side
-   *  (`process_relation_client_*`). */
-  edgeClientMetrics: TopologyMetricDef[];
-  /** Per-edge MQE under ProcessRelation, server side
-   *  (`process_relation_server_*`). */
-  edgeServerMetrics: TopologyMetricDef[];
+  /** Per-edge MQE under ProcessRelation, each carrying its own side (or none).
+   *  This replaced two lists split by side, which could not hold a metric that
+   *  has none and made the side a property of the metric's NAME. */
+  edgeMetrics?: Array<TopologyMetricDef & { side?: ProcessRelationSide }>;
+  /** @deprecated Read from stored templates written before `edgeMetrics` and
+   *  resolved into it; nothing writes these. */
+  edgeClientMetrics?: TopologyMetricDef[];
+  /** @deprecated See {@link ProcessTopologyConfig.edgeClientMetrics}. */
+  edgeServerMetrics?: TopologyMetricDef[];
+}
+
+/** The edge metrics a config exposes, old spelling resolved into the new one.
+ *  A template carrying the two side lists reads as one list whose entries say
+ *  which side they came from. */
+export function resolveEdgeMetrics(
+  cfg: ProcessTopologyConfig | null | undefined,
+): Array<TopologyMetricDef & { side?: ProcessRelationSide }> {
+  if (!cfg) return [];
+  // PRESENCE, not length: an operator who deletes the last metric has said
+  // this layer has none. Falling back on length revived the older side lists,
+  // so the editor showed empty while the page went on querying them.
+  if (cfg.edgeMetrics) return cfg.edgeMetrics;
+  return [
+    ...(cfg.edgeClientMetrics ?? []).map((m) => ({ ...m, side: 'client' as const })),
+    ...(cfg.edgeServerMetrics ?? []).map((m) => ({ ...m, side: 'server' as const })),
+  ];
 }
 
 /** One resolved process-relation metric series for the edge panel. */
@@ -155,12 +182,20 @@ export interface ProcessRelationMetric {
   unit?: string;
   /** Per-bucket values over the duration window (MINUTE step). */
   values: Array<number | null>;
+  series?: Array<{ label?: string; values: Array<number | null> }>;
 }
+
+/** The further results of a multi-result metric, each under its own labels —
+ *  a percentile's ranks, a status-code metric's codes. Absent when the metric
+ *  answers with one series, whose values are in `values`. */
 
 /** Response of `POST /api/ebpf/network/process-relation-metrics`. */
 export interface ProcessRelationMetricsResponse {
   client: ProcessRelationMetric[];
   server: ProcessRelationMetric[];
+  /** Metrics describing the exchange rather than one end of it — the HTTP/1.x
+   *  request and response families, which belong to neither side. */
+  shared: ProcessRelationMetric[];
   reachable: boolean;
   error?: string;
 }

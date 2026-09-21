@@ -31,7 +31,7 @@
  */
 
 import type { FetchLike, TraceQLDatasource, TraceQLSourceStatus } from '@skywalking-horizon-ui/api-client';
-import { buildTraceQLOpts, traceqlBuildInfo, TraceQLHttpError } from '../../client/traceql.js';
+import { buildTraceQLOpts, traceqlBuildInfo, traceqlUrlFor, TraceQLHttpError } from '../../client/traceql.js';
 import type { HorizonConfig } from '../../config/schema.js';
 
 const TTL_MS = 5 * 60_000;
@@ -50,7 +50,7 @@ interface CacheEntry {
  *  same URL, and a probe for one must not answer as the other. */
 const cache = new Map<string, CacheEntry>();
 
-export const TRACEQL_DATASOURCES: readonly TraceQLDatasource[] = ['native', 'zipkin'];
+export const TRACEQL_DATASOURCES: readonly TraceQLDatasource[] = ['native', 'zipkin', 'otlp'];
 
 function failureText(e: unknown): string {
   if (e instanceof TraceQLHttpError) return e.message;
@@ -65,7 +65,7 @@ async function probeOne(
   signal?: AbortSignal,
 ): Promise<TraceQLSourceStatus> {
   const opts = buildTraceQLOpts(cfg, ds, fetch, signal);
-  const url = ds === 'native' ? cfg.oap.traceql.nativeUrl : cfg.oap.traceql.zipkinUrl;
+  const url = traceqlUrlFor(cfg, ds);
   if (!opts) return { ds, url: '', configured: false, reachable: false };
 
   const key = `${ds}\u0000${url}`;
@@ -81,7 +81,15 @@ async function probeOne(
     // An abandoned read measured nothing. Report it, but do not write a
     // conclusion nobody reached into a cache every other request reads.
     if (signal?.aborted) return { ds, url, configured: true, reachable: false, error: failureText(e) };
-    status = { ds, url, configured: true, reachable: false, error: failureText(e) };
+    // A 404 is the service answering that this datasource is not enabled —
+    // the operator has nothing to fix at the socket, so it must not read as
+    // an outage next to datasources that really are down.
+    const notServed = e instanceof TraceQLHttpError && e.status === 404;
+    status = {
+      ds, url, configured: true, reachable: false,
+      ...(notServed ? { served: false } : {}),
+      error: failureText(e),
+    };
   }
   cache.set(key, { status, expiresAt: now + (status.reachable ? TTL_MS : FAILED_TTL_MS) });
   return status;

@@ -47,7 +47,7 @@ const { t } = useI18n({ useScope: 'global' });
 
 /** The TraceQL stores are the two that answer over Tempo's API, and the only
  *  ones a service filter applies to — the others know their layer already. */
-const TRACEQL_STORES = new Set<TraceStore>(['traceql-native', 'traceql-zipkin']);
+const TRACEQL_STORES = new Set<TraceStore>(['traceql-native', 'traceql-zipkin', 'traceql-otlp']);
 
 const STORE_ROWS = computed(() =>
   TRACE_STORES.map((store) => ({
@@ -65,6 +65,7 @@ function defaultName(store: TraceStore): string {
     case 'zipkin': return t('Zipkin Traces');
     case 'traceql-native': return t('TraceQL - Native');
     case 'traceql-zipkin': return t('TraceQL - Zipkin');
+    case 'traceql-otlp': return t('TraceQL - OTLP');
   }
 }
 
@@ -74,6 +75,7 @@ function hintFor(store: TraceStore): string {
     case 'zipkin': return t('OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.');
     case 'traceql-native': return t('Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.');
     case 'traceql-zipkin': return t('Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.');
+    case 'traceql-otlp': return t('Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.');
   }
 }
 

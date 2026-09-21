@@ -31,6 +31,7 @@ A layer names the trace stores it exposes, and **each one becomes its own row in
 | **Zipkin Traces** | OAP's Zipkin v2 API, which also carries the OpenTelemetry traces OAP converts into Zipkin form. |
 | **TraceQL - Native** | The TraceQL API over the native spans. |
 | **TraceQL - Zipkin** | The TraceQL API over the Zipkin spans. |
+| **TraceQL - OTLP** | The TraceQL API over the OTLP spans OAP stored as they arrived, converting nothing. |
 
 Each row can be renamed per layer, so what you see in your deployment may differ. Stores are kept as separate rows rather than one row with a toggle because their span models and their query conditions genuinely differ, and a row that silently switched stores would change what a field means under you.
 
@@ -118,9 +119,11 @@ Each Zipkin result shows its duration and error state, with a duration bar color
 
 ## How a span's status is decided
 
-**Only native traces carry a status from the backend.** OAP reports whether a native span errored, and the Traces tab shows what it reported. The other two stores have nothing to report: a **Zipkin** span has no status field at all, and an **OTLP** span converted from one arrives with its status `unset` — OAP's converter sets none. A Tempo search result carries no status either.
+**Where a span reports its own status, that is what you see.** A native span carries OAP's error flag, and a natively stored **OTLP** span keeps the status its SDK set. A **Zipkin** span has no status field at all, and an OTLP span *converted* to Zipkin arrives `unset` — OAP's converter sets none — so for those there is nothing to report.
 
-So for those, the status is read from the attributes the span carries, by one table shared across every store — the Zipkin row, the TraceQL rows, and each one's result list. An attribute not listed here is never read as a status.
+**Where it does not, the status is read from the attributes the span carries**, by one table shared across every store — the Zipkin row, the TraceQL rows, and each one's result list. An attribute not listed here is never read as a status.
+
+A TraceQL **search** result is a third case: it carries a `status` of its own per span, so a list can show failures without opening each trace. Where that says `error` or `ok` the row is settled at once; where it says `unset`, the traces still undecided are read afterwards and the markers below settle them.
 
 | Attribute | `error` when | `ok` when | says nothing when |
 |---|---|---|---|
@@ -152,7 +155,11 @@ Two markers on one span can disagree, and so can two spans in one trace. **Failu
 
 ## TraceQL traces
 
-The TraceQL rows query the same traces through [Grafana Tempo's query language](https://grafana.com/docs/tempo/latest/traceql/), which OAP answers over Tempo's HTTP API. A TraceQL trace is an **OpenTelemetry** trace and is shown as one: opaque span ids, a span kind, a three-valued status (ok / error / unset), resource attributes kept apart from span attributes, and the instrumentation scope. Nothing is folded into SkyWalking's own span shape, so what you read is what the protocol defines.
+The TraceQL rows query traces through [Grafana Tempo's query language](https://grafana.com/docs/tempo/latest/traceql/), which OAP answers over Tempo's HTTP API. A TraceQL trace is an **OpenTelemetry** trace and is shown as one: opaque span ids, a span kind, a three-valued status (ok / error / unset), resource attributes kept apart from span attributes, and the instrumentation scope. Nothing is folded into SkyWalking's own span shape, so what you read is what the protocol defines.
+
+**Each row is a different store, not a different view of one.** *TraceQL - Native* reads the SkyWalking spans and *TraceQL - Zipkin* the Zipkin ones, both converted to OTLP to answer. *TraceQL - OTLP* reads spans OAP stored exactly as they arrived, converting nothing — so attributes keep their own types, and events, links, status messages and the instrumentation scope are what the SDK exported. Where a deployment's OTLP traces live depends on how its receiver was configured to keep them, and only one of the two rows will hold them.
+
+The OTLP row also has fields the other two cannot offer: the `kind` intrinsic, `resource.service.instance.id`, and Tempo's `span:`-prefixed spellings. The **Schema reference** on each row lists what that store can filter, which is the shortest way to see the difference.
 
 The one reading Horizon does add is the span kind. OTLP has no entry and exit — it has client, server, producer and consumer — so the views name them the way every other trace surface does: a **server** or **consumer** span is an **Entry** (a call or a message arriving), a **client** or **producer** span an **Exit** (one leaving), and an **internal** span is **Local**. The protocol's own word is shown beside it on the span detail, in the statistics table and in the waterfall's tooltip, so nothing about the OTLP data is hidden behind the reading.
 

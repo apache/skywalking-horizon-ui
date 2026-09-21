@@ -738,7 +738,7 @@ const namingTest = computed<NamingTestResult>(() => {
              the Components toggle in the right sidebar. -->
         <section
           v-else-if="activeScopeRuntimeOnly"
-          class="sw-card editor-card topo-cfg-card"
+          class="sw-card editor-card topo-cfg-card scope-titled"
         >
           <div class="card-head">
             <h4>{{ t('{scope} tab', { scope: scopeLabel(activeScope) }) }}</h4>
@@ -1092,6 +1092,9 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-0);
   text-transform: capitalize;
 }
+/* A heading built from a scope label carries the label's own casing — see
+   SCOPE_LABELS. Capitalizing it renders eBPF as EBPF. */
+.scope-titled .card-head h4 { text-transform: none; }
 .card-head .sub {
   font-size: 10.5px;
   color: var(--sw-fg-3);

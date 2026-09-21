@@ -372,42 +372,6 @@ export const BOOSTER_ENDPOINT_DEP_DEFAULTS: EndpointDependencyConfig = {
   ],
 };
 
-/**
- * Defaults for the network-profiling process-topology edge panel. The
- * metric names come from OAP's `meter-analyzer-config/network-profiling.yaml`
- * (metricPrefix `process_relation`), validated live against the demo's
- * mesh process topology (envoy → pilot-agent returns non-null cpm). OAP
- * observes each conversation from both eBPF probe sides, so client and
- * server families both exist. cpm metrics are per-minute rates; the
- * `*_total_bytes` are cumulative counters summed over the window.
- */
-export const BOOSTER_PROCESS_TOPOLOGY_DEFAULTS: ProcessTopologyConfig = {
-  // Default ProcessRelation TCP metric set — fully operator-editable via
-  // the admin network-profiling config. ids pair across client/server so
-  // the edge dashboard renders matching rows side-by-side; bytes are
-  // /1024 → KB and exe times /1000000 → ms for readable units.
-  edgeClientMetrics: [
-    { id: 'write_cpm', label: 'Write OP / min', mqe: 'process_relation_client_write_cpm', aggregation: 'avg' },
-    { id: 'read_cpm', label: 'Read OP / min', mqe: 'process_relation_client_read_cpm', aggregation: 'avg' },
-    { id: 'write_kb', label: 'Write package size', mqe: 'process_relation_client_write_total_bytes/1024', unit: 'KB', aggregation: 'avg' },
-    { id: 'read_kb', label: 'Read package size', mqe: 'process_relation_client_read_total_bytes/1024', unit: 'KB', aggregation: 'avg' },
-    { id: 'write_avg_ms', label: 'Write OP avg time', mqe: 'process_relation_client_write_avg_exe_time/1000000', unit: 'ms', aggregation: 'avg' },
-    { id: 'read_avg_ms', label: 'Read OP avg time', mqe: 'process_relation_client_read_avg_exe_time/1000000', unit: 'ms', aggregation: 'avg' },
-    { id: 'connect_cpm', label: 'Connect OP / min', mqe: 'process_relation_client_connect_cpm', aggregation: 'avg' },
-    { id: 'close_cpm', label: 'Close OP / min', mqe: 'process_relation_client_close_cpm', aggregation: 'avg' },
-  ],
-  edgeServerMetrics: [
-    { id: 'write_cpm', label: 'Write OP / min', mqe: 'process_relation_server_write_cpm', aggregation: 'avg' },
-    { id: 'read_cpm', label: 'Read OP / min', mqe: 'process_relation_server_read_cpm', aggregation: 'avg' },
-    { id: 'write_kb', label: 'Write package size', mqe: 'process_relation_server_write_total_bytes/1024', unit: 'KB', aggregation: 'avg' },
-    { id: 'read_kb', label: 'Read package size', mqe: 'process_relation_server_read_total_bytes/1024', unit: 'KB', aggregation: 'avg' },
-    { id: 'write_avg_ms', label: 'Write OP avg time', mqe: 'process_relation_server_write_avg_exe_time/1000000', unit: 'ms', aggregation: 'avg' },
-    { id: 'read_avg_ms', label: 'Read OP avg time', mqe: 'process_relation_server_read_avg_exe_time/1000000', unit: 'ms', aggregation: 'avg' },
-    { id: 'connect_cpm', label: 'Connect OP / min', mqe: 'process_relation_server_connect_cpm', aggregation: 'avg' },
-    { id: 'close_cpm', label: 'Close OP / min', mqe: 'process_relation_server_close_cpm', aggregation: 'avg' },
-  ],
-};
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Locate bundled_templates/layers/ at runtime.
  *
@@ -700,12 +664,15 @@ export function endpointDependencyConfigFor(
 }
 
 /** Resolve the process-topology (network-profiling) config — same
- *  fallback rule. */
+ *  template. */
 export function processTopologyConfigFor(
   template: LayerTemplate | null,
 ): ProcessTopologyConfig {
-  if (template?.processTopology) return template.processTopology;
-  return BOOSTER_PROCESS_TOPOLOGY_DEFAULTS;
+  // The template decides. There used to be a built-in default here, which
+  // meant the panel rendered sixteen metrics that no template named — so the
+  // editor, which reads the template, showed an empty config for a page that
+  // was full. A layer that declares none has none.
+  return template?.processTopology ?? {};
 }
 
 /**

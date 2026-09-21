@@ -57,6 +57,7 @@ function labelFor(path: string): string {
     case 'zipkin-trace': return t('Zipkin Traces');
     case 'traceql-native-trace': return t('TraceQL - Native');
     case 'traceql-zipkin-trace': return t('TraceQL - Zipkin');
+    case 'traceql-otlp-trace': return t('TraceQL - OTLP');
     case 'logs': return t('Logs');
     case 'evaluation-record': return t('Evaluation records');
     case 'browser-errors': return t('Browser Logs');

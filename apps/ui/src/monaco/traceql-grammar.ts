@@ -25,11 +25,17 @@
  * deliberately not modelled: see `layer/traceql/traceqlLint.ts`.
  */
 
+/** Which datasources a schema entry belongs to. Absent means all of them. */
+export type TraceQLStores = ReadonlyArray<'native' | 'zipkin' | 'otlp'>;
+
 /** Intrinsic fields, which are bare by grammar and carry no scope. */
-export const TRACEQL_INTRINSICS: ReadonlyArray<{ name: string; detail: string }> = [
+export const TRACEQL_INTRINSICS: ReadonlyArray<{ name: string; detail: string; ds?: TraceQLStores }> = [
   { name: 'duration', detail: 'Trace duration — >, >=, <, <= with us/µs/ms/s/m/h' },
   { name: 'name', detail: 'Span name' },
   { name: 'status', detail: 'ok, error or unset' },
+  // A span kind is a column only where the spans were stored as OTLP; the
+  // Zipkin and SkyWalking tag indexes have nothing to filter it on.
+  { name: 'kind', detail: 'Span kind — server, client, producer, consumer, internal, unspecified (OTLP)', ds: ['otlp'] },
 ];
 
 /** Attribute scopes. `span.` and the unscoped `.` reach the same tag lookup;
@@ -40,11 +46,14 @@ export const TRACEQL_SCOPES: ReadonlyArray<{ name: string; detail: string }> = [
 ];
 
 /** The reserved resource attributes, which become entity filters rather than
- *  tag lookups. `instance` is native-only, `remote.service` Zipkin-only. */
-export const TRACEQL_RESOURCE_ATTRS: ReadonlyArray<{ name: string; detail: string; ds?: 'native' | 'zipkin' }> = [
+ *  tag lookups. Which store defines which is not a detail: naming one the
+ *  store does not have is the commonest way to write a query that cannot
+ *  match, so each says where it applies. */
+export const TRACEQL_RESOURCE_ATTRS: ReadonlyArray<{ name: string; detail: string; ds?: TraceQLStores }> = [
   { name: 'resource.service.name', detail: 'Service' },
-  { name: 'resource.instance', detail: 'Service instance (native)', ds: 'native' },
-  { name: 'resource.remote.service', detail: 'Peer service (Zipkin)', ds: 'zipkin' },
+  { name: 'resource.instance', detail: 'Service instance (native)', ds: ['native'] },
+  { name: 'resource.service.instance.id', detail: 'Service instance (OTLP)', ds: ['otlp'] },
+  { name: 'resource.remote.service', detail: 'Peer service (Zipkin, OTLP)', ds: ['zipkin', 'otlp'] },
 ];
 
 /** The three values TraceQL's `status` intrinsic takes. */

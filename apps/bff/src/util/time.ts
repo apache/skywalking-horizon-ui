@@ -34,7 +34,6 @@
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../config/schema.js';
-import type { MqeTargetCache } from './mqe-target.js';
 
 export interface ServerTime {
   /** OAP server's UTC offset in minutes. `+480` for UTC+8, `-300`
@@ -84,7 +83,6 @@ export class ServerTimeCache {
 export interface ServerTimeDeps {
   config(): HorizonConfig;
   fetch: FetchLike;
-  mqeTarget: MqeTargetCache;
 }
 
 async function resolveServerTime(deps: ServerTimeDeps): Promise<ServerTime> {
@@ -96,11 +94,8 @@ async function resolveServerTime(deps: ServerTimeDeps): Promise<ServerTime> {
   const ctrl = timeoutMs > 0 ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
   try {
-    const target = await deps.mqeTarget.resolve({
-      config: () => deps.config(),
-      fetch: deps.fetch,
-    });
-    mqeBaseUrl = target.baseUrl;
+    const queryUrl = deps.config().oap.queryUrl;
+    mqeBaseUrl = queryUrl;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -116,7 +111,7 @@ async function resolveServerTime(deps: ServerTimeDeps): Promise<ServerTime> {
       body: JSON.stringify({ query: GRAPHQL_QUERY }),
       ...(ctrl ? { signal: ctrl.signal } : {}),
     };
-    const res = await deps.fetch(`${target.baseUrl.replace(/\/$/, '')}/graphql`, init);
+    const res = await deps.fetch(`${queryUrl.replace(/\/$/, '')}/graphql`, init);
     if (!res.ok) {
       const txt = (await res.text()).slice(0, 200);
       return fallback(`HTTP ${res.status}: ${txt}`, mqeBaseUrl);

@@ -35,7 +35,16 @@ export type SlotKey = keyof NonNullable<AdminLayerTemplate['slots']>;
  *  is the process-topology edge editor; `deployment` is the
  *  instance-deployment config (node + edge MQE + clusterBy). Both
  *  live outside `DashboardScope` but surface as editable config tabs. */
-export type AdminScope = DashboardScope | 'networkProfiling' | 'deployment';
+export type AdminScope =
+  | DashboardScope
+  | 'networkProfiling'
+  | 'deployment'
+  | 'podLogs'
+  | 'continuousProfiling'
+  | 'pprofProfiling'
+  | 'evaluationRecord'
+  | 'browserErrors'
+  | 'aiConversations';
 
 export const SCOPES: AdminScope[] = [
   'service',
@@ -48,28 +57,44 @@ export const SCOPES: AdminScope[] = [
   'dependency',
   'trace',
   'logs',
+  'evaluationRecord',
+  'browserErrors',
+  'podLogs',
+  'aiConversations',
   'traceProfiling',
   'ebpfProfiling',
-  'asyncProfiling',
   'networkProfiling',
+  'continuousProfiling',
+  'pprofProfiling',
+  'asyncProfiling',
 ];
 
 /** Display label for each scope — kebab-cases the profiling scopes
  *  so the scope tab strip reads as "trace profiling" instead of the
  *  camelCase key. */
+/** Written as they are DISPLAYED. They used to be lower-case and title-cased
+ *  by CSS, which uppercases the first letter of each word and so rendered
+ *  `eBPF profiling` as `EBPF Profiling` — a product name CSS cannot know how
+ *  to case. Anything that shows these does not transform them. */
 export const SCOPE_LABELS: Record<AdminScope, string> = {
-  service: 'service',
-  instance: 'instance',
-  endpoint: 'endpoint',
-  dependency: 'dependency',
-  topology: 'topology',
-  deployment: 'deployment',
-  trace: 'trace',
-  logs: 'logs',
-  traceProfiling: 'trace profiling',
+  service: 'Service',
+  instance: 'Instance',
+  endpoint: 'Endpoint',
+  dependency: 'Dependency',
+  topology: 'Topology',
+  deployment: 'Deployment',
+  trace: 'Trace',
+  logs: 'Logs',
+  traceProfiling: 'Trace profiling',
   ebpfProfiling: 'eBPF profiling',
-  asyncProfiling: 'async profiling',
-  networkProfiling: 'network profiling',
+  asyncProfiling: 'Async profiling',
+  networkProfiling: 'Network profiling',
+  continuousProfiling: 'Continuous profiling',
+  pprofProfiling: 'pprof',
+  podLogs: 'Pod logs',
+  evaluationRecord: 'Evaluation records',
+  browserErrors: 'Browser logs',
+  aiConversations: 'Conversations',
 };
 
 /** Scopes whose page is a built-in, runtime-configured explore view with no
@@ -82,6 +107,12 @@ export const RUNTIME_ONLY_SCOPES = new Set<AdminScope>([
   'traceProfiling',
   'ebpfProfiling',
   'asyncProfiling',
+  'continuousProfiling',
+  'pprofProfiling',
+  'podLogs',
+  'evaluationRecord',
+  'browserErrors',
+  'aiConversations',
 ]);
 
 /** Scopes that hold a widget list (so a tab count is meaningful). Config /
@@ -104,6 +135,12 @@ export const SCOPE_COMPONENT: Record<AdminScope, ComponentKey> = {
   ebpfProfiling: 'ebpfProfiling' as ComponentKey,
   asyncProfiling: 'asyncProfiling' as ComponentKey,
   networkProfiling: 'networkProfiling' as ComponentKey,
+  continuousProfiling: 'continuousProfiling' as ComponentKey,
+  pprofProfiling: 'pprofProfiling' as ComponentKey,
+  podLogs: 'podLogs' as ComponentKey,
+  evaluationRecord: 'evaluationRecord' as ComponentKey,
+  browserErrors: 'browserErrors' as ComponentKey,
+  aiConversations: 'aiConversations' as ComponentKey,
 };
 
 /** Scope → slot-alias key, for the scopes that carry a configurable noun.

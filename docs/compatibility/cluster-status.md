@@ -105,8 +105,9 @@ A third pane probes every endpoint behind a layer's trace rows and lists them in
 | API | Source | Endpoint |
 |---|---|---|
 | **Zipkin v2 REST** | Zipkin spans | `oap.zipkinUrl` — the Zipkin / OTel trace rows. |
-| **TraceQL** | SkyWalking-native spans | `oap.traceql.nativeUrl` — the TraceQL rows over native spans. |
-| **TraceQL** | Zipkin spans | `oap.traceql.zipkinUrl` — the TraceQL rows over Zipkin spans. |
+| **TraceQL** | SkyWalking-native spans | `oap.traceql.url` + `nativePath` — the TraceQL rows over native spans. |
+| **TraceQL** | Zipkin spans | `oap.traceql.url` + `zipkinPath` — the TraceQL rows over Zipkin spans. |
+| **TraceQL** | Natively stored OTLP spans | `oap.traceql.url` + `otlpPath` — the TraceQL rows over the OTLP spans OAP kept as they arrived. |
 
 A TraceQL row also prints the Tempo API version the datasource reported.
 

@@ -57,6 +57,10 @@ function toggleThresholds(m: TopologyMetricDef): void {
 <template>
   <article class="metric-row">
     <div class="metric-row-head">
+      <!-- A field only some callers have — the process-relation side — so it
+           sits in this row and is styled with the rest rather than floating
+           above the card in its own vocabulary. -->
+      <slot name="lead" />
       <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" :disabled="readOnly" /></label>
       <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" :disabled="readOnly" /></label>
       <label class="mf mf-wide">
@@ -139,7 +143,10 @@ function toggleThresholds(m: TopologyMetricDef): void {
   padding-top: 6px;
   border-top: 1px dashed var(--sw-line);
 }
-.mf {
+/* Slotted content carries the PARENT's scope id, so a scoped rule does not
+   reach it — the lead field would render unstyled beside the ones here. */
+.mf,
+:slotted(.mf) {
   display: inline-flex;
   flex-direction: column;
   gap: 3px;
@@ -161,7 +168,8 @@ function toggleThresholds(m: TopologyMetricDef): void {
   min-width: auto;
 }
 .mf.mf-checkbox input { accent-color: var(--sw-accent); }
-.mf-input {
+.mf-input,
+:slotted(.mf-input) {
   height: 26px;
   padding: 0 6px;
   background: var(--sw-bg-2);

@@ -346,10 +346,16 @@ function buildLayerSchemas(complete: boolean) {
     })
     .strict();
 
+  // One list, each metric naming its own side — or none, which the HTTP/1.x
+  // families need. The two side lists are still READ from stored templates
+  // and resolved into it; nothing writes them.
   const processTopologySchema = z
     .object({
-      edgeClientMetrics: filled(topologyMetricSchema),
-      edgeServerMetrics: filled(topologyMetricSchema),
+      edgeMetrics: filled(
+        topologyMetricSchema.extend({ side: z.enum(['client', 'server']).optional() }),
+      ).optional(),
+      edgeClientMetrics: filled(topologyMetricSchema).optional(),
+      edgeServerMetrics: filled(topologyMetricSchema).optional(),
     })
     .strict();
 
@@ -483,7 +489,7 @@ function buildLayerSchemas(complete: boolean) {
           // The checklist. Absent or empty means the layer has NO trace rows —
           // there is deliberately no default, because which trace stores exist
           // is a fact about a deployment.
-          sources: z.array(z.enum(['native', 'zipkin', 'traceql-native', 'traceql-zipkin'])).optional(),
+          sources: z.array(z.enum(['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp'])).optional(),
           // Per-store settings: the row's sidebar label, and the regex that
           // narrows its service picker — the Tempo API has no notion of a
           // layer, so a layer owning a subset of a store's services has no
@@ -491,7 +497,7 @@ function buildLayerSchemas(complete: boolean) {
           stores: z
             .object(
               Object.fromEntries(
-                (['native', 'zipkin', 'traceql-native', 'traceql-zipkin'] as const).map((k) => [
+                (['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp'] as const).map((k) => [
                   k,
                   z
                     .object({

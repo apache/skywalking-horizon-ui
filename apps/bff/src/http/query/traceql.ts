@@ -69,7 +69,7 @@ export interface TraceQLRouteDeps extends AuthDeps {
 }
 
 function datasourceOf(raw: string): TraceQLDatasource | null {
-  return raw === 'native' || raw === 'zipkin' ? raw : null;
+  return raw === 'native' || raw === 'zipkin' || raw === 'otlp' ? raw : null;
 }
 
 /** The window every query carries, in milliseconds. A by-id lookup may omit it
@@ -106,8 +106,14 @@ function failureText(e: unknown): string {
 
 /** The store a datasource fills for a layer — how a `:ds` route reaches the
  *  per-store template settings. */
+const STORE_OF: Readonly<Record<TraceQLDatasource, TraceStore>> = {
+  native: 'traceql-native',
+  zipkin: 'traceql-zipkin',
+  otlp: 'traceql-otlp',
+};
+
 function storeOf(ds: TraceQLDatasource): TraceStore {
-  return ds === 'native' ? 'traceql-native' : 'traceql-zipkin';
+  return STORE_OF[ds];
 }
 
 /**

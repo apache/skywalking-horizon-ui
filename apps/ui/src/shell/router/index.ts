@@ -90,6 +90,7 @@ function layerRoute(): RouteRecordRaw {
       // than a dispatcher inferring it from the layer's configuration.
       { path: 'traceql-native-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
       { path: 'traceql-zipkin-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
+      { path: 'traceql-otlp-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
       // Owns its provider picker: the view draws it from the `logs:read`
       // evaluation catalog so a logs-only role can pick a provider, where the

@@ -174,7 +174,8 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  text-transform: capitalize;
+  /* The labels carry their own casing — capitalize would render eBPF as EBPF. */
+  text-transform: none;
   font: inherit;
   display: inline-flex;
   align-items: center;

@@ -88,7 +88,7 @@ const EVERY_ROW: LayerMenuInput = {
     asyncProfiling: true,
   } satisfies LayerCaps,
   slots: {},
-  traces: { sources: ['native', 'zipkin', 'traceql-native', 'traceql-zipkin'] },
+  traces: { sources: ['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp'] },
 };
 
 describe('DEFAULT_LAYER_ROW_ORDER', () => {

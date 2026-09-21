@@ -111,7 +111,7 @@
       {
         "id": "apdex_line",
         "title": "Apdex",
-        "tip": "User-satisfaction score on a 0 \u2013 1 scale.",
+        "tip": "User-satisfaction score on a 0 – 1 scale.",
         "type": "line",
         "expressions": [
           "service_apdex/10000"
@@ -133,7 +133,7 @@
       {
         "id": "percentile_line",
         "title": "Response Time Percentile",
-        "tip": "p50 / p75 / p90 / p95 / p99 latency \u2014 the tail of the response-time distribution.",
+        "tip": "p50 / p75 / p90 / p95 / p99 latency — the tail of the response-time distribution.",
         "type": "line",
         "unit": "ms",
         "expressions": [
@@ -145,7 +145,7 @@
       {
         "id": "throughput_line",
         "title": "Service Throughput",
-        "tip": "Bytes per minute through the sidecar \u2014 sent + received.",
+        "tip": "Bytes per minute through the sidecar — sent + received.",
         "type": "line",
         "unit": "B/min",
         "expressions": [
@@ -238,7 +238,7 @@
       {
         "id": "instance_throughput",
         "title": "Sidecar Throughput",
-        "tip": "Bytes through the sidecar \u2014 received + sent.",
+        "tip": "Bytes through the sidecar — received + sent.",
         "type": "line",
         "unit": "B/min",
         "expressions": [
@@ -276,7 +276,11 @@
         "expressions": [
           "envoy_cluster_up_rq_active"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_active", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_up_rq_active",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
@@ -288,19 +292,27 @@
         "expressions": [
           "envoy_cluster_up_rq_incr"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_incr", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_up_rq_incr",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
       {
         "id": "envoy_up_rq_pending_active",
         "title": "Envoy Upstream Pending Active",
-        "tip": "Pending upstream requests \u2014 indicates connection-pool back-pressure.",
+        "tip": "Pending upstream requests — indicates connection-pool back-pressure.",
         "type": "line",
         "expressions": [
           "envoy_cluster_up_rq_pending_active"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_pending_active", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_up_rq_pending_active",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
@@ -311,7 +323,11 @@
         "expressions": [
           "envoy_cluster_up_cx_active"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_cx_active", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_up_cx_active",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
@@ -322,19 +338,27 @@
         "expressions": [
           "envoy_cluster_up_cx_incr"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_cx_incr", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_up_cx_incr",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
       {
         "id": "envoy_membership_healthy",
         "title": "Envoy Cluster Healthy Membership",
-        "tip": "Healthy upstream members per cluster \u2014 a non-trivial drop signals upstream churn.",
+        "tip": "Healthy upstream members per cluster — a non-trivial drop signals upstream churn.",
         "type": "line",
         "expressions": [
           "envoy_cluster_membership_healthy"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_membership_healthy", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_cluster_membership_healthy",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
@@ -350,7 +374,11 @@
           "total",
           "parent"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_total_connections_used", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_total_connections_used",
+          "op": "exists"
+        },
         "span": 4,
         "rowSpan": 2
       },
@@ -376,7 +404,11 @@
           "physical",
           "physical max"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_heap_memory_used/1024/1024", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_heap_memory_used/1024/1024",
+          "op": "exists"
+        },
         "span": 6,
         "rowSpan": 2
       },
@@ -392,7 +424,11 @@
           "live",
           "max"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_worker_threads", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_worker_threads",
+          "op": "exists"
+        },
         "span": 3,
         "rowSpan": 2
       },
@@ -404,7 +440,11 @@
         "expressions": [
           "envoy_bug_failures"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "envoy_bug_failures", "op": "exists" },
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "envoy_bug_failures",
+          "op": "exists"
+        },
         "span": 3,
         "rowSpan": 2
       }
@@ -573,23 +613,403 @@
     ],
     "instanceTopology": {
       "nodeMetrics": [
-        { "id": "cpm", "label": "RPM", "mqe": "service_instance_cpm", "unit": "rpm", "role": "center", "aggregation": "avg" },
-        { "id": "sla", "label": "SLA", "mqe": "service_instance_sla/100", "unit": "%", "role": "ring", "aggregation": "avg", "thresholds": { "invertHealth": true, "invertBase": 100, "ok": 0.1, "warn": 1, "danger": 5 } },
-        { "id": "respTime", "label": "Latency", "mqe": "service_instance_resp_time", "unit": "ms", "role": "secondary", "aggregation": "avg" }
+        {
+          "id": "cpm",
+          "label": "RPM",
+          "mqe": "service_instance_cpm",
+          "unit": "rpm",
+          "role": "center",
+          "aggregation": "avg"
+        },
+        {
+          "id": "sla",
+          "label": "SLA",
+          "mqe": "service_instance_sla/100",
+          "unit": "%",
+          "role": "ring",
+          "aggregation": "avg",
+          "thresholds": {
+            "invertHealth": true,
+            "invertBase": 100,
+            "ok": 0.1,
+            "warn": 1,
+            "danger": 5
+          }
+        },
+        {
+          "id": "respTime",
+          "label": "Latency",
+          "mqe": "service_instance_resp_time",
+          "unit": "ms",
+          "role": "secondary",
+          "aggregation": "avg"
+        }
       ],
       "linkServerMetrics": [
-        { "id": "cpm", "label": "RPM", "mqe": "service_instance_relation_server_cpm", "unit": "rpm", "role": "lineServer", "aggregation": "avg" },
-        { "id": "respTime", "label": "Avg response time", "mqe": "service_instance_relation_server_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "id": "p95", "label": "p95", "mqe": "service_instance_relation_server_percentile{p='95'}", "unit": "ms", "aggregation": "avg" },
-        { "id": "sla", "label": "SLA", "mqe": "service_instance_relation_server_call_sla/100", "unit": "%", "aggregation": "avg" }
+        {
+          "id": "cpm",
+          "label": "RPM",
+          "mqe": "service_instance_relation_server_cpm",
+          "unit": "rpm",
+          "role": "lineServer",
+          "aggregation": "avg"
+        },
+        {
+          "id": "respTime",
+          "label": "Avg response time",
+          "mqe": "service_instance_relation_server_resp_time",
+          "unit": "ms",
+          "aggregation": "avg"
+        },
+        {
+          "id": "p95",
+          "label": "p95",
+          "mqe": "service_instance_relation_server_percentile{p='95'}",
+          "unit": "ms",
+          "aggregation": "avg"
+        },
+        {
+          "id": "sla",
+          "label": "SLA",
+          "mqe": "service_instance_relation_server_call_sla/100",
+          "unit": "%",
+          "aggregation": "avg"
+        }
       ],
       "linkClientMetrics": [
-        { "id": "cpm", "label": "RPM", "mqe": "service_instance_relation_client_cpm", "unit": "rpm", "role": "lineClient", "aggregation": "avg" },
-        { "id": "respTime", "label": "Avg response time", "mqe": "service_instance_relation_client_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "id": "p95", "label": "p95", "mqe": "service_instance_relation_client_percentile{p='95'}", "unit": "ms", "aggregation": "avg" },
-        { "id": "sla", "label": "SLA", "mqe": "service_instance_relation_client_call_sla/100", "unit": "%", "aggregation": "avg" }
+        {
+          "id": "cpm",
+          "label": "RPM",
+          "mqe": "service_instance_relation_client_cpm",
+          "unit": "rpm",
+          "role": "lineClient",
+          "aggregation": "avg"
+        },
+        {
+          "id": "respTime",
+          "label": "Avg response time",
+          "mqe": "service_instance_relation_client_resp_time",
+          "unit": "ms",
+          "aggregation": "avg"
+        },
+        {
+          "id": "p95",
+          "label": "p95",
+          "mqe": "service_instance_relation_client_percentile{p='95'}",
+          "unit": "ms",
+          "aggregation": "avg"
+        },
+        {
+          "id": "sla",
+          "label": "SLA",
+          "mqe": "service_instance_relation_client_call_sla/100",
+          "unit": "%",
+          "aggregation": "avg"
+        }
       ]
     }
+  },
+  "processTopology": {
+    "edgeMetrics": [
+      {
+        "id": "client_write_cpm",
+        "label": "Write OP Per Minute",
+        "mqe": "process_relation_client_write_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "client"
+      },
+      {
+        "id": "server_write_cpm",
+        "label": "Write OP Per Minute",
+        "mqe": "process_relation_server_write_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "server"
+      },
+      {
+        "id": "client_read_cpm",
+        "label": "Read OP Per Minute",
+        "mqe": "process_relation_client_read_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "client"
+      },
+      {
+        "id": "server_read_cpm",
+        "label": "Read OP Per Minute",
+        "mqe": "process_relation_server_read_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "server"
+      },
+      {
+        "id": "client_write_total_bytes",
+        "label": "Write Package Size",
+        "mqe": "process_relation_client_write_total_bytes/1024",
+        "aggregation": "avg",
+        "unit": "KB",
+        "side": "client"
+      },
+      {
+        "id": "client_read_total_bytes",
+        "label": "Read Package Size",
+        "mqe": "process_relation_client_read_total_bytes/1024",
+        "aggregation": "avg",
+        "unit": "KB",
+        "side": "client"
+      },
+      {
+        "id": "server_write_total_bytes",
+        "label": "Write Package Size",
+        "mqe": "process_relation_server_write_total_bytes/1024",
+        "aggregation": "avg",
+        "unit": "KB",
+        "side": "server"
+      },
+      {
+        "id": "server_read_total_bytes",
+        "label": "Read Package Size",
+        "mqe": "process_relation_server_read_total_bytes/1024",
+        "aggregation": "avg",
+        "unit": "KB",
+        "side": "server"
+      },
+      {
+        "id": "client_write_avg_exe_time",
+        "label": "Write OP Avg Time",
+        "mqe": "process_relation_client_write_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "client_read_avg_exe_time",
+        "label": "Read OP Avg Time",
+        "mqe": "process_relation_client_read_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "server_write_avg_exe_time",
+        "label": "Write OP Avg Time",
+        "mqe": "process_relation_server_write_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "server_read_avg_exe_time",
+        "label": "Read OP Avg Time",
+        "mqe": "process_relation_server_read_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "client_connect_cpm",
+        "label": "Connect OP Per Minute",
+        "mqe": "process_relation_client_connect_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "client"
+      },
+      {
+        "id": "client_connect_exe_time",
+        "label": "Connect Avg Time",
+        "mqe": "process_relation_client_connect_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "server_connect_cpm",
+        "label": "Connect OP Per Minute",
+        "mqe": "process_relation_server_connect_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "server"
+      },
+      {
+        "id": "server_connect_avg_exe_time",
+        "label": "Connect Avg Time",
+        "mqe": "process_relation_server_connect_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "client_close_cpm",
+        "label": "Close OP Per Minute",
+        "mqe": "process_relation_client_close_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "client"
+      },
+      {
+        "id": "client_close_avg_exe_time",
+        "label": "Close Avg Time",
+        "mqe": "process_relation_client_close_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "server_close_cpm",
+        "label": "Close OP Per Minute",
+        "mqe": "process_relation_server_close_cpm",
+        "aggregation": "avg",
+        "unit": "/min",
+        "side": "server"
+      },
+      {
+        "id": "server_close_avg_exe_time",
+        "label": "Close Avg Time",
+        "mqe": "process_relation_server_close_avg_exe_time/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "client_write_rtt_time_percentile",
+        "label": "Write OP RTT Percentile",
+        "mqe": "process_relation_client_write_rtt_time_percentile",
+        "aggregation": "avg",
+        "unit": "μs",
+        "side": "client"
+      },
+      {
+        "id": "server_write_rtt_time_percentile",
+        "label": "Write OP RTT Percentile",
+        "mqe": "process_relation_server_write_rtt_time_percentile",
+        "aggregation": "avg",
+        "unit": "μs",
+        "side": "server"
+      },
+      {
+        "id": "client_write_exe_time_percentile",
+        "label": "Write OP Exe Time Percentile",
+        "mqe": "process_relation_client_write_exe_time_percentile/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "server_write_exe_time_percentile",
+        "label": "Write OP Exe Time Percentile",
+        "mqe": "process_relation_server_write_exe_time_percentile/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "client_read_exe_time_percentile",
+        "label": "Read OP Exe Time Percentile",
+        "mqe": "process_relation_client_read_exe_time_percentile/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "server_read_exe_time_percentile",
+        "label": "Read OP Exe Time Percentile",
+        "mqe": "process_relation_server_read_exe_time_percentile/1000000",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "client_write_avg_rtt_time",
+        "label": "Write OP Avg RTT",
+        "mqe": "process_relation_client_write_avg_rtt_time",
+        "aggregation": "avg",
+        "unit": "μs",
+        "side": "client"
+      },
+      {
+        "id": "server_write_avg_rtt_time",
+        "label": "Write OP Avg RTT",
+        "mqe": "process_relation_server_write_avg_rtt_time",
+        "aggregation": "avg",
+        "unit": "μs",
+        "side": "server"
+      },
+      {
+        "id": "http1_request_cpm",
+        "label": "Request CPM",
+        "mqe": "process_relation_http1_request_cpm",
+        "aggregation": "avg",
+        "unit": "/min"
+      },
+      {
+        "id": "http1_response_status_cpm",
+        "label": "HTTP Response CPM",
+        "mqe": "process_relation_http1_response_status_cpm",
+        "aggregation": "avg",
+        "unit": "/min"
+      },
+      {
+        "id": "http1_request_package_size",
+        "label": "Request Package Avg Size",
+        "mqe": "process_relation_http1_request_package_size/1024",
+        "aggregation": "avg",
+        "unit": "KB"
+      },
+      {
+        "id": "http1_response_package_size",
+        "label": "Response Package Avg Size",
+        "mqe": "process_relation_http1_response_package_size/1024",
+        "aggregation": "avg",
+        "unit": "KB"
+      },
+      {
+        "id": "http1_request_package_size_percentile",
+        "label": "Request Package Size Percentile",
+        "mqe": "process_relation_http1_request_package_size_percentile/1024",
+        "aggregation": "avg",
+        "unit": "KB"
+      },
+      {
+        "id": "http1_response_package_size_percentile",
+        "label": "Response Package Size Percentile",
+        "mqe": "process_relation_http1_response_package_size_percentile/1024",
+        "aggregation": "avg",
+        "unit": "KB"
+      },
+      {
+        "id": "http1_client_duration",
+        "label": "Response Avg Duration",
+        "mqe": "process_relation_http1_client_duration",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "http1_client_duration_percentile",
+        "label": "Response Duration Percentile",
+        "mqe": "process_relation_http1_client_duration_percentile",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "client"
+      },
+      {
+        "id": "http1_server_duration",
+        "label": "Response Avg Duration",
+        "mqe": "process_relation_http1_server_duration",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      },
+      {
+        "id": "http1_server_duration_percentile",
+        "label": "Response Duration Percentile",
+        "mqe": "process_relation_http1_server_duration_percentile",
+        "aggregation": "avg",
+        "unit": "ms",
+        "side": "server"
+      }
+    ]
   },
   "traces": {
     "source": "zipkin"
