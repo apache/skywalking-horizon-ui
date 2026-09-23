@@ -16,10 +16,16 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU 平均使用率 (%)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "メモリ RAM (MB)",
@@ -37,6 +43,7 @@
           "合計"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "ネットワーク帯域 (KB/s)",
@@ -53,9 +60,19 @@
           "書き込み"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "プロセス"
+      }
     ]
   },
   "slots": {
-    "services": "ホスト"
+    "services": "ホスト",
+    "instances": "プロセス"
   }
 }

@@ -19,6 +19,10 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU 平均使用率 (%)"
@@ -32,6 +36,7 @@
           "15分"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "ファイル FD アロケート"
@@ -79,15 +84,22 @@
         "title": "ネットワークステータス",
         "expressionLabels": [
           "TCP estab",
-          "TCP time-wait",
-          "TCP alloc",
-          "ソケット使用中",
-          "UDP 使用中"
+          "TCP time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "プロセス"
       }
     ]
   },
   "slots": {
-    "services": "ホスト"
+    "services": "ホスト",
+    "instances": "プロセス"
   }
 }

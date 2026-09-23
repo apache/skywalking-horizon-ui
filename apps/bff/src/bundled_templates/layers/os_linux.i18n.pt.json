@@ -2,7 +2,8 @@
   "alias": "Linux",
   "group": "OS",
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Processos"
   },
   "layer-header": {
     "columns": [
@@ -22,6 +23,10 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU média em uso (%)"
@@ -35,6 +40,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "FDs de arquivo alocados"
@@ -82,11 +88,17 @@
         "title": "Status da rede",
         "expressionLabels": [
           "tcp establecidas",
-          "tcp time-wait",
-          "tcp alloc",
-          "sockets em uso",
-          "udp em uso"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processos"
       }
     ]
   }
