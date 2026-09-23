@@ -16,10 +16,16 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "평균 CPU 사용률 (%)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "RAM 메모리 (MB)",
@@ -37,6 +43,7 @@
           "전체"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "네트워크 대역폭 (KB/s)",
@@ -53,9 +60,19 @@
           "written"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "프로세스"
+      }
     ]
   },
   "slots": {
-    "services": "호스트"
+    "services": "호스트",
+    "instances": "프로세스"
   }
 }

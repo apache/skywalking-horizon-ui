@@ -19,6 +19,10 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "Utilisation CPU moyenne (%)"
@@ -32,6 +36,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "FD de fichier alloués"
@@ -79,15 +84,22 @@
         "title": "Statut réseau",
         "expressionLabels": [
           "tcp établies",
-          "tcp time-wait",
-          "tcp allouées",
-          "sockets utilisés",
-          "udp en cours"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processes"
       }
     ]
   },
   "slots": {
-    "services": "Hôtes"
+    "services": "Hôtes",
+    "instances": "Processes"
   }
 }

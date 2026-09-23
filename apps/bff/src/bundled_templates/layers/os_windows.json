@@ -5,11 +5,12 @@
   "color": "var(--sw-fg-1)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-win-monitoring/",
   "aliases": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Processes"
   },
   "components": {
     "service": true,
-    "instances": false,
+    "instances": true,
     "endpoints": false,
     "topology": false,
     "traces": false,
@@ -20,7 +21,7 @@
     "columns": [
       {
         "metric": "cpu",
-        "label": "CPU %",
+        "label": "CPU total %",
         "unit": "%",
         "mqe": "meter_win_cpu_total_percentage",
         "aggregation": "avg"
@@ -34,7 +35,7 @@
       },
       {
         "metric": "vmem",
-        "label": "VMem %",
+        "label": "Committed %",
         "unit": "%",
         "mqe": "avg(meter_win_memory_virtual_memory_percentage)",
         "aggregation": "avg"
@@ -44,8 +45,76 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu_norm_now",
+        "title": "Normalized CPU",
+        "tip": "Current non-overlapping user and system CPU time normalized by logical processor count to the conventional 0–100% host scale. Available from OpenTelemetry hostmetrics.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_win_cpu_norm_percentage)"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_cpu_norm_percentage",
+          "op": "exists"
+        }
+      },
+      {
+        "id": "cpu_cores_now",
+        "title": "Logical CPUs",
+        "tip": "Number of logical processors reported by OpenTelemetry hostmetrics.",
+        "type": "card",
+        "unit": "cores",
+        "expressions": [
+          "latest(meter_win_cpu_cores_num)"
+        ],
+        "format": "int",
+        "span": 3,
+        "rowSpan": 1,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_cpu_cores_num",
+          "op": "exists"
+        }
+      },
+      {
+        "id": "virtual_memory_used_now",
+        "title": "Committed Memory Used",
+        "tip": "Current committed virtual memory as a percentage of the Windows commit limit.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_win_memory_virtual_memory_percentage)"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "pagefile_used_now",
+        "title": "Pagefile Used",
+        "tip": "Current Windows pagefile utilization reported by OpenTelemetry performance counters.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_win_memory_pagefile_percentage)"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_memory_pagefile_percentage",
+          "op": "exists"
+        }
+      },
+      {
         "id": "cpu",
-        "title": "CPU Average Used (%)",
+        "title": "CPU by State (sum across cores)",
+        "tip": "CPU states summed across logical processors. Some native Windows states overlap; use Normalized CPU for the non-overlapping 0–100% host value.",
         "type": "line",
         "unit": "%",
         "expressions": [
@@ -53,6 +122,46 @@
         ],
         "span": 4,
         "rowSpan": 2
+      },
+      {
+        "id": "cpu_load",
+        "title": "CPU Load",
+        "tip": "Windows processor queue length represented as exponentially weighted 1, 5 and 15 minute averages.",
+        "type": "line",
+        "expressions": [
+          "meter_win_cpu_load1/100",
+          "meter_win_cpu_load5/100",
+          "meter_win_cpu_load15/100"
+        ],
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_cpu_load1",
+          "op": "exists"
+        }
+      },
+      {
+        "id": "filehandles",
+        "title": "Allocated Handles",
+        "tip": "Total number of handles currently allocated by Windows processes.",
+        "type": "line",
+        "unit": "handles",
+        "expressions": [
+          "meter_win_filehandles_allocated"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_filehandles_allocated",
+          "op": "exists"
+        }
       },
       {
         "id": "memory",
@@ -69,12 +178,13 @@
           "total",
           "available"
         ],
-        "span": 4,
+        "span": 6,
         "rowSpan": 2
       },
       {
         "id": "virtual_memory",
-        "title": "Virtual Memory (MB)",
+        "title": "Committed Virtual Memory (MB)",
+        "tip": "Committed bytes and the Windows commit limit. This is distinct from the paging-file capacity.",
         "type": "line",
         "unit": "MB",
         "expressions": [
@@ -85,8 +195,30 @@
           "free",
           "total"
         ],
-        "span": 4,
+        "span": 6,
         "rowSpan": 2
+      },
+      {
+        "id": "pagefile_capacity",
+        "title": "Windows Pagefile (MB)",
+        "tip": "Free and total paging-file capacity reported by OpenTelemetry performance counters.",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "meter_win_memory_pagefile_free/1024/1024",
+          "meter_win_memory_pagefile_total/1024/1024"
+        ],
+        "expressionLabels": [
+          "free",
+          "total"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_memory_pagefile_total",
+          "op": "exists"
+        }
       },
       {
         "id": "network_bandwidth",
@@ -118,6 +250,270 @@
           "written"
         ],
         "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "fs",
+        "title": "Filesystem Usage (%)",
+        "tip": "Percentage of used capacity for every Windows volume or mount point.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_win_filesystem_percentage"
+        ],
+        "span": 12,
+        "rowSpan": 2,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_win_filesystem_percentage",
+          "op": "exists"
+        }
+      },
+      {
+        "id": "process_top_cpu",
+        "title": "Top Processes by CPU",
+        "tip": "Process groups with the highest share of total host CPU capacity.",
+        "type": "top",
+        "expressions": [
+          "top_n(mp_process_windows_cpu_total_percent,10,des)",
+          "top_n(mp_process_windows_cpu_user_percent,10,des)",
+          "top_n(mp_process_windows_cpu_system_percent,10,des)"
+        ],
+        "expressionLabels": [
+          "total",
+          "user",
+          "system"
+        ],
+        "expressionUnits": [
+          "%",
+          "%",
+          "%"
+        ],
+        "unit": "%",
+        "span": 4,
+        "rowSpan": 3
+      },
+      {
+        "id": "process_top_memory",
+        "title": "Top Processes by Memory",
+        "tip": "Process groups ranked by resident physical memory or percentage of host RAM.",
+        "type": "top",
+        "expressions": [
+          "top_n(mp_process_windows_memory_resident_bytes,10,des)/1024/1024",
+          "top_n(mp_process_windows_memory_resident_percent,10,des)/100"
+        ],
+        "expressionLabels": [
+          "resident",
+          "resident %"
+        ],
+        "expressionUnits": [
+          "MB",
+          "%"
+        ],
+        "unit": "MB",
+        "span": 4,
+        "rowSpan": 3
+      },
+      {
+        "id": "process_top_resources",
+        "title": "Top Processes by Resources",
+        "tip": "Process groups ranked by thread count, open handles or number of grouped PIDs.",
+        "type": "top",
+        "expressions": [
+          "top_n(mp_process_windows_num_threads,10,des)",
+          "top_n(mp_process_windows_open_handles,10,des)",
+          "top_n(mp_process_windows_num_procs,10,des)"
+        ],
+        "expressionLabels": [
+          "threads",
+          "open handles",
+          "processes"
+        ],
+        "expressionUnits": [
+          "threads",
+          "handles",
+          "processes"
+        ],
+        "span": 4,
+        "rowSpan": 3
+      }
+    ],
+    "instance": [
+      {
+        "id": "process_cpu_card",
+        "title": "CPU Used",
+        "tip": "Current share of total host CPU capacity used by every PID in the selected process group.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(mp_process_windows_cpu_total_percent)"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_memory_card",
+        "title": "Resident Memory",
+        "tip": "Current physical memory used by the selected process group.",
+        "type": "card",
+        "unit": "MB",
+        "expressions": [
+          "latest(mp_process_windows_memory_resident_bytes)/1024/1024"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_memory_percent_card",
+        "title": "Host Memory Used",
+        "tip": "Percentage of total host physical memory used by the selected process group.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(mp_process_windows_memory_resident_percent)/100"
+        ],
+        "format": "decimal",
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_count_card",
+        "title": "Processes",
+        "tip": "Number of PIDs aggregated into the selected process group.",
+        "type": "card",
+        "unit": "processes",
+        "expressions": [
+          "latest(mp_process_windows_num_procs)"
+        ],
+        "format": "int",
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_threads_card",
+        "title": "Threads",
+        "tip": "Total threads across all PIDs in the selected process group.",
+        "type": "card",
+        "unit": "threads",
+        "expressions": [
+          "latest(mp_process_windows_num_threads)"
+        ],
+        "format": "int",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_handles_card",
+        "title": "Open Handles",
+        "tip": "Total open handles across all PIDs in the selected Windows process group.",
+        "type": "card",
+        "unit": "handles",
+        "expressions": [
+          "latest(mp_process_windows_open_handles)"
+        ],
+        "format": "int",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_uptime_card",
+        "title": "Oldest Process Uptime",
+        "tip": "Uptime of the oldest PID in the selected process group.",
+        "type": "card",
+        "unit": "hours",
+        "expressions": [
+          "latest(mp_process_windows_oldest_process_uptime_seconds)/3600"
+        ],
+        "format": "decimal",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "process_cpu_history",
+        "title": "CPU Usage",
+        "tip": "Share of total host CPU capacity used by all PIDs in the selected process group.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "mp_process_windows_cpu_total_percent",
+          "mp_process_windows_cpu_user_percent",
+          "mp_process_windows_cpu_system_percent"
+        ],
+        "expressionLabels": [
+          "total",
+          "user",
+          "system"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "process_memory_history",
+        "title": "Resident Memory",
+        "tip": "Physical resident memory used by all PIDs in the selected process group.",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "mp_process_windows_memory_resident_bytes/1024/1024"
+        ],
+        "expressionLabels": [
+          "resident"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "process_memory_percent_history",
+        "title": "Host Memory Used by Process",
+        "tip": "Percentage of total host physical memory consumed by the selected process group.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "mp_process_windows_memory_resident_percent/100"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "process_counts_history",
+        "title": "Processes and Threads",
+        "tip": "Number of grouped PIDs and total threads over time.",
+        "type": "line",
+        "expressions": [
+          "mp_process_windows_num_procs",
+          "mp_process_windows_num_threads"
+        ],
+        "expressionLabels": [
+          "processes",
+          "threads"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "process_handles_history",
+        "title": "Open Handles",
+        "tip": "Open handles across all PIDs in the selected process group.",
+        "type": "line",
+        "unit": "handles",
+        "expressions": [
+          "mp_process_windows_open_handles"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "process_uptime_history",
+        "title": "Oldest Process Uptime",
+        "tip": "A drop to a lower value indicates that the oldest PID in the group restarted or disappeared.",
+        "type": "line",
+        "unit": "hours",
+        "expressions": [
+          "mp_process_windows_oldest_process_uptime_seconds/3600"
+        ],
+        "span": 12,
         "rowSpan": 2
       }
     ]

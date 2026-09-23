@@ -2,7 +2,8 @@
   "alias": "Windows",
   "group": "OS",
   "slots": {
-    "services": "主机"
+    "services": "主机",
+    "instances": "进程"
   },
   "layer-header": {
     "columns": [
@@ -19,10 +20,16 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU 平均使用率（%）"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "内存 RAM（MB）",
@@ -40,6 +47,7 @@
           "total"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "网络带宽（KB/s）",
@@ -55,6 +63,15 @@
           "read",
           "written"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "进程"
       }
     ]
   }

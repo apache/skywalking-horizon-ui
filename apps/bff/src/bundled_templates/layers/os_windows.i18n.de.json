@@ -16,10 +16,16 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU-Mittel genutzt (%)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "Speicher RAM (MB)",
@@ -37,6 +43,7 @@
           "gesamt"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "Netzwerk-Bandbreite (KB/s)",
@@ -53,9 +60,19 @@
           "geschrieben"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Prozesse"
+      }
     ]
   },
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Prozesse"
   }
 }
