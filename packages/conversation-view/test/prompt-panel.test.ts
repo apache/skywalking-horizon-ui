@@ -119,6 +119,35 @@ describe('the prompt panel', () => {
     expect(body.textContent).not.toContain('not among the loaded bodies');
   });
 
+  it('says the request before is not loaded when it names one the tab cannot find', async () => {
+    // The second call names the first call's request, but here the document lists no bodies for the
+    // first call, so the one it names is nowhere the tab can read it.
+    const withoutFirst = JSON.parse(JSON.stringify(doc)) as AszViewDocument;
+    const strip = (nodes: AszViewDocument['talks']): void => {
+      for (const n of nodes) {
+        if (n.id === 'call/s2-call-fdae022ac306') delete (n as { provider_bodies?: unknown }).provider_bodies;
+        strip(n.children ?? []);
+      }
+    };
+    strip(withoutFirst.talks);
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    view = mountConversationView(host, {
+      document: withoutFirst,
+      loadFiles: async (request: { session: string; seqs: number[] }, onFile: (f: StoredFile) => void) => {
+        for (const seq of request.seqs) onFile({ seq, file: `${request.session}/provider_body/x.sd`, bytes: file });
+      },
+      state: { step: CALL },
+    });
+    tab(host, 'prompt')!.click();
+    panel(host).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    panel(host).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
+    const body = panel(host);
+    expect(body.textContent).toContain('not among the loaded bodies');
+    expect(body.textContent).not.toContain('names no request before it');
+  });
+
   it('calls a growing history growth, however the runtime spells a message', () => {
     // This call is the first whose history holds a message that has stopped being the newest. Such a
     // message is sent as a list of one text block while it is newest and as a plain string after,
