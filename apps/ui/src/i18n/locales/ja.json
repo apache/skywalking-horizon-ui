@@ -3295,6 +3295,7 @@
   "The body": "ボディ",
   "What it added": "追加された内容",
   "The request before this one is not among the loaded bodies, so there is nothing to compare with.": "直前のリクエストは読み込まれたボディに含まれないため、比較できません。",
+  "This request names no request before it, so there is nothing to compare with.": "このリクエストは直前のリクエストを示していないため、比較できません。",
   "System prompt": "システムプロンプト",
   "Tools ({count})": "ツール ({count})",
   "Messages ({count})": "メッセージ ({count})",

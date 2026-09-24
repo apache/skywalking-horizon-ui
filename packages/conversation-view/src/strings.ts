@@ -257,6 +257,7 @@ export interface ViewStrings {
   promptWholeBody: string;
   promptChanges: string;
   promptNoPrevious: string;
+  promptNoPreviousNamed: string;
   promptSystem: string;
   promptTools: string;
   promptMessages: string;
@@ -562,6 +563,7 @@ export const ENGLISH: ViewStrings = {
   promptWholeBody: 'The body',
   promptChanges: 'What it added',
   promptNoPrevious: 'The request before this one is not among the loaded bodies, so there is nothing to compare with.',
+  promptNoPreviousNamed: 'This request names no request before it, so there is nothing to compare with.',
   promptSystem: 'System prompt',
   promptTools: 'Tools ({count})',
   promptMessages: 'Messages ({count})',

@@ -3295,6 +3295,7 @@
   "The body": "본문",
   "What it added": "추가된 내용",
   "The request before this one is not among the loaded bodies, so there is nothing to compare with.": "이전 요청이 불러온 본문에 없어 비교할 대상이 없습니다.",
+  "This request names no request before it, so there is nothing to compare with.": "이 요청은 이전 요청을 가리키지 않으므로 비교할 대상이 없습니다.",
   "System prompt": "시스템 프롬프트",
   "Tools ({count})": "도구 ({count})",
   "Messages ({count})": "메시지 ({count})",

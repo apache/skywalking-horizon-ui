@@ -251,6 +251,7 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
       <button type="button" class="acv-chip${state.promptWhole ? '' : ' on'}" data-prompt-whole="0" aria-pressed="${!state.promptWhole}">${esc(s.promptChanges)}</button>
     </div>`;
   if (!state.promptWhole) {
+    if (previous === UNNAMED) return `${modes}<div class="acv-empty">${esc(s.promptNoPreviousNamed)}</div>`;
     if (!previous) return `${modes}<div class="acv-empty">${esc(s.promptNoPrevious)}</div>`;
     return `${modes}${drawDelta(ctx, e, deltaOf(previous, read), read, previous.messages.length)}`;
   }
@@ -287,6 +288,10 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
   return `${modes}${system}${tools}${messages}${settings}${whole}`;
 }
 
+/** A request that names no request before it: the first of its chain, or one whose runtime does not
+ *  say, as a LangChain agent's does not. Nothing is missing then, and the panel must not say so. */
+const UNNAMED = 'unnamed';
+
 /** The request of the call before this one in the same chain, found by the ids the bodies carry:
  *  this request names the request before it, the response of that request names its call, and the
  *  document says where that call's request landed. A chain that cannot be followed gives nothing,
@@ -296,9 +301,10 @@ function previousRequest(
   e: Step,
   sides: Sides,
   store: ReturnType<ViewContext['prompts']['store']>,
-): ReadRequest | null {
+): ReadRequest | typeof UNNAMED | null {
   if (!sides.request) return null;
   const mine = store.manifestAt(sides.request.seq, sides.request.row);
+  if (mine && !mine.previous_request) return UNNAMED;
   if (!mine?.previous_request) return null;
   const response = store.responseOfRequestId(mine.previous_request);
   if (!response?.manifest.call) return null;

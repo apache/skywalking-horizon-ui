@@ -250,6 +250,7 @@ export function conversationStrings(t: Translate): ViewStrings {
     promptWholeBody: t('The body'),
     promptChanges: t('What it added'),
     promptNoPrevious: t('The request before this one is not among the loaded bodies, so there is nothing to compare with.'),
+    promptNoPreviousNamed: t('This request names no request before it, so there is nothing to compare with.'),
     promptSystem: t('System prompt'),
     promptTools: t('Tools ({count})', { count: '{count}' }),
     promptMessages: t('Messages ({count})', { count: '{count}' }),
