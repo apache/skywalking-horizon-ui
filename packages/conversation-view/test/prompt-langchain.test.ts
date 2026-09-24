@@ -219,5 +219,10 @@ describe('the prompt panel on a LangChain call', () => {
     expect(panel.textContent).toContain('service_health');
     // nothing but messages in the body, so no empty settings section
     expect(panel.textContent).not.toContain('Settings');
+    // a LangChain request names no request before it, and nothing is missing
+    host.querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
+    const changes = host.querySelector<HTMLElement>('.acv-inspector-body')!.textContent;
+    expect(changes).toContain('names no request before it');
+    expect(changes).not.toContain('not among the loaded bodies');
   });
 });

@@ -3295,6 +3295,7 @@
   "The body": "报文",
   "What it added": "新增内容",
   "The request before this one is not among the loaded bodies, so there is nothing to compare with.": "上一条请求不在已加载的报文中，无法比较。",
+  "This request names no request before it, so there is nothing to compare with.": "此请求未指明上一条请求，无法比较。",
   "System prompt": "系统提示词",
   "Tools ({count})": "工具（{count}）",
   "Messages ({count})": "消息（{count}）",

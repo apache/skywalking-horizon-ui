@@ -107,6 +107,18 @@ describe('the prompt panel', () => {
     expect(body.textContent).toMatch(/message\(s\) before are as the call before sent them/);
   });
 
+  it('says a first request names none before it, rather than that one is not loaded', async () => {
+    // The main stream's first call: its request names no request before it, so nothing is missing.
+    const root = mount(undefined, 'call/s2-call-fdae022ac306');
+    tab(root, 'prompt')!.click();
+    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    panel(root).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
+    const body = panel(root);
+    expect(body.textContent).toContain('names no request before it');
+    expect(body.textContent).not.toContain('not among the loaded bodies');
+  });
+
   it('calls a growing history growth, however the runtime spells a message', () => {
     // This call is the first whose history holds a message that has stopped being the newest. Such a
     // message is sent as a list of one text block while it is newest and as a plain string after,

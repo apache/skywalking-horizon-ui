@@ -3295,6 +3295,7 @@
   "The body": "O corpo",
   "What it added": "O que acrescentou",
   "The request before this one is not among the loaded bodies, so there is nothing to compare with.": "A requisição anterior não está entre os corpos carregados, então não há com o que comparar.",
+  "This request names no request before it, so there is nothing to compare with.": "Esta requisição não indica nenhuma requisição anterior, então não há com o que comparar.",
   "System prompt": "Prompt do sistema",
   "Tools ({count})": "Ferramentas ({count})",
   "Messages ({count})": "Mensagens ({count})",
