@@ -20,10 +20,11 @@
 /**
  * Reading a provider body as a conversation.
  *
- * The bodies are the runtime's own, so their shape is the provider's API, not the model's. This reads
- * the one shape the Sessionizer captures today, the Anthropic Messages API, and keeps everything it
- * does not know: an unread field stays under the settings, an unread block prints as JSON. A body of
- * another shape reads as one JSON document and nothing is lost.
+ * The bodies are the runtime's own, so their shape is the runtime's, not the model's. This reads the
+ * two shapes the Sessionizer captures: the Anthropic Messages API, which Claude Code sends, and
+ * LangChain's own serialized messages, which a LangChain or LangGraph agent hands its model. It keeps
+ * everything it does not know: an unread field stays under the settings, an unread block prints as
+ * JSON. A body of another shape reads as one JSON document and nothing is lost.
  */
 
 export interface PromptBlock {
@@ -108,9 +109,27 @@ export function readBody(bytes: Uint8Array, role: string): ReadBody {
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { kind: 'other', raw: value };
   const body = value as Record<string, unknown>;
-  if (role === 'request' && Array.isArray(body['messages'])) return readRequest(body);
-  if (role === 'response' && Array.isArray(body['content'])) return readResponse(body);
+  if (role === 'request') {
+    // Every message an object, or the list is not the Messages API. A LangChain request is a list of
+    // lists, and reading it as messages drew one message with no role and nothing in it.
+    if (isObjectList(body['messages'])) return readRequest(body);
+    const prompt = langChainPrompt(body['messages']);
+    if (prompt) return readLangChainRequest(body, prompt);
+  }
+  if (role === 'response') {
+    if (Array.isArray(body['content'])) return readResponse(body);
+    const generation = langChainGeneration(body['generations']);
+    if (generation) return readLangChainResponse(body, generation);
+  }
   return { kind: 'other', raw: value };
+}
+
+function isObjectList(value: unknown): value is Array<Record<string, unknown>> {
+  return Array.isArray(value) && value.every(isObject);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function readRequest(body: Record<string, unknown>): ReadRequest {
@@ -200,6 +219,131 @@ function readBlock(value: unknown): PromptBlock {
     return { kind, json: content ?? value, ...about };
   }
   return { kind, json: value };
+}
+
+/*
+ * LangChain's shape. A request's `messages` is a list of prompts, each a list of messages, and a chat
+ * model call has exactly one prompt. A response's `generations` is a list per prompt of what the model
+ * answered. A message is serialized with its class in `id` and its fields under `kwargs`, or is a plain
+ * object when the caller passed one. It is what the framework handed its model, not what the provider
+ * received, and it is read in LangChain's own words: a message's role is its `type`, `human`, `ai`,
+ * `system` or `tool`. Several prompts, or several generations, do not read as one conversation, and
+ * such a body is shown as the JSON it is.
+ */
+
+function langChainPrompt(messages: unknown): Array<Record<string, unknown>> | null {
+  if (!Array.isArray(messages) || messages.length !== 1) return null;
+  const prompt: unknown = messages[0];
+  return isObjectList(prompt) ? prompt : null;
+}
+
+function langChainGeneration(generations: unknown): Record<string, unknown> | null {
+  if (!Array.isArray(generations) || generations.length !== 1) return null;
+  const prompt: unknown = generations[0];
+  if (!Array.isArray(prompt) || prompt.length !== 1) return null;
+  const only: unknown = prompt[0];
+  return isObject(only) ? only : null;
+}
+
+function readLangChainRequest(body: Record<string, unknown>, prompt: Array<Record<string, unknown>>): ReadRequest {
+  const rest: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(body)) if (k !== 'messages') rest[k] = v;
+  // The system prompt is a message in the list, and the tools are not in the body at all: they are
+  // bound to the model, not sent with the messages.
+  return { kind: 'request', system: [], tools: [], messages: prompt.map(readLangChainMessage), rest, raw: body };
+}
+
+function readLangChainResponse(body: Record<string, unknown>, generation: Record<string, unknown>): ReadResponse {
+  const message = generation['message'];
+  const fields = isObject(message) ? langChainFields(message) : null;
+  const rest: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(fields ?? {})) {
+    if (!['content', 'tool_calls', 'invalid_tool_calls', 'usage_metadata', 'id', 'type'].includes(k)) rest[k] = v;
+  }
+  if (generation['generation_info'] != null) rest['generation_info'] = generation['generation_info'];
+  if (body['llm_output'] != null) rest['llm_output'] = body['llm_output'];
+  const metadata = fields?.['response_metadata'];
+  const output = body['llm_output'];
+  const model = (isObject(metadata) ? metadata['model_name'] : undefined) ?? (isObject(output) ? output['model_name'] : undefined);
+  const usage = fields?.['usage_metadata'];
+  // A completion model answers with text and no message.
+  const text = generation['text'];
+  return {
+    kind: 'response',
+    model: typeof model === 'string' ? model : undefined,
+    id: typeof fields?.['id'] === 'string' ? fields['id'] : undefined,
+    blocks: fields ? langChainBlocks(fields, message) : typeof text === 'string' ? [{ kind: 'text', text }] : [],
+    usage: isObject(usage) ? usage : undefined,
+    rest,
+    raw: body,
+  };
+}
+
+function readLangChainMessage(value: Record<string, unknown>): PromptMessage {
+  const fields = langChainFields(value);
+  const type = typeof fields['type'] === 'string' ? fields['type'] : '';
+  const role = typeof fields['role'] === 'string' ? fields['role'] : '';
+  // A ChatMessage carries a role of the caller's choosing, and a plain object may say role and not type.
+  return { role: type && type !== 'chat' ? type : role, blocks: langChainBlocks(fields, value), raw: value };
+}
+
+function langChainContentBlock(value: unknown): PromptBlock {
+  return isObject(value) && value['type'] === 'tool_call' ? langChainToolCall(value) : readBlock(value);
+}
+
+function langChainToolCall(c: Record<string, unknown>): PromptBlock {
+  const id = typeof c['id'] === 'string' ? c['id'] : undefined;
+  return { kind: 'tool_use', name: typeof c['name'] === 'string' ? c['name'] : '', ...(id ? { id } : {}), json: c['args'] };
+}
+
+function langChainFields(m: Record<string, unknown>): Record<string, unknown> {
+  const kwargs = m['kwargs'];
+  return m['lc'] === 1 && m['type'] === 'constructor' && isObject(kwargs) ? kwargs : m;
+}
+
+/**
+ * A message's content, then the tool calls it made. A tool message's content is the result of the call
+ * it names.
+ *
+ * A call can also sit in the content: as the provider's `tool_use` block, which Bedrock repeated on
+ * every call measured, or as LangChain's own `tool_call` block. It is drawn once, where the content
+ * has it, with the arguments from `tool_calls`. Those are LangChain's parsed arguments, the ones the
+ * agent ran with: a streamed provider block can still read `{}`, with the arguments in pieces beside it.
+ */
+function langChainBlocks(fields: Record<string, unknown>, raw: unknown): PromptBlock[] {
+  const content = fields['content'];
+  if (fields['type'] === 'tool' || fields['role'] === 'tool') {
+    const about = {
+      ...(typeof fields['tool_call_id'] === 'string' ? { id: fields['tool_call_id'] } : {}),
+      ...(fields['status'] === 'error' ? { failed: true } : {}),
+    };
+    return [typeof content === 'string' ? { kind: 'tool_result', text: content, json: raw, ...about } : { kind: 'tool_result', json: content ?? raw, ...about }];
+  }
+  const blocks: PromptBlock[] =
+    typeof content === 'string'
+      ? content
+        ? [{ kind: 'text', text: content, reminder: content.includes(REMINDER) }]
+        : []
+      : Array.isArray(content)
+        ? content.map(langChainContentBlock)
+        : [];
+  const at = new Map<string, number>();
+  blocks.forEach((b, i) => {
+    if (b.kind === 'tool_use' && b.id) at.set(b.id, i);
+  });
+  for (const call of Array.isArray(fields['tool_calls']) ? (fields['tool_calls'] as unknown[]) : []) {
+    const use = langChainToolCall(isObject(call) ? call : {});
+    const i = use.id ? at.get(use.id) : undefined;
+    if (i === undefined) blocks.push(use);
+    else blocks[i] = { ...use, name: use.name || (blocks[i]!.name ?? '') };
+  }
+  for (const call of Array.isArray(fields['invalid_tool_calls']) ? (fields['invalid_tool_calls'] as unknown[]) : []) {
+    blocks.push({ kind: 'invalid_tool_call', json: call });
+  }
+  if (blocks.length) return blocks;
+  // An empty answer is an empty text. A message whose content is not there at all, or is not a shape
+  // this reads, is shown as the JSON it is rather than as an empty box.
+  return typeof content === 'string' ? [{ kind: 'text', text: '' }] : [{ kind: 'unknown', json: raw }];
 }
 
 /** What one request adds to the one before it. */

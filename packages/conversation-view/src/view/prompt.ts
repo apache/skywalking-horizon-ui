@@ -279,7 +279,10 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
     read.messages.map((m, i) => message(ctx, m, i + 1, read.messages.length, `${e.id}|req|msg|${i}`)).join(''),
     true,
   );
-  const settings = section(ctx, e, 'settings', s.promptSettings, Object.keys(read.rest).join(', '), json(ctx, read.rest, `${e.id}|req|set`));
+  // A LangChain request carries nothing but its messages, and an empty section says nothing.
+  const settings = Object.keys(read.rest).length
+    ? section(ctx, e, 'settings', s.promptSettings, Object.keys(read.rest).join(', '), json(ctx, read.rest, `${e.id}|req|set`))
+    : '';
   const whole = section(ctx, e, 'request-raw', s.promptWholeBody, '', json(ctx, read.raw, `${e.id}|req|raw`));
   return `${modes}${system}${tools}${messages}${settings}${whole}`;
 }
