@@ -61,7 +61,7 @@ header:
     # Landed Session Data captured from the AI Sessionizer, kept as a test
     # fixture. Every line is one record the reader parses and whose bytes it
     # checks against a digest, so a header comment would make the file invalid.
-    - '**/test/fixtures/*.sd'
+    - '**/test/fixtures/**/*.sd'
     - 'pnpm-lock.yaml'
     - '.browserslistrc'
     - '.prettierrc'
