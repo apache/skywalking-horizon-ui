@@ -16,10 +16,16 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "Utilisation CPU moyenne (%)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "Mémoire RAM (Mo)",
@@ -37,6 +43,7 @@
           "total"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "Bande passante réseau (Ko/s)",
@@ -53,9 +60,19 @@
           "écrits"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processes"
+      }
     ]
   },
   "slots": {
-    "services": "Hôtes"
+    "services": "Hôtes",
+    "instances": "Processes"
   }
 }

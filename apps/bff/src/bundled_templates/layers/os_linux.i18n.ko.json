@@ -19,6 +19,10 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "평균 CPU 사용률 (%)"
@@ -32,6 +36,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "할당된 파일 FD"
@@ -79,15 +84,22 @@
         "title": "네트워크 상태",
         "expressionLabels": [
           "tcp estab",
-          "tcp time-wait",
-          "tcp alloc",
-          "사용 중 소켓",
-          "udp in-use"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "프로세스"
       }
     ]
   },
   "slots": {
-    "services": "호스트"
+    "services": "호스트",
+    "instances": "프로세스"
   }
 }

@@ -19,6 +19,10 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
         "title": "CPU-Mittel genutzt (%)"
@@ -32,6 +36,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "File-FD zugewiesen"
@@ -79,15 +84,22 @@
         "title": "Netzwerk-Status",
         "expressionLabels": [
           "tcp estab",
-          "tcp time-wait",
-          "tcp alloc",
-          "sockets genutzt",
-          "udp in-use"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Prozesse"
       }
     ]
   },
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Prozesse"
   }
 }
