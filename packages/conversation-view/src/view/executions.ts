@@ -68,7 +68,7 @@ export function drawExecutionTab(ctx: ViewContext, body: HTMLElement, step: Step
     if (r.result) html += row(s.cameBack, value(ctx, r.result), true);
     html += row(
       s.readFrom,
-      `seq ${r.ref.seq} · row ${r.ref.row}${r.ref.block != null ? ` · block ${r.ref.block}` : ''} <button type="button" class="acv-linkish" data-to-evidence data-ref-seq="${r.ref.seq}" data-ref-row="${r.ref.row}" data-ref-block="${r.ref.block ?? ''}">${esc(s.openEvidence)}</button>`,
+      `seq ${esc(String(r.ref.seq))} · row ${esc(String(r.ref.row))}${r.ref.block != null ? ` · block ${esc(String(r.ref.block))}` : ''} <button type="button" class="acv-linkish" data-to-evidence data-ref-seq="${esc(String(r.ref.seq))}" data-ref-row="${esc(String(r.ref.row))}" data-ref-block="${esc(String(r.ref.block ?? ''))}">${esc(s.openEvidence)}</button>`,
       true,
     );
     html += `</dl>`;

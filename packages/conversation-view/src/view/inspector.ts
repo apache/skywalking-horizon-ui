@@ -319,7 +319,7 @@ function detailBlock(ctx: ViewContext, e: Step, text: string, bytes: number | un
  *  The whole record is one more read away, offered only when the host can
  *  make it. */
 async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promise<void> {
-  const { s, f, state } = ctx;
+  const { s, f, model: m, state } = ctx;
   const refs: AszRef[] = (e.ref ? [e.ref] : []).concat(e.refs ?? []);
   const seen = new Set<string>();
   const list = refs.filter((r) => {
@@ -328,9 +328,9 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
     seen.add(k);
     return true;
   });
-  // A change record's landed position is evidence of this step too, and the
-  // plugin's records sit in a file of their own that none of the step's refs
-  // name: it joins the chips when the reader arrived from one.
+  // A change or execution record's landed position is evidence of this step
+  // too, and the plugin's records sit in files of their own that none of the
+  // step's refs name: it joins the chips when the reader arrived from one.
   const same = (a: AszRef, b: AszRef): boolean => a.seq === b.seq && a.row === b.row && (a.block ?? null) === (b.block ?? null);
   const own = list.length;
   if (state.rawRef && !list.some((r) => same(r, state.rawRef!))) list.push(state.rawRef);
@@ -341,7 +341,9 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
   const pick = (state.rawRef && list.find((r) => same(r, state.rawRef!))) ?? list[0]!;
   const role = (i: number): string =>
     i >= own
-      ? s.changeRecordRef
+      ? m.executionsOf(e.id).some((x) => same(x.ref, list[i]!))
+        ? s.executionRecordRef
+        : s.changeRecordRef
       : e.kind === 'tool' || e.kind === 'agent.call'
         ? i === 0
           ? s.request

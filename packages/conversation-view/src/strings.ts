@@ -242,6 +242,7 @@ export interface ViewStrings {
   executionPillTitle: string;
   moreObservations: string;
   executionRecordsForStep: string;
+  executionRecordRef: string;
   mcpServer: string;
   mcpTool: string;
   observedBy: string;
@@ -565,13 +566,13 @@ export const ENGLISH: ViewStrings = {
   executionPillTitle: 'What the observer around this call saw it do — open the Execution tab',
   moreObservations: '{n} more',
   executionRecordsForStep: '{n} execution records — open the Execution tab →',
+  executionRecordRef: 'execution record',
   mcpServer: 'MCP server',
   mcpTool: 'MCP tool',
   observedBy: 'Observed by',
   configuredIn: 'Configured in',
   measuredTime: 'Measured time',
-  measuredTimeText:
-    "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.",
+  measuredTimeText: "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.",
   notReported: 'not reported',
   sentToServer: 'Sent to the server',
   cameBack: 'Came back',

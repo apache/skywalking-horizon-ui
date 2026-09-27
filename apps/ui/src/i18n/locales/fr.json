@@ -3429,9 +3429,10 @@
   "Observed by": "Observé par",
   "Configured in": "Configuré dans",
   "Measured time": "Temps mesuré",
-  "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.": "Le temps que le runtime a mesuré autour de l’appel, de son hook avant l’appel à son hook après. Il inclut toute attente avant le début de l’appel, ce n’est donc pas le temps propre du serveur.",
+  "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.": "Le temps que le runtime a mesuré autour de l’appel. Il inclut toute attente avant le début de l’appel, ce n’est donc pas le temps propre du serveur.",
   "not reported": "non rapporté",
   "Sent to the server": "Envoyé au serveur",
   "Came back": "Retour",
-  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}"
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
+  "execution record": "enregistrement d’exécution"
 }

@@ -113,6 +113,31 @@ describe('an MCP call on the page', () => {
     expect(body).toContain("not the server's own time");
   });
 
+  it('writes every value of a record as text, the reference numbers included', () => {
+    const copy = JSON.parse(JSON.stringify(fixture)) as AszViewDocument;
+    const record = copy.tool_executions!.find((x) => x.step === LOOKUP)!;
+    record.ref = { ...record.ref, seq: '<img src=x>' as unknown as number };
+    record.server = { name: '<b>status</b>', source: 'user' };
+    const root = mount(copy);
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${LOOKUP}"] .acv-execution-pill`)!.click();
+    const body = root.querySelector('.acv-inspector-body')!;
+    expect(body.querySelector('img')).toBeNull();
+    expect(body.querySelector('b')).toBeNull();
+    expect(body.textContent).toContain('seq <img src=x>');
+    expect(body.textContent).toContain('<b>status</b>');
+  });
+
+  it('labels the record it opens in Evidence as an execution record', () => {
+    const root = mount();
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${LOOKUP}"] .acv-execution-pill`)!.click();
+    root.querySelector<HTMLButtonElement>('.acv-inspector-body [data-to-evidence]')!.click();
+    const body = root.querySelector('.acv-inspector-body')!.textContent!;
+    expect(body).toContain('execution record');
+    expect(body).not.toContain('change record');
+  });
+
   it('says in Details which server and tool the call addressed, and links to its records', () => {
     const root = mount();
     openFold(root);

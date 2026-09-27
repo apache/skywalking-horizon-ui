@@ -3429,9 +3429,10 @@
   "Observed by": "观测者",
   "Configured in": "配置来源",
   "Measured time": "测得时间",
-  "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.": "运行时从调用前的钩子到调用后的钩子测得的时间。其中包含调用开始前的等待，因此不是服务器自身的时间。",
+  "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.": "运行时在调用前后测得的时间。其中包含调用开始前的等待，因此不是服务器自身的时间。",
   "not reported": "未报告",
   "Sent to the server": "发送给服务器",
   "Came back": "返回",
-  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}"
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
+  "execution record": "执行记录"
 }
