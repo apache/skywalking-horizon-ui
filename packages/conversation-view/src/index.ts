@@ -140,6 +140,7 @@ function skeleton(s: ViewStrings): string {
           <button class="acv-tab" type="button" role="tab" data-tab="relations" aria-selected="false">${esc(s.relations)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="evidence" aria-selected="false">${esc(s.evidence)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="changes" aria-selected="false" hidden>${esc(s.changes)}</button>
+          <button class="acv-tab" type="button" role="tab" data-tab="execution" aria-selected="false" hidden>${esc(s.execution)}</button>
           <button class="acv-tab" type="button" role="tab" data-tab="prompt" aria-selected="false" hidden>${esc(s.prompt)}</button>
         </div>
         <div class="acv-inspector-body" role="tabpanel"></div>

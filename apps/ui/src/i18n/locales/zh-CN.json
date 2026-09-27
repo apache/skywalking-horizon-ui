@@ -3419,5 +3419,19 @@
   "Now": "此刻",
   "edge metrics queried as": "连线指标，查询范围为",
   "No server-side metrics.": "尚无服务端指标。",
-  "No client-side metrics.": "尚无客户端指标。"
+  "No client-side metrics.": "尚无客户端指标。",
+  "Execution": "执行",
+  "What the observer around this call saw it do — open the Execution tab": "此调用周围的观测者看到它做了什么 — 打开“执行”标签页",
+  "{n} more": "另外 {n} 条",
+  "{n} execution records — open the Execution tab →": "{n} 条执行记录 — 打开“执行”标签页 →",
+  "MCP server": "MCP 服务器",
+  "MCP tool": "MCP 工具",
+  "Observed by": "观测者",
+  "Configured in": "配置来源",
+  "Measured time": "测得时间",
+  "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.": "运行时从调用前的钩子到调用后的钩子测得的时间。其中包含调用开始前的等待，因此不是服务器自身的时间。",
+  "not reported": "未报告",
+  "Sent to the server": "发送给服务器",
+  "Came back": "返回",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}"
 }

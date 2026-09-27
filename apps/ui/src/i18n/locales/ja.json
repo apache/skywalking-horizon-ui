@@ -3419,5 +3419,19 @@
   "Now": "現在",
   "edge metrics queried as": "エッジメトリクスの問い合わせ対象:",
   "No server-side metrics.": "サーバー側メトリクスがありません。",
-  "No client-side metrics.": "クライアント側メトリクスがありません。"
+  "No client-side metrics.": "クライアント側メトリクスがありません。",
+  "Execution": "実行",
+  "What the observer around this call saw it do — open the Execution tab": "この呼び出しの周囲の観測者が見た内容 — 「実行」タブを開く",
+  "{n} more": "ほか {n} 件",
+  "{n} execution records — open the Execution tab →": "{n} 件の実行レコード — 「実行」タブを開く →",
+  "MCP server": "MCP サーバー",
+  "MCP tool": "MCP ツール",
+  "Observed by": "観測者",
+  "Configured in": "設定元",
+  "Measured time": "計測時間",
+  "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.": "ランタイムが呼び出しの前のフックから後のフックまでで測った時間です。呼び出しが始まる前の待ち時間も含むため、サーバー自身の時間ではありません。",
+  "not reported": "報告なし",
+  "Sent to the server": "サーバーへ送信",
+  "Came back": "返ってきた値",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}"
 }

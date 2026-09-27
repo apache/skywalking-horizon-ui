@@ -3419,5 +3419,19 @@
   "Now": "지금",
   "edge metrics queried as": "간선 메트릭 조회 대상:",
   "No server-side metrics.": "서버 측 메트릭이 없습니다.",
-  "No client-side metrics.": "클라이언트 측 메트릭이 없습니다."
+  "No client-side metrics.": "클라이언트 측 메트릭이 없습니다.",
+  "Execution": "실행",
+  "What the observer around this call saw it do — open the Execution tab": "이 호출 주변의 관찰자가 본 내용 — 실행 탭 열기",
+  "{n} more": "{n}건 더",
+  "{n} execution records — open the Execution tab →": "실행 레코드 {n}건 — 실행 탭 열기 →",
+  "MCP server": "MCP 서버",
+  "MCP tool": "MCP 도구",
+  "Observed by": "관찰자",
+  "Configured in": "설정 위치",
+  "Measured time": "측정 시간",
+  "The time the runtime measured around the call, from its hook before the call to its hook after. It includes any waiting before the call started, so it is not the server's own time.": "런타임이 호출 전 훅부터 호출 후 훅까지 측정한 시간입니다. 호출이 시작되기 전의 대기 시간도 포함하므로 서버 자체의 시간이 아닙니다.",
+  "not reported": "보고되지 않음",
+  "Sent to the server": "서버로 전송",
+  "Came back": "돌아온 값",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}"
 }

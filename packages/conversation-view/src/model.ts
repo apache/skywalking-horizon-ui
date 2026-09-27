@@ -37,6 +37,7 @@ import type {
   AszViewDocument,
   AszUsage,
   AszDrop,
+  AszToolExecution,
   AszWorkspaceChange,
 } from './types.js';
 import { CONTAINER_KINDS, kindOf, type KindType, type Track } from './vocabulary.js';
@@ -75,6 +76,10 @@ export interface Step {
   edges: AszEdge[];
   /** Whether workspace change records join to this step (the node's `changes`). */
   hasChanges: boolean;
+  /** The MCP server and tool a call addresses, from its `mcp_server` and
+   *  `mcp_tool` attributes: the runtime's names, where its name for the call
+   *  splits exactly. A call to an MCP server is drawn on its own lane. */
+  mcp?: { server: string; tool: string };
   /** Where this step's provider bodies landed, when it has any. */
   providerBodies?: AszProviderBody[];
   /** Position in the flattened document, for ties and for nodes without a ref. */
@@ -259,6 +264,9 @@ export class ConversationModel {
    *  `step`, never its id, which two producers share. */
   private readonly changesByStep = new Map<string, AszWorkspaceChange[]>();
   readonly workspaceChanges: AszWorkspaceChange[];
+  /** Execution records by the step they join to, the record's `step`. */
+  private readonly executionsByStep = new Map<string, AszToolExecution[]>();
+  readonly toolExecutions: AszToolExecution[];
 
   constructor(readonly doc: AszViewDocument) {
     for (const s of doc.streams) {
@@ -268,12 +276,15 @@ export class ConversationModel {
     for (const seg of doc.segments) this.segmentById.set(seg.id, seg);
     this.workspaceChanges = doc.workspace_changes ?? [];
     for (const wc of this.workspaceChanges) if (wc.step) push(this.changesByStep, wc.step, wc);
+    this.toolExecutions = doc.tool_executions ?? [];
+    for (const x of this.toolExecutions) if (x.step) push(this.executionsByStep, x.step, x);
     let order = 0;
     const flatten = (root: AszNode, talkId: string | null, streamFallback: string): void => {
       const walk = (n: AszNode, run: string | null, depth: number): void => {
         if (n.kind === 'run') run = n.id;
         if (!CONTAINER_KINDS.has(n.kind)) {
           const meta = kindOf(n.kind);
+          const mcp = mcpOf(n);
           const step: Step = {
             id: n.id,
             kind: n.kind,
@@ -282,7 +293,7 @@ export class ConversationModel {
             stream: n.stream || streamFallback,
             run,
             talk: talkId,
-            track: meta.track,
+            track: mcp ? 'mcp' : meta.track,
             type: meta.type,
             name: n.name,
             text: n.text,
@@ -305,6 +316,7 @@ export class ConversationModel {
             dropped: n.dropped,
             edges: n.edges ?? [],
             hasChanges: this.changesByStep.has(n.id),
+            mcp,
             order: order++,
             depth,
           };
@@ -387,6 +399,11 @@ export class ConversationModel {
     return this.changesByStep.get(stepId) ?? [];
   }
 
+  /** The execution records joined to a step, in document order. */
+  executionsOf(stepId: string): AszToolExecution[] {
+    return this.executionsByStep.get(stepId) ?? [];
+  }
+
   /** The streams the assembler could tie to the start or the end of a stream
    *  from THIS stream's steps. Several candidates for one call are all kept:
    *  the assembler did not choose, and neither does a view. */
@@ -463,6 +480,14 @@ function push<K, V>(m: Map<K, V[]>, k: K, v: V): void {
   const list = m.get(k);
   if (list) list.push(v);
   else m.set(k, [v]);
+}
+
+/** The MCP server and tool a tool call's attributes name, when both are there. */
+function mcpOf(n: AszNode): { server: string; tool: string } | undefined {
+  if (n.kind !== 'tool') return undefined;
+  const server = attrString(n.attrs, 'mcp_server');
+  const tool = attrString(n.attrs, 'mcp_tool');
+  return server && tool ? { server, tool } : undefined;
 }
 
 /** A value from a node's `attrs`, as a string. */
