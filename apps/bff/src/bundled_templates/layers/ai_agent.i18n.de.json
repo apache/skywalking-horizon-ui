@@ -74,10 +74,10 @@
       {
         "id": "mcp_tools",
         "title": "MCP-Werkzeuge",
-        "tip": "Jeder MCP-Server und jedes Werkzeug, das der Agent aufgerufen hat, als Server/Werkzeug, geordnet nach Aufrufen oder nach der darin verbrachten Zeit. Das Claude-Code-Plugin des AI Sessionizer beobachtet jeden Aufruf; die eigenen Werkzeuge der Laufzeit werden nicht gezählt.",
+        "tip": "Die 20 wichtigsten MCP-Werkzeuge des Agenten, als Server/Werkzeug. Der Wert eines Werkzeugs ist der Durchschnitt seiner Zeitfenster mit Aufrufen (Minute, Stunde oder Tag, je nach Zeitbereich), so wie OAP ordnet, nicht seine Summe über den Zeitbereich. Das Plugin für Claude Code des AI Sessionizer beobachtet jeden Aufruf; die eigenen Werkzeuge der Laufzeit werden nicht gezählt.",
         "expressionLabels": [
-          "Aufrufe",
-          "Zeit in Aufrufen"
+          "Aufrufe je Zeitfenster",
+          "Zeit in Aufrufen je Zeitfenster"
         ]
       }
     ],
@@ -141,7 +141,7 @@
       {
         "id": "mcp_calls",
         "title": "Aufrufe",
-        "tip": "Aufrufe dieses Werkzeugs, die das Claude-Code-Plugin des AI Sessionizer beobachtet hat, gezählt in der Minute, in der jeder endete."
+        "tip": "Aufrufe dieses Werkzeugs, die das Plugin für Claude Code des AI Sessionizer beobachtet hat, gezählt in der Minute, in der jeder endete."
       },
       {
         "id": "mcp_calls_by_outcome",

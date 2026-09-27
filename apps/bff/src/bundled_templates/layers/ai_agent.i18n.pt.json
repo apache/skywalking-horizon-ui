@@ -74,10 +74,10 @@
       {
         "id": "mcp_tools",
         "title": "Ferramentas MCP",
-        "tip": "Cada servidor MCP e ferramenta que o agente chamou, como servidor/ferramenta, ordenados pelas chamadas ou pelo tempo gasto nelas. O plugin do Claude Code do AI Sessionizer observa cada chamada; as ferramentas do próprio runtime não são contadas.",
+        "tip": "As 20 principais ferramentas MCP do agente, como servidor/ferramenta. O valor de uma ferramenta é a média dos seus intervalos com chamadas (um minuto, uma hora ou um dia, conforme o período), que é como o OAP ordena, não o seu total no período. O plugin do Claude Code do AI Sessionizer observa cada chamada; as ferramentas do próprio runtime não são contadas.",
         "expressionLabels": [
-          "Chamadas",
-          "Tempo em chamadas"
+          "Chamadas por intervalo",
+          "Tempo em chamadas por intervalo"
         ]
       }
     ],

@@ -202,13 +202,13 @@
       {
         "id": "mcp_tools",
         "title": "MCP tools",
-        "tip": "Each MCP server and tool the agent called, as server/tool, ranked by its calls or by the time spent in them. The AI Sessionizer's Claude Code plugin observes each call; the runtime's own tools are not counted.",
+        "tip": "The agent's top 20 MCP tools, as server/tool. A tool's value is the average of its buckets that had calls (a minute, an hour or a day, as the time range decides), which is how OAP ranks, not its total over the range. The AI Sessionizer's Claude Code plugin observes each call; the runtime's own tools are not counted.",
         "type": "top",
         "expressions": [
           "top_n(meter_ai_agent_mcp_calls,20,des)",
           "top_n(meter_ai_agent_mcp_duration,20,des)"
         ],
-        "expressionLabels": ["Calls", "Time in calls"],
+        "expressionLabels": ["Calls per bucket", "Time in calls per bucket"],
         "expressionUnits": ["calls", "ms"],
         "visibleWhen": {
           "kind": "mqe",

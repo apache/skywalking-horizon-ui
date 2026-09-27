@@ -74,10 +74,10 @@
       {
         "id": "mcp_tools",
         "title": "Outils MCP",
-        "tip": "Chaque serveur MCP et outil que l'agent a appelé, sous la forme serveur/outil, classés par leurs appels ou par le temps passé dans ces appels. Le plugin Claude Code de l'AI Sessionizer observe chaque appel ; les outils propres au runtime ne sont pas comptés.",
+        "tip": "Les 20 principaux outils MCP de l'agent, sous la forme serveur/outil. La valeur d'un outil est la moyenne de ses intervalles avec des appels (une minute, une heure ou un jour, selon la plage de temps), comme OAP les classe, et non son total sur la plage. Le plugin Claude Code de l'AI Sessionizer observe chaque appel ; les outils propres au runtime ne sont pas comptés.",
         "expressionLabels": [
-          "Appels",
-          "Temps dans les appels"
+          "Appels par intervalle",
+          "Temps dans les appels par intervalle"
         ]
       }
     ],

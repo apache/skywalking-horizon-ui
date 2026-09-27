@@ -77,7 +77,7 @@ The primary drill-down for one selected agent. Four widgets are always shown; se
 
 **From the Sessionizer's Claude Code plugin**
 
-- **MCP tools** — every MCP server and tool the agent called, ranked by **Calls** (`meter_ai_agent_mcp_calls`) or by **Time in calls** (`meter_ai_agent_mcp_duration`) over the whole time range. The MCP tools tab shows each one over time.
+- **MCP tools** — the agent's top 20 MCP tools, ranked by **Calls per bucket** (`meter_ai_agent_mcp_calls`) or by **Time in calls per bucket** (`meter_ai_agent_mcp_duration`). A tool's value is the average of its buckets that had calls, which is how OAP ranks, not its total over the time range. The MCP tools tab lists every tool and shows each one over time.
 
 ## Agent runtime dashboard
 
