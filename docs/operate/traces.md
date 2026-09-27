@@ -28,10 +28,10 @@ A layer names the trace stores it exposes, and **each one becomes its own row in
 | Row | What it queries |
 |---|---|
 | **Traces** | SkyWalking's own trace query. |
-| **Zipkin Traces** | OAP's Zipkin v2 API, which also carries the OpenTelemetry traces OAP converts into Zipkin form. |
+| **Zipkin Traces** | OAP's Zipkin v2 API: spans sent in Zipkin's protocol, and OpenTelemetry traces when OAP is set to convert them into Zipkin form (`otlpTraceStorage: zipkin`). |
 | **TraceQL - Native** | The TraceQL API over the native spans. |
 | **TraceQL - Zipkin** | The TraceQL API over the Zipkin spans. |
-| **TraceQL - OTLP** | The TraceQL API over the OTLP spans OAP stored as they arrived, converting nothing. |
+| **OTLP Traces** | The TraceQL API over the OTLP spans OAP stored as they arrived, converting nothing — OAP's default since 11.1.0. |
 
 Each row can be renamed per layer, so what you see in your deployment may differ. Stores are kept as separate rows rather than one row with a toggle because their span models and their query conditions genuinely differ, and a row that silently switched stores would change what a field means under you.
 
@@ -157,7 +157,7 @@ Two markers on one span can disagree, and so can two spans in one trace. **Failu
 
 The TraceQL rows query traces through [Grafana Tempo's query language](https://grafana.com/docs/tempo/latest/traceql/), which OAP answers over Tempo's HTTP API. A TraceQL trace is an **OpenTelemetry** trace and is shown as one: opaque span ids, a span kind, a three-valued status (ok / error / unset), resource attributes kept apart from span attributes, and the instrumentation scope. Nothing is folded into SkyWalking's own span shape, so what you read is what the protocol defines.
 
-**Each row is a different store, not a different view of one.** *TraceQL - Native* reads the SkyWalking spans and *TraceQL - Zipkin* the Zipkin ones, both converted to OTLP to answer. *TraceQL - OTLP* reads spans OAP stored exactly as they arrived, converting nothing — so attributes keep their own types, and events, links, status messages and the instrumentation scope are what the SDK exported. Where a deployment's OTLP traces live depends on how its receiver was configured to keep them, and only one of the two rows will hold them.
+**Each row is a different store, not a different view of one.** *TraceQL - Native* reads the SkyWalking spans and *TraceQL - Zipkin* the Zipkin ones, both converted to OTLP to answer. *OTLP Traces* reads spans OAP stored exactly as they arrived, converting nothing — so attributes keep their own types, and events, links, status messages and the instrumentation scope are what the SDK exported. Where a deployment's OTLP traces live depends on how its OAP keeps them: natively by default since 11.1.0, read on *OTLP Traces*, or converted into Zipkin form, read on *Zipkin Traces* and *TraceQL - Zipkin*.
 
 The OTLP row also has fields the other two cannot offer: the `kind` intrinsic, `resource.service.instance.id`, and Tempo's `span:`-prefixed spellings. The **Schema reference** on each row lists what that store can filter, which is the shortest way to see the difference.
 

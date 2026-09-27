@@ -35,13 +35,7 @@ services:
     ports:
       - 12800
       - 17128
-      # The Zipkin query, so a dev Horizon on the host can open OTLP traces.
-      - 9412
     environment:
-      # OTLP spans are stored as Zipkin spans, and the Zipkin query is what
-      # Horizon's OTLP trace popout reads — both have to be on.
-      SW_RECEIVER_ZIPKIN: default
-      SW_QUERY_ZIPKIN: default
       SW_AI_EVALUATION: default
       # Judge every GenAI span. The default samples a fraction, which on a
       # fixture this young can be none at all.
@@ -164,8 +158,6 @@ services:
       service: horizon
     ports:
       - 8081
-    environment:
-      HORIZON_OAP_ZIPKIN_URL: http://oap:9412/zipkin
     depends_on:
       oap:
         condition: service_healthy

@@ -25,7 +25,7 @@ oap:
 | `queryUrl` | URL string | `http://127.0.0.1:12800` | no | OAP GraphQL query endpoint. Load-balanceable — any OAP node answers. Used by all read pages. Must be a valid URL. |
 | `adminUrl` | URL string | `http://127.0.0.1:17128` | no | OAP admin REST endpoint. Hosts runtime-rule, dsl-debugging, inspect, status, debugging/config endpoints. Single URL; OAP handles cluster-internal fan-out. |
 | `zipkinUrl` | URL string | `http://127.0.0.1:9412/zipkin` | no | Zipkin v2 REST endpoint. Used when a layer exposes the Zipkin trace store. Defaults assume the standalone Armeria binding; for Docker / shared-port deployments use `<queryUrl>/zipkin`. |
-| `traceql.url` | URL string | empty | no | OAP's TraceQL (Grafana Tempo API) service — host and port only, no path. One server answers for every datasource. **Empty means off** — there is deliberately no default, because OAP ships the module disabled. See [TraceQL trace stores](#traceql-trace-stores-oaptraceql). |
+| `traceql.url` | URL string | `http://127.0.0.1:3200` | no | OAP's TraceQL (Grafana Tempo API) service — host and port only, no path. One server answers for every datasource. OAP ships the module off, so a row reading from it says it cannot be reached until OAP enables it. **`url: ''` in this file turns it off**; an empty `HORIZON_OAP_TRACEQL_URL` falls back to the default. See [TraceQL trace stores](#traceql-trace-stores-oaptraceql). |
 | `traceql.nativePath` | string | `/skywalking` | no | Context path of the datasource over the SkyWalking-native spans — OAP's `restContextPathSkywalking`. |
 | `traceql.zipkinPath` | string | `/zipkin` | no | Context path of the datasource over the Zipkin spans — OAP's `restContextPathZipkin`. |
 | `traceql.otlpPath` | string | `/otlp` | no | Context path of the datasource over the OTLP spans OAP stored as they arrived — OAP's `restContextPathOTLP`. Needs `receiver-otel.otlpTraceStorage: otlp`. |
@@ -54,9 +54,10 @@ It is a separate server from the query port, **off in OAP by default**, and enab
 SW_TRACEQL=default
 SW_TRACEQL_ENABLE_DATASOURCE_SKYWALKING=true
 SW_TRACEQL_ENABLE_DATASOURCE_ZIPKIN=true
+SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true
 ```
 
-Its default port is `3200`, with the context paths `/skywalking` and `/zipkin`. Point Horizon at the ones you enabled:
+Its default port is `3200`, with the context paths `/skywalking`, `/zipkin` and `/otlp`. Since OAP 11.1.0, OpenTelemetry traces are stored natively by default and read only through `/otlp`. Point Horizon at the ones you enabled:
 
 ```yaml
 oap:
@@ -69,7 +70,7 @@ oap:
 
 **One endpoint, one path per datasource.** OAP's TraceQL service binds a single host and port (`restHost` / `restPort`, `3200` by default) and serves each datasource under its own context path, so Horizon takes the endpoint once and the paths default to OAP's own. Change a path only if you changed `restContextPath*` on OAP.
 
-**Setting `url` is the whole switch.** Horizon probes each datasource: one this OAP does not enable answers 404 and is reported on the Cluster Status page with what to switch on, beside the ones that are genuinely down. Leaving `url` empty turns the feature off — a layer's sidebar row still appears if its template names the store, and the tab states that no URL is configured rather than searching something else. A configured URL that does not answer is reported the same way, on the page rather than in a log.
+**Setting `url` is the whole switch.** It defaults to `http://127.0.0.1:3200`, as the other OAP hosts default to the local OAP. Horizon probes each datasource: one this OAP does not enable answers 404 and is reported on the Cluster Status page with what to switch on, beside the ones that are genuinely down. Setting `url: ''` in the configuration file turns the feature off (an empty `HORIZON_OAP_TRACEQL_URL` falls back to the default) — a layer's sidebar row still appears if its template names the store, and the tab states that no URL is configured rather than searching something else. A configured URL that does not answer is reported the same way, on the page rather than in a log.
 
 Which layers expose these stores is a layer-template decision, not a connection one — see [Layer Dashboard Templates → `traces`](../customization/layer-templates.md#traces) and [Traces](../operate/traces.md).
 

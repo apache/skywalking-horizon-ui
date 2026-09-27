@@ -14,12 +14,13 @@
 # limitations under the License.
 #
 
-# AI agent conversations — the AI_AGENT layer, its Conversations tab, and one
-# conversation drawn in full: the talk, a shell command a child agent ran, and
-# the provider bodies behind a model call.
+# AI agent conversations — the AI_AGENT layer, its Conversations tab, and two
+# conversations drawn in full: the talk, a shell command a child agent ran, and
+# the provider bodies behind a model call; and calls to MCP servers with what
+# each one did.
 #
 # The data is not Horizon's. A real AI Sessionizer builds the `provider-bodies`
-# scenario and pushes it to OAP, which stores it and serves it back through the
+# and `mcp-calls` scenarios and pushes them to OAP, which stores it and serves it back through the
 # conversation routes. So this case proves the whole path, which the unit tests
 # cannot: they read a landed file as a fixture, through a stubbed route.
 #
@@ -90,8 +91,23 @@ verify:
           | yq -P '{"state": .summary.state, "providerBodies": .summary.provider_bodies, "capturedPrompts": .summary.captured_prompts}'
       expected: expected/conversation-whole.yml
 
-    # 4. The browser suite: the list, the conversation, the shell command and
-    #    the prompt a model call sent, all on screen.
+    # 4. READINESS for the calls to MCP servers: the document lists every
+    #    execution record the plugin wrote. Those are files of their own, beside
+    #    the transcripts, so they can land after the rounds that the list reads.
+    - query: |
+        conversation=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/ai_agent/ai-conversations \
+          '{"service":"e2e-ai-agent","windowMinutes":129600}' \
+          | yq -P '[.rows[] | select(.title == "calls to MCP servers")][0].conversation')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" \
+          "/api/ai-conversation/${conversation}/view?service=e2e-ai-agent&instance=e2e-sender" \
+          | yq -P '{"state": .summary.state, "executions": (.tool_executions | length)}'
+      expected: expected/mcp-whole.yml
+
+    # 5. The browser suite: the list, the conversation, the shell command, the
+    #    prompt a model call sent, and what each call to an MCP server did, all
+    #    on screen.
     - query: |
         bash test/e2e/script/prepare/playwright.sh ai-agent
       expected: expected/passed.yml

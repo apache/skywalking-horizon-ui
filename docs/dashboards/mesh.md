@@ -122,7 +122,7 @@ For how these maps are read and navigated, see the [3D Infrastructure Map](../op
 
 ## Traces
 
-MESH traces are served from **Zipkin**. Open the Traces tab to query the sidecar-reported spans; the workflow and filters are the same as any other layer's trace view — see [Traces](../operate/traces.md).
+MESH has two trace rows, because a mesh can send its spans either way. **Zipkin Traces** holds spans sent in Zipkin's protocol, such as those of Istio's Zipkin tracer. **OTLP Traces** holds spans sent over OpenTelemetry, which OAP stores natively by default since 11.1.0; it needs OAP's TraceQL module with its `/otlp` datasource, and `oap.traceql.url` set in Horizon. The workflow and filters are the same as any other layer's trace view — see [Traces](../operate/traces.md).
 
 ## Requirements
 

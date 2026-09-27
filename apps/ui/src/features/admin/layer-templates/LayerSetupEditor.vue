@@ -281,7 +281,7 @@ function labelForRow(path: string): string {
     case 'zipkin-trace': return storeName('zipkin') || t('Zipkin Traces');
     case 'traceql-native-trace': return storeName('traceql-native') || t('TraceQL - Native');
     case 'traceql-zipkin-trace': return storeName('traceql-zipkin') || t('TraceQL - Zipkin');
-    case 'traceql-otlp-trace': return storeName('traceql-otlp') || t('TraceQL - OTLP');
+    case 'traceql-otlp-trace': return storeName('traceql-otlp') || t('OTLP Traces');
     case 'logs': return t('Logs');
     // Rows whose name was never added here fell through to `default` and were
     // drawn as their raw path — `evaluation-record` rather than its name.

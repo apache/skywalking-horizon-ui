@@ -102,19 +102,7 @@ verify:
           | yq -P '{"hasSpans": ((.native.spans // []) | length > 0)}'
       expected: expected/has-native-trace.yml
 
-    # 6. READINESS: the OTLP trace opens through the Zipkin query, which is
-    #    the path the OTLP popout takes.
-    - query: |
-        TRACE_ID=$(bash test/e2e/script/prepare/horizon-get.sh \
-          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
-          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
-          | yq -r '[.records[] | select(.traceRef.type == "OTLP")][0].traceRef.traceId')
-        bash test/e2e/script/prepare/horizon-get.sh \
-          "http://${horizon_host}:${horizon_8081}" "/api/zipkin/trace/${TRACE_ID}" \
-          | yq -P '{"hasSpans": ((.spans // []) | length > 0)}'
-      expected: expected/has-otlp-trace.yml
-
-    # 7. READINESS: the provider's metrics landed — what the layer's service
+    # 6. READINESS: the provider's metrics landed — what the layer's service
     #    dashboard reads. Persisted on OAP's ~25s cycle into minute buckets,
     #    a different write from the records above.
     - query: |
@@ -122,7 +110,7 @@ verify:
           metrics exec --expression=gen_ai_provider_cpm --service-id=b3BlbmFp.0
       expected: expected/metrics-has-value.yml
 
-    # 8. The browser suite: the tab and the dashboard, on screen.
+    # 7. The browser suite: the tab and the dashboard, on screen.
     - query: |
         bash test/e2e/script/prepare/playwright.sh genai
       expected: expected/passed.yml

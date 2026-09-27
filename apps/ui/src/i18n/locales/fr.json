@@ -3358,7 +3358,7 @@
   "MAX": "MAX",
   "which trace APIs this layer exposes — one sidebar row each": "quelles API de traces cette couche expose — une entrée de barre latérale chacune",
   "SkyWalking's own trace query.": "La requête de traces native de SkyWalking.",
-  "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.": "L’API Zipkin v2 d’OAP, qui sert aussi les spans OpenTelemetry qu’OAP convertit au format Zipkin.",
+  "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.": "L’API Zipkin v2 d’OAP : les spans envoyés avec le protocole Zipkin, et les spans OpenTelemetry d’un OAP configuré pour les convertir au format Zipkin.",
   "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.": "L’API de Grafana Tempo sur les spans natifs. Nécessite le module traceQL d’OAP et une URL de source de données configurée.",
   "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.": "L’API de Grafana Tempo sur les spans Zipkin. Nécessite le module traceQL d’OAP et une URL de source de données configurée.",
   "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.": "L’API de Grafana Tempo sur les spans OTLP qu’OAP a stockés tels quels, sans conversion. Nécessite le module traceQL d’OAP et une URL de source de données configurée.",
@@ -3406,7 +3406,7 @@
   "Zipkin Traces": "Traces Zipkin",
   "TraceQL - Native": "TraceQL - Native",
   "TraceQL - Zipkin": "TraceQL - Zipkin",
-  "TraceQL - OTLP": "TraceQL - OTLP",
+  "OTLP Traces": "Traces OTLP",
   "Zipkin spans": "Spans Zipkin",
   "Natively stored OTLP spans": "Spans OTLP stockés nativement",
   "Menu name": "Nom dans le menu",
@@ -3434,5 +3434,7 @@
   "Sent to the server": "Envoyé au serveur",
   "Came back": "Retour",
   "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
-  "execution record": "enregistrement d’exécution"
+  "execution record": "enregistrement d’exécution",
+  "the record as the document carries it": "l’enregistrement tel que le document le porte",
+  "the call’s result as the document carries it": "le résultat de l’appel tel que le document le porte"
 }

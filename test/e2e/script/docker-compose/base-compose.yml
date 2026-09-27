@@ -135,6 +135,7 @@ services:
     environment:
       HORIZON_OAP_QUERY_URL: http://oap:12800
       HORIZON_OAP_ADMIN_URL: http://oap:17128
+      HORIZON_OAP_TRACEQL_URL: http://oap:3200
       # Default mode, stated explicitly because it is the contract under test:
       # Horizon seeds the bundle into OAP's ui_template store at boot and then
       # renders only what OAP holds. A template-store regression must fail the

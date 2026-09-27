@@ -28,9 +28,8 @@ import type { Locator, Page } from '@playwright/test';
 
 // The Evaluation records tab, on the one stack where OAP's LLM-as-Judge has
 // scored calls from BOTH trace sources. Everything is asserted on screen: the
-// provider the tab opens on, the judged rows, and the trace behind a row —
-// which is the native waterfall for a SkyWalking-agent trace and the Zipkin
-// renderer for an OTLP one. Provider, model, caller and task names are OAP
+// provider the tab opens on, the judged rows, and the native trace behind a
+// row judged from a SkyWalking-agent call. Provider, model, caller and task names are OAP
 // data, rendered verbatim in every locale, so they are matched literally.
 
 /** Run the tab's query and hand back the row stream once it has rows. */
@@ -87,24 +86,6 @@ test('a record judged from a native trace opens that trace on the native popout'
   // The record's time travels with the id, so the lookup is bounded to where
   // the trace is rather than to OAP's default day.
   await expect(page).toHaveURL(/[?&]traceId=/);
-  await expect(page).toHaveURL(/[?&]traceAt=\d+/);
-
-  expect(pageErrors).toEqual([]);
-});
-
-test('a record judged from an OTLP trace opens that trace on the Zipkin popout', async ({ page, pageErrors }) => {
-  const rows = await openRecords(page);
-  await rowFrom(page, rows, OTLP_GENAI_CALLER).locator('.lg-trace').click();
-
-  // The OTLP renderer, chosen by the record's trace type — not by the layer,
-  // whose template sources no traces at all.
-  const popout = page.locator('.zk-popout-backdrop');
-  await expect(popout).toBeVisible();
-  expect((await popout.locator('.zk-tid').innerText()).trim()).toBeTruthy();
-  await expect(popout.locator('.tp-row').first()).toBeVisible({ timeout: 45_000 });
-  await expect(page).toHaveURL(/[?&]traceType=OTLP/);
-  // The same time bound as the native path. Without it the OTLP lookup ran
-  // over OAP's default day, and a record older than that opened to nothing.
   await expect(page).toHaveURL(/[?&]traceAt=\d+/);
 
   expect(pageErrors).toEqual([]);

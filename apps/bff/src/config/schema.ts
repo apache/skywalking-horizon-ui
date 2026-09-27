@@ -135,7 +135,7 @@ const oapSchema = z
     zipkinUrl: z.string().url().default('http://127.0.0.1:9412/zipkin'),
     traceql: z
       .object({
-        url: z.string().url().or(z.literal('')).default(''),
+        url: z.string().url().or(z.literal('')).default('http://127.0.0.1:3200'),
         nativePath: z.string().default('/skywalking'),
         zipkinPath: z.string().default('/zipkin'),
         otlpPath: z.string().default('/otlp'),

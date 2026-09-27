@@ -3358,7 +3358,7 @@
   "MAX": "MÁX",
   "which trace APIs this layer exposes — one sidebar row each": "qué APIs de trazas expone esta capa: una fila del menú lateral por cada una",
   "SkyWalking's own trace query.": "La consulta de trazas propia de SkyWalking.",
-  "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.": "La API Zipkin v2 de OAP, que también sirve los spans de OpenTelemetry que OAP convierte al formato Zipkin.",
+  "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.": "La API Zipkin v2 de OAP: los spans enviados con el protocolo de Zipkin y los spans de OpenTelemetry de un OAP configurado para convertirlos al formato Zipkin.",
   "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.": "La API de Grafana Tempo sobre los spans nativos. Requiere el módulo traceQL de OAP y una URL de origen de datos configurada.",
   "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.": "La API de Grafana Tempo sobre los spans de Zipkin. Requiere el módulo traceQL de OAP y una URL de origen de datos configurada.",
   "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.": "La API de Grafana Tempo sobre los spans OTLP que OAP almacenó tal como llegaron, sin convertir nada. Requiere el módulo traceQL de OAP y una URL de origen de datos configurada.",
@@ -3406,7 +3406,7 @@
   "Zipkin Traces": "Trazas de Zipkin",
   "TraceQL - Native": "TraceQL - Native",
   "TraceQL - Zipkin": "TraceQL - Zipkin",
-  "TraceQL - OTLP": "TraceQL - OTLP",
+  "OTLP Traces": "Trazas de OTLP",
   "Zipkin spans": "Spans de Zipkin",
   "Natively stored OTLP spans": "Spans OTLP almacenados de forma nativa",
   "Menu name": "Nombre en el menú",
@@ -3434,5 +3434,7 @@
   "Sent to the server": "Enviado al servidor",
   "Came back": "Devuelto",
   "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
-  "execution record": "registro de ejecución"
+  "execution record": "registro de ejecución",
+  "the record as the document carries it": "el registro tal como lo lleva el documento",
+  "the call’s result as the document carries it": "el resultado de la llamada tal como lo lleva el documento"
 }

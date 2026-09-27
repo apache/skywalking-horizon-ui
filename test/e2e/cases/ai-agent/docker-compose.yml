@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# One AI agent conversation, pushed by a real AI Sessionizer, for the pages that read it.
+# Two AI agent conversations, pushed by a real AI Sessionizer, for the pages that read them.
 #
 # The `provider-bodies` scenario is the one that carries everything the conversation page draws:
 # talks with an input and a reply, a shell command run by a child agent, and the request and
-# response bodies behind every model call. OAP stores what the Sessionizer pushes and serves it
+# response bodies behind every model call. The `mcp-calls` scenario adds calls to MCP servers,
+# each with the execution record the Sessionizer's Claude Code plugin writes after it. OAP stores what the Sessionizer pushes and serves it
 # back through its conversation routes; Horizon draws it. Nothing here is a fixture of Horizon's
 # own - the bytes on the page came out of a Sessionizer.
 #
@@ -29,6 +30,7 @@ x-asz: &asz
   volumes:
     - aszdata:/asz/data
     - ./provider-bodies.yaml:/asz/provider-bodies.yaml:ro
+    - ./mcp-calls.yaml:/asz/mcp-calls.yaml:ro
   networks:
     - e2e
 
@@ -77,6 +79,14 @@ services:
       asz-volume:
         condition: service_completed_successfully
 
+  # The second scenario lands in the same root, so the one pass below sends both.
+  asz-build-mcp:
+    <<: *asz
+    command: ["scenario", "build", "/asz/mcp-calls.yaml", "--format", "sd", "--out", "/asz/data"]
+    depends_on:
+      asz-build:
+        condition: service_completed_successfully
+
   # The receiver and this sender's identity, appended to the asz.yaml the build wrote. The names
   # here are what the page shows as the agent and the agent runtime, and what the spec asserts.
   asz-config:
@@ -88,7 +98,7 @@ services:
     volumes:
       - aszdata:/asz/data
     depends_on:
-      asz-build:
+      asz-build-mcp:
         condition: service_completed_successfully
     networks:
       - e2e

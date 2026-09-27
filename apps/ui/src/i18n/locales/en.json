@@ -3358,7 +3358,7 @@
   "MAX": "MAX",
   "which trace APIs this layer exposes — one sidebar row each": "which trace APIs this layer exposes — one sidebar row each",
   "SkyWalking's own trace query.": "SkyWalking's own trace query.",
-  "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.": "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.",
+  "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.": "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.",
   "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.": "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.",
   "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.": "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.",
   "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.": "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.",
@@ -3406,7 +3406,7 @@
   "Zipkin Traces": "Zipkin Traces",
   "TraceQL - Native": "TraceQL - Native",
   "TraceQL - Zipkin": "TraceQL - Zipkin",
-  "TraceQL - OTLP": "TraceQL - OTLP",
+  "OTLP Traces": "OTLP Traces",
   "Zipkin spans": "Zipkin spans",
   "Natively stored OTLP spans": "Natively stored OTLP spans",
   "Menu name": "Menu name",
@@ -3434,5 +3434,7 @@
   "Sent to the server": "Sent to the server",
   "Came back": "Came back",
   "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
-  "execution record": "execution record"
+  "execution record": "execution record",
+  "the record as the document carries it": "the record as the document carries it",
+  "the call’s result as the document carries it": "the call’s result as the document carries it"
 }

@@ -138,6 +138,48 @@ describe('an MCP call on the page', () => {
     expect(body).not.toContain('change record');
   });
 
+  it('shows the execution record it opens in Evidence, and the step’s own text again on the step’s own chip', () => {
+    const root = mount();
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${LOOKUP}"] .acv-execution-pill`)!.click();
+    root.querySelector<HTMLButtonElement>('.acv-inspector-body [data-to-evidence]')!.click();
+    const body = root.querySelector('.acv-inspector-body')!;
+    expect(body.textContent).toContain('the record as the document carries it');
+    expect(body.textContent).toContain('"client_hook"');
+    expect(body.textContent).toContain('"ea3a64398a82e2ee89a19c80733d2be7a2496e0a0a64050fa307a20f7be8879b"');
+    expect(body.textContent).not.toContain('{"service":"checkout"}');
+    root.querySelector<HTMLButtonElement>('.acv-ref-chip:not(.on)')!.click();
+    const back = root.querySelector('.acv-inspector-body')!.textContent!;
+    expect(back).toContain('{"service":"checkout"}');
+    expect(back).not.toContain('"client_hook"');
+  });
+
+  it('shows every string of the record whole, as the heading says', () => {
+    const copy = JSON.parse(JSON.stringify(fixture)) as AszViewDocument;
+    const long = `/Users/dev/${'a'.repeat(400)}`;
+    copy.tool_executions!.find((x) => x.step === LOOKUP)!.cwd = long;
+    const root = mount(copy);
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${LOOKUP}"] .acv-execution-pill`)!.click();
+    root.querySelector<HTMLButtonElement>('.acv-inspector-body [data-to-evidence]')!.click();
+    expect(root.querySelector('.acv-carried')!.textContent).toContain(`"${long}"`);
+  });
+
+  it('lists the execution record on Evidence opened directly, after the step’s own positions, written as text', () => {
+    const copy = JSON.parse(JSON.stringify(fixture)) as AszViewDocument;
+    const record = copy.tool_executions!.find((x) => x.step === LOOKUP)!;
+    record.ref = { ...record.ref, row: '<img src=x>' as unknown as number };
+    const root = mount(copy);
+    openFold(root);
+    root.querySelector<HTMLElement>(`[data-card="${LOOKUP}"]`)!.click();
+    root.querySelector<HTMLButtonElement>('[data-tab="evidence"]')!.click();
+    const chips = [...root.querySelectorAll('.acv-ref-chip')].map((c) => c.textContent!.replace(/\s+/g, ' ').trim());
+    expect(chips).toEqual(['requestseq 1 · row 4 · block 0', 'resultseq 1 · row 5 · block 0', 'execution recordseq 2 · row <img src=x> · block 0']);
+    expect(root.querySelector('.acv-inspector-body img')).toBeNull();
+    expect(root.querySelector('.acv-ref-chip.on')!.textContent).toContain('request');
+    expect(root.querySelector('.acv-inspector-body')!.textContent).toContain('{"service":"checkout"}');
+  });
+
   it('says in Details which server and tool the call addressed, and links to its records', () => {
     const root = mount();
     openFold(root);

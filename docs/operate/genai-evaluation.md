@@ -19,7 +19,7 @@ limitations under the License.
 
 OAP can score LLM calls with an LLM judge: each call a GenAI span records is sent to a judge model with the evaluation tasks you configured, and every verdict is stored as an **evaluation record** tied to the provider, the model, the calling service and the exact span that was judged. Horizon shows these records on the **Virtual GenAI** layer's **Evaluation records** tab, one row per judged call and task.
 
-The calls can come from either trace source. A service on a SkyWalking agent reports GenAI spans natively; a service on OpenTelemetry reports them over OTLP, which OAP stores as Zipkin spans. Both are judged, and both kinds of record open the trace they came from.
+The calls can come from either trace source. A service on a SkyWalking agent reports GenAI spans natively; a service on OpenTelemetry reports them over OTLP. Both are judged. A record from a native trace opens that trace. A record from an OTLP trace opens it from the Zipkin store, which holds OTLP spans only when OAP converts them into Zipkin form (`otlpTraceStorage: zipkin`); OAP 11.1.0 stores them natively by default.
 
 ## Requirements
 
@@ -85,7 +85,7 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 ## Opening the trace
 
-The trace link opens the trace in a popout without leaving the list, with the judged span already selected. A native trace opens on the native waterfall; an OTLP trace opens on the Zipkin renderer. Either way the lookup is bounded to the record's own time, so with the query cold stage on, a record older than the hot window still opens its trace. The popout shares the page's address, so the browser's back button closes it and the URL can be shared.
+The trace link opens the trace in a popout without leaving the list, with the judged span already selected. A native trace opens on the native waterfall; an OTLP trace opens on the Zipkin renderer, and is found only when OAP converts OTLP spans into Zipkin form. Either way the lookup is bounded to the record's own time, so with the query cold stage on, a record older than the hot window still opens its trace. The popout shares the page's address, so the browser's back button closes it and the URL can be shared.
 
 ## From the dashboards
 

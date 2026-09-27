@@ -202,3 +202,9 @@ export const AI_CONVERSATION_BASH_STEP = 'tool/searcher-s1-tool';
 export const AI_CONVERSATION_BASH_COMMAND = 'grep -rn timeout .';
 export const AI_CONVERSATION_BASH_RESULT = 'server.go:3: var timeout = 30';
 export const AI_CONVERSATION_LLM_CALLS = 7;
+/** The scenario whose calls reach MCP servers, each observed by the Claude Code plugin. */
+export const AI_MCP_CONVERSATION_TITLE = 'calls to MCP servers';
+/** Its first call: the status server's lookup tool, asked about checkout, which returned in 380 ms. */
+export const AI_MCP_STEP = 'tool/s2-tool';
+export const AI_MCP_INPUT = '{"service":"checkout"}';
+export const AI_MCP_RESULT = 'checkout: 3 of 3 ready';
