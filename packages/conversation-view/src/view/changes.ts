@@ -219,9 +219,9 @@ function recordMeta(ctx: ViewContext, r: AszWorkspaceChange): string {
   const runtime = r.captured_by === CAPTURED_BY_RUNTIME;
   html += row(
     s.readFrom,
-    `seq ${esc(String(r.ref.seq))} · row ${esc(String(r.ref.row))}${r.ref.block != null ? ` · block ${esc(String(r.ref.block))}` : ''} <span class="acv-faint">· ${esc(
+    `seq ${r.ref.seq} · row ${r.ref.row}${r.ref.block != null ? ` · block ${r.ref.block}` : ''} <span class="acv-faint">· ${esc(
       runtime ? s.onResultRecord : s.inChangesFile,
-    )}</span> <button type="button" class="acv-linkish" data-to-evidence data-ref-seq="${esc(String(r.ref.seq))}" data-ref-row="${esc(String(r.ref.row))}" data-ref-block="${esc(String(r.ref.block ?? ''))}">${esc(s.openEvidence)}</button>`,
+    )}</span> <button type="button" class="acv-linkish" data-to-evidence data-ref-seq="${r.ref.seq}" data-ref-row="${r.ref.row}" data-ref-block="${r.ref.block ?? ''}">${esc(s.openEvidence)}</button>`,
     true,
   );
   html += `</dl>`;

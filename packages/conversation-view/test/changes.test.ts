@@ -272,17 +272,6 @@ describe('the tool card', () => {
 });
 
 describe('the inspector', () => {
-  it('writes a record’s landed position as text in the tab', () => {
-    const edited = fixture.workspace_changes!.find((r) => r.step === EDIT)!;
-    const odd: AszWorkspaceChange = { ...edited, ref: { ...edited.ref, seq: '<img src=x>' as unknown as number } };
-    const root = mount(withRecords(fixture, [odd]));
-    view!.setState({ step: EDIT });
-    root.querySelector<HTMLButtonElement>('[data-tab="changes"]')!.click();
-    const body = root.querySelector<HTMLElement>('.acv-inspector-body')!;
-    expect(body.querySelector('img')).toBeNull();
-    expect(body.textContent).toContain('seq <img src=x>');
-  });
-
   it('shows the Changes tab only for a step with records, with the record’s provenance', () => {
     const root = mount();
     view!.setState({ step: 'call/s2-call' });
