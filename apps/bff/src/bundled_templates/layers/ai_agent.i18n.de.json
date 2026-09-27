@@ -2,7 +2,8 @@
   "alias": "KI-Agenten",
   "slots": {
     "services": "Agenten",
-    "instances": "Agent-Laufzeiten"
+    "instances": "Agent-Laufzeiten",
+    "endpoints": "MCP-Werkzeuge"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "Berechtigungsentscheidungen bei Bearbeitungen",
         "tip": "Angenommene und abgelehnte Berechtigungsabfragen der Bearbeitungswerkzeuge. Nur vom eigenen Exporter von Claude Code."
+      },
+      {
+        "id": "mcp_tools",
+        "title": "MCP-Werkzeuge",
+        "tip": "Jeder MCP-Server und jedes Werkzeug, das der Agent aufgerufen hat, als Server/Werkzeug, geordnet nach Aufrufen oder nach der darin verbrachten Zeit. Das Claude-Code-Plugin des AI Sessionizer beobachtet jeden Aufruf; die eigenen Werkzeuge der Laufzeit werden nicht gezählt.",
+        "expressionLabels": [
+          "Aufrufe",
+          "Zeit in Aufrufen"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "Berechtigungsentscheidungen bei Bearbeitungen",
         "tip": "Angenommene und abgelehnte Berechtigungsabfragen der Bearbeitungswerkzeuge. Nur vom eigenen Exporter von Claude Code."
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "Aufrufe",
+        "tip": "Aufrufe dieses Werkzeugs, die das Claude-Code-Plugin des AI Sessionizer beobachtet hat, gezählt in der Minute, in der jeder endete."
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "Aufrufe nach Ergebnis",
+        "tip": "returned, failed oder interrupted, wie der Hook der Laufzeit den Aufruf gemeldet hat. Ein Fehler, den der Server zurückgab, eine abgebrochene Verbindung und eine Zeitüberschreitung sind alle failed."
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "Durchschnittliche Zeit",
+        "tip": "Die Zeit, die die Laufzeit um jeden Aufruf gemessen hat, gemittelt über die Aufrufe des Zeitfensters. Sie enthält jedes Warten vor dem Start des Aufrufs und ist daher nicht die eigene Zeit des Servers."
+      },
+      {
+        "id": "mcp_time",
+        "title": "Zeit in Aufrufen",
+        "tip": "Dieselbe Zeit, summiert über die Aufrufe des Zeitfensters: wie lange der Agent in diesem Werkzeug verbracht hat."
       }
     ]
   }

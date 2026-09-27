@@ -21,7 +21,7 @@ The **AI_AGENT** layer is where the [SkyWalking AI Sessionizer](https://skywalki
 
 In Horizon's sidebar this layer is named **AI Agents**. Its top-level entities are **Agents** (the service slot): one per kind of agent, `Claude Code` for the Claude Code adapter, or whatever service name the Sessionizer was configured with. Each agent reports through one or more **Agent runtimes** (the instance slot): one Sessionizer process on one machine, named `user@host` by default, or the mailbox or machine name its operator set.
 
-The layer has three tabs: **Agents** (the service dashboard), **Agent runtimes** (the instance dashboard) and **Conversations**. See [AI Agent Conversations](../operate/ai-agent-conversations.md) for the Conversations tab. This page is the operator reference for the two metric dashboards: what you see on each and what each widget means.
+The layer has four tabs: **Agents** (the service dashboard), **Agent runtimes** (the instance dashboard), **MCP tools** (the endpoint dashboard) and **Conversations**. See [AI Agent Conversations](../operate/ai-agent-conversations.md) for the Conversations tab. This page is the operator reference for the three metric dashboards: what you see on each and what each widget means.
 
 > The layer appears only when OAP reports it, which needs OAP 11.1.0 or later with at least one conversation or metric pushed. The OAP side — receiving, verifying and storing the files, the metric rules, and retention — is documented with the other [OAP backend setup pages](https://github.com/apache/skywalking/tree/master/docs/en/setup/backend) in the SkyWalking repository.
 
@@ -35,6 +35,8 @@ The metric family is Claude Code's own: the same names its OpenTelemetry exporte
 
 - **Claude Code's own exporter sends the full family**, either to the Sessionizer's OpenTelemetry receiver adapter, which relays every request to OAP under the agent's identity, or straight to OAP with the resource attributes `service.layer=AI_AGENT` and a `service.instance.id` naming the agent runtime. To land under the same agent as the conversations, give the exporter the same `service.name`; its default is `claude-code`.
 
+The calls to MCP servers come from neither: the Sessionizer derives them from the records its Claude Code plugin writes around each call to an MCP server, one per call, with the server that ran it, how it ended and how long the runtime measured it. A transcript does not say which server ran a call or how long it took, and Claude Code's exporter sends nothing for them. Without the plugin, the MCP tools tab stays empty.
+
 Never combine the first arrangement with an exporter that sends straight to OAP for the same sessions: every token would be counted twice, and OAP cannot tell the two sources apart, whatever the agent runtime names. The Sessionizer refuses a configuration where it both derives and relays, for the same reason.
 
 ## Agents list
@@ -47,7 +49,7 @@ Before opening a agent, the layer landing page lists every agent with two sortab
 
 ## Agent dashboard
 
-The primary drill-down for one selected agent. Four widgets are always shown; seven more appear only when Claude Code's own exporter reports, because a Sessionizer-only deployment never has those metrics and a permanently empty widget would read as broken.
+The primary drill-down for one selected agent. Four widgets are always shown; seven more appear only when Claude Code's own exporter reports, because a Sessionizer-only deployment never has those metrics and a permanently empty widget would read as broken. The last, **MCP tools**, appears only when the agent called an MCP server.
 
 **Tokens, from either agent runtime**
 
@@ -73,9 +75,25 @@ The primary drill-down for one selected agent. Four widgets are always shown; se
 
 - **Edit permission decisions** — `accept` and `reject` on the editing tools (`meter_ai_agent_edit_decisions`).
 
+**From the Sessionizer's Claude Code plugin**
+
+- **MCP tools** — every MCP server and tool the agent called, ranked by **Calls** (`meter_ai_agent_mcp_calls`) or by **Time in calls** (`meter_ai_agent_mcp_duration`) over the whole time range. The MCP tools tab shows each one over time.
+
 ## Agent runtime dashboard
 
-The same eleven widgets for one selected agent runtime, over the per-agent runtime metrics (`meter_ai_agent_instance_*`), with the same rule for the exporter-only ones.
+The same eleven widgets for one selected agent runtime, over the per-agent runtime metrics (`meter_ai_agent_instance_*`), with the same rule for the exporter-only ones. MCP tools are counted per agent, not per runtime, so this dashboard has no MCP widget.
+
+## MCP tools dashboard
+
+Each MCP tool of an agent is one entity, named `<server>/<tool>`: the server the plugin reported, by the name it was configured with, and the tool as the runtime names it after `mcp__<server>__`. A call whose name does not split that way keeps the whole name as its tool. Pick one on the MCP tools tab.
+
+- **Calls** — calls to the tool, counted in the minute each ended (`meter_ai_agent_mcp_calls`).
+
+- **Calls by outcome** — `returned`, `failed` or `interrupted`, as the runtime's hook reported the call (`meter_ai_agent_mcp_calls_by_outcome`). An error the server returned, a lost connection and a timeout are all `failed`.
+
+- **Average time** — the time the runtime measured around each call, averaged over the calls of the bucket (`meter_ai_agent_mcp_duration / meter_ai_agent_mcp_calls`).
+
+- **Time in calls** — the same time, summed: how long the agent spent in this tool (`meter_ai_agent_mcp_duration`).
 
 ## Reading the numbers
 
@@ -87,12 +105,14 @@ The same eleven widgets for one selected agent runtime, over the per-agent runti
 
 - **Cache reads dominate.** On one five-day conversation they were 98% of all tokens. That is why the type widget draws separate lines and why the share is worth its own widget.
 
+- **An MCP call's time is not the server's time.** The runtime measures it around the call, from its hook before the call to its hook after, so it includes any waiting before the call started. A call the runtime refused never reaches a hook and is not counted.
+
 - **Derived series never overlap in time.** When a subagent's file lands later than its parent's, its tokens may be placed after the series' last point rather than at the minute they happened. The conversation document itself always knows a session's tokens exactly, on its model-call steps.
 
 ## Upgrading
 
-Horizon seeds a bundled template into OAP only when OAP holds no template of that name, and never rewrites a stored one. An OAP that already holds an earlier AI Agents template, one with the Conversations tab only, keeps it after an upgrade. To adopt the metric dashboards, open **Dashboard setup → Layer dashboards → AI Agents**, choose **Reset to → Bundled**, review **Check diff & push**, and re-apply any customisation the diff shows, such as renamed slots, before pushing.
+Horizon seeds a bundled template into OAP only when OAP holds no template of that name, and never rewrites a stored one. An OAP that already holds an earlier AI Agents template, one with the Conversations tab only, keeps it after an upgrade. To adopt the metric dashboards and the MCP tools tab, open **Dashboard setup → Layer dashboards → AI Agents**, choose **Reset to → Bundled**, review **Check diff & push**, and re-apply any customisation the diff shows, such as renamed slots, before pushing.
 
 ## Bundled template
 
-The bundled AI_AGENT template enables the service and instance dashboards and the `aiConversations` component, names the two entity slots as above, and carries the widgets listed here. Like every layer template it can be edited under **Dashboard setup → Layer dashboards** and published to OAP; see [Layer Dashboard Templates](../customization/layer-templates.md).
+The bundled AI_AGENT template enables the service, instance and endpoint dashboards and the `aiConversations` component, names the three entity slots as above, and carries the widgets listed here. Like every layer template it can be edited under **Dashboard setup → Layer dashboards** and published to OAP; see [Layer Dashboard Templates](../customization/layer-templates.md).

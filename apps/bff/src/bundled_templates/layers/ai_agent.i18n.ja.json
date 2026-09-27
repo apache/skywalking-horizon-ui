@@ -2,7 +2,8 @@
   "alias": "AI エージェント",
   "slots": {
     "services": "エージェント",
-    "instances": "エージェントランタイム"
+    "instances": "エージェントランタイム",
+    "endpoints": "MCP ツール"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "編集の許可判断",
         "tip": "編集ツールに対する許可プロンプトの承認と拒否の回数。Claude Code 自身のエクスポーターからのみ。"
+      },
+      {
+        "id": "mcp_tools",
+        "title": "MCP ツール",
+        "tip": "エージェントが呼び出した MCP サーバーとツールを サーバー/ツール の形で、呼び出し回数またはそこで費やした時間の順に並べます。AI Sessionizer の Claude Code プラグインが各呼び出しを観測します。ランタイム自身のツールは数えません。",
+        "expressionLabels": [
+          "呼び出し",
+          "呼び出しの時間"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "編集の許可判断",
         "tip": "編集ツールに対する許可プロンプトの承認と拒否の回数。Claude Code 自身のエクスポーターからのみ。"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "呼び出し",
+        "tip": "AI Sessionizer の Claude Code プラグインが観測したこのツールへの呼び出しで、それぞれが終了した分に計上されます。"
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "結果別の呼び出し",
+        "tip": "ランタイムのフックが報告した呼び出しの結果で、returned、failed、interrupted のいずれかです。サーバーが返したエラー、切断された接続、タイムアウトはすべて failed です。"
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "平均時間",
+        "tip": "ランタイムが各呼び出しの前後で測った時間を、区間の呼び出しで平均したものです。呼び出しが始まる前の待ち時間も含むため、サーバー自身の時間ではありません。"
+      },
+      {
+        "id": "mcp_time",
+        "title": "呼び出しの時間",
+        "tip": "同じ時間を区間の呼び出しで合計したもので、エージェントがこのツールで費やした時間です。"
       }
     ]
   }

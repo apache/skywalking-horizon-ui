@@ -2,7 +2,8 @@
   "alias": "AI 에이전트",
   "slots": {
     "services": "에이전트",
-    "instances": "에이전트 런타임"
+    "instances": "에이전트 런타임",
+    "endpoints": "MCP 도구"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "편집 권한 결정",
         "tip": "편집 도구의 권한 요청에 대한 승인과 거절 횟수. Claude Code 자체 익스포터에서만 제공됩니다."
+      },
+      {
+        "id": "mcp_tools",
+        "title": "MCP 도구",
+        "tip": "에이전트가 호출한 MCP 서버와 도구를 서버/도구 형식으로, 호출 수 또는 그 안에서 보낸 시간 순으로 정렬합니다. AI Sessionizer의 Claude Code 플러그인이 각 호출을 관찰하며, 런타임 자체 도구는 세지 않습니다.",
+        "expressionLabels": [
+          "호출",
+          "호출 시간"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "편집 권한 결정",
         "tip": "편집 도구의 권한 요청에 대한 승인과 거절 횟수. Claude Code 자체 익스포터에서만 제공됩니다."
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "호출",
+        "tip": "AI Sessionizer의 Claude Code 플러그인이 관찰한 이 도구에 대한 호출로, 각 호출이 끝난 분에 집계됩니다."
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "결과별 호출",
+        "tip": "런타임의 훅이 보고한 호출 결과로, returned, failed 또는 interrupted입니다. 서버가 반환한 오류, 끊긴 연결, 시간 초과는 모두 failed입니다."
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "평균 시간",
+        "tip": "런타임이 각 호출 전후로 측정한 시간을 구간의 호출에 대해 평균한 값입니다. 호출이 시작되기 전의 대기 시간도 포함하므로 서버 자체의 시간이 아닙니다."
+      },
+      {
+        "id": "mcp_time",
+        "title": "호출 시간",
+        "tip": "같은 시간을 구간의 호출에 대해 합한 값으로, 에이전트가 이 도구에서 보낸 시간입니다."
       }
     ]
   }

@@ -2,7 +2,8 @@
   "alias": "Agentes de IA",
   "slots": {
     "services": "Agentes",
-    "instances": "Runtimes de agente"
+    "instances": "Runtimes de agente",
+    "endpoints": "Herramientas MCP"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "Decisiones de permiso de edición",
         "tip": "Solicitudes de permiso aceptadas y rechazadas en las herramientas de edición. Solo desde el exportador propio de Claude Code."
+      },
+      {
+        "id": "mcp_tools",
+        "title": "Herramientas MCP",
+        "tip": "Cada servidor MCP y herramienta que llamó el agente, como servidor/herramienta, ordenados por sus llamadas o por el tiempo pasado en ellas. El plugin de Claude Code del AI Sessionizer observa cada llamada; las herramientas propias del runtime no se cuentan.",
+        "expressionLabels": [
+          "Llamadas",
+          "Tiempo en llamadas"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "Decisiones de permiso de edición",
         "tip": "Solicitudes de permiso aceptadas y rechazadas en las herramientas de edición. Solo desde el exportador propio de Claude Code."
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "Llamadas",
+        "tip": "Llamadas a esta herramienta que observó el plugin de Claude Code del AI Sessionizer, contadas en el minuto en que terminó cada una."
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "Llamadas por resultado",
+        "tip": "returned, failed o interrupted, según informó el hook del runtime sobre la llamada. Un error que devolvió el servidor, una conexión perdida y un tiempo de espera agotado son todos failed."
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "Tiempo medio",
+        "tip": "El tiempo que el runtime midió alrededor de cada llamada, promediado sobre las llamadas del intervalo. Incluye cualquier espera antes de que empezara la llamada, así que no es el tiempo propio del servidor."
+      },
+      {
+        "id": "mcp_time",
+        "title": "Tiempo en llamadas",
+        "tip": "El mismo tiempo, sumado sobre las llamadas del intervalo: cuánto tiempo pasó el agente en esta herramienta."
       }
     ]
   }

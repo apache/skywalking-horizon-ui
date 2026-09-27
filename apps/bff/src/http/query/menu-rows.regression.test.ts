@@ -243,13 +243,13 @@ describe('layers added after the transcript', () => {
     for (const k of POST_TRANSCRIPT_LAYERS) expect(keys).toContain(k);
   });
 
-  it('AI_AGENT has its Service and Senders rows, then its own Conversations tab', () => {
+  it('AI_AGENT has its Agents, Agent runtimes and MCP tools rows, then its own Conversations tab', () => {
     const ai = bundledLayers().find((l) => l.key === 'AI_AGENT')!;
-    // The frozen sidebar knows only the two generic rows; the Conversations
-    // tab is the layer's own, which is why it is not a regression subject
-    // above.
-    expect(oracleSidebarRows(ai.legacy)).toEqual(['service', 'instance']);
-    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['service', 'instance', 'conversations']);
+    // The frozen sidebar knows only the generic rows; the Conversations tab
+    // is the layer's own, which is why it is not a regression subject above.
+    // The endpoint row holds the MCP tools, one per server and tool.
+    expect(oracleSidebarRows(ai.legacy)).toEqual(['service', 'instance', 'endpoint']);
+    expect(resolveLayerMenuRows(ai.def).map((r) => r.path)).toEqual(['service', 'instance', 'endpoint', 'conversations']);
     expect(firstLayerMenuRow(ai.def)).toBe('service');
     expect(isSingleFeatureLayer(ai.def)).toBe(false);
   });
