@@ -2,7 +2,8 @@
   "alias": "Agents IA",
   "slots": {
     "services": "Agents",
-    "instances": "Runtimes d’agent"
+    "instances": "Runtimes d’agent",
+    "endpoints": "Outils MCP"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "Décisions de permission d'édition",
         "tip": "Demandes de permission acceptées et refusées sur les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      },
+      {
+        "id": "mcp_tools",
+        "title": "Outils MCP",
+        "tip": "Les 20 principaux outils MCP de l'agent, sous la forme serveur/outil. La valeur d'un outil est la moyenne de ses intervalles avec des appels (une minute, une heure ou un jour, selon la plage de temps), comme OAP les classe, et non son total sur la plage. Le plugin Claude Code de l'AI Sessionizer observe chaque appel ; les outils propres au runtime ne sont pas comptés.",
+        "expressionLabels": [
+          "Appels par intervalle",
+          "Temps dans les appels par intervalle"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "Décisions de permission d'édition",
         "tip": "Demandes de permission acceptées et refusées sur les outils d'édition. Uniquement depuis l'exportateur propre de Claude Code."
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "Appels",
+        "tip": "Appels à cet outil que le plugin Claude Code de l'AI Sessionizer a observés, comptés à la minute où chacun s'est terminé."
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "Appels par résultat",
+        "tip": "returned, failed ou interrupted, selon ce que le hook du runtime a rapporté de l'appel. Une erreur renvoyée par le serveur, une connexion perdue et un délai dépassé sont tous failed."
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "Temps moyen",
+        "tip": "Le temps que le runtime a mesuré autour de chaque appel, en moyenne sur les appels de l'intervalle. Il inclut toute attente avant le début de l'appel, ce n'est donc pas le temps propre du serveur."
+      },
+      {
+        "id": "mcp_time",
+        "title": "Temps dans les appels",
+        "tip": "Le même temps, additionné sur les appels de l'intervalle : combien de temps l'agent a passé dans cet outil."
       }
     ]
   }

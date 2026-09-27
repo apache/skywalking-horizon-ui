@@ -2,7 +2,8 @@
   "alias": "AI 智能体",
   "slots": {
     "services": "智能体",
-    "instances": "智能体运行时"
+    "instances": "智能体运行时",
+    "endpoints": "MCP 工具"
   },
   "layer-header": {
     "columns": [
@@ -69,6 +70,15 @@
         "id": "edit_decisions",
         "title": "编辑权限决定",
         "tip": "编辑工具权限请求的允许与拒绝次数。只来自 Claude Code 自带的导出器。"
+      },
+      {
+        "id": "mcp_tools",
+        "title": "MCP 工具",
+        "tip": "智能体排名前 20 的 MCP 工具，写作 服务器/工具。一个工具的值是它有调用的各时间桶（按时间范围为一分钟、一小时或一天）的平均值，这是 OAP 的排序方式，而不是整个时间范围内的总量。AI Sessionizer 的 Claude Code 插件观测每次调用；运行时自带的工具不计入。",
+        "expressionLabels": [
+          "每个时间桶的调用",
+          "每个时间桶的调用耗时"
+        ]
       }
     ],
     "instance": [
@@ -125,6 +135,28 @@
         "id": "edit_decisions",
         "title": "编辑权限决定",
         "tip": "编辑工具权限请求的允许与拒绝次数。只来自 Claude Code 自带的导出器。"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "mcp_calls",
+        "title": "调用",
+        "tip": "AI Sessionizer 的 Claude Code 插件观测到的对该工具的调用，计入每次调用结束的那一分钟。"
+      },
+      {
+        "id": "mcp_calls_by_outcome",
+        "title": "按结果的调用",
+        "tip": "运行时的钩子报告的调用结果：returned、failed 或 interrupted。服务器返回的错误、断开的连接与超时都算作 failed。"
+      },
+      {
+        "id": "mcp_average_time",
+        "title": "平均耗时",
+        "tip": "运行时在每次调用前后测得的时间，按时间桶内的调用取平均。其中包含调用开始前的等待，因此不是服务器自身的时间。"
+      },
+      {
+        "id": "mcp_time",
+        "title": "调用耗时",
+        "tip": "同一时间在时间桶内的调用上求和：智能体在该工具上花费了多久。"
       }
     ]
   }
