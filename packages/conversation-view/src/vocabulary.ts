@@ -24,7 +24,7 @@ import type { ViewStrings } from './strings.js';
  * tokens — and `title` names the key in {@link ViewStrings} for the kind's
  * plain-English name.
  */
-export type Track = 'input' | 'messages' | 'context' | 'model' | 'tools' | 'agents' | 'annotation';
+export type Track = 'input' | 'messages' | 'context' | 'model' | 'tools' | 'mcp' | 'agents' | 'annotation';
 export type KindType = 'user' | 'assistant' | 'subagent-response' | 'model' | 'tool' | 'agent' | 'instruction' | 'annotation' | 'error';
 
 export interface KindMeta {
@@ -70,7 +70,7 @@ export function kindTitle(kind: string, s: ViewStrings): string {
 /** The kinds that are structure, not steps. Everything else is a step. */
 export const CONTAINER_KINDS: ReadonlySet<string> = new Set(['talk', 'run', 'stream', 'segment', 'session', 'epoch']);
 
-export const TRACKS: readonly Track[] = ['input', 'messages', 'context', 'model', 'tools', 'agents', 'annotation'];
+export const TRACKS: readonly Track[] = ['input', 'messages', 'context', 'model', 'tools', 'mcp', 'agents', 'annotation'];
 
 export const TRACK_NAME: Record<Track, keyof ViewStrings> = {
   input: 'laneInput',
@@ -78,6 +78,7 @@ export const TRACK_NAME: Record<Track, keyof ViewStrings> = {
   context: 'laneContext',
   model: 'laneModel',
   tools: 'laneTools',
+  mcp: 'laneMcp',
   agents: 'laneAgents',
   annotation: 'laneNotices',
 };

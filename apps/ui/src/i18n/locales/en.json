@@ -3419,5 +3419,20 @@
   "Now": "Now",
   "edge metrics queried as": "edge metrics queried as",
   "No server-side metrics.": "No server-side metrics.",
-  "No client-side metrics.": "No client-side metrics."
+  "No client-side metrics.": "No client-side metrics.",
+  "Execution": "Execution",
+  "What the observer around this call saw it do — open the Execution tab": "What the observer around this call saw it do — open the Execution tab",
+  "{n} more": "{n} more",
+  "{n} execution records — open the Execution tab →": "{n} execution records — open the Execution tab →",
+  "MCP server": "MCP server",
+  "MCP tool": "MCP tool",
+  "Observed by": "Observed by",
+  "Configured in": "Configured in",
+  "Measured time": "Measured time",
+  "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.": "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.",
+  "not reported": "not reported",
+  "Sent to the server": "Sent to the server",
+  "Came back": "Came back",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
+  "execution record": "execution record"
 }

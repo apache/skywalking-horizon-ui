@@ -29,6 +29,7 @@ import { fill } from '../strings.js';
 import type { AszRef, LandedRecord } from '../types.js';
 import { kindTitle } from '../vocabulary.js';
 import { drawChangesTab } from './changes.js';
+import { drawExecutionTab } from './executions.js';
 import { drawPrompt, hasPrompt } from './prompt.js';
 import { streamName, type InspectorTab, type ViewContext } from './context.js';
 import { clipNote, copyButton, copyField, textBody } from './structured.js';
@@ -53,6 +54,9 @@ export function drawInspector(ctx: ViewContext): void {
   const changesTab = ctx.q<HTMLButtonElement>('[data-tab="changes"]');
   const hasChanges = !!(e && m.changesOf(e.id).length);
   changesTab.hidden = !hasChanges;
+  const executionTab = ctx.q<HTMLButtonElement>('[data-tab="execution"]');
+  const hasExecutions = !!(e && m.executionsOf(e.id).length);
+  executionTab.hidden = !hasExecutions;
   // What the reader chose stays chosen. A step this tab has nothing for is drawn as details, and the
   // choice comes back on the next step that has it, so walking a run does not drop the reader out of
   // the prompt or the relations every time a step in between has none.
@@ -61,6 +65,7 @@ export function drawInspector(ctx: ViewContext): void {
     evidence: true,
     relations: hasRels,
     changes: hasChanges,
+    execution: hasExecutions,
     prompt: prompts,
   };
   const tab: InspectorTab = offered[state.tab] ? state.tab : 'details';
@@ -79,6 +84,7 @@ export function drawInspector(ctx: ViewContext): void {
   if (tab === 'details') drawDetails(ctx, body, e);
   else if (tab === 'relations') drawRelations(ctx, body, e);
   else if (tab === 'changes') drawChangesTab(ctx, body, e);
+  else if (tab === 'execution') drawExecutionTab(ctx, body, e);
   else if (tab === 'prompt') drawPrompt(ctx, body, e);
   else void drawEvidence(ctx, body, e);
 }
@@ -198,6 +204,10 @@ function drawDetails(ctx: ViewContext, body: HTMLElement, e: Step): void {
     html += `<dt></dt><dd><div class="acv-warning" style="margin:0"><strong>${esc(s.requestToResultWhat)}</strong><br>${esc(s.requestToResultText)}</div></dd>`;
   }
   if (e.name) html += field(s.name, esc(e.name));
+  if (e.mcp) {
+    html += field(s.mcpServer, esc(e.mcp.server), true);
+    html += field(s.mcpTool, esc(e.mcp.tool), true);
+  }
   if (e.failed !== undefined) html += field(s.failedField, e.failed ? esc(s.yes) : esc(s.no));
   if (e.state) html += field(s.contentState, esc(e.state));
   if (e.bytes) html += field(s.contentBytes, f.number(e.bytes));
@@ -235,10 +245,15 @@ function drawDetails(ctx: ViewContext, body: HTMLElement, e: Step): void {
   if (changes) {
     html += `<button type="button" class="acv-linkish acv-to-changes" data-to-changes>${esc(fill(s.changeRecordsForStep, { n: changes }))}</button>`;
   }
+  const executions = m.executionsOf(e.id).length;
+  if (executions) {
+    html += `<button type="button" class="acv-linkish acv-to-changes" data-to-execution>${esc(fill(s.executionRecordsForStep, { n: executions }))}</button>`;
+  }
   if (state.navStack.length) html += `<button type="button" class="acv-btn" style="margin-top:12px" data-back-parent>${esc(s.backToParentStream)}</button>`;
   body.innerHTML = html;
   body.querySelector<HTMLElement>('[data-to-relations]')?.addEventListener('click', () => ctx.showTab('relations'));
   body.querySelector<HTMLElement>('[data-to-changes]')?.addEventListener('click', () => ctx.showTab('changes'));
+  body.querySelector<HTMLElement>('[data-to-execution]')?.addEventListener('click', () => ctx.showTab('execution'));
   body.querySelector<HTMLElement>('[data-back-parent]')?.addEventListener('click', () => ctx.goBack());
   body.querySelectorAll<HTMLElement>('[data-copy]').forEach((b) =>
     b.addEventListener('click', (ev) => {
@@ -304,7 +319,7 @@ function detailBlock(ctx: ViewContext, e: Step, text: string, bytes: number | un
  *  The whole record is one more read away, offered only when the host can
  *  make it. */
 async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promise<void> {
-  const { s, f, state } = ctx;
+  const { s, f, model: m, state } = ctx;
   const refs: AszRef[] = (e.ref ? [e.ref] : []).concat(e.refs ?? []);
   const seen = new Set<string>();
   const list = refs.filter((r) => {
@@ -313,9 +328,9 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
     seen.add(k);
     return true;
   });
-  // A change record's landed position is evidence of this step too, and the
-  // plugin's records sit in a file of their own that none of the step's refs
-  // name: it joins the chips when the reader arrived from one.
+  // A change or execution record's landed position is evidence of this step
+  // too, and the plugin's records sit in files of their own that none of the
+  // step's refs name: it joins the chips when the reader arrived from one.
   const same = (a: AszRef, b: AszRef): boolean => a.seq === b.seq && a.row === b.row && (a.block ?? null) === (b.block ?? null);
   const own = list.length;
   if (state.rawRef && !list.some((r) => same(r, state.rawRef!))) list.push(state.rawRef);
@@ -326,7 +341,9 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
   const pick = (state.rawRef && list.find((r) => same(r, state.rawRef!))) ?? list[0]!;
   const role = (i: number): string =>
     i >= own
-      ? s.changeRecordRef
+      ? m.executionsOf(e.id).some((x) => same(x.ref, list[i]!))
+        ? s.executionRecordRef
+        : s.changeRecordRef
       : e.kind === 'tool' || e.kind === 'agent.call'
         ? i === 0
           ? s.request

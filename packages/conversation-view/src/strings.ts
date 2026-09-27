@@ -81,6 +81,7 @@ export interface ViewStrings {
   reasoning: string;
   toolWord: string;
   callWord: string;
+  mcpWord: string;
   turn: string;
   input: string;
   result: string;
@@ -119,6 +120,7 @@ export interface ViewStrings {
   laneContext: string;
   laneModel: string;
   laneTools: string;
+  laneMcp: string;
   laneAgents: string;
   laneNotices: string;
   laneNested: string;
@@ -234,6 +236,23 @@ export interface ViewStrings {
   // Workspace changes: the tool card's pill, the inline details, the
   // inspector tab and the conversation-level panel
   changes: string;
+  // Execution records: what an observer around a call to an MCP server saw
+  // it do, on the card's pill and in the inspector tab.
+  execution: string;
+  executionPillTitle: string;
+  moreObservations: string;
+  executionRecordsForStep: string;
+  executionRecordRef: string;
+  mcpServer: string;
+  mcpTool: string;
+  observedBy: string;
+  configuredIn: string;
+  measuredTime: string;
+  measuredTimeText: string;
+  notReported: string;
+  sentToServer: string;
+  cameBack: string;
+  sizeAndDigest: string;
   // The prompt of a call: the bodies it exchanged with the model provider.
   prompt: string;
   promptNotHere: string;
@@ -391,6 +410,7 @@ export const ENGLISH: ViewStrings = {
   reasoning: 'Reasoning',
   toolWord: 'Tool',
   callWord: 'call',
+  mcpWord: 'MCP',
   turn: 'turn',
   input: 'input',
   result: 'result',
@@ -427,6 +447,7 @@ export const ENGLISH: ViewStrings = {
   laneContext: 'Context put in',
   laneModel: 'Model calls',
   laneTools: 'Tools',
+  laneMcp: 'MCP',
   laneAgents: 'Agent activity',
   laneNotices: 'Runtime notices',
   laneNested: 'Nested streams',
@@ -541,6 +562,21 @@ export const ENGLISH: ViewStrings = {
   close: 'Close',
   whatDoesMean: 'What does {key} mean?',
   changes: 'Changes',
+  execution: 'Execution',
+  executionPillTitle: 'What the observer around this call saw it do — open the Execution tab',
+  moreObservations: '{n} more',
+  executionRecordsForStep: '{n} execution records — open the Execution tab →',
+  executionRecordRef: 'execution record',
+  mcpServer: 'MCP server',
+  mcpTool: 'MCP tool',
+  observedBy: 'Observed by',
+  configuredIn: 'Configured in',
+  measuredTime: 'Measured time',
+  measuredTimeText: "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.",
+  notReported: 'not reported',
+  sentToServer: 'Sent to the server',
+  cameBack: 'Came back',
+  sizeAndDigest: '{bytes} B · SHA-256 {digest}',
   prompt: 'Prompt',
   promptNotHere: 'The bodies of this call are not among the files this document lists.',
   promptBothStored: 'The request this call sent and the response it received are stored.',

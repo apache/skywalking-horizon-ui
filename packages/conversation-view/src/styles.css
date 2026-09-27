@@ -436,6 +436,9 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-change-pill.readonly .acv-ico { color: var(--acv-faint); }
 .acv-change-pill.unknown,
 .acv-change-pill.none { border-style: dashed; background: transparent; color: var(--acv-muted); font-weight: 500; }
+.acv-execution-pill { display: inline-flex; align-items: center; margin-left: 2px; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--acv-kind-tool) 50%, transparent); border-radius: 999px; background: transparent; color: var(--acv-muted); font-size: 10px; font-weight: 600; line-height: 1.6; cursor: pointer; }
+.acv-execution-pill:hover { background: color-mix(in srgb, var(--acv-kind-tool) 14%, transparent); color: var(--acv-text); }
+.acv-execution-pill.failed { border-color: color-mix(in srgb, var(--acv-kind-error) 60%, transparent); color: var(--acv-kind-error); }
 .acv-file-counts { font-family: var(--acv-mono); font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .acv-add { color: var(--sw-ok); }
 .acv-del { color: var(--sw-err); }

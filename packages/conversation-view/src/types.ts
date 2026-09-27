@@ -102,11 +102,59 @@ export interface AszNode {
    *  `workspace_changes` lists them. Not unique across producers: the join
    *  is `WorkspaceChange.step`, this list only says there are some. */
   changes?: string[];
+  /** Ids of the execution records joined to this step, in the order
+   *  `tool_executions` lists them. The join is `AszToolExecution.step`; one
+   *  call can have several records, one per observation. */
+  executions?: string[];
   /** Where this call's request and response landed, when they were captured.
    *  A call may list one of them, both, or neither. */
   provider_bodies?: AszProviderBody[];
   children?: AszNode[];
   edges?: AszEdge[];
+}
+
+/** What an execution record keeps of the value sent to the server or the
+ *  one that came back: its size and its digest, never the value. */
+export interface AszExecutionValue {
+  /** `size_only`. */
+  state: string;
+  bytes: number;
+  sha256?: string;
+}
+
+/**
+ * One `execution/1` record with the step it joins to and where it was read
+ * from, as `tool_executions` lists them: what one observer around a tool call
+ * saw it do. One call can have several records. `step` is the join, `""`
+ * when no step carries the call's tool-use id.
+ */
+export interface AszToolExecution {
+  step: string;
+  ref: AszRef;
+  schema: string;
+  id: string;
+  /** Who observed the call, such as `asz-plugin`. */
+  observed_by: string;
+  /** Where the observer stood, such as `client_hook`: the runtime's hook after the call. */
+  boundary: string;
+  session: string;
+  stream: string;
+  tool: string;
+  tool_name?: string;
+  cwd?: string;
+  /** `mcp`. */
+  protocol: string;
+  /** The server by the name it was configured with, and where that configuration came from. */
+  server?: { name: string; source?: string };
+  /** RFC 3339, when the observation ended. */
+  time: string;
+  /** The time the runtime measured around the call, waiting included; absent when the observer did not say. */
+  duration_ms?: number;
+  /** `returned` | `failed` | `interrupted`. */
+  outcome: string;
+  arguments?: AszExecutionValue;
+  /** Only on a call that returned. */
+  result?: AszExecutionValue;
 }
 
 /** One side of a file before or after a change. `bytes` is null when the
@@ -318,6 +366,9 @@ export interface AszViewDocument {
   /** Every change record of the session in time order; absent from a
    *  document written before the records existed, `[]` when none. */
   workspace_changes?: AszWorkspaceChange[];
+  /** Every execution record of the session in time order; absent from a
+   *  document written before the records existed, `[]` when none. */
+  tool_executions?: AszToolExecution[];
 }
 
 export const ASZ_VIEW_FORMAT = 'asz.view';

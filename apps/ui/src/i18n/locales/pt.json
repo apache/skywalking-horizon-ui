@@ -3419,5 +3419,20 @@
   "Now": "Agora",
   "edge metrics queried as": "métricas de aresta consultadas como",
   "No server-side metrics.": "Nenhuma métrica do lado servidor.",
-  "No client-side metrics.": "Nenhuma métrica do lado cliente."
+  "No client-side metrics.": "Nenhuma métrica do lado cliente.",
+  "Execution": "Execução",
+  "What the observer around this call saw it do — open the Execution tab": "O que o observador em torno desta chamada viu que ela fez — abrir a aba Execução",
+  "{n} more": "mais {n}",
+  "{n} execution records — open the Execution tab →": "{n} registros de execução — abrir a aba Execução →",
+  "MCP server": "Servidor MCP",
+  "MCP tool": "Ferramenta MCP",
+  "Observed by": "Observado por",
+  "Configured in": "Configurado em",
+  "Measured time": "Tempo medido",
+  "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.": "O tempo que o runtime mediu em torno da chamada. Inclui qualquer espera antes de a chamada começar, portanto não é o tempo do próprio servidor.",
+  "not reported": "não informado",
+  "Sent to the server": "Enviado ao servidor",
+  "Came back": "Retornado",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
+  "execution record": "registro de execução"
 }

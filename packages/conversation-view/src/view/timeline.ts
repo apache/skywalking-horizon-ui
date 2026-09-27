@@ -457,11 +457,14 @@ export function paintViewport(ctx: ViewContext): void {
     const mark = e.hasChanges
       ? icon(tallyChanges(ctx.model.changesOf(e.id)).observation === 'skipped' ? ICON_READONLY : ICON_CHANGES, 'acv-clip-mark')
       : '';
+    // A call to an MCP server sits on its own lane, named by its server and tool, with how its first observation ended.
+    const observed = ctx.model.executionsOf(e.id)[0];
+    const label = says ? says.says : e.mcp ? `${e.mcp.server} · ${e.mcp.tool}` : e.name || kindTitle(e.kind, s);
     html += `<button type="button" class="acv-clip acv-kind-${e.type}${e.id === state.sel ? ' selected' : ''}${
       p.near && !p.near.has(e.id) ? ' dim' : ''
     }${mark ? ' marked' : ''}" data-node="${esc(e.id)}" data-talk="${esc(e.talk ?? '')}" title="${esc(e.at ? `${f.time(e.at)} · ` : '')}${esc(kindTitle(e.kind, s))}${
       e.name ? ` · ${esc(e.name)}` : ''
-    }${mark ? ` · ${esc(s.changes)}` : ''}" style="left:${q.x}px;top:${q.y}px;width:${q.w}px">${mark}${esc(says ? says.says : e.name || kindTitle(e.kind, s))}</button>`;
+    }${observed ? ` · ${esc(observed.outcome)}` : ''}${mark ? ` · ${esc(s.changes)}` : ''}" style="left:${q.x}px;top:${q.y}px;width:${q.w}px">${mark}${esc(label)}</button>`;
   }
   for (const fo of p.folders) {
     const q = p.fpos.get(fo.key)!;

@@ -3419,5 +3419,20 @@
   "Now": "Jetzt",
   "edge metrics queried as": "Kantenmetriken, abgefragt als",
   "No server-side metrics.": "Keine serverseitigen Metriken.",
-  "No client-side metrics.": "Keine clientseitigen Metriken."
+  "No client-side metrics.": "Keine clientseitigen Metriken.",
+  "Execution": "Ausführung",
+  "What the observer around this call saw it do — open the Execution tab": "Was der Beobachter um diesen Aufruf herum gesehen hat — Tab „Ausführung“ öffnen",
+  "{n} more": "{n} weitere",
+  "{n} execution records — open the Execution tab →": "{n} Ausführungsdatensätze — Tab „Ausführung“ öffnen →",
+  "MCP server": "MCP-Server",
+  "MCP tool": "MCP-Werkzeug",
+  "Observed by": "Beobachtet von",
+  "Configured in": "Konfiguriert in",
+  "Measured time": "Gemessene Zeit",
+  "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.": "Die Zeit, die die Laufzeit um den Aufruf gemessen hat. Sie enthält jedes Warten vor dem Start des Aufrufs und ist daher nicht die eigene Zeit des Servers.",
+  "not reported": "nicht gemeldet",
+  "Sent to the server": "An den Server gesendet",
+  "Came back": "Zurückgekommen",
+  "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
+  "execution record": "Ausführungsdatensatz"
 }

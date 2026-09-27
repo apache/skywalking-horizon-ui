@@ -29,6 +29,7 @@ import { fill } from '../strings.js';
 import { injectionSays, kindTitle, QUIET_MS } from '../vocabulary.js';
 import { changePill, inlineChanges, redrawBoth } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
+import { executionPill } from './executions.js';
 import { clipNote, copyButton, copyField, textBody } from './structured.js';
 
 /** Characters past which a card clamps a text with a fade and offers the rest. */
@@ -102,7 +103,10 @@ function present(ctx: ViewContext, e: Step): Presentation {
     case 'thinking':
       return { cls: `acv-activity${child}`, role: `${agent} · ${s.reasoning}`, color: 'model' };
     case 'tool':
-      return { cls: `acv-activity${child}`, role: `${agent} → ${s.toolWord} · ${e.name || s.callWord}`, color: 'tool' };
+      // A call to an MCP server names the server; its tool is the card's title.
+      return e.mcp
+        ? { cls: `acv-activity${child}`, role: `${agent} → ${s.mcpWord} · ${e.mcp.server}`, color: 'tool' }
+        : { cls: `acv-activity${child}`, role: `${agent} → ${s.toolWord} · ${e.name || s.callWord}`, color: 'tool' };
     default:
       return { cls: `acv-activity${child}`, role: `${agent} · ${kindTitle(e.kind, s)}`, color: 'instruction' };
   }
@@ -128,7 +132,9 @@ export function stepCard(ctx: ViewContext, e: Step, prev: Step | undefined, near
     ? `${f.duration(e.durationMs)} ${s.turn}`
     : e.kind === 'context.injection' && injectionSays(e.text)
       ? injectionSays(e.text)!.says
-      : e.name || kindTitle(e.kind, s);
+      : e.mcp
+        ? `${e.mcp.server} · ${e.mcp.tool}`
+        : e.name || kindTitle(e.kind, s);
   // A card is a div, not a button: the change pill and the file rows inside
   // it are buttons of their own, and a button cannot hold buttons. The list's
   // key handler gives it Enter and Space.
@@ -141,7 +147,7 @@ export function stepCard(ctx: ViewContext, e: Step, prev: Step | undefined, near
     <span class="acv-content">
       <span class="acv-role">${esc(p.role)}</span>
       <span class="acv-title acv-kind-${p.color}"><span class="acv-type-mark"></span>${esc(title)}
-        <span class="acv-mini">${e.bytes ? `${f.number(e.bytes)} B` : ''}</span> ${unavailable}${changePill(ctx, e)}</span>
+        <span class="acv-mini">${e.bytes ? `${f.number(e.bytes)} B` : ''}</span> ${unavailable}${changePill(ctx, e)}${executionPill(ctx, e)}</span>
       ${
         e.text
           ? `${e.result ? `<span class="acv-result-label">${esc(s.input)}${e.bytes ? ` · ${f.number(e.bytes)} B` : ''}</span>` : ''}
@@ -318,6 +324,13 @@ export function bindTranscript(ctx: ViewContext): void {
       ev.stopPropagation();
       ctx.select(toChanges.dataset.toChanges!, true, false);
       ctx.showTab('changes');
+      return;
+    }
+    const toExecution = target.closest<HTMLElement>('[data-to-execution]');
+    if (toExecution) {
+      ev.stopPropagation();
+      ctx.select(toExecution.dataset.toExecution!, true, false);
+      ctx.showTab('execution');
       return;
     }
     const card = target.closest<HTMLElement>('[data-card]');

@@ -22,7 +22,7 @@ import type { AszRef, Glossary, LandedRecord } from '../types.js';
 import type { PromptCache } from '../prompt/cache.js';
 import type { StoredFile } from '../prompt/store.js';
 
-export type InspectorTab = 'details' | 'relations' | 'evidence' | 'changes' | 'prompt';
+export type InspectorTab = 'details' | 'relations' | 'evidence' | 'changes' | 'execution' | 'prompt';
 
 /** What the reader is looking at. The three fields a host round-trips through
  *  its URL are the talk, the selected step and the stream; the rest is local. */
