@@ -49,7 +49,7 @@ Before opening a agent, the layer landing page lists every agent with two sortab
 
 ## Agent dashboard
 
-The primary drill-down for one selected agent. Four widgets are always shown; seven more appear only when Claude Code's own exporter reports, because a Sessionizer-only deployment never has those metrics and a permanently empty widget would read as broken. The last, **MCP tools**, appears only when the agent called an MCP server.
+The primary drill-down for one selected agent. Four widgets are always shown; seven more appear only when Claude Code's own exporter reports, because a Sessionizer-only deployment never has those metrics and a permanently empty widget would read as broken. The last, **MCP tools**, is empty for an agent that called no MCP server.
 
 **Tokens, from either agent runtime**
 
@@ -105,7 +105,7 @@ Each MCP tool of an agent is one entity, named `<server>/<tool>`: the server the
 
 - **Cache reads dominate.** On one five-day conversation they were 98% of all tokens. That is why the type widget draws separate lines and why the share is worth its own widget.
 
-- **An MCP call's time is not the server's time.** The runtime measures it around the call, from its hook before the call to its hook after, so it includes any waiting before the call started. A call the runtime refused never reaches a hook and is not counted.
+- **An MCP call's time is not the server's time.** The runtime measures it around the call, and it includes any waiting before the call started. A call the runtime refused never reaches a hook and is not counted.
 
 - **Derived series never overlap in time.** When a subagent's file lands later than its parent's, its tokens may be placed after the series' last point rather than at the minute they happened. The conversation document itself always knows a session's tokens exactly, on its model-call steps.
 

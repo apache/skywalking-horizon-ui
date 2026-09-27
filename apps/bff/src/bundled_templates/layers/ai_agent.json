@@ -210,11 +210,6 @@
         ],
         "expressionLabels": ["Calls per bucket", "Time in calls per bucket"],
         "expressionUnits": ["calls", "ms"],
-        "visibleWhen": {
-          "kind": "mqe",
-          "expression": "top_n(meter_ai_agent_mcp_calls,20,des)",
-          "op": "exists"
-        },
         "span": 12,
         "rowSpan": 3
       }
