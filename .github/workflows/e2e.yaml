@@ -98,22 +98,24 @@
 #             GenAI spans and its service dashboard's card widgets — and
 #             the Evaluation records tab: the page-owned provider picker,
 #             the judged rows from each source, and the trace link opening
-#             the native popout for one source and the Zipkin popout for
-#             the other, each looked up at the record's own time
+#             the native popout, looked up at the record's own time
 #             components: LayerEvaluationRecordView,
-#             EvaluationRecordStreamPanel, TracePopout, ZipkinTracePopout,
+#             EvaluationRecordStreamPanel, TracePopout,
 #             LayerWidgetTile's card branch
 #
-#   ai-agent  plus a real AI Sessionizer, pushing one conversation   ACTIVE
-#             the `provider-bodies` scenario built and pushed once, which is
-#             a chain of rounds rather than traffic: talks with an input and
-#             a reply, a shell command run by a child agent, and the request
-#             and response bodies behind every model call
+#   ai-agent  plus a real AI Sessionizer, pushing two conversations  ACTIVE
+#             the `provider-bodies` and `mcp-calls` scenarios built and
+#             pushed once, which is a chain of rounds rather than traffic:
+#             talks with an input and a reply, a shell command run by a
+#             child agent, the request and response bodies behind every
+#             model call, and calls to MCP servers with what each one did
 #             tests: the AI_AGENT layer's Conversations tab and one
 #             conversation drawn in full — the transcript both ways, a Bash
 #             call as the lines it ran and what it returned, and the Prompt
 #             tab rebuilding a provider body from the files route, reading
-#             the session once however many calls are opened
+#             the session once however many calls are opened; and a call to
+#             an MCP server on its own lane, its Execution tab, and each
+#             Evidence chip showing what the document carries for it
 #             components: LayerConversationsView, ConversationPageView,
 #             ConversationViewHost, the conversation-view renderer
 #

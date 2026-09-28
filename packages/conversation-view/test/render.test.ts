@@ -231,6 +231,20 @@ describe('mounting the fixture', () => {
     expect(body.querySelector('[data-load-record]')).toBeNull();
   });
 
+  it('shows a call’s request text on its request position and its result on its result position', () => {
+    const { root } = mount();
+    const m = new ConversationModel(fixture);
+    const call = [...m.stepById.values()].find((s) => s.kind === 'tool' && s.text && s.result && s.result !== s.text && (s.refs?.length ?? 0) > 1)!;
+    view!.setState({ step: call.id });
+    (root.querySelector('[data-tab="evidence"]') as HTMLButtonElement).click();
+    const block = (): string => root.querySelector('.acv-inspector-body .acv-block')!.textContent!;
+    expect(block()).toBe(call.text);
+    root.querySelectorAll<HTMLButtonElement>('.acv-ref-chip')[1]!.click();
+    expect(root.querySelector('.acv-ref-chip.on')!.textContent).toContain('result');
+    expect(root.querySelector('.acv-inspector-body')!.textContent).toContain('the call’s result as the document carries it');
+    expect(block()).toBe(call.result);
+  });
+
   it('starts on a broken chain with its problems on screen', () => {
     const broken: AszViewDocument = {
       ...fixture,

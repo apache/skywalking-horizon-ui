@@ -375,8 +375,8 @@ describe('where a datasource answers', () => {
   });
 
   it('answers empty when there is nothing to ask', () => {
-    // No service configured at all, or a path deliberately blanked here.
-    expect(traceqlUrlFor(cfg({ nativePath: '/skywalking' }), 'native')).toBe('');
+    // The service turned off with an empty url, or a path deliberately blanked here.
+    expect(traceqlUrlFor(cfg({ url: '', nativePath: '/skywalking' }), 'native')).toBe('');
     expect(traceqlUrlFor(cfg({ url: TRACEQL_URL, zipkinPath: '' }), 'zipkin')).toBe('');
   });
 });

@@ -305,6 +305,10 @@ describe('the inspector', () => {
     root.querySelector<HTMLButtonElement>('.acv-inspector-body [data-to-evidence]')!.click();
     const chips = [...root.querySelectorAll('.acv-ref-chip')].map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
     expect(chips.some((c) => c?.includes('change record') && c.includes('seq 2 · row 1'))).toBe(true);
+    // The record picked is the one shown, not the step's own text.
+    const evidence = root.querySelector('.acv-inspector-body')!.textContent!;
+    expect(evidence).toContain('the record as the document carries it');
+    expect(evidence).toContain('"tool_window"');
     // Opening a file from the tab opens it on the card too; the activated row keeps focus.
     root.querySelector<HTMLButtonElement>('[data-tab="changes"]')!.click();
     const row = root.querySelector<HTMLButtonElement>('.acv-inspector-body [data-change-file]')!;
@@ -314,6 +318,15 @@ describe('the inspector', () => {
     root.querySelector<HTMLButtonElement>(`[data-card="${BASH}"] .acv-change-pill`)!.click();
     expect(root.querySelector(`[data-card="${BASH}"] .acv-diff`)).not.toBeNull();
     expect((document.activeElement as HTMLElement | null)?.dataset.changesToggle).toBe(BASH);
+  });
+
+  it('lists the change record on Evidence opened directly', () => {
+    const root = mount();
+    openFold(root);
+    view!.setState({ step: BASH });
+    root.querySelector<HTMLButtonElement>('[data-tab="evidence"]')!.click();
+    const chips = [...root.querySelectorAll('.acv-ref-chip')].map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
+    expect(chips.some((c) => c?.includes('change record') && c.includes('seq 2 · row 1'))).toBe(true);
   });
 
   it('matches the change record’s position by block, and drops it when the selection moves elsewhere', () => {

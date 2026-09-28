@@ -3358,7 +3358,7 @@
   "MAX": "最大",
   "which trace APIs this layer exposes — one sidebar row each": "该 layer 暴露哪些 Trace API —— 每个 API 在侧边栏中各占一行",
   "SkyWalking's own trace query.": "SkyWalking 自身的 trace 查询。",
-  "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.": "OAP 的 Zipkin v2 API，它同时提供 OAP 转换为 Zipkin 格式的 OpenTelemetry span。",
+  "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.": "OAP 的 Zipkin v2 API：以 Zipkin 协议发送的 span，以及配置为转换成 Zipkin 格式的 OAP 中的 OpenTelemetry span。",
   "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.": "基于原生 span 的 Grafana Tempo API。需要 OAP 的 traceQL 模块，并配置数据源 URL。",
   "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.": "基于 Zipkin span 的 Grafana Tempo API。需要 OAP 的 traceQL 模块，并配置数据源 URL。",
   "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.": "基于 OAP 原样存储、未做任何转换的 OTLP span 的 Grafana Tempo API。需要 OAP 的 traceQL 模块，并配置数据源 URL。",
@@ -3406,7 +3406,7 @@
   "Zipkin Traces": "Zipkin Trace",
   "TraceQL - Native": "TraceQL - Native",
   "TraceQL - Zipkin": "TraceQL - Zipkin",
-  "TraceQL - OTLP": "TraceQL - OTLP",
+  "OTLP Traces": "OTLP Trace",
   "Zipkin spans": "Zipkin span",
   "Natively stored OTLP spans": "原生存储的 OTLP span",
   "Menu name": "菜单名称",
@@ -3434,5 +3434,7 @@
   "Sent to the server": "发送给服务器",
   "Came back": "返回",
   "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
-  "execution record": "执行记录"
+  "execution record": "执行记录",
+  "the record as the document carries it": "文档所携带的记录",
+  "the call’s result as the document carries it": "文档所携带的调用结果"
 }

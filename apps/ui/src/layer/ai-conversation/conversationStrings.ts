@@ -202,6 +202,8 @@ export function conversationStrings(t: Translate): ViewStrings {
     part: t('part'),
     record: t('record'),
     clippedText: t('the text as the document carries it'),
+    recordAsCarried: t('the record as the document carries it'),
+    resultAsCarried: t('the call’s result as the document carries it'),
     fullTextNote: t('clipped: {shown} of {total} bytes', { shown: '{shown}', total: '{total}' }),
     loadFullRecord: t('Load the landed record'),
     loadingRecord: t('reading…'),

@@ -41,8 +41,9 @@ export type TraceSource = 'native' | 'zipkin' | 'both';
  * the string says which surface serves it rather than which release added it:
  *
  *  - `native`         — the SkyWalking query-protocol trace query
- *  - `zipkin`         — OAP's Zipkin v2 REST API, which also carries the
- *                       OpenTelemetry spans OAP converts into Zipkin form
+ *  - `zipkin`         — OAP's Zipkin v2 REST API: spans sent in Zipkin's
+ *                       protocol, and OpenTelemetry spans when OAP is set to
+ *                       convert them (`otlpTraceStorage: zipkin`)
  *  - `traceql-native` — the Tempo API over native spans
  *  - `traceql-zipkin` — the Tempo API over Zipkin spans
  *  - `traceql-otlp`   — the Tempo API over the OTLP spans OAP stores as they

@@ -3358,7 +3358,7 @@
   "MAX": "최대",
   "which trace APIs this layer exposes — one sidebar row each": "이 레이어가 노출하는 트레이스 API — 각각 사이드바 한 줄",
   "SkyWalking's own trace query.": "SkyWalking 자체 트레이스 조회.",
-  "OAP’s Zipkin v2 API, which also serves the OpenTelemetry spans OAP converts into Zipkin form.": "OAP의 Zipkin v2 API로, OAP가 Zipkin 형식으로 변환한 OpenTelemetry 스팬도 함께 제공합니다.",
+  "OAP’s Zipkin v2 API: spans sent in Zipkin’s protocol, and the OpenTelemetry spans of an OAP set to convert them into Zipkin form.": "OAP의 Zipkin v2 API로, Zipkin 프로토콜로 전송된 스팬과 Zipkin 형식으로 변환하도록 설정된 OAP의 OpenTelemetry 스팬을 제공합니다.",
   "Grafana Tempo’s API over the native spans. Needs OAP’s traceQL module and a configured datasource URL.": "네이티브 스팬에 대한 Grafana Tempo API. OAP의 traceQL 모듈과 데이터소스 URL 설정이 필요합니다.",
   "Grafana Tempo’s API over the Zipkin spans. Needs OAP’s traceQL module and a configured datasource URL.": "Zipkin 스팬에 대한 Grafana Tempo API. OAP의 traceQL 모듈과 데이터소스 URL 설정이 필요합니다.",
   "Grafana Tempo’s API over the OTLP spans OAP stored as they arrived, converting nothing. Needs OAP’s traceQL module and a configured datasource URL.": "OAP가 도착한 그대로 저장한 OTLP 스팬에 대한 Grafana Tempo API. 변환하지 않습니다. OAP의 traceQL 모듈과 데이터소스 URL 설정이 필요합니다.",
@@ -3406,7 +3406,7 @@
   "Zipkin Traces": "Zipkin 트레이스",
   "TraceQL - Native": "TraceQL - Native",
   "TraceQL - Zipkin": "TraceQL - Zipkin",
-  "TraceQL - OTLP": "TraceQL - OTLP",
+  "OTLP Traces": "OTLP 트레이스",
   "Zipkin spans": "Zipkin 스팬",
   "Natively stored OTLP spans": "네이티브로 저장된 OTLP 스팬",
   "Menu name": "메뉴 이름",
@@ -3434,5 +3434,7 @@
   "Sent to the server": "서버로 전송",
   "Came back": "돌아온 값",
   "{bytes} B · SHA-256 {digest}": "{bytes} B · SHA-256 {digest}",
-  "execution record": "실행 레코드"
+  "execution record": "실행 레코드",
+  "the record as the document carries it": "문서가 담고 있는 그대로의 레코드",
+  "the call’s result as the document carries it": "문서가 담고 있는 그대로의 호출 결과"
 }

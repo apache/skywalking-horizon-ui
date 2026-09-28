@@ -209,6 +209,8 @@ export interface ViewStrings {
   part: string;
   record: string;
   clippedText: string;
+  recordAsCarried: string;
+  resultAsCarried: string;
   fullTextNote: string;
   loadFullRecord: string;
   loadingRecord: string;
@@ -538,6 +540,8 @@ export const ENGLISH: ViewStrings = {
   part: 'part',
   record: 'record',
   clippedText: 'the text as the document carries it',
+  recordAsCarried: 'the record as the document carries it',
+  resultAsCarried: 'the call’s result as the document carries it',
   fullTextNote: 'clipped: {shown} of {total} bytes',
   loadFullRecord: 'Load the landed record',
   loadingRecord: 'reading…',

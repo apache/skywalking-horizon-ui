@@ -65,8 +65,10 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_OAP_QUERY_URL` | `http://127.0.0.1:12800` | url | OAP GraphQL / query host. |
 | `HORIZON_OAP_ADMIN_URL` | `http://127.0.0.1:17128` | url | OAP admin host (runtime-rule / inspect / status). |
 | `HORIZON_OAP_ZIPKIN_URL` | `http://127.0.0.1:9412/zipkin` | url | OAP Zipkin v2 host. |
-| `HORIZON_OAP_TRACEQL_NATIVE_URL` | _(empty)_ | url | OAP's TraceQL (Tempo API) datasource over the native spans, context path included — `http://oap:3200/skywalking`. Empty means the row is off. |
-| `HORIZON_OAP_TRACEQL_ZIPKIN_URL` | _(empty)_ | url | The same over the Zipkin spans — `http://oap:3200/zipkin`. Empty means the row is off. |
+| `HORIZON_OAP_TRACEQL_URL` | `http://127.0.0.1:3200` | url | OAP's TraceQL (Tempo API) service. An empty value falls back to the default; to turn TraceQL off, set `oap.traceql.url: ''` in the configuration file. |
+| `HORIZON_OAP_TRACEQL_NATIVE_PATH` | `/skywalking` | string | Context path of its datasource over the native spans. |
+| `HORIZON_OAP_TRACEQL_ZIPKIN_PATH` | `/zipkin` | string | Context path of its datasource over the Zipkin spans. |
+| `HORIZON_OAP_TRACEQL_OTLP_PATH` | `/otlp` | string | Context path of its datasource over the OpenTelemetry spans OAP stores natively. |
 | `HORIZON_OAP_TIMEOUT_MS` | `15000` | int | Outbound OAP request timeout. |
 | `HORIZON_OAP_AUTH` | (none) | JSON | OAP basic-auth, e.g. `{"username":"sw","password":"sw"}`. |
 | `HORIZON_AUTH_BACKEND` | `local` | `local` \| `ldap` | Auth backend. |

@@ -315,64 +315,82 @@ function detailBlock(ctx: ViewContext, e: Step, text: string, bytes: number | un
   return { html: `<div class="acv-block">${body.html}${note ? `<div class="acv-clip-note">${note}</div>` : ''}</div>`, fields: body.fields };
 }
 
-/** Where the step was read from, and the text the document carries for it.
- *  The whole record is one more read away, offered only when the host can
- *  make it. */
+/** Where the step was read from, and what the document carries for the
+ *  picked position. The whole record is one more read away, offered only when
+ *  the host can make it. */
 async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promise<void> {
   const { s, f, model: m, state } = ctx;
-  const refs: AszRef[] = (e.ref ? [e.ref] : []).concat(e.refs ?? []);
-  const seen = new Set<string>();
-  const list = refs.filter((r) => {
-    const k = `${r.seq}/${r.row}/${r.block ?? ''}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const same = (a: AszRef, b: AszRef): boolean => a.seq === b.seq && a.row === b.row && (a.block ?? null) === (b.block ?? null);
+  const list: AszRef[] = [];
+  const add = (r: AszRef): void => {
+    if (!list.some((x) => same(x, r))) list.push(r);
+  };
+  (e.ref ? [e.ref] : []).concat(e.refs ?? []).forEach(add);
+  const own = list.length;
   // A change or execution record's landed position is evidence of this step
   // too, and the plugin's records sit in files of their own that none of the
-  // step's refs name: it joins the chips when the reader arrived from one.
-  const same = (a: AszRef, b: AszRef): boolean => a.seq === b.seq && a.row === b.row && (a.block ?? null) === (b.block ?? null);
-  const own = list.length;
-  if (state.rawRef && !list.some((r) => same(r, state.rawRef!))) list.push(state.rawRef);
+  // step's refs name: each joins the chips after the step's own.
+  for (const x of [...m.changesOf(e.id), ...m.executionsOf(e.id)]) add(x.ref);
   if (!list.length) {
     body.innerHTML = `<div class="acv-empty">${esc(s.derivedByAssembly)}</div>`;
     return;
   }
   const pick = (state.rawRef && list.find((r) => same(r, state.rawRef!))) ?? list[0]!;
+  const call = e.kind === 'tool' || e.kind === 'agent.call';
   const role = (i: number): string =>
     i >= own
       ? m.executionsOf(e.id).some((x) => same(x.ref, list[i]!))
         ? s.executionRecordRef
         : s.changeRecordRef
-      : e.kind === 'tool' || e.kind === 'agent.call'
+      : call
         ? i === 0
           ? s.request
           : s.result
         : own > 1
           ? `${s.part} ${i + 1}`
           : s.record;
-  const shown = e.text ? new TextEncoder().encode(e.text).length : 0;
-  const clipped = e.bytes && shown && e.bytes > shown;
+  // A call's first position is its request and the others name what came back, so a picked
+  // result position shows the call's result, not the request's text. The document carries one
+  // result for the call, read from the first of those positions that has one.
+  const at = list.indexOf(pick);
+  const isResult = call && at >= 1 && at < own;
+  const text = isResult ? e.result : e.text;
+  const bytes = isResult ? e.resultBytes : e.bytes;
+  const shown = text ? new TextEncoder().encode(text).length : 0;
+  const clipped = bytes && shown && bytes > shown;
+  // A picked change or execution record is shown as the document carries it: the step's text,
+  // flags and dropped list describe the step's own records, not that one.
+  const carried =
+    at >= own
+      ? (m.executionsOf(e.id).find((x) => same(x.ref, pick)) ?? m.changesOf(e.id).find((x) => same(x.ref, pick)))
+      : undefined;
+  const stepContent = `${
+    text
+      ? `<div class="acv-kicker" style="margin-top:12px">${esc(isResult ? s.resultAsCarried : s.clippedText)}${clipped ? ` · ${esc(fill(s.fullTextNote, { shown: f.number(shown), total: f.number(bytes!) }))}` : ''}</div>
+      <div class="acv-block">${esc(text)}</div>`
+      : ''
+  }
+    ${e.flags?.length ? `<div class="acv-kicker" style="margin-top:12px">${esc(s.flags)}</div><div class="acv-provenance">${e.flags.map((x) => `<span class="acv-source-badge">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${(e.dropped ?? []).map((d) => `<div class="acv-warning">${esc(s.dropped)} ${esc(d.what)} · ${f.number(d.bytes)} B<br>${esc(d.why ?? '')}</div>`).join('')}`;
   body.innerHTML = `
     <div class="acv-kicker">${esc(s.landedPositions)}</div>
     <div class="acv-ref-row">${list
       .map(
-        (r, i) => `<button type="button" class="acv-ref-chip${r === pick ? ' on' : ''}" data-ref="${r.seq}/${r.row}/${r.block ?? ''}">
-        <b>${esc(role(i))}</b><span>seq ${r.seq} · row ${r.row}${r.block != null ? ` · block ${r.block}` : ''}</span></button>`,
+        (r, i) => `<button type="button" class="acv-ref-chip${r === pick ? ' on' : ''}" data-ref="${esc(`${r.seq}/${r.row}/${r.block ?? ''}`)}">
+        <b>${esc(role(i))}</b><span>seq ${esc(String(r.seq))} · row ${esc(String(r.row))}${r.block != null ? ` · block ${esc(String(r.block))}` : ''}</span></button>`,
       )
       .join('')}</div>
     ${
-      e.text
-        ? `<div class="acv-kicker" style="margin-top:12px">${esc(s.clippedText)}${clipped ? ` · ${esc(fill(s.fullTextNote, { shown: f.number(shown), total: f.number(e.bytes!) }))}` : ''}</div>
-      <div class="acv-block">${esc(e.text)}</div>`
-        : ''
+      carried
+        ? `<div class="acv-kicker" style="margin-top:12px">${esc(s.recordAsCarried)}</div><pre class="acv-raw acv-carried">${renderJSON(ctx, carried, 0, undefined, true)}</pre>`
+        : stepContent
     }
-    ${e.flags?.length ? `<div class="acv-kicker" style="margin-top:12px">${esc(s.flags)}</div><div class="acv-provenance">${e.flags.map((x) => `<span class="acv-source-badge">${esc(x)}</span>`).join('')}</div>` : ''}
-    ${(e.dropped ?? []).map((d) => `<div class="acv-warning">${esc(s.dropped)} ${esc(d.what)} · ${f.number(d.bytes)} B<br>${esc(d.why ?? '')}</div>`).join('')}
     <div class="acv-explain-box"></div>
     <div class="acv-record-box">${
       ctx.loadRecord ? `<button type="button" class="acv-btn" data-load-record>${esc(s.loadFullRecord)}</button>` : ''
     }</div>`;
+  const carriedBox = body.querySelector<HTMLElement>('.acv-carried');
+  if (carriedBox) bindTerms(ctx, body, carriedBox);
   body.querySelectorAll<HTMLElement>('[data-ref]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -397,18 +415,24 @@ async function drawEvidence(ctx: ViewContext, body: HTMLElement, e: Step): Promi
       // The reader may have moved on while the record was read.
       if (!box.isConnected) return;
       box.innerHTML = `<div class="acv-kicker" style="margin-top:14px">${esc(s.theLandedRecord)}</div><pre class="acv-raw">${renderJSON(ctx, rec, 0)}</pre>`;
-      box.querySelectorAll<HTMLElement>('[data-term]').forEach(
-        (b) =>
-          (b.onclick = (ev) => {
-            ev.stopPropagation();
-            state.explain = state.explain === b.dataset.term ? null : b.dataset.term!;
-            box.querySelectorAll<HTMLElement>('[data-term]').forEach((x) => x.classList.toggle('on', x.dataset.term === state.explain));
-            drawExplain(ctx, body);
-          }),
-      );
+      bindTerms(ctx, body, box);
     };
   }
   drawExplain(ctx, body);
+}
+
+/** A name in a drawn record opens its explanation; a second click closes it. */
+function bindTerms(ctx: ViewContext, body: HTMLElement, box: HTMLElement): void {
+  const { state } = ctx;
+  box.querySelectorAll<HTMLElement>('[data-term]').forEach(
+    (b) =>
+      (b.onclick = (ev) => {
+        ev.stopPropagation();
+        state.explain = state.explain === b.dataset.term ? null : b.dataset.term!;
+        box.querySelectorAll<HTMLElement>('[data-term]').forEach((x) => x.classList.toggle('on', x.dataset.term === state.explain));
+        drawExplain(ctx, body);
+      }),
+  );
 }
 
 /** A name that can be explained carries a question mark. Everything else is
@@ -421,7 +445,9 @@ function explainable(ctx: ViewContext, key: string): 'term' | 'field' | null {
   return null;
 }
 
-export function renderJSON(ctx: ViewContext, v: unknown, depth: number, key?: string): string {
+/** `whole` writes every string in full, for a block that says it shows the record as the document
+ *  carries it. */
+export function renderJSON(ctx: ViewContext, v: unknown, depth: number, key?: string, whole = false): string {
   const pad = '  '.repeat(depth);
   const label =
     key == null
@@ -432,15 +458,15 @@ export function renderJSON(ctx: ViewContext, v: unknown, depth: number, key?: st
   if (v === null) return `${pad}${label}<span class="acv-jnull">null</span>\n`;
   if (Array.isArray(v)) {
     if (!v.length) return `${pad}${label}[]\n`;
-    return `${pad}${label}[\n${v.map((x) => renderJSON(ctx, x, depth + 1)).join('')}${pad}]\n`;
+    return `${pad}${label}[\n${v.map((x) => renderJSON(ctx, x, depth + 1, undefined, whole)).join('')}${pad}]\n`;
   }
   if (typeof v === 'object') {
     const ks = Object.keys(v as object);
     if (!ks.length) return `${pad}${label}{}\n`;
-    return `${pad}${label}{\n${ks.map((k) => renderJSON(ctx, (v as Record<string, unknown>)[k], depth + 1, k)).join('')}${pad}}\n`;
+    return `${pad}${label}{\n${ks.map((k) => renderJSON(ctx, (v as Record<string, unknown>)[k], depth + 1, k, whole)).join('')}${pad}}\n`;
   }
   const cls = typeof v === 'number' ? 'acv-jnum' : typeof v === 'boolean' ? 'acv-jbool' : 'acv-jstr';
-  const text = typeof v === 'string' ? `"${v.length > 300 ? `${v.slice(0, 300)}…` : v}"` : String(v);
+  const text = typeof v === 'string' ? `"${!whole && v.length > 300 ? `${v.slice(0, 300)}…` : v}"` : String(v);
   return `${pad}${label}<span class="${cls}">${esc(text)}</span>\n`;
 }
 

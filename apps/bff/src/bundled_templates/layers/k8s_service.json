@@ -923,6 +923,6 @@
     ]
   },
   "traces": {
-    "source": "zipkin"
+    "sources": ["zipkin", "traceql-otlp"]
   }
 }

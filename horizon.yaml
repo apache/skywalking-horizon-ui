@@ -91,18 +91,17 @@ oap:
   # OAP Zipkin v2 REST host. Use `<queryUrl>/zipkin` when OAP shares the
   # GraphQL port (typical for the demo / k8s deploys).
   zipkinUrl: "${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}"
-  # OAP's TraceQL (Tempo API) service — one full URL per datasource, context
-  # path included (default port 3200, paths /skywalking and /zipkin). Empty
-  # means that source is off; OAP ships the traceQL module disabled, so there
-  # is deliberately no default to probe. Enable it with SW_TRACEQL=default and
-  # SW_TRACEQL_ENABLE_DATASOURCE_{SKYWALKING,ZIPKIN}=true on the OAP side.
-  # OAP's TraceQL (Grafana Tempo API) service. One endpoint serves every
-  # datasource under its own context path, and the paths below are OAP's own
-  # defaults — change one only if you changed `restContextPath*` on OAP.
-  # Setting the URL is the whole switch: Horizon probes each path, and a
-  # datasource this OAP does not enable simply does not answer.
+  # OAP's TraceQL (Grafana Tempo API) service, default port 3200. One endpoint
+  # serves every datasource under its own context path, and the paths below
+  # are OAP's own defaults — change one only if you changed `restContextPath*`
+  # on OAP. Horizon probes each path, and a datasource this OAP does not
+  # enable simply does not answer. OAP ships the module off: enable it with
+  # SW_TRACEQL=default and SW_TRACEQL_ENABLE_DATASOURCE_{SKYWALKING,ZIPKIN,OTLP}
+  # =true. Since OAP 11.1.0, OpenTelemetry traces are stored natively and read
+  # only through the OTLP datasource. Setting url: '' here turns TraceQL off;
+  # an empty environment variable falls back to the default.
   traceql:
-    url: "${HORIZON_OAP_TRACEQL_URL:}"
+    url: "${HORIZON_OAP_TRACEQL_URL:http://127.0.0.1:3200}"
     nativePath: "${HORIZON_OAP_TRACEQL_NATIVE_PATH:/skywalking}"
     zipkinPath: "${HORIZON_OAP_TRACEQL_ZIPKIN_PATH:/zipkin}"
     otlpPath: "${HORIZON_OAP_TRACEQL_OTLP_PATH:/otlp}"

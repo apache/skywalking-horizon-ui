@@ -26,10 +26,15 @@ import {
   AI_CONVERSATION_BASH_STEP,
   AI_CONVERSATION_LLM_CALLS,
   AI_CONVERSATION_TITLE,
+  AI_MCP_CONVERSATION_TITLE,
+  AI_MCP_INPUT,
+  AI_MCP_RESULT,
+  AI_MCP_STEP,
 } from '../fixture.js';
 import type { Locator, Page } from '@playwright/test';
 
-// One AI agent conversation, from the list to the bodies a model call exchanged with its provider.
+// Two AI agent conversations: one from the list to the bodies a model call exchanged with its provider, and
+// one whose calls reached MCP servers, with what the plugin saw of each.
 //
 // Everything here is read off the page against a real OAP holding what the Sessionizer pushed, which is
 // the one thing the unit tests cannot prove: they use a landed file as a fixture and a stubbed route.
@@ -46,19 +51,19 @@ async function cell(page: Page, row: Locator, header: string): Promise<string> {
 }
 
 /** The Conversations tab, queried for the agent the case pushes. */
-async function openList(page: Page): Promise<void> {
+async function openList(page: Page, title = AI_CONVERSATION_TITLE): Promise<void> {
   await page.goto(`/layer/${AI_AGENT_LAYER}/conversations`);
   // The tab owns its time range and runs nothing until asked, as the Traces and Logs tabs do.
   await page.getByRole('button', { name: /run query/i }).click();
-  await expect(page.getByRole('row', { name: new RegExp(AI_CONVERSATION_TITLE) })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('row', { name: new RegExp(title) })).toBeVisible({ timeout: 30_000 });
 }
 
 /** The conversation page, in the tab its row opens. */
-async function openConversation(page: Page): Promise<Page> {
-  await openList(page);
+async function openConversation(page: Page, title = AI_CONVERSATION_TITLE): Promise<Page> {
+  await openList(page, title);
   const [opened] = await Promise.all([
     page.context().waitForEvent('page'),
-    page.getByRole('row', { name: new RegExp(AI_CONVERSATION_TITLE) }).click(),
+    page.getByRole('row', { name: new RegExp(title) }).click(),
   ]);
   await expect(opened).toHaveURL(/\/ai-conversation\//);
   // the whole document is read before a byte is drawn, and a conversation is megabytes
@@ -166,5 +171,80 @@ test.describe('AI agent conversations', () => {
       await expect(view.locator('.acv-inspector-body .acv-prompt-message').first()).toBeVisible();
     }
     expect(reads, 'one read of the session, not one per call').toHaveLength(1);
+  });
+});
+
+test.describe('calls to MCP servers', () => {
+  /** The conversation on its first call to an MCP server, set on the address as a reader shares it. */
+  async function openCall(page: Page): Promise<Page> {
+    const view = await openConversation(page, AI_MCP_CONVERSATION_TITLE);
+    const at = new URL(view.url());
+    at.searchParams.set('step', AI_MCP_STEP);
+    at.searchParams.delete('talk');
+    at.searchParams.delete('stream');
+    await view.goto(at.toString());
+    await expect(view.locator('.acv-inspector-title')).toContainText('mcp__status__lookup', { timeout: 60_000 });
+    return view;
+  }
+
+  test('draws a call on its own lane and in the transcript, named by server and tool, with how it ended', async ({ page }) => {
+    const view = await openCall(page);
+    await expect(view.locator(`.acv-clip[data-node="${AI_MCP_STEP}"]`)).toHaveText('status · lookup');
+    // the call sits on the MCP lane: of every lane label, the one level with it names that lane
+    const lane = await view.evaluate((id) => {
+      const clip = document.querySelector(`.acv-clip[data-node="${id}"]`)!.getBoundingClientRect();
+      const middle = clip.top + clip.height / 2;
+      let nearest = '';
+      let gap = Infinity;
+      for (const label of document.querySelectorAll('.acv-lane-label')) {
+        const r = label.getBoundingClientRect();
+        const d = Math.abs(r.top + r.height / 2 - middle);
+        if (d < gap) {
+          gap = d;
+          nearest = label.textContent ?? '';
+        }
+      }
+      return nearest;
+    }, AI_MCP_STEP);
+    expect(lane).toBe('MCP');
+    // the card sits in the agent's work, folded until a reader opens it
+    await view.locator('.acv-fold[data-work][aria-expanded="false"]').first().click();
+    const card = view.locator(`[data-card="${AI_MCP_STEP}"]`);
+    await expect(card.locator('.acv-title')).toContainText('status · lookup');
+    // how the call ended and the time the plugin measured around it
+    await expect(card.locator('.acv-execution-pill')).toHaveText('returned · 380 ms');
+  });
+
+  test('says on the Execution tab which server ran the call, how it ended and how long it took', async ({ page }) => {
+    const view = await openCall(page);
+    await view.locator('[data-tab="execution"]').click();
+    const body = view.locator('.acv-inspector-body');
+    /** The value the tab gives for one term, read off its own row. */
+    const valueOf = (term: string): Locator => body.locator('dt', { hasText: term }).locator('xpath=following-sibling::dd[1]');
+    await expect(body).toContainText('asz-plugin · client_hook');
+    await expect(valueOf('MCP server')).toHaveText('status');
+    await expect(valueOf('Outcome')).toHaveText('returned');
+    await expect(valueOf('Measured time')).toHaveText('380 ms');
+    // the size and digest of the arguments, never their text
+    await expect(body).toContainText('22 B · SHA-256 ea3a64398a82');
+  });
+
+  test('shows for each landed position what the document carries for it', async ({ page }) => {
+    const view = await openCall(page);
+    await view.locator('[data-tab="evidence"]').click();
+    const body = view.locator('.acv-inspector-body');
+    // the request, the result, and the record the plugin wrote in a file of its own
+    const chips = body.locator('.acv-ref-chip');
+    await expect(chips).toHaveCount(3);
+    await expect(chips.nth(0)).toContainText('request');
+    await expect(chips.nth(1)).toContainText('result');
+    await expect(chips.nth(2)).toContainText('execution record');
+    // each shows its own content: the arguments, the answer, then the record itself
+    await expect(body.locator('.acv-block')).toHaveText(AI_MCP_INPUT);
+    await chips.nth(1).click();
+    await expect(body.locator('.acv-block')).toHaveText(AI_MCP_RESULT);
+    await chips.nth(2).click();
+    await expect(body.locator('.acv-carried')).toContainText('"client_hook"');
+    await expect(body).not.toContainText(AI_MCP_RESULT);
   });
 });

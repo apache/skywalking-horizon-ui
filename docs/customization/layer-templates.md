@@ -525,7 +525,7 @@ Which trace stores this layer exposes. It is a **checklist**, not a single choic
 | Store | Row | Answered by |
 |---|---|---|
 | `native` | `trace` | OAP's native trace query. |
-| `zipkin` | `zipkin-trace` | OAP's Zipkin v2 API at `oap.zipkinUrl`, which also carries the OpenTelemetry spans OAP converts into Zipkin form. |
+| `zipkin` | `zipkin-trace` | OAP's Zipkin v2 API at `oap.zipkinUrl`: spans sent in Zipkin's protocol, and OpenTelemetry spans when OAP is set to convert them (`otlpTraceStorage: zipkin`). Since OAP 11.1.0, OAP stores OpenTelemetry spans natively by default, and `traceql-otlp` reads them. |
 | `traceql-native` | `traceql-native-trace` | The TraceQL (Grafana Tempo) API over the native spans, at `oap.traceql.url` + `nativePath`. |
 | `traceql-zipkin` | `traceql-zipkin-trace` | The same API over the Zipkin spans, at `oap.traceql.url` + `zipkinPath`. |
 | `traceql-otlp` | `traceql-otlp-trace` | The same API over the OTLP spans OAP stored as they arrived, at `oap.traceql.url` + `otlpPath`. |
