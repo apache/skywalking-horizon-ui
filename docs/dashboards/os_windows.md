@@ -16,46 +16,85 @@ limitations under the License.
 -->
 # Windows
 
-The **OS_WINDOWS** layer monitors Windows hosts. It is populated by OAP's Windows monitoring, which receives host telemetry (CPU, memory, network, disk) and turns it into SkyWalking meters — there is no language agent here, the data comes from the host telemetry.
+The **OS_WINDOWS** layer monitors Windows hosts from host telemetry collected by SkyWalking OAP. Hosts are represented as **Hosts** at the Service scope, while process groups collected by the OpenTelemetry process scraper are represented as **Processes** at the Service Instance scope.
 
-In Horizon's sidebar this layer lives under the **OS** group and is named **Windows**. Each monitored Windows machine is listed as a **Host**. This is a metrics-only, single-scope layer: it enables the **Service** scope and nothing else — there is no instance or endpoint scope, no topology, and no traces or logs tabs.
+In Horizon's sidebar this layer lives under the **OS** group and is named **Windows**. The layer is metrics-only: it exposes **Hosts** and **Processes**, but no endpoint, topology, traces, or logs tabs.
 
-This page is the **operator reference** for the bundled Windows dashboard: what you see and what each widget means.
+This page is the **operator reference** for the bundled Windows dashboards: what is shown at the host and process scopes, and which telemetry is required.
 
 > The widgets and metrics below are read from the bundled OS_WINDOWS template; if an operator has published a customized OS_WINDOWS template to OAP, the live dashboard reflects that copy instead. See [Layer Dashboard Templates](../customization/layer-templates.md) for how the bundled default, your local draft, and the OAP-published copy relate.
 
 ## Host list
 
-Before opening a host, the layer landing page lists every Windows host with three sortable columns, sorted by **CPU %** by default:
+Before opening a host, the layer landing page lists every Windows host with three sortable columns, sorted by **CPU total %** by default:
 
-- **CPU %** — average CPU utilization across the host (`meter_win_cpu_total_percentage`).
-
-- **Memory MB** — physical memory used, in MB (`meter_win_memory_used/1024/1024`).
-
-- **VMem %** — virtual-memory utilization percentage (`avg(meter_win_memory_virtual_memory_percentage)`).
+* **CPU total %** — host CPU utilization (`meter_win_cpu_total_percentage`).
+* **Memory MB** — physical memory used, in MB (`meter_win_memory_used/1024/1024`).
+* **Committed %** — committed virtual-memory utilization (`avg(meter_win_memory_virtual_memory_percentage)`).
 
 ## Host dashboard
 
-The primary drill-down for one selected Windows host.
+The Host dashboard combines metrics available from the existing Windows monitoring source with additional metrics available from OpenTelemetry hostmetrics and performance counters.
 
-- **CPU Average Used (%)** — average CPU utilization over the window (`meter_win_cpu_average_used`).
+The summary cards include:
 
-- **Memory RAM (MB)** — physical memory in MB, three series: used / total / available (`meter_win_memory_used/1024/1024`, `meter_win_memory_total/1024/1024`, `meter_win_memory_available/1024/1024`).
+* **CPU Across Cores** — current host CPU utilization.
+* **Memory Used** — current physical memory in use.
+* **Committed Memory Used** — committed virtual memory as a percentage of the Windows commit limit.
+* **Normalized CPU** — non-overlapping user and system CPU normalized to the conventional 0–100% host scale when available.
+* **Logical CPUs** — logical processor count reported by OpenTelemetry hostmetrics.
+* **Pagefile Used** — current paging-file utilization when reported by the OpenTelemetry performance counters.
 
-- **Virtual Memory (MB)** — virtual (page-file backed) memory in MB, free vs total (`meter_win_memory_virtual_memory_free/1024/1024`, `meter_win_memory_virtual_memory_total/1024/1024`).
+The historical charts include:
 
-- **Network Bandwidth (KB/s)** — network throughput in KB/s, receive vs transmit (`meter_win_network_receive/1024`, `meter_win_network_transmit/1024`).
+* **CPU by State** — CPU utilization by reported processor state.
+* **Memory RAM (MB)** — used / total / available physical memory.
+* **Committed Virtual Memory (MB)** — committed bytes and the Windows commit limit.
+* **Network Bandwidth (KB/s)** — receive vs transmit throughput.
+* **Disk R/W (KB/s)** — disk read vs written throughput.
+* **CPU Load** — Windows processor queue length represented as 1m / 5m / 15m averages when available.
+* **Allocated Handles** — total handles allocated by Windows processes when available.
+* **Windows Pagefile (MB)** — free and total paging-file capacity when available.
+* **Filesystem Usage (%)** — utilization of Windows volumes or mount points.
 
-- **Disk R/W (KB/s)** — disk throughput in KB/s, read vs written (`meter_win_disk_read/1024`, `meter_win_disk_written/1024`).
+Widgets whose backing metrics are unavailable are hidden automatically.
+
+## Top Processes
+
+When the OpenTelemetry process scraper is enabled, the Host dashboard also shows three Top Process panels:
+
+* **Top Processes by CPU** — process groups ranked by total, user, or system CPU.
+* **Top Processes by Memory** — process groups ranked by resident memory or host-memory percentage.
+* **Top Processes by Resources** — process groups ranked by threads, open handles, or grouped PID count.
+
+These panels are hidden when process metrics are not available.
+
+## Processes dashboard
+
+The **Processes** page represents normalized Windows process groups reported as Service Instances.
+
+For a selected process group Horizon shows current values for:
+
+* CPU utilization;
+* resident physical memory;
+* percentage of host memory;
+* grouped PID count;
+* threads;
+* open handles;
+* oldest process uptime.
+
+Historical charts show CPU, resident memory, host-memory percentage, process and thread counts, open handles, and oldest-process uptime.
+
+The **Processes** tab is part of the bundled OS_WINDOWS layer. If the OpenTelemetry process scraper is not running, the tab has no process entities to display.
 
 ## Requirements
 
-The Windows dashboard is a pure consumer of what OAP reports — it invents no data, and a widget with no backing data simply reads `no data`. To populate it, OAP needs Windows monitoring enabled so it ingests host telemetry and produces the host (service-scope) `meter_win_*` family:
+The Host dashboard consumes the `meter_win_*` metrics produced by the OAP Windows monitoring rules.
 
-- **CPU** — `meter_win_cpu_total_percentage` and `meter_win_cpu_average_used` back the CPU column and the CPU widget.
+For OpenTelemetry hostmetrics, configure the Collector to send Windows host metrics through the `windows-monitoring` job. OpenTelemetry-backed metrics add normalized CPU, logical processor count, filesystem data, processor-queue load, handles, and pagefile information where configured.
 
-- **Memory** — `meter_win_memory_used`, `meter_win_memory_total`, `meter_win_memory_available`, and the `meter_win_memory_virtual_memory_*` series back the memory columns and the RAM / virtual-memory widgets.
+Process dashboards require the OpenTelemetry process scraper and the OAP `hostmetrics-process-monitoring-windows` rules, which produce the `mp_process_windows_*` metrics used at Service Instance scope.
 
-- **Network and disk** — `meter_win_network_receive` / `meter_win_network_transmit` and `meter_win_disk_read` / `meter_win_disk_written` back the network and disk throughput widgets.
+Without the process scraper, host monitoring continues to work, but the **Processes** tab and Top Process panels have no process data.
 
-Every metric is queried at the Service (host) scope; OAP does not roll a metric up across scopes, so the dashboard stays empty until per-host data is reported. For the upstream setup steps — host-telemetry collection and which OAP rules to enable — see the [Windows monitoring documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-win-monitoring/).
+For OAP-side setup and the supported metrics, see the [Windows monitoring documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-win-monitoring/).

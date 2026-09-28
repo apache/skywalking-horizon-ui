@@ -22,7 +22,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU-Mittel genutzt (%)"
+        "title": "CPU nach Zustand (Summe über alle Kerne)"
       },
       null,
       null,

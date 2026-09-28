@@ -45,6 +45,43 @@
   "dashboards": {
     "service": [
       {
+        "id": "cpu_total_now",
+        "title": "CPU Across Cores",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_win_cpu_total_percentage)"
+        ],
+        "format": "decimal",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "memory_used_now",
+        "title": "Memory Used",
+        "type": "card",
+        "unit": "MB",
+        "expressions": [
+          "latest(meter_win_memory_used)/1024/1024"
+        ],
+        "format": "decimal",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "virtual_memory_used_now",
+        "title": "Committed Memory Used",
+        "tip": "Current committed virtual memory as a percentage of the Windows commit limit.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_win_memory_virtual_memory_percentage)"
+        ],
+        "format": "decimal",
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
         "id": "cpu_norm_now",
         "title": "Normalized CPU",
         "tip": "Current non-overlapping user and system CPU time normalized by logical processor count to the conventional 0–100% host scale. Available from OpenTelemetry hostmetrics.",
@@ -54,11 +91,11 @@
           "latest(meter_win_cpu_norm_percentage)"
         ],
         "format": "decimal",
-        "span": 3,
+        "span": 4,
         "rowSpan": 1,
         "visibleWhen": {
           "kind": "mqe",
-          "expression": "meter_win_cpu_norm_percentage",
+          "expression": "latest(meter_win_cpu_norm_percentage)",
           "op": "exists"
         }
       },
@@ -72,26 +109,13 @@
           "latest(meter_win_cpu_cores_num)"
         ],
         "format": "int",
-        "span": 3,
+        "span": 4,
         "rowSpan": 1,
         "visibleWhen": {
           "kind": "mqe",
-          "expression": "meter_win_cpu_cores_num",
+          "expression": "latest(meter_win_cpu_cores_num)",
           "op": "exists"
         }
-      },
-      {
-        "id": "virtual_memory_used_now",
-        "title": "Committed Memory Used",
-        "tip": "Current committed virtual memory as a percentage of the Windows commit limit.",
-        "type": "card",
-        "unit": "%",
-        "expressions": [
-          "latest(meter_win_memory_virtual_memory_percentage)"
-        ],
-        "format": "decimal",
-        "span": 3,
-        "rowSpan": 1
       },
       {
         "id": "pagefile_used_now",
@@ -103,7 +127,7 @@
           "latest(meter_win_memory_pagefile_percentage)"
         ],
         "format": "decimal",
-        "span": 3,
+        "span": 4,
         "rowSpan": 1,
         "visibleWhen": {
           "kind": "mqe",
@@ -121,6 +145,73 @@
           "meter_win_cpu_average_used"
         ],
         "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "memory",
+        "title": "Memory RAM (MB)",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "meter_win_memory_used/1024/1024",
+          "meter_win_memory_total/1024/1024",
+          "meter_win_memory_available/1024/1024"
+        ],
+        "expressionLabels": [
+          "used",
+          "total",
+          "available"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "virtual_memory",
+        "title": "Committed Virtual Memory (MB)",
+        "tip": "Committed bytes and the Windows commit limit. This is distinct from the paging-file capacity.",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "meter_win_memory_virtual_memory_free/1024/1024",
+          "meter_win_memory_virtual_memory_total/1024/1024"
+        ],
+        "expressionLabels": [
+          "free",
+          "total"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "network_bandwidth",
+        "title": "Network Bandwidth (KB/s)",
+        "type": "line",
+        "unit": "KB/s",
+        "expressions": [
+          "meter_win_network_receive/1024",
+          "meter_win_network_transmit/1024"
+        ],
+        "expressionLabels": [
+          "receive",
+          "transmit"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "disk",
+        "title": "Disk R/W (KB/s)",
+        "type": "line",
+        "unit": "KB/s",
+        "expressions": [
+          "meter_win_disk_read/1024",
+          "meter_win_disk_written/1024"
+        ],
+        "expressionLabels": [
+          "read",
+          "written"
+        ],
+        "span": 6,
         "rowSpan": 2
       },
       {
@@ -164,41 +255,6 @@
         }
       },
       {
-        "id": "memory",
-        "title": "Memory RAM (MB)",
-        "type": "line",
-        "unit": "MB",
-        "expressions": [
-          "meter_win_memory_used/1024/1024",
-          "meter_win_memory_total/1024/1024",
-          "meter_win_memory_available/1024/1024"
-        ],
-        "expressionLabels": [
-          "used",
-          "total",
-          "available"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "virtual_memory",
-        "title": "Committed Virtual Memory (MB)",
-        "tip": "Committed bytes and the Windows commit limit. This is distinct from the paging-file capacity.",
-        "type": "line",
-        "unit": "MB",
-        "expressions": [
-          "meter_win_memory_virtual_memory_free/1024/1024",
-          "meter_win_memory_virtual_memory_total/1024/1024"
-        ],
-        "expressionLabels": [
-          "free",
-          "total"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
         "id": "pagefile_capacity",
         "title": "Windows Pagefile (MB)",
         "tip": "Free and total paging-file capacity reported by OpenTelemetry performance counters.",
@@ -212,45 +268,13 @@
           "free",
           "total"
         ],
-        "span": 6,
+        "span": 4,
         "rowSpan": 2,
         "visibleWhen": {
           "kind": "mqe",
           "expression": "meter_win_memory_pagefile_total",
           "op": "exists"
         }
-      },
-      {
-        "id": "network_bandwidth",
-        "title": "Network Bandwidth (KB/s)",
-        "type": "line",
-        "unit": "KB/s",
-        "expressions": [
-          "meter_win_network_receive/1024",
-          "meter_win_network_transmit/1024"
-        ],
-        "expressionLabels": [
-          "receive",
-          "transmit"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "disk",
-        "title": "Disk R/W (KB/s)",
-        "type": "line",
-        "unit": "KB/s",
-        "expressions": [
-          "meter_win_disk_read/1024",
-          "meter_win_disk_written/1024"
-        ],
-        "expressionLabels": [
-          "read",
-          "written"
-        ],
-        "span": 6,
-        "rowSpan": 2
       },
       {
         "id": "fs",
@@ -272,7 +296,7 @@
       {
         "id": "process_top_cpu",
         "title": "Top Processes by CPU",
-        "tip": "Process groups with the highest share of total host CPU capacity.",
+        "tip": "Process groups with the highest share of total host CPU capacity. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_cpu_total_percent,10,des)",
@@ -291,12 +315,17 @@
         ],
         "unit": "%",
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_windows_cpu_total_percent,10,des)",
+          "op": "exists"
+        }
       },
       {
         "id": "process_top_memory",
         "title": "Top Processes by Memory",
-        "tip": "Process groups ranked by resident physical memory or percentage of host RAM.",
+        "tip": "Process groups ranked by resident physical memory or percentage of host RAM. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_memory_resident_bytes,10,des)/1024/1024",
@@ -310,14 +339,18 @@
           "MB",
           "%"
         ],
-        "unit": "MB",
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_windows_memory_resident_bytes,10,des)/1024/1024",
+          "op": "exists"
+        }
       },
       {
         "id": "process_top_resources",
         "title": "Top Processes by Resources",
-        "tip": "Process groups ranked by thread count, open handles or number of grouped PIDs.",
+        "tip": "Process groups ranked by thread count, open handles or number of grouped PIDs. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_num_threads,10,des)",
@@ -335,7 +368,12 @@
           "processes"
         ],
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_windows_num_threads,10,des)",
+          "op": "exists"
+        }
       }
     ],
     "instance": [
@@ -473,7 +511,7 @@
         "expressions": [
           "mp_process_windows_memory_resident_percent/100"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 2
       },
       {
@@ -489,7 +527,11 @@
           "processes",
           "threads"
         ],
-        "span": 4,
+        "expressionAxes": [
+          1,
+          0
+        ],
+        "span": 3,
         "rowSpan": 2
       },
       {
@@ -501,7 +543,7 @@
         "expressions": [
           "mp_process_windows_open_handles"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 2
       },
       {
@@ -513,7 +555,7 @@
         "expressions": [
           "mp_process_windows_oldest_process_uptime_seconds/3600"
         ],
-        "span": 12,
+        "span": 3,
         "rowSpan": 2
       }
     ]

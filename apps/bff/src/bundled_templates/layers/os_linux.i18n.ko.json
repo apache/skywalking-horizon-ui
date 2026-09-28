@@ -25,7 +25,7 @@
       null,
       {
         "id": "cpu",
-        "title": "평균 CPU 사용률 (%)"
+        "title": "상태별 CPU"
       },
       {
         "id": "cpu_load",
@@ -81,7 +81,7 @@
       },
       {
         "id": "network_status",
-        "title": "네트워크 상태",
+        "title": "TCP 연결",
         "expressionLabels": [
           "tcp estab",
           "tcp time-wait"

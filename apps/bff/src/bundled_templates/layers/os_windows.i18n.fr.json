@@ -22,7 +22,7 @@
       null,
       {
         "id": "cpu",
-        "title": "Utilisation CPU moyenne (%)"
+        "title": "CPU par état (somme sur tous les cœurs)"
       },
       null,
       null,

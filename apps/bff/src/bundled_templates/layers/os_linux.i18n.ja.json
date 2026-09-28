@@ -25,7 +25,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU 平均使用率 (%)"
+        "title": "状態別 CPU"
       },
       {
         "id": "cpu_load",
@@ -81,7 +81,7 @@
       },
       {
         "id": "network_status",
-        "title": "ネットワークステータス",
+        "title": "TCP 接続",
         "expressionLabels": [
           "TCP estab",
           "TCP time-wait"

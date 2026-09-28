@@ -53,7 +53,7 @@
       {
         "id": "cpu_total_now",
         "title": "CPU Across Cores",
-        "tip": "Current non-idle CPU summed across logical processors. This preserves the traditional host metric scale, so four fully busy CPUs report 400%.",
+        "tip": "Current host CPU utilization as reported by the configured telemetry source. Scale and aggregation may differ by source; use Normalized CPU when available for a conventional 0–100% host value.",
         "type": "card",
         "unit": "%",
         "expressions": [
@@ -64,40 +64,29 @@
         "rowSpan": 1
       },
       {
-        "id": "cpu_norm_now",
-        "title": "Normalized CPU",
-        "tip": "Current CPU use normalized by logical CPU count to the conventional 0–100% host scale. Available from OpenTelemetry hostmetrics.",
+        "id": "memory_used_now",
+        "title": "Memory Used",
+        "tip": "Current physical memory in use.",
         "type": "card",
-        "unit": "%",
+        "unit": "MB",
         "expressions": [
-          "latest(meter_vm_cpu_norm_percentage)"
+          "latest(meter_vm_memory_used)/1024/1024"
         ],
         "format": "decimal",
         "span": 3,
-        "rowSpan": 1,
-        "visibleWhen": {
-          "kind": "mqe",
-          "expression": "meter_vm_cpu_norm_percentage",
-          "op": "exists"
-        }
+        "rowSpan": 1
       },
       {
-        "id": "cpu_cores_now",
-        "title": "Logical CPUs",
-        "tip": "Number of logical processors reported by OpenTelemetry hostmetrics.",
+        "id": "load1_now",
+        "title": "Load 1m",
+        "tip": "Current 1-minute system load average.",
         "type": "card",
-        "unit": "cores",
         "expressions": [
-          "latest(meter_vm_cpu_cores_num)"
+          "latest(meter_vm_cpu_load1)/100"
         ],
-        "format": "int",
+        "format": "decimal",
         "span": 3,
-        "rowSpan": 1,
-        "visibleWhen": {
-          "kind": "mqe",
-          "expression": "meter_vm_cpu_cores_num",
-          "op": "exists"
-        }
+        "rowSpan": 1
       },
       {
         "id": "swap_used_now",
@@ -113,9 +102,45 @@
         "rowSpan": 1
       },
       {
+        "id": "cpu_norm_now",
+        "title": "Normalized CPU",
+        "tip": "Current CPU use normalized by logical CPU count to the conventional 0–100% host scale. Available from OpenTelemetry hostmetrics.",
+        "type": "card",
+        "unit": "%",
+        "expressions": [
+          "latest(meter_vm_cpu_norm_percentage)"
+        ],
+        "format": "decimal",
+        "span": 6,
+        "rowSpan": 1,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "latest(meter_vm_cpu_norm_percentage)",
+          "op": "exists"
+        }
+      },
+      {
+        "id": "cpu_cores_now",
+        "title": "Logical CPUs",
+        "tip": "Number of logical processors reported by OpenTelemetry hostmetrics.",
+        "type": "card",
+        "unit": "cores",
+        "expressions": [
+          "latest(meter_vm_cpu_cores_num)"
+        ],
+        "format": "int",
+        "span": 6,
+        "rowSpan": 1,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "latest(meter_vm_cpu_cores_num)",
+          "op": "exists"
+        }
+      },
+      {
         "id": "cpu",
-        "title": "CPU by State (sum across cores)",
-        "tip": "Utilization in each CPU state summed across logical processors. Values may exceed 100%; use Normalized CPU for the conventional host percentage.",
+        "title": "CPU by State",
+        "tip": "CPU utilization broken down by reported CPU state. Scale and series aggregation follow the configured telemetry source; use Normalized CPU when available for a conventional 0–100% host value.",
         "type": "line",
         "unit": "%",
         "expressions": [
@@ -256,7 +281,7 @@
       {
         "id": "network_status",
         "title": "TCP Connections",
-        "tip": "Established and time-wait TCP connections. Available from both node-exporter and OpenTelemetry hostmetrics.",
+        "tip": "Established and time-wait TCP connections reported by the configured host telemetry source.",
         "type": "line",
         "expressions": [
           "meter_vm_tcp_curr_estab",
@@ -272,7 +297,7 @@
       {
         "id": "socket_counters",
         "title": "Linux Socket Counters",
-        "tip": "Node-exporter socket counters. This panel is hidden when only OpenTelemetry hostmetrics is reporting.",
+        "tip": "TCP allocation, socket usage, and UDP in-use counters when provided by the configured Linux telemetry source. This panel is hidden when the backing metrics are unavailable.",
         "type": "line",
         "expressions": [
           "meter_vm_tcp_alloc",
@@ -284,7 +309,7 @@
           "sockets used",
           "udp in-use"
         ],
-        "span": 6,
+        "span": 12,
         "rowSpan": 2,
         "visibleWhen": {
           "kind": "mqe",
@@ -295,7 +320,7 @@
       {
         "id": "process_top_cpu",
         "title": "Top Processes by CPU",
-        "tip": "Process groups with the highest CPU consumption in the selected host.",
+        "tip": "Process groups with the highest share of total host CPU capacity. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_linux_cpu_total_percent,10,des)",
@@ -314,12 +339,17 @@
         ],
         "unit": "%",
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_linux_cpu_total_percent,10,des)",
+          "op": "exists"
+        }
       },
       {
         "id": "process_top_memory",
         "title": "Top Processes by Memory",
-        "tip": "Process groups ranked by resident physical memory or percentage of host RAM.",
+        "tip": "Process groups ranked by resident physical memory or percentage of host RAM. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_linux_memory_resident_bytes,10,des)/1024/1024",
@@ -333,14 +363,18 @@
           "MB",
           "%"
         ],
-        "unit": "MB",
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_linux_memory_resident_bytes,10,des)/1024/1024",
+          "op": "exists"
+        }
       },
       {
         "id": "process_top_resources",
         "title": "Top Processes by Resources",
-        "tip": "Process groups ranked by thread count, open FDs or number of grouped processes.",
+        "tip": "Process groups ranked by thread count, open FDs or number of grouped processes. Select a row to open that process group in Processes.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_linux_num_threads,10,des)",
@@ -358,14 +392,19 @@
           "processes"
         ],
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 3,
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "top_n(mp_process_linux_num_threads,10,des)",
+          "op": "exists"
+        }
       }
     ],
     "instance": [
       {
         "id": "process_cpu_card",
         "title": "CPU Used",
-        "tip": "Current CPU utilization of the selected normalized process group.",
+        "tip": "Current share of total host CPU capacity used by all OS processes in the selected process group.",
         "type": "card",
         "unit": "%",
         "expressions": [
@@ -469,7 +508,8 @@
           "system"
         ],
         "span": 6,
-        "rowSpan": 2
+        "rowSpan": 2,
+        "tip": "Share of total host CPU capacity used by all OS processes in the selected process group."
       },
       {
         "id": "process_memory_history",
@@ -483,7 +523,8 @@
           "resident"
         ],
         "span": 6,
-        "rowSpan": 2
+        "rowSpan": 2,
+        "tip": "Physical resident memory used by all OS processes in the selected process group."
       },
       {
         "id": "process_memory_percent_history",
@@ -493,8 +534,9 @@
         "expressions": [
           "mp_process_linux_memory_resident_percent/100"
         ],
-        "span": 4,
-        "rowSpan": 2
+        "span": 3,
+        "rowSpan": 2,
+        "tip": "Percentage of total host physical memory consumed by the selected process group."
       },
       {
         "id": "process_counts_history",
@@ -508,8 +550,13 @@
           "processes",
           "threads"
         ],
-        "span": 4,
-        "rowSpan": 2
+        "expressionAxes": [
+          1,
+          0
+        ],
+        "span": 3,
+        "rowSpan": 2,
+        "tip": "Number of grouped OS processes and total threads over time."
       },
       {
         "id": "process_handles_history",
@@ -519,8 +566,9 @@
         "expressions": [
           "mp_process_linux_open_handles"
         ],
-        "span": 4,
-        "rowSpan": 2
+        "span": 3,
+        "rowSpan": 2,
+        "tip": "Open file descriptors across all OS processes in the selected process group."
       },
       {
         "id": "process_uptime_history",
@@ -531,7 +579,7 @@
         "expressions": [
           "mp_process_linux_oldest_process_uptime_seconds/3600"
         ],
-        "span": 12,
+        "span": 3,
         "rowSpan": 2
       }
     ]

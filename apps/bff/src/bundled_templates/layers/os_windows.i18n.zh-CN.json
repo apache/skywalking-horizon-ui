@@ -26,7 +26,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU 平均使用率（%）"
+        "title": "按状态划分的 CPU（所有核心之和）"
       },
       null,
       null,

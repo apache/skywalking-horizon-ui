@@ -25,7 +25,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU-Mittel genutzt (%)"
+        "title": "CPU nach Zustand"
       },
       {
         "id": "cpu_load",
@@ -81,7 +81,7 @@
       },
       {
         "id": "network_status",
-        "title": "Netzwerk-Status",
+        "title": "TCP-Verbindungen",
         "expressionLabels": [
           "tcp estab",
           "tcp time-wait"

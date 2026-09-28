@@ -22,7 +22,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU medio en uso (%)"
+        "title": "CPU por estado (suma de todos los núcleos)"
       },
       null,
       null,

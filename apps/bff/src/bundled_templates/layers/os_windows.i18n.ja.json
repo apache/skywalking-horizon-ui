@@ -22,7 +22,7 @@
       null,
       {
         "id": "cpu",
-        "title": "CPU 平均使用率 (%)"
+        "title": "状態別 CPU（全コアの合計）"
       },
       null,
       null,

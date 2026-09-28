@@ -22,7 +22,7 @@
       null,
       {
         "id": "cpu",
-        "title": "평균 CPU 사용률 (%)"
+        "title": "상태별 CPU(모든 코어 합계)"
       },
       null,
       null,
