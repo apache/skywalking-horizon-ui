@@ -342,6 +342,8 @@ export interface AnalyzeNetworkProfilingInput {
   offsetMinutes: number;
   /** Read this task; when absent, the service's most recent NETWORK task. */
   taskId?: string;
+  /** The id `service` resolved to, when the caller already looked it up. */
+  serviceId?: string;
 }
 
 const LIST_SERVICES_FOR_PROFILING = /* GraphQL */ `
@@ -360,7 +362,7 @@ const LIST_SERVICES_FOR_PROFILING = /* GraphQL */ `
  * Throws whatever the round-trip throws — an unreachable OAP is not the same
  * answer as an unknown service, and both callers report the difference.
  */
-async function profilingServiceId(
+export async function profilingServiceId(
   opts: GraphqlOptions,
   layerKey: string,
   service: string,
@@ -617,7 +619,7 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
     return result;
   };
   try {
-    const found = await profilingServiceId(opts, layerKey, service);
+    const found = input.serviceId ? { id: input.serviceId } : await profilingServiceId(opts, layerKey, service);
     if ('error' in found) return fail(found.error);
     const serviceId = found.id;
     const task = await findNetworkTask(opts, serviceId, input.taskId);
@@ -720,6 +722,8 @@ export interface AnalyzeProfilingInput {
   service: string;
   /** Target a specific task; when absent, the most recent task of this type. */
   taskId?: string;
+  /** The id `service` resolved to, when the caller already looked it up. */
+  serviceId?: string;
   /** async only — which captured event to analyze when the task recorded more
    *  than one (its units are not shared, so only one renders per call). Absent
    *  or unrecognised falls back to the task's first event. */
@@ -739,7 +743,7 @@ export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<Pr
     reachable: true,
   };
   try {
-    const found = await profilingServiceId(opts, layerKey, service);
+    const found = input.serviceId ? { id: input.serviceId } : await profilingServiceId(opts, layerKey, service);
     if ('error' in found) {
       base.reachable = false;
       base.error = found.error;

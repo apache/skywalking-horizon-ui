@@ -39,6 +39,7 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe, instanceNodeFragment } from './topology-mqe.js';
+import { entityServiceName } from '../services/service-identity.js';
 
 interface OapInstNode {
   id: string;
@@ -71,6 +72,16 @@ const INSTANCE_TOPOLOGY = /* GraphQL */ `
     ) {
       nodes { id name serviceName serviceId isReal }
       calls { id source target detectPoints }
+    }
+  }
+`;
+
+const GET_SERVICE_FOR_RESOLVE = /* GraphQL */ `
+  query GetServiceForDeployment($id: String!) {
+    service: getService(serviceId: $id) {
+      id
+      name
+      normal
     }
   }
 `;
@@ -119,10 +130,10 @@ function relationFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: {` +
-    ` serviceName: ${JSON.stringify(serviceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
     ` normal: ${normal ? 'true' : 'false'},` +
     ` serviceInstanceName: ${JSON.stringify(srcInstanceName)},` +
-    ` destServiceName: ${JSON.stringify(serviceName)},` +
+    ` destServiceName: ${JSON.stringify(entityServiceName(serviceName))},` +
     ` destNormal: ${normal ? 'true' : 'false'},` +
     ` destServiceInstanceName: ${JSON.stringify(dstInstanceName)} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
@@ -202,11 +213,21 @@ export async function buildDeployment(input: BuildDeploymentInput): Promise<Depl
     const data = await graphqlPost<{
       services: Array<{ id: string; name: string; normal?: boolean | null }>;
     }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: oapLayer });
-    const svc = data.services.find((s) => s.id === serviceId) ?? null;
-    if (svc) {
-      serviceName = svc.name;
-      serviceNormal = svc.normal !== false;
+    let svc = data.services.find((s) => s.id === serviceId) ?? null;
+    // Not in this layer's roster (another layer's URL, a roster that has not
+    // caught up): ask for the service itself. Every metric below names it,
+    // and an empty name would read as no service at all.
+    if (!svc) {
+      const one = await graphqlPost<{ service: { id: string; name: string; normal?: boolean | null } | null }>(
+        opts,
+        GET_SERVICE_FOR_RESOLVE,
+        { id: serviceId },
+      );
+      svc = one.service?.id === serviceId ? one.service : null;
     }
+    if (!svc) return emptyDeploymentResponse(layerKey, serviceId, cfg, true, `Unknown service ${serviceId}.`);
+    serviceName = svc.name;
+    serviceNormal = svc.normal !== false;
   } catch (err) {
     return emptyDeploymentResponse(layerKey, serviceId, cfg, false, err instanceof Error ? err.message : String(err));
   }
@@ -274,11 +295,7 @@ export async function buildDeployment(input: BuildDeploymentInput): Promise<Depl
   ];
   const nodeById = new Map<string, OapInstNode>();
   for (const n of nodes) nodeById.set(n.id, n);
-  // OAP hands the decoded service name on each instance node; prefer the
-  // roster name but fall back to it for services missing from the
-  // roster snapshot.
-  if (!serviceName) serviceName = nodes.find((n) => n.serviceId === serviceId)?.serviceName ?? null;
-  const entityServiceName = serviceName ?? '';
+  const entityName = serviceName ?? '';
   function attrsFor(n: OapInstNode): Array<{ name: string; value: string }> {
     return attrsById.get(n.id) ?? attrsByName.get(n.name) ?? [];
   }
@@ -373,7 +390,7 @@ export async function buildDeployment(input: BuildDeploymentInput): Promise<Depl
           const alias = `s${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
           edgeFragments.push(
-            relationFragment(alias, m, entityServiceName, src.name, dst.name, serviceNormal, window, coldStage),
+            relationFragment(alias, m, entityName, src.name, dst.name, serviceNormal, window, coldStage),
           );
         });
       }
@@ -382,7 +399,7 @@ export async function buildDeployment(input: BuildDeploymentInput): Promise<Depl
           const alias = `c${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
           edgeFragments.push(
-            relationFragment(alias, m, entityServiceName, src.name, dst.name, serviceNormal, window, coldStage),
+            relationFragment(alias, m, entityName, src.name, dst.name, serviceNormal, window, coldStage),
           );
         });
       }

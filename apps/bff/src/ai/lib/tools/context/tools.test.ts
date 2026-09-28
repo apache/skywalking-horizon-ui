@@ -34,6 +34,9 @@ vi.mock('../../../../logic/services/service-layer-catalog.js', () => ({
 
 import { contextTools } from './tools.js';
 import type { ToolContext } from '../../tool-context.js';
+import { RequestAccess } from '../../../../rbac/request-access.js';
+import { SessionAccess } from '../../../../rbac/layer-access.js';
+import type { ServiceIdentityResolver } from '../../../../logic/services/service-identity.js';
 
 function tools(hasVerb = true) {
   const ctx = { hasVerb: () => hasVerb, config: {}, fetch: undefined } as unknown as ToolContext;
@@ -67,5 +70,26 @@ describe('list_services', () => {
 
   it('denies without metrics:read', async () => {
     expect(String(await tools(false).listServices.invoke({}))).toMatch(/permission|metrics:read/i);
+  });
+});
+
+describe('the roster tools answer with what the caller may read', () => {
+  const facts = { isOperate: (l: string) => l === 'K8S_SERVICE', canonical: (l: string) => l.toUpperCase() };
+  const limited = (grants: string[]) => {
+    const access = new RequestAccess(new SessionAccess(grants, undefined, facts), {} as ServiceIdentityResolver);
+    const ctx = { hasVerb: () => false, access, config: {}, fetch: undefined } as unknown as ToolContext;
+    const [listLayers, listServices] = contextTools(ctx);
+    return { listLayers, listServices };
+  };
+
+  it('keeps an operate layer from a plain viewer', async () => {
+    const t = limited(['metrics:read']);
+    expect(parse(await t.listServices.invoke({})).services.map((s: { layer: string }) => s.layer)).toEqual(['GENERAL', 'GENERAL']);
+    expect(parse(await t.listLayers.invoke({})).map((l: { layer: string }) => l.layer)).toEqual(['GENERAL']);
+  });
+
+  it('lists only the granted layer for a layer grant, and the operate one it names', async () => {
+    const t = limited(['metrics:read@K8S_SERVICE']);
+    expect(parse(await t.listServices.invoke({})).services.map((s: { name: string }) => s.name)).toEqual(['showcase::gateway.ns']);
   });
 });

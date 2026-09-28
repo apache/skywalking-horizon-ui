@@ -44,6 +44,7 @@ import { clientGone } from '../client-gone.js';
 import { withColdStage } from '../../util/duration.js';
 import { getServerOffsetMinutes, windowFromRange } from '../../util/window.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
+import { sessionHasVerb } from '../../rbac/policy.js';
 
 export interface MqeExecRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -146,6 +147,15 @@ export function registerMqeExecRoute(app: FastifyInstance, deps: MqeExecRouteDep
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
       const { entity, step, startMs, endMs } = parsed.data;
+      // With no source service the expression reads the metric across every
+      // service — `top_n` filters by `serviceName` alone, whatever `dest*`
+      // says — which is raw metric access: `inspect:read`, not `metrics:read`.
+      if (!entity.serviceName) {
+        const session = req.session;
+        if (!session || !sessionHasVerb(deps.config.current, session, 'inspect:read')) {
+          return reply.code(403).send({ error: 'permission_denied', verb: 'inspect:read', reason: 'expression_names_no_service' });
+        }
+      }
 
       // A blank field is not a blank query: a service-list column with no
       // `mqe` runs the catalog default derived from its metric id + layer,

@@ -17,6 +17,7 @@ dist-ssr
 !.claude/skills/local-boot/dev-users.json
 !.claude/skills/local-boot/dev-ldap.json
 !.claude/skills/local-boot/ldap-seed.ldif
+!.claude/skills/local-boot/rbac-demo/
 
 # Editor
 .idea

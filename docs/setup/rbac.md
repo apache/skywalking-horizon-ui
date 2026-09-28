@@ -42,6 +42,8 @@ rbac:
 
 `rbac.roles` is an open map — the four built-ins have no special status, and you can define as many roles as you like beside them.
 
+A data verb can be limited to one layer, and to service groups in it — `metrics:read@GENERAL[payments]` — so a team reads only its own services and its sidebar lists only its own layers. A grant without `@` means what it always has. See [Limiting a verb to layers and service groups](../access-control/rbac.md#limiting-a-verb-to-layers-and-service-groups).
+
 By default, **naming `roles` replaces the block entirely**: the roles that exist are exactly the ones you listed, and a user whose every role has disappeared holds no verbs and is refused everywhere. Set `builtinRoles: keep` to treat the built-ins as a base instead — then a name you list overrides that one role wholesale, a new name is appended, and everything you did not mention stays as it shipped.
 
 A common addition is a **read-only template viewer** — someone who inspects how the dashboards are configured, and reviews translations, without being able to publish anything. Grant the read half of each Dashboard-setup pair and none of the write half:

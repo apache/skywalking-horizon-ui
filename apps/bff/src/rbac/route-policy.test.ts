@@ -28,6 +28,7 @@ import {
 import { setTemplateReadOnly } from '../logic/templates/sync.js';
 import { configSchema } from '../config/schema.js';
 import type { AuthDeps } from '../user/middleware.js';
+import { LAYER_PAGE_VERBS } from './verbs.js';
 
 describe('isTemplateWriteRoute — which routes the readonly backstop covers', () => {
   it('matches non-GET config-template write routes', () => {
@@ -186,7 +187,7 @@ describe('denyTemplateWriteWhenReadOnly — the BFF backstop', () => {
 });
 describe('evaluation record selector route policies', () => {
   const config = configSchema.parse({ rbac: { roles: {
-    'metrics-only': ['metrics:read'], 'logs-only': ['logs:read'], empty: [],
+    'metrics-only': ['metrics:read'], 'logs-only': ['logs:read'], 'alarms-only': ['alarms:read@GENERAL[risk]'], empty: [],
   } } });
   const deps = { config: { current: config } } as unknown as AuthDeps;
   type PreHandler = (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
@@ -205,14 +206,16 @@ describe('evaluation record selector route policies', () => {
     expect(gate).toBeDefined();
     return run(gate!, role);
   }
-  it('allows either metrics:read or logs:read', async () => {
-    for (const route of ['GET /api/layer/:key/instances']) {
+  it('allows any permission that opens a layer page, and alarms:read, whose page narrows by them', async () => {
+    for (const route of ['GET /api/layer/:key/instances', 'GET /api/layer/:key/endpoints']) {
       expect(await decide(route, 'logs-only')).toEqual({});
       expect(await decide(route, 'metrics-only')).toEqual({});
+      expect(await decide(route, 'alarms-only')).toEqual({});
     }
   });
   it('denies a role with neither permission', async () => {
-    expect(await decide('GET /api/layer/:key/instances', 'empty')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read or logs:read' } });
+    const verb = [...LAYER_PAGE_VERBS, 'alarms:read'].join(' or ');
+    expect(await decide('GET /api/layer/:key/instances', 'empty')).toEqual({ code: 403, body: { error: 'permission_denied', verb } });
   });
   it('requires metrics:read for landing and permits logs:read on the evaluation catalog', async () => {
     expect(await decide('POST /api/layer/:key/landing', 'logs-only')).toEqual({ code: 403, body: { error: 'permission_denied', verb: 'metrics:read' } });

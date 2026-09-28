@@ -27,6 +27,8 @@ import type {
 import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
 import type { LayerDefaultFilters, LayerExtPages } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
+import type { RequestAccess } from '../../rbac/request-access.js';
+import { LAYER_PAGE_VERBS } from '../../rbac/verbs.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import type { LayerTemplate } from '../../logic/layers/loader.js';
@@ -330,7 +332,9 @@ function buildLayerDef(
       group: tpl.group,
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
-      slots: tpl.slots,
+      // A bundled file's `aliases` becomes `slots` when it is loaded; a row
+      // stored on OAP is served as written, so it may still carry `aliases`.
+      slots: tpl.slots ?? (tpl as { aliases?: LayerSlots }).aliases ?? {},
       // Caps come straight from the in-use REMOTE template's component
       // flags. Missing flags fall to the componentsToCaps defaults, never
       // to the bundled copy of an already-published layer: bundled is the
@@ -390,6 +394,48 @@ function applyLinkPolicy(layers: LayerDef[], trustedDomains: readonly string[]):
     );
     return { ...layer, documentLink: undefined };
   });
+}
+
+/**
+ * The entries this caller may open, with the service counts they may see.
+ * Absent `access` (the scope gate is not wired — unit tests) leaves the menu
+ * as it was. A group-limited grant on an unsplit layer keeps the one entry
+ * but counts only the granted groups' services.
+ */
+function scopeMenu(
+  layers: LayerDef[],
+  access: RequestAccess | undefined,
+  groupsByCanonical: Map<string, Map<string, number>> | null,
+): LayerDef[] {
+  if (!access) return layers;
+  return layers.flatMap((l): LayerDef[] => {
+    const layerKey = l.key.split('~')[0]!;
+    if (!access.menuShows(layerKey, l.serviceGroup)) return [];
+    // A layer entry is shown with all its pages or not at all; a page whose
+    // data this caller cannot read answers with a refusal.
+    if (l.serviceGroup !== undefined || !groupsByCanonical || !access.session.hasLayerGrants()) return [l];
+    const reach = access.onLayer(LAYER_PAGE_VERBS, layerKey);
+    if (!reach || reach.whole) return [l];
+    let count = 0;
+    for (const [g, n] of groupsByCanonical.get(canonicalLayerKey(layerKey)) ?? []) if (reach.groups.has(g)) count += n;
+    return [{ ...l, serviceCount: count }];
+  });
+}
+
+
+/** The layers whose alarms the session reads, by base layer — see
+ *  `MenuResponse.alarmLayers`. A plain `alarms:read` reaches layers the
+ *  page-scoped sidebar leaves out. */
+function alarmLayersFor(layers: LayerDef[], access: RequestAccess | undefined): MenuResponse['alarmLayers'] {
+  if (!access || !access.session.hasLayerGrants()) return undefined;
+  const out = new Map<string, { key: string; name: string }>();
+  for (const l of layers) {
+    const key = canonicalLayerKey(l.key.split('~')[0]!);
+    if (l.serviceCount <= 0 || out.has(key) || !access.onLayer(['alarms:read'], key)) continue;
+    // A group entry's name leads with its group.
+    out.set(key, { key, name: l.serviceGroup ? l.name.replace(`${l.serviceGroup} · `, '') : l.name });
+  }
+  return [...out.values()];
 }
 
 export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): void {
@@ -524,8 +570,10 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             }));
         });
 
+      const alarmLayers = alarmLayersFor(layers, req.access);
       const body: MenuResponse = {
-        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
+        layers: applyLinkPolicy(scopeMenu(layers, req.access, groupsByCanonical), cfg.security.trustedLinkDomains),
+        ...(alarmLayers ? { alarmLayers } : {}),
         generatedAt: Date.now(),
         oap: { reachable: true, queryUrl },
       };
@@ -548,7 +596,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows, null));
       }
       const body: MenuResponse = {
-        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
+        layers: applyLinkPolicy(scopeMenu(layers, req.access, null), cfg.security.trustedLinkDomains),
         generatedAt: Date.now(),
         oap: {
           reachable: false,

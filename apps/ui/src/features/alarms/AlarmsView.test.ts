@@ -31,6 +31,11 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query';
 import { i18n } from '@/i18n';
 import AlarmsView from './AlarmsView.vue';
 
+// A plain alarms reader — the page as every deployment without layer grants sees it.
+vi.mock('@/state/auth', () => ({
+  useAuthStore: () => ({ hasVerb: () => true, layerLimited: () => false, layersFor: () => null }),
+}));
+
 const LAYER = 'VIRTUAL_DATABASE';
 /** A conjectural service and an agent-reporting one, on the same roster. */
 const VIRTUAL = 'mysql-a';

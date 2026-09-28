@@ -42,6 +42,7 @@ const { route, isActive, isActiveExact } = useRouteActive();
 const auth = useAuthStore();
 
 const L = computed(() => props.layer);
+const canReadLogs = computed(() => auth.hasVerbOnLayer('logs:read', L.value.key, L.value.visibility === 'operate'));
 
 function labelFor(path: string): string {
   const slots = L.value.slots;
@@ -74,7 +75,9 @@ function labelFor(path: string): string {
 }
 
 const rows = computed(() =>
-  layerMenuRows(L.value).filter((r) => r.path !== 'evaluation-record' || auth.hasVerb('logs:read')).map((r) => ({
+  layerMenuRows(L.value)
+    .filter((r) => r.path !== 'evaluation-record' || canReadLogs.value)
+    .map((r) => ({
     ...r,
     to: `/layer/${L.value.key}/${r.path}`,
     // The page's own name when it has one; otherwise the component's

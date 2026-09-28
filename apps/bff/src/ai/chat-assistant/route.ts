@@ -49,10 +49,12 @@ import { createGraphicCardBuffer } from '../lib/graphic-card-buffer.js';
 import type { ToolContext } from '../lib/tool-context.js';
 import type { StreamEvent } from '../lib/graphic-card.js';
 import { SECURITY_HEADERS, API_CACHE_CONTROL } from '../../util/security-headers.js';
+import { buildRequestAccess, type AccessDeps } from '../../rbac/request-access.js';
 
 export interface AiChatRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   uiTemplateClient?: () => UITemplateClient;
+  access?: AccessDeps;
 }
 
 const chatBodySchema = z.object({
@@ -106,6 +108,7 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
     }
 
     const subject = req.session ?? { roles: [] };
+    const access = deps.access ? await buildRequestAccess(cfg, subject, deps.access) : undefined;
     const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
     const nowMs = Date.now();
     const endMs = parsed.data.endMs ?? nowMs;
@@ -185,6 +188,7 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
       range: { startMs, endMs, step },
       bulkSize: cfg.performance.bulk.dashboard.bulkSize,
       hasVerb: (verb) => sessionHasVerb(cfg, subject, verb),
+      access,
       emitFigure,
       emitProposal,
       emitProfiling,

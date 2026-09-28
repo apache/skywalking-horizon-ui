@@ -142,10 +142,13 @@ export interface BuildServiceTopologyInput {
   depth: number;
   /** Layer-overview only: scope the all-services seed to one Service.group. */
   group?: string;
+  /** Layer-overview only: the Service.group values the caller may read, when
+   *  that is not every group. Neighbours still render as OAP returns them. */
+  seedGroups?: ReadonlySet<string>;
 }
 
 export async function buildServiceTopology(input: BuildServiceTopologyInput): Promise<TopologyResponse> {
-  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group } = input;
+  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group, seedGroups } = input;
   const oapLayer = layerKey.toUpperCase();
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
@@ -177,6 +180,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       // layer-overview seed to one OAP Service.group; absent ⇒ all.
       seedIds = data.services
         .filter((s) => group === undefined || ((s as { group?: string }).group ?? '') === group)
+        .filter((s) => !seedGroups || seedGroups.has((s as { group?: string }).group ?? ''))
         .map((s) => s.id);
     }
   } catch (err) {

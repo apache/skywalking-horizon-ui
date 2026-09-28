@@ -28,6 +28,7 @@
 
 import type { TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import type { Window } from '../../util/window.js';
+import { entityServiceName } from '../services/service-identity.js';
 
 interface MqeValueRow {
   value: string | number | null;
@@ -53,7 +54,7 @@ export function nodeFragment(
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
-    `      entity: { scope: Service, serviceName: ${JSON.stringify(serviceName)},` +
+    `      entity: { scope: Service, serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
     ` normal: ${normal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
@@ -76,7 +77,7 @@ export function instanceNodeFragment(
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
-    `      entity: { scope: ServiceInstance, serviceName: ${JSON.stringify(serviceName)},` +
+    `      entity: { scope: ServiceInstance, serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
     ` normal: ${normal ? 'true' : 'false'}, serviceInstanceName: ${JSON.stringify(instanceName)} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
@@ -108,9 +109,9 @@ export function relationFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: {` +
-    ` serviceName: ${JSON.stringify(sourceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(sourceName))},` +
     ` normal: ${sourceNormal ? 'true' : 'false'},` +
-    ` destServiceName: ${JSON.stringify(destName)},` +
+    ` destServiceName: ${JSON.stringify(entityServiceName(destName))},` +
     ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`

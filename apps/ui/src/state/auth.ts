@@ -21,7 +21,7 @@ import { BffApiError, bffClient, type MeResponse } from '@/api/client';
 import { useTemplatePreference } from '@/controls/templatePreference';
 import { resetSessionState } from '@/state/sessionReset';
 import { i18n } from '@/i18n';
-import { WILDCARD_EXEMPT_VERBS } from './wildcardExempt';
+import { canonicalLayerKey, hasPlainVerb, layerGrantCovers, parseLayerGrant, type LayerGrant } from './verbGrammar';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<MeResponse | null>(null);
@@ -96,28 +96,64 @@ export const useAuthStore = defineStore('auth', () => {
     resetSessionState();
   }
 
-  // Mirrors the BFF's matchOne (apps/bff/src/rbac/verbs.ts) exactly. This UI gate
-  // is advisory — the BFF enforces — but it must agree, or it hides custom `admin`
-  // grants and shows three-segment controls (e.g. rule:write:structural) that a
-  // two-segment grant like `*:write` does not actually carry and the BFF denies.
+  // The BFF's `SessionAccess`, advisory here — the BFF enforces, but this gate
+  // must agree with it, or it hides controls the server allows and shows ones
+  // it denies. An OAuth credential's `verbCap` narrows by verb, never by layer.
+  function capAllows(verb: string): boolean {
+    const cap = user.value?.verbCap;
+    return cap ? hasPlainVerb(cap, verb) : true;
+  }
+
+  /** The plain question: a grant written with `@` never answers it. */
   function hasVerb(verb: string): boolean {
-    const grants = user.value?.verbs ?? [];
-    for (const g of grants) {
-      if (g === '*' || g === 'admin' || g === verb) return true;
-      // Same placement as the BFF: after the exact/`*`/`admin` grants and
-      // BEFORE both wildcard branches, so `*:read` and `audit:*` are equally
-      // denied.
-      if (WILDCARD_EXEMPT_VERBS.has(verb)) continue;
-      // Both as the BFF: a fourth segment is malformed rather than truncated,
-      // and `area:*` carries no sub-segment.
-      if (g.split(':').length > 3) continue;
-      const [ga, gact, gsub] = g.split(':', 3);
-      const [ra, ract, rsub] = verb.split(':', 3);
-      if (ga === ra && gact === '*' && gsub === undefined) return true;
-      if (ga === '*' && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
-      if (ga === ra && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
+    return capAllows(verb) && hasPlainVerb(user.value?.verbs ?? [], verb);
+  }
+
+  function layerGrantsFor(verb: string): LayerGrant[] {
+    if (!capAllows(verb)) return [];
+    const out: LayerGrant[] = [];
+    for (const g of user.value?.verbs ?? []) {
+      const parsed = g.includes('@') ? parseLayerGrant(g) : null;
+      if (parsed && layerGrantCovers(parsed, verb)) out.push(parsed);
     }
-    return false;
+    return out;
+  }
+
+  /**
+   * May the session use `verb` on this layer's pages? A plain grant reaches
+   * every layer except an operate one (Platform monitoring), which also needs
+   * `cluster:read`; a `verb@LAYER` grant reaches exactly its layer. `layerKey`
+   * may be a sidebar entry's `<layer>~<group>` key, and then the grant must
+   * also reach that group. On a whole layer, group limits are left to the BFF,
+   * which drops the roster rows they exclude.
+   */
+  function hasVerbOnLayer(verb: string, layerKey: string, operate = false): boolean {
+    if (hasVerb(verb) && (!operate || hasVerb('cluster:read'))) return true;
+    const cut = layerKey.indexOf('~');
+    const key = canonicalLayerKey(cut < 0 ? layerKey : layerKey.slice(0, cut));
+    const group = cut < 0 ? undefined : layerKey.slice(cut + 1);
+    return layerGrantsFor(verb).some(
+      (g) => canonicalLayerKey(g.layer) === key && (group === undefined || !g.groups || g.groups.includes(group)),
+    );
+  }
+
+  /** Held plainly or on at least one layer — for a read whose layer is only
+   *  known to the BFF (a trace opened by id). */
+  function hasVerbOnSomeLayer(verb: string): boolean {
+    return hasVerb(verb) || layerGrantsFor(verb).length > 0;
+  }
+
+  /** The layers a layer-limited verb reaches; null when it is held plainly,
+   *  which reaches them all. */
+  function layersFor(verb: string): string[] | null {
+    if (hasVerb(verb)) return null;
+    return [...new Set(layerGrantsFor(verb).map((g) => canonicalLayerKey(g.layer)))];
+  }
+
+  /** Held only through layer grants: the BFF refuses such a caller any read
+   *  that names no service, so pickers must not offer "all services". */
+  function layerLimited(verb: string): boolean {
+    return !hasVerb(verb) && layerGrantsFor(verb).length > 0;
   }
 
   return {
@@ -130,5 +166,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     endSession,
     hasVerb,
+    hasVerbOnLayer,
+    hasVerbOnSomeLayer,
+    layerLimited,
+    layersFor,
   };
 });

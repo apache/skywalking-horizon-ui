@@ -51,6 +51,7 @@ import {
   windowFromRange,
   type Window,
 } from '../../util/window.js';
+import { entityServiceName } from '../../logic/services/service-identity.js';
 
 export interface Infra3dMetricsDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -113,7 +114,7 @@ function buildFragment(
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(s.mqe)},\n` +
-    `      entity: { scope: Service, serviceName: ${JSON.stringify(s.name)}, normal: ${s.normal ? 'true' : 'false'} },\n` +
+    `      entity: { scope: Service, serviceName: ${JSON.stringify(entityServiceName(s.name))}, normal: ${s.normal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${cold} }\n` +
     `    ) { type error results { values { value } } }`
   );

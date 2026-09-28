@@ -262,7 +262,11 @@ export function registerContinuousProfilingRoutes(
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const snap = await catalog.get();
-        const summary = await policySummaryForServices(opts, snap.byLayer.get(q.layer.toUpperCase()) ?? []);
+        const roster = snap.byLayer.get(q.layer.toUpperCase()) ?? [];
+        const readable = req.access
+          ? await req.access.keepReadable(['profile:read'], req.access.filterRoster(['profile:read'], q.layer, roster), (s) => ({ id: s.id }))
+          : roster;
+        const summary = await policySummaryForServices(opts, readable);
         payload.services = summary.rows;
         payload.checked = summary.checked;
         payload.total = summary.total;

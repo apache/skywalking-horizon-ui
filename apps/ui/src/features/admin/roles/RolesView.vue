@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { WILDCARD_EXEMPT_VERBS } from '@/state/wildcardExempt';
+import { LAYER_SCOPED_VERBS, layerGrantCovers, matchOne, parseLayerGrant, type LayerGrant } from '@/state/verbGrammar';
 import { aliasesFor } from '@/state/verbAliases';
 import { bff } from '@/api/client';
 import type { AuthStatus } from '@/api/scopes/admin-auth';
@@ -47,27 +47,11 @@ async function load(): Promise<void> {
 }
 onMounted(load);
 
-/** Matcher mirroring the server's verb resolution. */
+/** Matcher mirroring the server's verb resolution. Raw policy grants, so
+ *  retired names are expanded here the way `resolveVerbsForRoles` expands
+ *  them server-side. */
 function hasVerb(grants: readonly string[], required: string): boolean {
-  // Raw policy grants, so retired names must be expanded here the way
-  // `resolveVerbsForRoles` expands them server-side.
-  for (const g of [...grants, ...grants.flatMap(aliasesFor)]) {
-    if (g === '*' || g === 'admin') return true;
-    if (g === required) return true;
-    // Before the wildcard branches, exactly as the BFF places it — otherwise
-    // this board draws a check mark for a grant the server denies, on the row
-    // whose own hint says a wildcard does not include it.
-    if (WILDCARD_EXEMPT_VERBS.has(required)) continue;
-    // Both as the BFF: a fourth segment is malformed rather than truncated,
-    // and `area:*` carries no sub-segment.
-    if (g.split(':').length > 3) continue;
-    const gp = g.split(':', 3);
-    const rp = required.split(':', 3);
-    if (gp[0] === rp[0] && gp[1] === '*' && gp[2] === undefined) return true;
-    if (gp[0] === '*' && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
-    if (gp[0] === rp[0] && gp[1] === rp[1] && (gp[2] ?? '') === (rp[2] ?? '')) return true;
-  }
-  return false;
+  return [...grants, ...grants.flatMap(aliasesFor)].some((g) => matchOne(g, required));
 }
 
 const roleNames = computed(() => Object.keys(status.value?.rbac.roles ?? {}).sort(rolePriority));
@@ -409,6 +393,34 @@ const groupedVerbs = computed<Array<VerbGroup & { items: string[] }>>(() => {
 function grantsOf(role: string): string[] {
   return status.value?.rbac.roles[role] ?? [];
 }
+
+interface RoleLayerGrant {
+  raw: string;
+  /** Null when the qualifier is malformed. */
+  parsed: LayerGrant | null;
+  /** Covers at least one per-service read; otherwise the BFF grants nothing for it. */
+  effective: boolean;
+}
+/** A role's `verb@LAYER[groups]` grants. The grids cannot show them as check
+ *  marks: a layer grant never confers the plain capability a row stands for. */
+function layerGrantsOf(role: string): RoleLayerGrant[] {
+  const out: RoleLayerGrant[] = [];
+  for (const raw of grantsOf(role)) {
+    if (!raw.includes('@')) continue;
+    const parsed = parseLayerGrant(raw);
+    const effective = parsed !== null && [...LAYER_SCOPED_VERBS].some((v) => layerGrantCovers(parsed, v));
+    out.push({ raw, parsed, effective });
+  }
+  return out;
+}
+function groupLabels(groups: readonly string[]): string {
+  return groups.map((g) => (g === '' ? t('no group') : g)).join(', ');
+}
+/** Held on some layers but not plainly — a partial mark rather than a dot. */
+function layerOnly(role: string, verb: string): boolean {
+  if (hasVerb(grantsOf(role), verb)) return false;
+  return layerGrantsOf(role).some((g) => g.parsed !== null && layerGrantCovers(g.parsed, verb));
+}
 </script>
 
 <template>
@@ -440,6 +452,24 @@ function grantsOf(role: string): string[] {
           <div v-for="r in roleNames" :key="r" class="role-card">
             <span class="pill" :class="rolePill(r)">{{ r }}</span>
             <p class="role-blurb">{{ roleBlurb(r) }}</p>
+            <div v-if="layerGrantsOf(r).length > 0" class="role-layers">
+              <span class="role-layers-head">{{ t('Limited to layers') }}</span>
+              <ul class="role-layers-list">
+                <li v-for="g in layerGrantsOf(r)" :key="g.raw" :class="{ 'is-void': !g.effective }">
+                  <i18n-t v-if="g.parsed" keypath="{verb} on {layer}" tag="span" scope="global">
+                    <template #verb><code>{{ g.parsed.verb }}</code></template>
+                    <template #layer><code>{{ g.parsed.layer }}</code></template>
+                  </i18n-t>
+                  <code v-else>{{ g.raw }}</code>
+                  <span v-if="g.parsed?.groups" class="role-layers-groups">[{{ groupLabels(g.parsed.groups) }}]</span>
+                  <span
+                    v-if="!g.effective"
+                    class="pill pill-muted"
+                    :title="t('Grants nothing: the qualifier is malformed, or the verb is not a per-service read.')"
+                  >{{ t('No effect') }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -534,6 +564,12 @@ function grantsOf(role: string): string[] {
                   </td>
                   <td v-for="r in roleNames" :key="r" class="td-cell">
                     <span v-if="hasVerb(grantsOf(r), v)" class="check check-on" :aria-label="t('allowed')">✓</span>
+                    <span
+                      v-else-if="layerOnly(r, v)"
+                      class="check check-part"
+                      :title="t('on some layers only')"
+                      :aria-label="t('on some layers only')"
+                    >◐</span>
                     <span v-else class="check check-off" :aria-label="t('not allowed')">·</span>
                   </td>
                 </tr>
@@ -606,6 +642,43 @@ function grantsOf(role: string): string[] {
   color: var(--sw-fg-2);
   line-height: var(--sw-lh-normal);
 }
+.role-layers {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--sw-line);
+}
+.role-layers-head {
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
+}
+.role-layers-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-1);
+}
+.role-layers-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  line-height: var(--sw-lh-normal);
+}
+.role-layers-list code {
+  font-family: var(--sw-mono);
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-0);
+}
+.role-layers-groups {
+  font-family: var(--sw-mono);
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-2);
+}
+.role-layers-list li.is-void code { color: var(--sw-fg-3); text-decoration: line-through; }
 
 .muted { color: var(--sw-fg-3); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-regular); }
 .card-head h3 + .muted { margin-left: 6px; }
@@ -755,6 +828,10 @@ function grantsOf(role: string): string[] {
 .check-on {
   background: rgba(34, 197, 94, 0.16);
   color: var(--sw-ok);
+}
+.check-part {
+  background: var(--sw-warn-soft);
+  color: var(--sw-warn);
 }
 .check-off {
   color: var(--sw-fg-3);

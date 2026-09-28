@@ -38,6 +38,8 @@ import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
+import { LAYER_PAGE_VERBS } from '../../rbac/verbs.js';
+
 export interface LayerServicesRouteDeps extends AuthDeps {
   fetch?: FetchLike;
 }
@@ -63,7 +65,8 @@ export function registerLayerServicesRoute(
       const group = (req.query as { group?: string }).group;
       try {
         const snap = await catalog.get();
-        const all = snap.byLayer.get(layerUpper) ?? [];
+        const layerRows = snap.byLayer.get(layerUpper) ?? [];
+        const all = req.access ? req.access.filterRoster(LAYER_PAGE_VERBS, layerKey, layerRows) : layerRows;
         const rows = group === undefined ? all : all.filter((r) => r.group === group);
         return reply.send({
           // Honest about the read that produced this. An empty roster from a

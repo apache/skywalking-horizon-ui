@@ -82,6 +82,9 @@ export interface ServiceCatalog {
    * anything that reports health must still treat the read as failed.
    */
   stale?: boolean;
+  /** When the rows were read from OAP (epoch ms). Kept with the rows through a
+   *  failed refresh, so a reader can tell how old retained rows are. */
+  readAt?: number;
 }
 
 export interface ServiceLayerCatalogDeps {
@@ -201,7 +204,7 @@ export class ServiceLayerCatalog {
         byLayer.set(layer, rows);
         for (const r of rows) if (r.name) byName.set(r.name.toLowerCase(), layer);
       });
-      return { layers, byLayer, byName };
+      return { layers, byLayer, byName, readAt: Date.now() };
     } catch (err) {
       logger.warn({ err }, 'service-layer-catalog: listServices fan-out failed');
       return { layers, byLayer: new Map(), byName: new Map(), unreachable: true };

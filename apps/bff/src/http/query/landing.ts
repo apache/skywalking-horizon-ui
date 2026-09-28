@@ -57,12 +57,16 @@ import {
   type ScanFn,
 } from '../../logic/layers/header-kpi-cache.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
+import { overviewExpressionsForLayer } from '../../logic/overview/effective.js';
+import { sessionHasVerb } from '../../rbac/policy.js';
 import {
   defaultMinuteWindow,
   getServerOffsetMinutes,
   windowFromRange,
   type Window,
 } from '../../util/window.js';
+import { readsByNameOnly } from '../../rbac/request-access.js';
+import { entityServiceName } from '../../logic/services/service-identity.js';
 
 export interface LandingRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -270,7 +274,7 @@ function buildMqeFragment(aliasName: string, m: MqeRequest, w: Window, coldStage
   return (
     `${aliasName}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.expression)},\n` +
-    `      entity: { scope: Service, serviceName: ${JSON.stringify(m.serviceName)}, normal: ${m.normal ? 'true' : 'false'} },\n` +
+    `      entity: { scope: Service, serviceName: ${JSON.stringify(entityServiceName(m.serviceName))}, normal: ${m.normal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
@@ -336,9 +340,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       // column of dashes.
       //
       // It is NOT an authorization boundary. Whether a caller may query metrics
-      // at all is the RBAC query verb's decision; this is template analysis, and
-      // the same request may carry any `mqe` it likes without passing through
-      // here. So it runs only where there is something to check against — a
+      // at all is the RBAC query verb's decision; this is template analysis. A
+      // per-service column may carry any `mqe` it likes — it is evaluated per
+      // service the caller may read — and a self-aggregating one is bounded
+      // separately below. So this runs only where there is something to check against — a
       // layer whose template could not be read refuses nothing, since refusing
       // would cost real callers a working page during a template-store outage
       // and withhold nothing from anyone.
@@ -408,6 +413,15 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         // only the first group asked for, and every other group would read its
         // own services as absent for the rest of that hour.
         layerRoster = services;
+        if (req.access) {
+          const access = req.access;
+          // The roster names a service in `value`; the blank-name rule reads `name`.
+          services = access.filterRoster(['metrics:read'], layerKey, services.map((s) => ({ ...s, name: s.value })));
+          // `baseline` is looked up by name, so every service of the name must be readable.
+          if (readsByNameOnly(cfg.columns.map((c) => c.mqe ?? ''))) {
+            services = await access.keepReadable(['metrics:read'], services, (s) => ({ name: entityServiceName(s.value) }));
+          }
+        }
         // Optional `?group=` (split-by-service-group menu entry) — narrow
         // the roster to that OAP Service.group before the top-N rollup.
         const group = (req.query as { group?: string }).group;
@@ -473,8 +487,25 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         column: c,
         expression: resolveMqe(c.metric, c.mqe, layerKey),
       }));
+      // A self-aggregating column reads the metric across every service, so it
+      // runs only for a caller who reads the whole layer, and only when a
+      // stored overview declares it (or it names a declared header metric,
+      // checked above). A refused column is simply absent from `aggregates`.
+      const wholeLayer = !req.access || !req.access.layerLimited(['metrics:read']);
+      const overviewDeclared = wholeLayer
+        ? await overviewExpressionsForLayer(deps.uiTemplateClient, layerKey)
+        : new Set<string>();
+      for (const c of declared ?? []) if (c.mqe) overviewDeclared.add(c.mqe);
+      // An overview author previews a draft that no stored template holds yet.
+      const runsDrafts = !!req.session && sessionHasVerb(deps.config.current, req.session, 'overview-template:write');
       const aggResolved = allResolved
-        .filter((r) => r.column.selfAggregate === true && r.expression !== null)
+        .filter(
+          (r) =>
+            r.column.selfAggregate === true &&
+            r.expression !== null &&
+            wholeLayer &&
+            (!r.column.mqe || runsDrafts || overviewDeclared.has(r.column.mqe)),
+        )
         .map((r) => ({
           column: r.column,
           expression: (r.expression as string).replace(/\{\{\s*topn\s*\}\}/g, String(overviewTopN)),
@@ -921,7 +952,13 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       // own reads, plus the scan behind whichever bucket answered the header.
       // Charging only the live reads meant an hour whose scan lost a batch was
       // reported as sound on every request but the one that filled it.
-      const bucketBatches = kpiRead?.bucket?.batches ?? { total: 0, failed: 0 };
+      const scanned = kpiRead?.bucket?.batches ?? { total: 0, failed: 0 };
+      // The hour's scan spans every group of the layer, so a caller limited to
+      // some of them learns only whether it was partial, not its size.
+      const bucketBatches =
+        req.access?.layerLimited(['metrics:read']) && scanned.total > 0
+          ? { total: 1, failed: scanned.failed > 0 ? 1 : 0 }
+          : scanned;
       const failedAll = requestAcct.failed + bucketBatches.failed;
       const metricsPartial =
         failedAll > 0

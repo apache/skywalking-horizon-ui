@@ -20,12 +20,12 @@
  * `WILDCARD_EXEMPT_VERBS` (`apps/bff/src/rbac/verbs.ts`), which is the source
  * of truth and the only side that enforces.
  *
- * There are two verb matchers on this side (the auth store's gate and the
- * Roles board's) and they must both consult this, or the two surfaces
- * contradict the server in opposite directions: the sidebar offers a page that
- * 403s, and the Roles board draws a check mark for a grant the BFF denies —
- * on the same row whose hint says a wildcard does not include it. That board
- * is what an administrator plans access around.
+ * The UI's matcher (`verbGrammar.ts`, which both the auth store's gate and the
+ * Roles board answer through) consults this. Without it the two surfaces
+ * contradict the server: the sidebar offers a page that 403s, and the Roles
+ * board draws a check mark for a grant the BFF denies — on the same row whose
+ * hint says a wildcard does not include it. That board is what an
+ * administrator plans access around.
  *
  * `wildcardExemptVerbs.test.ts` fails if this drifts from the BFF's set.
  */

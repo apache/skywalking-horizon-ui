@@ -29,8 +29,15 @@
  */
 
 import type { FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
-import { sessionHasVerb } from './policy.js';
+import { sessionHasVerb, sessionHasVerbOnSomeLayer } from './policy.js';
 import type { AuthDeps } from '../user/middleware.js';
+import type { AccessDeps } from './request-access.js';
+import { ROUTE_SCOPE } from './route-scope.js';
+import { scopeGate } from './scope-gate.js';
+import { LAYER_PAGE_VERBS, LAYER_SCOPED_VERBS } from './verbs.js';
+
+/** Any verb that opens a layer page may fill that page's pickers. */
+const LAYER_PICKER_VERBS: readonly string[] = LAYER_PAGE_VERBS;
 import { requireAuth } from '../user/middleware.js';
 import { isTemplateReadOnly } from '../logic/templates/sync.js';
 import { logger } from '../logger.js';
@@ -68,7 +75,8 @@ export async function denyTemplateWriteWhenReadOnly(
  * conjunction — all are required, and the first one the session lacks is the
  * one reported back.
  */
-export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
+export function checkVerb(deps: AuthDeps, verb: string | readonly string[], onSomeLayer = false) {
+  const has = onSomeLayer ? sessionHasVerbOnSomeLayer : sessionHasVerb;
   const required = typeof verb === 'string' ? [verb] : verb;
   return async function verbOnlyPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const session = req.session;
@@ -76,18 +84,19 @@ export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
     for (const v of required) {
-      if (!sessionHasVerb(deps.config.current, session, v)) {
+      if (!has(deps.config.current, session, v)) {
         return void reply.code(403).send({ error: 'permission_denied', verb: v });
       }
     }
   };
 }
 
-export function checkAnyVerb(deps: AuthDeps, verbs: readonly string[]) {
+export function checkAnyVerb(deps: AuthDeps, verbs: readonly string[], onSomeLayer = false) {
+  const has = onSomeLayer ? sessionHasVerbOnSomeLayer : sessionHasVerb;
   return async function anyVerbPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const session = req.session;
     if (!session) return void reply.code(401).send({ error: 'unauthenticated' });
-    if (verbs.some((verb) => sessionHasVerb(deps.config.current, session, verb))) return;
+    if (verbs.some((verb) => has(deps.config.current, session, verb))) return;
     return void reply.code(403).send({ error: 'permission_denied', verb: verbs.join(' or ') });
   };
 }
@@ -200,9 +209,14 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/mqe/exec':                            'metrics:read',
   'GET /api/layer/:key/dashboard/config':          'metrics:read',
   'POST /api/layer/:key/landing':                  'metrics:read',
-  'GET /api/layer/:key/instances':                 { anyOf: ['metrics:read', 'logs:read'] },
-  'GET /api/layer/:key/endpoints':                 'metrics:read',
-  'GET /api/layer/:key/services':                  'metrics:read',
+  // The instance and endpoint pickers sit on every layer tab, like the
+  // service picker, and narrow the Alarms page too; the grant still decides
+  // whose instances they list.
+  'GET /api/layer/:key/instances':                 { anyOf: [...LAYER_PICKER_VERBS, 'alarms:read'] },
+  'GET /api/layer/:key/endpoints':                 { anyOf: [...LAYER_PICKER_VERBS, 'alarms:read'] },
+  // Every layer tab picks a service here, so any verb that opens a layer page
+  // may list its services; which services is the caller's grant.
+  'GET /api/layer/:key/services':                  { anyOf: LAYER_PICKER_VERBS },
   'GET /api/evaluation-record/caller-services':   'logs:read',
 
   // Profiling reads — task-creation is operator (profile:enable) below.
@@ -357,7 +371,21 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
  * double-auth call is O(1) and the cost is negligible compared with
  * the upstream OAP fetch most handlers perform.
  */
-export function makeRouteAuthHook(deps: AuthDeps) {
+/** The verbs a policy names; empty for 'public' / 'auth'. */
+function policyVerbs(p: RoutePolicy): string[] {
+  if (p === 'public' || p === 'auth') return [];
+  if (typeof p === 'string') return [p];
+  if (Array.isArray(p)) return [...p];
+  return [...(p as { anyOf: readonly string[] }).anyOf];
+}
+
+export interface RouteAuthDeps extends AuthDeps {
+  /** Resolves which layers and services a caller may read. Absent only in
+   *  unit tests that exercise verb gating alone; then no scope is checked. */
+  access?: AccessDeps;
+}
+
+export function makeRouteAuthHook(deps: RouteAuthDeps) {
   return function onRoute(route: RouteOptions): void {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     // A route can be registered for multiple methods; if any one needs
@@ -419,15 +447,25 @@ export function makeRouteAuthHook(deps: AuthDeps) {
       typeof h === 'function' && h.name === 'authPreHandler',
     );
 
+    const verbs = policyVerbs(chosen);
+    const scopeKey = chosenKey ?? '';
+    const scope = ROUTE_SCOPE[scopeKey] ?? ROUTE_SCOPE[scopeKey.replace(/^HEAD /, 'GET ')];
+    if (!scope && route.url.startsWith('/api/') && verbs.some((v) => LAYER_SCOPED_VERBS.has(v))) {
+      const msg = `rbac: route ${String(methods)} ${route.url} reads per-service data but has no entry in ROUTE_SCOPE; add one in apps/bff/src/rbac/route-scope.ts`;
+      logger.error({ method: methods, url: route.url }, msg);
+      throw new Error(msg);
+    }
+
     const newHandlers = [];
     if (!hasAuth) newHandlers.push(requireAuth(deps));
     if (chosen !== 'auth') {
       if (typeof chosen === 'object' && !Array.isArray(chosen) && 'anyOf' in chosen) {
-        newHandlers.push(checkAnyVerb(deps, chosen.anyOf));
+        newHandlers.push(checkAnyVerb(deps, chosen.anyOf, scope !== undefined));
       } else {
-        newHandlers.push(checkVerb(deps, chosen as string | readonly string[]));
+        newHandlers.push(checkVerb(deps, chosen as string | readonly string[], scope !== undefined));
       }
     }
+    if (scope) newHandlers.push(scopeGate(deps.config, deps.access, scope, verbs));
     // readonly-mode backstop on the config-template write routes.
     if (methods.some((m) => isTemplateWriteRoute(String(m).toUpperCase(), route.url))) {
       newHandlers.push(denyTemplateWriteWhenReadOnly);

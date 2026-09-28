@@ -238,6 +238,9 @@ function mePayload(cfg: HorizonConfig, session: Session) {
     providerName: providerLabel(cfg, session.provider),
     roles: session.roles,
     verbs: resolveVerbsForRoles(cfg.rbac.roles, session.roles, cfg.rbac.enabled),
+    // An OAuth credential's scope cap. The client intersects every check with
+    // it, as the server does; absent for a browser session or an API token.
+    ...(session.verbCap ? { verbCap: session.verbCap } : {}),
     landingRoute: pickLandingRoute(cfg.rbac.landingByRole, session.roles),
   };
 }

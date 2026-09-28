@@ -21,6 +21,7 @@
  */
 
 import type { Window } from '../../util/window.js';
+import { entityServiceName } from '../services/service-identity.js';
 
 interface MqeOwner {
   scope?: string | null;
@@ -83,16 +84,16 @@ export function buildFragment(
   let entity: string;
   if (opts.serviceInstanceName) {
     entity =
-      `{ scope: ServiceInstance, serviceName: ${JSON.stringify(serviceName)},` +
+      `{ scope: ServiceInstance, serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
       ` serviceInstanceName: ${JSON.stringify(opts.serviceInstanceName)},` +
       ` normal: ${normal ? 'true' : 'false'} }`;
   } else if (opts.endpointName) {
     entity =
-      `{ scope: Endpoint, serviceName: ${JSON.stringify(serviceName)},` +
+      `{ scope: Endpoint, serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
       ` endpointName: ${JSON.stringify(opts.endpointName)},` +
       ` normal: ${normal ? 'true' : 'false'} }`;
   } else {
-    entity = `{ scope: Service, serviceName: ${JSON.stringify(serviceName)}, normal: ${normal ? 'true' : 'false'} }`;
+    entity = `{ scope: Service, serviceName: ${JSON.stringify(entityServiceName(serviceName))}, normal: ${normal ? 'true' : 'false'} }`;
   }
   const coldFrag = opts.coldStage ? ', coldStage: true' : '';
   return (

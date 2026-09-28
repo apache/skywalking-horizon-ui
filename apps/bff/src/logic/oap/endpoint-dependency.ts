@@ -38,6 +38,7 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe } from './topology-mqe.js';
+import { entityServiceName } from '../services/service-identity.js';
 
 interface OapEpNode {
   id: string;
@@ -88,7 +89,7 @@ function endpointFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: { scope: Endpoint,` +
-    ` serviceName: ${JSON.stringify(serviceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(serviceName))},` +
     ` endpointName: ${JSON.stringify(endpointName)},` +
     ` normal: ${normal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
@@ -118,10 +119,10 @@ function endpointRelationFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: {` +
-    ` serviceName: ${JSON.stringify(sourceServiceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(sourceServiceName))},` +
     ` endpointName: ${JSON.stringify(sourceEndpointName)},` +
     ` normal: ${sourceNormal ? 'true' : 'false'},` +
-    ` destServiceName: ${JSON.stringify(destServiceName)},` +
+    ` destServiceName: ${JSON.stringify(entityServiceName(destServiceName))},` +
     ` destEndpointName: ${JSON.stringify(destEndpointName)},` +
     ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
@@ -181,9 +182,9 @@ export interface BuildEndpointDependencyInput {
   /** The resolved (preview OR effective) endpoint-dependency config. */
   cfg: EndpointDependencyConfig;
   layerKey: string;
-  /** The picked service's roster row: `id` finds its endpoint, `name` +
-   *  `normal` are what the endpoint-scoped MQE entity is built from (it has no
-   *  id form). Nothing here is looked up. */
+  /** The picked service's roster row: `id` finds its endpoint and decides the
+   *  focus node's `normal` for the endpoint-scoped MQE entity (it has no id
+   *  form); `name` labels an empty answer. Nothing here is looked up. */
   service: { id: string; name: string; normal: boolean };
   /** Endpoint NAME or id — resolved to an endpointId that PINS the chain. */
   endpointArg: string;
@@ -193,11 +194,17 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
   const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg } = input;
   const serviceId = service.id;
   const serviceArg = service.name;
-  const normal = service.normal;
+  // The id carries the flag (`.1` real, `.0` conjectured) and is what was
+  // checked; the flag sent beside it could name the service's namesake.
+  const normal = serviceId.endsWith('.0') ? false : serviceId.endsWith('.1') ? true : service.normal;
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
     : { start: window.start, end: window.end, step: window.step };
 
+  // An endpoint id is used as it is, so it must be one of THIS service's.
+  if (/\.0_/.test(endpointArg) && !endpointArg.startsWith(`${serviceId}_`)) {
+    return emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, null, epCfg, true, 'endpoint not found');
+  }
   let endpointId = endpointArg;
   if (!/\.0_/.test(endpointArg)) {
     try {

@@ -92,8 +92,9 @@ const POLICY_VERBS = new Set(
 );
 
 /** A call that can deny the request. `hasVerb` covers the UI's
- *  `auth.hasVerb(...)` and the AI tools' `ctx.hasVerb(...)` alike. */
-const CHECK_CALL = /(?:ensureVerb|sessionHasVerb|checkVerb|hasVerb)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
+ *  `auth.hasVerb(...)` and the AI tools' `ctx.hasVerb(...)` alike; the
+ *  layer-aware forms gate the same verbs for a layer or a service. */
+const CHECK_CALL = /(?:ensureVerb|sessionHasVerb|sessionHasVerbOnSomeLayer|checkVerb|hasVerbOnLayer|hasVerbOnSomeLayer|hasVerb)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
 const QUOTED = /'([^'\n]+)'|"([^"\n]+)"/g;
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 

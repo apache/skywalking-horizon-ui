@@ -37,6 +37,7 @@ import type { OverviewDashboard, UITemplateClient } from '@skywalking-horizon-ui
 import { getSyncStatus, type TemplateRow } from '../templates/sync.js';
 import { iterateBundledTemplates } from '../templates/aggregator.js';
 import { formatName, parseEnvelope } from '../templates/names.js';
+import { canonicalLayerKey } from '../templates/identity.js';
 import { logger } from '../../logger.js';
 
 function isOverviewLike(v: unknown): v is OverviewDashboard {
@@ -75,6 +76,32 @@ export async function resolveEffectiveOverviews(
   } catch {
     return [];
   }
+}
+
+/**
+ * The expressions the stored overviews evaluate across `layerKey` as a whole.
+ * The landing route runs a self-aggregating column — one with no service in
+ * its entity, so it reads every service of the metric — only when the column
+ * is one of these; otherwise any caller who can open one layer could ask any
+ * metric of any other through it.
+ */
+export async function overviewExpressionsForLayer(
+  uiTemplateClient: (() => UITemplateClient) | undefined,
+  layerKey: string,
+): Promise<Set<string>> {
+  // A widget on a split layer names `<layer>~<group>`; its landing read
+  // arrives as the layer with a `group` parameter.
+  const layerOf = (k: string) => canonicalLayerKey(k.split('~', 1)[0]!);
+  const key = layerOf(layerKey);
+  const out = new Set<string>();
+  for (const d of await resolveEffectiveOverviews(uiTemplateClient)) {
+    for (const w of d.widgets ?? []) {
+      if (!w.layer || layerOf(w.layer) !== key) continue;
+      if (w.mqe) out.add(w.mqe);
+      for (const k of w.kpis ?? []) if (k.mqe) out.add(k.mqe);
+    }
+  }
+  return out;
 }
 
 export async function resolveEffectiveOverview(

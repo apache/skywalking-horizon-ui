@@ -51,6 +51,7 @@ import type {
 import { pushEvent } from '@/controls/eventLog';
 import { COLD_STAGE_HEADER, readColdStageHeader } from '@/controls/coldStage';
 import { currentLocale } from '@/i18n';
+import { describeRefusal, permissionDeniedOf, permissionDeniedText } from './permissionDenied';
 import { SessionApi } from './scopes/session';
 import { OAuthApi } from './scopes/oauth';
 import { OidcApi } from './scopes/oidc';
@@ -321,7 +322,13 @@ export interface MeResponse {
   provider?: string;
   providerName?: string;
   roles: string[];
+  /** Resolved grants. A grant may be limited to a layer and its OAP service
+   *  groups — `metrics:read@GENERAL[payments]` — and then never answers a
+   *  plain check; see `state/verbGrammar.ts`. */
   verbs: string[];
+  /** An OAuth credential's scope: plain verbs every check is intersected
+   *  with. Absent for a browser session or an API token. */
+  verbCap?: string[];
   /** Server-suggested landing route based on the user's role. The
    *  router uses this on fresh login when no `?redirect=` is set. */
   landingRoute?: string;
@@ -462,6 +469,8 @@ export class BffApiError extends Error {
  *  both the {@link BffApiError} envelope AND the upstream
  *  `{ status: 'error', code, message }` shape that surfaces through it. */
 export function describeApiError(err: unknown): string {
+  const refusal = permissionDeniedText(err);
+  if (refusal) return refusal;
   if (
     err instanceof BffApiError ||
     (typeof err === 'object' && err !== null && 'status' in err && 'body' in err)
@@ -961,7 +970,11 @@ export class BffClient {
         extra = ` · ${parsed}`;
       }
       pushEvent('api', 'err', `${method} ${path} · ${res.status}${extra}`);
-      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed, method, path);
+      // A refusal with a reason becomes the message itself, so every page that
+      // prints `err.message` says why rather than "failed (403)".
+      const denied = permissionDeniedOf(res.status, parsed);
+      const refusal = denied ? describeRefusal(denied) : null;
+      throw new BffApiError(res.status, refusal ?? `${method} ${path} failed (${res.status})`, parsed, method, path);
     }
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get('content-type') ?? '';

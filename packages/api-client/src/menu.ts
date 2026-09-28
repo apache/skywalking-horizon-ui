@@ -273,6 +273,10 @@ export interface LogConfig {
 
 export interface MenuResponse {
   layers: LayerDef[];
+  /** Only for a session with layer grants, whose sidebar follows its page
+   *  permissions: the layers whose alarms it reads, for the Alarms page's
+   *  layer filter. Absent, that filter offers the sidebar's layers. */
+  alarmLayers?: Array<{ key: string; name: string }>;
   generatedAt: number;
   /** Best-effort status of the upstream OAP query host. */
   oap: { reachable: boolean; queryUrl: string; error?: string };

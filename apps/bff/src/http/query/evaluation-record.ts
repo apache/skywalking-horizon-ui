@@ -45,6 +45,7 @@ import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { readPage, type PagedQuerySpec } from '../../logic/paging/read-page.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
+import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
 
 export interface EvaluationRecordRouteDeps {
   config: ConfigSource;
@@ -343,14 +344,25 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
   app.get(
       '/api/evaluation-record/caller-services',
       { preHandler: auth },
-      async (_req: FastifyRequest, reply: FastifyReply) => {
+      async (req: FastifyRequest, reply: FastifyReply) => {
         const snapshot = await catalog.get();
+        const all = await catalog.allServices();
+        let readable = all;
+        if (req.access) {
+          try {
+            readable = await req.access.keepReadable(['logs:read'], all, (s) => ({ id: s.id }));
+          } catch (err) {
+            if (!(err instanceof ServiceLookupUnavailable)) throw err;
+            return reply.send({ reachable: false, services: [], error: err.message });
+          }
+        }
         return reply.send({
           reachable: snapshot.unreachable !== true,
-          services: (await catalog.allServices()).map((service) => ({
-            id: service.id, name: service.name, normal: service.normal,
-            group: service.group, layer: service.layer,
-          })),
+          services: readable
+            .map((service) => ({
+              id: service.id, name: service.name, normal: service.normal,
+              group: service.group, layer: service.layer,
+            })),
         });
       },
   );

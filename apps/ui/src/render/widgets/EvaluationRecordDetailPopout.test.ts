@@ -21,7 +21,7 @@ import { createPinia } from 'pinia';
 import { i18n } from '@/i18n';
 import EvaluationRecordDetailPopout from './EvaluationRecordDetailPopout.vue';
 
-vi.mock('@/state/auth', () => ({ useAuthStore: () => ({ hasVerb: () => true }) }));
+vi.mock('@/state/auth', () => ({ useAuthStore: () => ({ hasVerb: () => true, hasVerbOnSomeLayer: () => true }) }));
 
 function row(valueType: string, content: string) {
   return {

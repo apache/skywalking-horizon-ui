@@ -71,6 +71,8 @@ import { fetchLogs } from '../../../../http/query/log.js';
 import { fetchBrowserErrors } from '../../../../http/query/browser-errors.js';
 import { getServerOffsetMinutes, fmtSecond } from '../../../../util/window.js';
 import { toolPrompt } from '../../skills/loader.js';
+import { decide, denied, graphConfig, holds, inexact, readableRow, refusal, tellsUnknownApart, unverifiable } from '../access.js';
+import { readsByNameOnly } from '../../../../rbac/request-access.js';
 
 // Capture caps for the frozen triage lists — each is further clamped by the
 // operator's `performance.limits.maxPageSize.*`.
@@ -268,16 +270,19 @@ function summarizeTopology(snap: TopologyResponse, focusId: string, service: str
   return lines.join(' ') + edgeGapSummary(snap.calls, (id) => nodeById.get(id)?.name ?? id, gapDefs, 6);
 }
 
+/** An endpoint id: `<serviceId>_<base64 name>`. */
+const ENDPOINT_ID = /^[A-Za-z0-9+/=]+\.[01]_./;
+
 export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] {
   const catalog = () => serviceLayerCatalog({ config: ctx.config, fetch: ctx.fetch }).get();
 
   async function render(type: DashboardWidgetType, input: RenderInput): Promise<string> {
-    if (!ctx.hasVerb('metrics:read')) {
-      return 'Permission denied: the current user lacks metrics:read.';
-    }
+    if (!holds(ctx, 'metrics:read')) return denied('metrics:read');
     // SkyWalking has no instance×endpoint scope: an Endpoint is measured across
     // the whole service, a ServiceInstance across all its endpoints. Combining
     // them returns empty — reject it so the model re-renders at one scope.
+    const bad = inexact(input.service);
+    if (bad) return bad;
     if (input.instance && input.endpoint) {
       return 'Invalid scope: SkyWalking has no instance×endpoint metric. An Endpoint is service-scoped (across all instances) and a ServiceInstance is service-scoped (across all endpoints) — they do not combine. Render at instance scope OR endpoint scope, not both.';
     }
@@ -287,6 +292,10 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     // without it). Fall back to name-only if the catalog misses.
     const cat = await catalog();
     const row = (cat.byLayer.get(input.layer.toUpperCase()) ?? []).find((s) => s.name === input.service);
+    // A name the catalog does not know is still checked — as a name.
+    const byName = readsByNameOnly(input.expressions);
+    const no = await refusal(ctx, 'metrics:read', row && !byName ? { id: row.id } : { name: input.service }, `service ${input.service}`);
+    if (no) return no;
     const scope: DashboardScope = input.instance ? 'instance' : input.endpoint ? 'endpoint' : 'service';
 
     // Per-expression series labels: use the model's `labels` when given; else,
@@ -375,7 +384,9 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       endpoint?: string;
       group?: string;
     }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return 'Permission denied: the current user lacks metrics:read.';
+      if (!holds(ctx, 'metrics:read')) return denied('metrics:read');
+      const bad = inexact(service);
+      if (bad) return bad;
       if (instance && endpoint) return 'Invalid scope: pass instance OR endpoint, not both.';
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked || !eff.template)
@@ -387,6 +398,12 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       if (widget.type === 'tab') return `"${widgetId}" is a tab container — pass one of its inner widget ids.`;
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
+      const byName = readsByNameOnly([
+        ...(widget.expressions ?? []),
+        ...(widget.visibleWhen && 'expression' in widget.visibleWhen ? [widget.visibleWhen.expression] : []),
+      ]);
+      const no = await refusal(ctx, 'metrics:read', row && !byName ? { id: row.id } : { name: service }, `service ${service}`);
+      if (no) return no;
       const { widgets } = await runWidgets(
         [widget],
         {
@@ -432,10 +449,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const hierarchyPrompt = toolPrompt('visualization', 'show_hierarchy');
   const hierarchyTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
       const res = await getServiceHierarchy(ctx.config.current, row.id, layer, ctx.fetch);
       // Order layers request-near → infra (level DESC), matching the topology
       // overlay's top-to-bottom stack; unknown-level layers fall to the end.
@@ -491,7 +509,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const topologyPrompt = toolPrompt('visualization', 'show_topology');
   const topologyTool = tool(
     async ({ layer, service, services, depth, title }: { layer: string; service?: string; services?: string[]; depth?: number; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
       // One name or several. The map seeds from a LIST of focus services at a
       // BFS depth, so two services that call each other can be drawn in ONE
@@ -499,10 +517,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       const wanted = (services?.length ? services : service ? [service] : []).map((n) => n.trim()).filter(Boolean);
       if (!wanted.length) return 'Name at least one service, or use show_layer_topology for the whole layer.';
       const inLayer = cat.byLayer.get(layer.toUpperCase()) ?? [];
-      const rows = wanted.map((n) => inLayer.find((r) => r.name === n));
-      const missing = wanted.filter((_, i) => !rows[i]);
-      if (missing.length) {
-        return `Unknown service(s) ${missing.map((m) => `"${m}"`).join(', ')} in layer ${layer}. Use list_services first.`;
+      const rows: typeof inLayer = [];
+      for (const n of wanted) {
+        const pick = await readableRow(ctx, 'topology:read', layer, n, inLayer);
+        if ('answer' in pick) return pick.answer;
+        rows.push(pick.row);
       }
       const row = rows[0]!;
       // TWO hops by default, because this tool is for a SUBSET. One hop shows
@@ -549,7 +568,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: topologyConfigFor(eff.template),
+        cfg: await graphConfig(ctx, 'topology:read', rows.map((r) => r!.id), topologyConfigFor(eff.template)),
         layerKey: layer.toUpperCase(),
         // Comma-joined ids: how the builder takes several seeds, and how the
         // layer's own map page passes a roster selection.
@@ -610,7 +629,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const layerTopologyPrompt = toolPrompt('visualization', 'show_layer_topology');
   const layerTopologyTool = tool(
     async ({ layer, title }: { layer: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
+      // The whole-layer map seeds every service of the layer: a caller limited
+      // to some groups seeds only those.
+      const reach = ctx.access ? ctx.access.onLayer(['topology:read'], layer) : null;
+      if (ctx.access && !reach) return denied('topology:read', `layer ${layer.toUpperCase()}`);
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) {
@@ -621,12 +644,13 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: topologyConfigFor(eff.template),
+        cfg: await graphConfig(ctx, 'topology:read', [], topologyConfigFor(eff.template)),
         layerKey: layer.toUpperCase(),
         // No seed ids: an empty serviceArg is what asks OAP for the whole layer,
         // the same call the layer's own map page makes.
         serviceArg: '',
         depth: 1,
+        seedGroups: reach && !reach.whole ? reach.groups : undefined,
       });
       if (!snapshot.reachable) {
         return `The ${layer.toUpperCase()} layer map is unreachable (${snapshot.error ?? 'no data'}).`;
@@ -684,10 +708,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const deploymentPrompt = toolPrompt('visualization', 'show_deployment');
   const deploymentTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) return `Deployment for ${service} is unavailable (template store unreachable).`;
@@ -698,7 +723,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg,
+        cfg: await graphConfig(ctx, 'topology:read', [row.id], cfg),
         layerKey: layer.toUpperCase(),
         serviceId: row.id,
       });
@@ -742,13 +767,22 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const instanceTopologyPrompt = toolPrompt('visualization', 'show_instance_topology');
   const instanceTopologyTool = tool(
     async ({ layer, sourceService, destService, title }: { layer: string; sourceService: string; destService: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
       const rows = cat.byLayer.get(layer.toUpperCase()) ?? [];
       const client = rows.find((s) => s.name === sourceService);
-      if (!client) return `Unknown source service "${sourceService}" in layer ${layer}. Use list_services first.`;
       const server = rows.find((s) => s.name === destService);
-      if (!server) return `Unknown dest service "${destService}" in layer ${layer}. Use list_services first.`;
+      const what = `services ${sourceService} and ${destService}`;
+      const opaque = `Permission denied: layer ${layer.toUpperCase()} has no call between ${what} the current user may read with topology:read. list_services shows the services it can.`;
+      if (!client || !server) {
+        if (!tellsUnknownApart(ctx, 'topology:read')) return opaque;
+        const [side, name] = !client ? ['source', sourceService] : ['dest', destService];
+        return `Unknown ${side} service "${name}" in layer ${layer}. Use list_services first.`;
+      }
+      // The instance map belongs to the call between the two services; the
+      // caller who reads either end may draw it.
+      const ends = [await decide(ctx, 'topology:read', { id: client.id }), await decide(ctx, 'topology:read', { id: server.id })];
+      if (!ends.includes('allow')) return ends.includes('unavailable') ? unverifiable(what) : opaque;
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) return `The instance map is unavailable (template store unreachable).`;
@@ -759,7 +793,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg,
+        cfg: await graphConfig(ctx, 'topology:read', [client.id, server.id], cfg),
         layerKey: layer.toUpperCase(),
         clientServiceId: client.id,
         serverServiceId: server.id,
@@ -803,10 +837,16 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const endpointDependencyPrompt = toolPrompt('visualization', 'show_endpoint_dependency');
   const endpointDependencyTool = tool(
     async ({ layer, service, endpoint, title }: { layer: string; service: string; endpoint?: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
+      // The builder takes an endpoint id as it is, so an id must be one of
+      // THIS service's endpoints.
+      if (endpoint && ENDPOINT_ID.test(endpoint.trim()) && !endpoint.trim().startsWith(`${row.id}_`)) {
+        return denied('topology:read', `endpoint ${endpoint}, which is not an endpoint of ${service}`);
+      }
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
       const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
       if (eff.blocked) return `API dependency for ${service} is unavailable (template store unreachable).`;
@@ -818,7 +858,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: endpointDependencyConfigFor(eff.template),
+        cfg: await graphConfig(ctx, 'topology:read', [row.id], endpointDependencyConfigFor(eff.template)),
         layerKey: layer.toUpperCase(),
         service: { id: row.id, name: row.name, normal: row.normal !== false },
         endpointArg: endpoint ?? '',
@@ -868,10 +908,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const tracesPrompt = toolPrompt('visualization', 'show_traces');
   const tracesTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
+      if (!holds(ctx, 'traces:read')) return denied('traces:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'traces:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
       // Freeze the native list (frozen-always) so the block replays offline.
       const windowMinutes = rangeWindowMinutes(ctx.range);
       const offsetMinutes = await getServerOffsetMinutes(ctx.config, ctx.fetch);
@@ -937,7 +978,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const listZipkinServicesPrompt = toolPrompt('visualization', 'list_zipkin_services');
   const listZipkinServicesTool = tool(
     async ({ keyword }: { keyword?: string }): Promise<string> => {
-      if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
+      if (!holds(ctx, 'traces:read')) return denied('traces:read');
       const oap = ctx.config.current.oap;
       let names: string[];
       try {
@@ -970,7 +1011,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const zipkinTracesPrompt = toolPrompt('visualization', 'show_zipkin_traces');
   const zipkinTracesTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
+      if (!holds(ctx, 'traces:read')) return denied('traces:read');
       const oap = ctx.config.current.oap;
       const zopts = { queryUrl: oap.zipkinUrl, timeoutMs: oap.timeoutMs, auth: oap.auth, fetch: ctx.fetch };
       // Freeze the Zipkin list WITH spans so the waterfall replays offline.
@@ -1021,10 +1062,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const logsPrompt = toolPrompt('visualization', 'show_logs');
   const logsTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('logs:read')) return 'Permission denied: the current user lacks logs:read.';
+      if (!holds(ctx, 'logs:read')) return denied('logs:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'logs:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
       const maxLogs = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.logs);
       // Logs query at SECOND step — format the window in SECOND (ctx.window is the
       // chat's MINUTE-step string; mixing step + format throws verifyDateTimeString).
@@ -1067,10 +1109,11 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const browserErrorsPrompt = toolPrompt('visualization', 'show_browser_logs');
   const browserErrorsTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
-      if (!ctx.hasVerb('browser-errors:read')) return 'Permission denied: the current user lacks browser-errors:read.';
+      if (!holds(ctx, 'browser-errors:read')) return denied('browser-errors:read');
       const cat = await catalog();
-      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
-      if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const pick = await readableRow(ctx, 'browser-errors:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      if ('answer' in pick) return pick.answer;
+      const { row } = pick;
       const maxBrowser = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.browserLogs);
       const beOffset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
       const beWindow = { start: fmtSecond(ctx.range.startMs, beOffset), end: fmtSecond(ctx.range.endMs, beOffset) };

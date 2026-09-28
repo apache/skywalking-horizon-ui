@@ -150,7 +150,7 @@ function isLayerDiverged(key: string): boolean {
         </RouterLink>
       </template>
       <RouterLink
-        v-if="auth.hasVerb('alarms:read')"
+        v-if="auth.hasVerbOnSomeLayer('alarms:read')"
         to="/alarms"
         class="sw-nav-item"
         :class="{ 'is-active': isActive('/alarms') }"
@@ -235,10 +235,10 @@ function isLayerDiverged(key: string): boolean {
       <!-- Platform monitoring — OAP self-observability under one header:
            backend diagnostics (cluster status, data retention, runtime
            config) on top, then the per-layer so11y_* agent dashboards.
-           Maintainer tier: diagnostics rows are verb-gated individually;
-           the layer dashboards gate on `cluster:read` (granted to
-           maintainer / operator / admin, not viewer). -->
-      <template v-if="platformSection || (operateLayers.length > 0 && auth.hasVerb('cluster:read'))">
+           Diagnostics rows are verb-gated individually. The menu already
+           carries only the operate layers the caller may open — `cluster:read`
+           with a plain read verb, or an explicit `verb@LAYER` grant. -->
+      <template v-if="platformSection || operateLayers.length > 0">
         <div class="sw-nav-section sw-nav-section--icon">
           <Icon :name="sectionIcon('Platform monitoring')" />
           <span>{{ t('Platform monitoring') }}</span>
@@ -254,7 +254,7 @@ function isLayerDiverged(key: string): boolean {
             <Icon :name="row.icon" /><span>{{ row.label }}</span>
           </RouterLink>
         </template>
-        <template v-if="operateLayers.length > 0 && auth.hasVerb('cluster:read')">
+        <template v-if="operateLayers.length > 0">
           <template v-for="L in operateLayers" :key="`op:${L.key}`">
             <SidebarLayerRow
               :layer="L"

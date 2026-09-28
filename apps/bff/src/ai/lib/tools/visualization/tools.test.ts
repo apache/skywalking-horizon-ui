@@ -64,6 +64,9 @@ import { buildInstanceTopology } from '../../../../logic/oap/instance-topology.j
 import { resolveEffectiveLayer } from '../../../../logic/layers/effective.js';
 import type { ToolContext } from '../../tool-context.js';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import { RequestAccess } from '../../../../rbac/request-access.js';
+import { SessionAccess } from '../../../../rbac/layer-access.js';
+import { ServiceLookupUnavailable, type ServiceIdentityResolver } from '../../../../logic/services/service-identity.js';
 
 const runWidgetsMock = runWidgets as unknown as ReturnType<typeof vi.fn>;
 const getHierarchy = getServiceHierarchy as unknown as ReturnType<typeof vi.fn>;
@@ -438,5 +441,119 @@ describe('a tool never claims the call drew something', () => {
       for (const m of src.matchAll(/`[^`]*\bRendered\b[^`]*`/g)) offenders.push(`${skill}: ${m[0].slice(0, 60)}`);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('a layer-limited caller draws only services it may read', () => {
+  const songs = { id: 'svc-1', name: 'agent::songs', normal: true, group: 'agent', layers: ['GENERAL'] };
+  const resolver = {
+    byId: async (id: string) => (id === songs.id ? songs : null),
+    byName: async (name: string) => (name === songs.name ? [songs] : null),
+  } as unknown as ServiceIdentityResolver;
+  const facts = { isOperate: () => false, canonical: (l: string) => l.toUpperCase() };
+  const limitedCtx = (grants: string[]) => {
+    const m = mockCtx(false);
+    (m.ctx as { access?: RequestAccess }).access = new RequestAccess(new SessionAccess(grants, undefined, facts), resolver);
+    return m;
+  };
+
+  it('draws a service of its own group', async () => {
+    runWidgetsMock.mockResolvedValue({ widgets: [{ id: 'ai_fig', value: 1 }] });
+    const m = limitedCtx(['metrics:read@GENERAL[agent]']);
+    await byName(m.ctx).show_figure.invoke({ ...base, type: 'card', expressions: ['x'] });
+    expect(m.emitFigure).toHaveBeenCalledOnce();
+  });
+
+  it('refuses an empty or padded service name before reading anything', async () => {
+    const m = limitedCtx(['metrics:read@GENERAL[agent]']);
+    for (const service of ['', ' agent::songs', '\u0000', 'agent::songs\uDC00']) {
+      const out = String(await byName(m.ctx).show_figure.invoke({ ...base, service, type: 'card', expressions: ['x'] }));
+      expect(out).toMatch(/exactly as list_services returns it/);
+    }
+    expect(runWidgetsMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses another group before reading or emitting anything', async () => {
+    const m = limitedCtx(['metrics:read@GENERAL[payments]']);
+    const out = String(await byName(m.ctx).show_figure.invoke({ ...base, type: 'card', expressions: ['x'] }));
+    expect(out).toMatch(/^Permission denied:/);
+    expect(runWidgetsMock).not.toHaveBeenCalled();
+    expect(m.emitFigure).not.toHaveBeenCalled();
+  });
+
+  it('reads a widget that shows only on a baseline through every service the name can mean', async () => {
+    const virtual = { ...songs, id: 'svc-1-conjectured', normal: false, layers: ['VIRTUAL_DATABASE'] };
+    const namesakes = {
+      byId: async (id: string) => (id === songs.id ? songs : null),
+      byName: async (name: string) => (name === songs.name ? [songs, virtual] : null),
+    } as unknown as ServiceIdentityResolver;
+    const m = mockCtx(false);
+    const grants = ['metrics:read@GENERAL[agent]'];
+    (m.ctx as { access?: RequestAccess }).access = new RequestAccess(new SessionAccess(grants, undefined, facts), namesakes);
+    const widget = (visibleWhen?: object) => ({
+      key: 'GENERAL',
+      dashboards: { service: [{ id: 'load', type: 'line', title: 'Load', expressions: ['service_cpm'], visibleWhen }] },
+    });
+    runWidgetsMock.mockResolvedValue({ widgets: [{ id: 'load', series: [{ data: [1, 2] }] }] });
+    const show = () => byName(m.ctx).show_widget.invoke({ layer: 'GENERAL', service: songs.name, widgetId: 'load' });
+
+    resolveEff.mockResolvedValue({ blocked: false, template: widget() });
+    expect(String(await show())).not.toMatch(/^Permission denied:/);
+    resolveEff.mockResolvedValue({
+      blocked: false,
+      template: widget({ kind: 'mqe', expression: 'baseline(service_cpm,value)', op: 'exists' }),
+    });
+    expect(String(await show())).toMatch(/^Permission denied:/);
+    expect(runWidgetsMock).toHaveBeenCalledOnce();
+  });
+
+  it('says OAP could not be asked, rather than that the caller lacks the permission', async () => {
+    const down = {
+      byId: async () => {
+        throw new ServiceLookupUnavailable(new Error('ETIMEDOUT'));
+      },
+      byName: async () => {
+        throw new ServiceLookupUnavailable(new Error('ETIMEDOUT'));
+      },
+    } as unknown as ServiceIdentityResolver;
+    const m = mockCtx(false);
+    const grants = ['metrics:read@GENERAL[agent]'];
+    (m.ctx as { access?: RequestAccess }).access = new RequestAccess(new SessionAccess(grants, undefined, facts), down);
+    const out = String(await byName(m.ctx).show_figure.invoke({ ...base, type: 'card', expressions: ['x'] }));
+    expect(out).toMatch(/not a permission problem/);
+    expect(runWidgetsMock).not.toHaveBeenCalled();
+  });
+
+  it('tells a plain role a name is unknown, as it always did', async () => {
+    const m = mockCtx(false);
+    (m.ctx as { access?: RequestAccess }).access = new RequestAccess(new SessionAccess(['logs:read'], undefined, facts), resolver);
+    const out = String(await byName(m.ctx).show_logs.invoke({ layer: 'GENERAL', service: 'agent::ghost' }));
+    expect(out).toMatch(/^Unknown service "agent::ghost"/);
+  });
+
+  it('answers alike for a service that does not exist and one of another group', async () => {
+    const gateway = { id: 'svc-2', name: 'agent::gateway', normal: true, group: 'other', layers: ['GENERAL'] };
+    const known = {
+      byId: async (id: string) => [songs, gateway].find((x) => x.id === id) ?? null,
+      byName: async (name: string) => [songs, gateway].filter((x) => x.name === name),
+    } as unknown as ServiceIdentityResolver;
+    const m = mockCtx(false);
+    const grants = ['logs:read@GENERAL[agent]', 'topology:read@GENERAL[agent]'];
+    (m.ctx as { access?: RequestAccess }).access = new RequestAccess(new SessionAccess(grants, undefined, facts), known);
+    const tools = byName(m.ctx);
+    const ghost = String(await tools.show_logs.invoke({ layer: 'GENERAL', service: 'agent::ghost' }));
+    const other = String(await tools.show_logs.invoke({ layer: 'GENERAL', service: 'agent::gateway' }));
+    expect(ghost).toMatch(/^Permission denied:/);
+    expect(ghost.replace('agent::ghost', 'X')).toBe(other.replace('agent::gateway', 'X'));
+    const two = String(await tools.show_topology.invoke({ layer: 'GENERAL', services: ['agent::songs', 'agent::ghost'] }));
+    const twoOther = String(await tools.show_topology.invoke({ layer: 'GENERAL', services: ['agent::songs', 'agent::gateway'] }));
+    expect(two.replace('agent::ghost', 'X')).toBe(twoOther.replace('agent::gateway', 'X'));
+  });
+
+  it('refuses a name the catalog does not know rather than querying it by name', async () => {
+    const m = limitedCtx(['metrics:read@GENERAL[agent]']);
+    const out = String(await byName(m.ctx).show_figure.invoke({ ...base, service: 'ghost', type: 'card', expressions: ['x'] }));
+    expect(out).toMatch(/^Permission denied:/);
+    expect(runWidgetsMock).not.toHaveBeenCalled();
   });
 });

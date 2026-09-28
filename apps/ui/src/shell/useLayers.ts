@@ -117,6 +117,7 @@ export function useLayers() {
   const availableLayers = computed<LayerDef[]>(() =>
     layers.value.filter((L) => L.serviceCount > 0),
   );
+  const alarmLayers = computed(() => q.data.value?.alarmLayers ?? null);
   const oapReachable = computed<boolean>(() => q.data.value?.oap.reachable ?? false);
   const oapError = computed<string | undefined>(() => q.data.value?.oap.error);
 
@@ -140,6 +141,7 @@ export function useLayers() {
     layers,
     activeLayers,
     availableLayers,
+    alarmLayers,
     oapReachable,
     oapError,
     findLayer,

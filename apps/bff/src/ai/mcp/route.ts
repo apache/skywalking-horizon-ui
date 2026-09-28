@@ -35,11 +35,13 @@ import { requireAuth } from '../../user/middleware.js';
 import { getServerOffsetMinutes } from '../../util/window.js';
 import { SECURITY_HEADERS, API_CACHE_CONTROL } from '../../util/security-headers.js';
 import { createMcpServer, surfaceFor } from './server.js';
+import type { AccessDeps } from '../../rbac/request-access.js';
 
 export interface McpRouteDeps extends AuthDeps {
   fetch?: FetchLike;
   uiTemplateClient?: () => UITemplateClient;
   version: string;
+  access?: AccessDeps;
 }
 
 /** JSON-RPC's own "you can't do that" shape — an MCP client parses this, where
@@ -172,6 +174,7 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRouteDeps): voi
         uiTemplateClient: deps.uiTemplateClient,
         subject: req.session ?? { roles: [] },
         offsetMinutes: needsTime ? await getServerOffsetMinutes(deps.config, deps.fetch) : 0,
+        access: deps.access,
       },
       surface,
       deps.version,

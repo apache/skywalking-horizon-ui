@@ -67,6 +67,7 @@ import {
   SLOW_RECORD_RANGE_HOURS,
 } from '@/utils/recordTimeRange';
 import { useSetupStore } from '@/state/setup';
+import { permissionDeniedText } from '@/api/permissionDenied';
 import { useColdStageStore } from '@/controls/coldStage';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -313,7 +314,7 @@ watch([serviceKey], () => {
 // lookup by trace id, which reads no service.
 const queryEnabled = computed(() => hasQueried.value && (cTraceIdFilter.value !== null || serviceReady.value));
 
-const { native, isFetching, refetch } = useLayerTraces(layerKey, {
+const { native, isFetching, refetch, error: listError } = useLayerTraces(layerKey, {
   source: NATIVE_SOURCE,
   service: cService,
   instanceId: cInstanceId,
@@ -343,6 +344,7 @@ const { native, isFetching, refetch } = useLayerTraces(layerKey, {
 const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
 const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
 const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
+const listRefusal = computed(() => (hasQueried.value ? permissionDeniedText(listError.value) : null));
 
 // Declared ahead of runQuery, which resets them: the drill watch below runs
 // during setup and can reach runQuery before the rest of this script has run.
@@ -782,6 +784,7 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
         <div v-else-if="isFetching && (!native || native.traces.length === 0)" class="tr-empty">
           {{ t('Reading data…') }}
         </div>
+        <div v-else-if="listRefusal" class="tr-empty">{{ listRefusal }}</div>
         <div v-else-if="!native || (native.reachable && native.traces.length === 0)" class="tr-empty">
           <template v-if="cTraceIdFilter">
             {{ t('No trace found for this ID.') }}

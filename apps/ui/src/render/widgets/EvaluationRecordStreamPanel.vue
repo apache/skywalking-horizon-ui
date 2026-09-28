@@ -104,7 +104,7 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
       <span class="lg-task mono dim" :title="r.taskName ?? '-'">{{ r.taskName ?? '-' }}</span>
       <span class="lg-lvl" :style="{ color: LEVEL_COLOR[levelOf(r)] }">{{ levelOf(r) }}</span>
       <span
-        v-if="r.traceId && auth.hasVerb('traces:read')"
+        v-if="r.traceId && auth.hasVerbOnSomeLayer('traces:read')"
         class="lg-trace mono"
         @click.stop="emit('jump-trace', { traceId: r.traceId, traceType: r.traceType, traceSegmentId: r.traceSegmentId, traceSpanIndex: r.traceSpanIndex, traceSpanId: r.traceSpanId, ts: r.timestamp })"
       >trace</span>
