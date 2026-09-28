@@ -40,7 +40,7 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens by type",
-        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides), counted at the minute a call ended. Cache reads are most of the total, so each type is its own line rather than a stack.",
+        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides). A call is counted at the end of the minute it ended, so it shows under the next minute. Cache reads are most of the total, so each type is its own line rather than a stack.",
         "type": "line",
         "unit": "tokens",
         "expressions": [
@@ -52,7 +52,7 @@
       {
         "id": "tokens_by_source",
         "title": "Main agent and subagents",
-        "tip": "auxiliary appears only from Claude Code's own exporter; the AI Sessionizer sees only main and subagent.",
+        "tip": "main or subagent: whether the call was made by the main agent or by a subagent.",
         "type": "line",
         "unit": "tokens",
         "expressions": [
@@ -218,7 +218,7 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens by type",
-        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides), counted at the minute a call ended. Cache reads are most of the total, so each type is its own line rather than a stack.",
+        "tip": "Each point is the total of its bucket (a minute, an hour or a day, as the time range decides). A call is counted at the end of the minute it ended, so it shows under the next minute. Cache reads are most of the total, so each type is its own line rather than a stack.",
         "type": "line",
         "unit": "tokens",
         "expressions": [
@@ -230,7 +230,7 @@
       {
         "id": "tokens_by_source",
         "title": "Main agent and subagents",
-        "tip": "auxiliary appears only from Claude Code's own exporter; the AI Sessionizer sees only main and subagent.",
+        "tip": "main or subagent: whether the call was made by the main agent or by a subagent.",
         "type": "line",
         "unit": "tokens",
         "expressions": [
@@ -382,7 +382,7 @@
       {
         "id": "mcp_calls",
         "title": "Calls",
-        "tip": "Calls to this tool that the AI Sessionizer's Claude Code plugin observed, counted in the minute each ended.",
+        "tip": "Calls to this tool that the AI Sessionizer's Claude Code plugin observed. A call is counted at the end of the minute it ended, so it shows under the next minute.",
         "type": "line",
         "unit": "calls",
         "expressions": [
@@ -406,7 +406,7 @@
       {
         "id": "mcp_average_time",
         "title": "Average time",
-        "tip": "The time the runtime measured around each call, averaged over the calls of the bucket. It includes any waiting before the call started, so it is not the server's own time.",
+        "tip": "Time in calls divided by calls. It includes any waiting before the call started, so it is not the server's own time. A call whose record reports no time counts with none and pulls the average down; every call measured so far reported one.",
         "type": "line",
         "unit": "ms",
         "expressions": [

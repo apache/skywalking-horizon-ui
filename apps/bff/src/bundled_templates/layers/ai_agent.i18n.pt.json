@@ -20,12 +20,12 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens por tipo",
-        "tip": "Cada ponto é o total do seu intervalo (um minuto, uma hora ou um dia, conforme o período), contado no minuto em que uma chamada terminou. As leituras de cache são a maior parte do total, por isso cada tipo tem a sua própria linha em vez de empilhar."
+        "tip": "Cada ponto é o total do seu intervalo (um minuto, uma hora ou um dia, conforme o período). Uma chamada é contada no fim do minuto em que terminou, por isso aparece no minuto seguinte. As leituras de cache são a maior parte do total, por isso cada tipo tem a sua própria linha em vez de empilhar."
       },
       {
         "id": "tokens_by_source",
         "title": "Agente principal e subagentes",
-        "tip": "auxiliary só chega do exportador do próprio Claude Code; o AI Sessionizer vê apenas main e subagent."
+        "tip": "main ou subagent: se a chamada foi feita pelo agente principal ou por um subagente."
       },
       {
         "id": "tokens_by_model",
@@ -85,12 +85,12 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens por tipo",
-        "tip": "Cada ponto é o total do seu intervalo (um minuto, uma hora ou um dia, conforme o período), contado no minuto em que uma chamada terminou. As leituras de cache são a maior parte do total, por isso cada tipo tem a sua própria linha em vez de empilhar."
+        "tip": "Cada ponto é o total do seu intervalo (um minuto, uma hora ou um dia, conforme o período). Uma chamada é contada no fim do minuto em que terminou, por isso aparece no minuto seguinte. As leituras de cache são a maior parte do total, por isso cada tipo tem a sua própria linha em vez de empilhar."
       },
       {
         "id": "tokens_by_source",
         "title": "Agente principal e subagentes",
-        "tip": "auxiliary só chega do exportador do próprio Claude Code; o AI Sessionizer vê apenas main e subagent."
+        "tip": "main ou subagent: se a chamada foi feita pelo agente principal ou por um subagente."
       },
       {
         "id": "tokens_by_model",
@@ -141,7 +141,7 @@
       {
         "id": "mcp_calls",
         "title": "Chamadas",
-        "tip": "Chamadas a esta ferramenta que o plugin do Claude Code do AI Sessionizer observou, contadas no minuto em que cada uma terminou."
+        "tip": "Chamadas a esta ferramenta que o plugin do Claude Code do AI Sessionizer observou. Uma chamada é contada no fim do minuto em que terminou, por isso aparece no minuto seguinte."
       },
       {
         "id": "mcp_calls_by_outcome",
@@ -151,7 +151,7 @@
       {
         "id": "mcp_average_time",
         "title": "Tempo médio",
-        "tip": "O tempo que o runtime mediu em torno de cada chamada, em média sobre as chamadas do intervalo. Inclui qualquer espera antes de a chamada começar, portanto não é o tempo do próprio servidor."
+        "tip": "O tempo em chamadas dividido pelas chamadas. Inclui qualquer espera antes de a chamada começar, portanto não é o tempo do próprio servidor. Uma chamada cujo registo não informa tempo conta sem tempo e baixa a média; até agora, todas as chamadas medidas o informaram."
       },
       {
         "id": "mcp_time",

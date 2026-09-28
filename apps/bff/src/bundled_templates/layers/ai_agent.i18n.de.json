@@ -20,12 +20,12 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens nach Typ",
-        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich), gezählt in der Minute, in der ein Aufruf endete. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
+        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich). Ein Aufruf wird am Ende der Minute gezählt, in der er endete, und erscheint daher unter der nächsten Minute. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
       },
       {
         "id": "tokens_by_source",
         "title": "Hauptagent und Subagenten",
-        "tip": "auxiliary kommt nur vom eigenen Exporter von Claude Code; der AI Sessionizer sieht nur main und subagent."
+        "tip": "main oder subagent: ob der Aufruf vom Hauptagenten oder von einem Subagenten kam."
       },
       {
         "id": "tokens_by_model",
@@ -85,12 +85,12 @@
       {
         "id": "tokens_by_type",
         "title": "Tokens nach Typ",
-        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich), gezählt in der Minute, in der ein Aufruf endete. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
+        "tip": "Jeder Punkt ist die Summe seines Zeitfensters (Minute, Stunde oder Tag, je nach Zeitbereich). Ein Aufruf wird am Ende der Minute gezählt, in der er endete, und erscheint daher unter der nächsten Minute. Cache-Lesezugriffe machen den Großteil aus, daher hat jeder Typ eine eigene Linie statt eines Stapels."
       },
       {
         "id": "tokens_by_source",
         "title": "Hauptagent und Subagenten",
-        "tip": "auxiliary kommt nur vom eigenen Exporter von Claude Code; der AI Sessionizer sieht nur main und subagent."
+        "tip": "main oder subagent: ob der Aufruf vom Hauptagenten oder von einem Subagenten kam."
       },
       {
         "id": "tokens_by_model",
@@ -141,7 +141,7 @@
       {
         "id": "mcp_calls",
         "title": "Aufrufe",
-        "tip": "Aufrufe dieses Werkzeugs, die das Plugin für Claude Code des AI Sessionizer beobachtet hat, gezählt in der Minute, in der jeder endete."
+        "tip": "Aufrufe dieses Werkzeugs, die das Plugin für Claude Code des AI Sessionizer beobachtet hat. Ein Aufruf wird am Ende der Minute gezählt, in der er endete, und erscheint daher unter der nächsten Minute."
       },
       {
         "id": "mcp_calls_by_outcome",
@@ -151,7 +151,7 @@
       {
         "id": "mcp_average_time",
         "title": "Durchschnittliche Zeit",
-        "tip": "Die Zeit, die die Laufzeit um jeden Aufruf gemessen hat, gemittelt über die Aufrufe des Zeitfensters. Sie enthält jedes Warten vor dem Start des Aufrufs und ist daher nicht die eigene Zeit des Servers."
+        "tip": "Die Zeit in Aufrufen geteilt durch die Aufrufe. Sie enthält jedes Warten vor dem Start des Aufrufs und ist daher nicht die eigene Zeit des Servers. Ein Aufruf, dessen Eintrag keine Zeit meldet, zählt ohne Zeit und senkt den Durchschnitt; bisher hat jeder gemessene Aufruf eine gemeldet."
       },
       {
         "id": "mcp_time",
