@@ -310,7 +310,7 @@ const storeCounts = computed<Array<{ value: number; label: string }>>(() => {
   const out = [
     { value: s.counts.layer ?? 0, label: label('layer template | layer templates', s.counts.layer ?? 0) },
     { value: s.counts.overview ?? 0, label: label('overview | overviews', s.counts.overview ?? 0) },
-    { value: s.counts.alert ?? 0, label: label('alert page | alert pages', s.counts.alert ?? 0) },
+    { value: s.counts.alert ?? 0, label: label('alarm page | alarm pages', s.counts.alert ?? 0) },
   ];
   if (s.translations > 0) {
     out.push({

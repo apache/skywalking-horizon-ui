@@ -21,19 +21,21 @@
  * OAP emits one `AlarmMessage` per firing — a rule that re-fires
  * after its silence period creates a new row. From the operator's
  * triage perspective these N rows are ONE incident on (entity, rule),
- * not N separate alarms. The wire `id` field is
- * `<entityBase64>.<ruleNumber>` and is stable across firings of the
- * same rule on the same entity, so it's a free incident key.
+ * not N separate alarms. The wire `id` names only the entity (for a
+ * relation, its source), so the key adds the name, which carries a
+ * relation's destination, and the rule's expression, since OAP exposes no
+ * rule id — see {@link alarmIncidentKey}. The BFF's badge count uses the
+ * same key.
  *
  * Merging rules:
- *   - Group `AlarmMessage[]` by `id`.
+ *   - Group `AlarmMessage[]` by {@link alarmIncidentKey}.
  *   - Sort each group by `startTime` ascending — the LAST entry is
  *     the most recent firing.
  *   - The incident's state is `firing` when the latest entry's
  *     `recoveryTime` is null, else `recovered`. The state of earlier
  *     entries doesn't matter; only the tail decides.
- *   - Latest entry's `message` / `name` / `scope` / `layerKey` /
- *     `tags` / `snapshot` represent the incident — those are what
+ *   - Latest entry's `message` / `name` / `scope` / `layerKeys` /
+ *     `ownerKeys` / `tags` / `snapshot` represent the incident — those are what
  *     the operator sees in the row.
  *
  * Count semantics (per the spec):
@@ -48,11 +50,26 @@
 
 import type { AlarmMessage } from '@/api/client';
 
+export function alarmIncidentKey(m: Pick<AlarmMessage, 'scope' | 'id' | 'name'> & { snapshot?: { expression?: string } | null }): string {
+  return [m.scope ?? '', m.id, m.name, m.snapshot?.expression ?? ''].join('|');
+}
+
+/** The layers an alarm belongs to; tolerates a row from a BFF that sent only
+ *  `layerKey`. */
+export function alarmLayerKeys(m: Pick<AlarmMessage, 'layerKey'> & { layerKeys?: string[] }): string[] {
+  return m.layerKeys ?? (m.layerKey ? [m.layerKey] : []);
+}
+
+/** The `LAYER~group` pairs of the services an alarm concerns; empty for a row
+ *  from a BFF that sent none, which then matches no pin with groups. */
+export function alarmOwnerKeys(m: { ownerKeys?: string[] }): string[] {
+  return m.ownerKeys ?? [];
+}
+
 export type AlarmIncidentState = 'firing' | 'recovered' | 'unstable';
 
 export interface AlarmIncident {
-  /** OAP id field — `<entityBase64>.<ruleNumber>`. Stable per
-   *  (entity, rule). */
+  /** {@link alarmIncidentKey} — stable per (entity, rule). */
   id: string;
   /** All firings on this (entity, rule) in startTime-asc order. */
   events: AlarmMessage[];
@@ -74,18 +91,21 @@ export interface AlarmIncident {
   triggerCount: number;
   /** Number of events where `recoveryTime !== null`. */
   recoveredCount: number;
-  /** layerKey from the latest event (best-effort tag the BFF adds). */
-  layerKey: string | null;
+  /** The latest event's layers (the BFF's tag; empty = in no known layer). */
+  layerKeys: string[];
+  /** The latest event's layer-and-group pairs — see `AlarmMessage.ownerKeys`. */
+  ownerKeys: string[];
 }
 
 export function mergeIncidents(events: AlarmMessage[]): AlarmIncident[] {
   if (events.length === 0) return [];
   const groups = new Map<string, AlarmMessage[]>();
   for (const e of events) {
-    let arr = groups.get(e.id);
+    const key = alarmIncidentKey(e);
+    let arr = groups.get(key);
     if (!arr) {
       arr = [];
-      groups.set(e.id, arr);
+      groups.set(key, arr);
     }
     arr.push(e);
   }
@@ -109,7 +129,8 @@ export function mergeIncidents(events: AlarmMessage[]): AlarmIncident[] {
       state,
       triggerCount: arr.length,
       recoveredCount,
-      layerKey: latest.layerKey,
+      layerKeys: alarmLayerKeys(latest),
+      ownerKeys: alarmOwnerKeys(latest),
     });
   }
   /* Stable display order — most-recent latest event first. */
@@ -147,28 +168,30 @@ export function splitForList(events: AlarmMessage[]): AlarmIncident[] {
   for (const e of events) {
     if (e.recoveryTime !== null) continue;
     out.push({
-      id: `${e.id}::${e.startTime}`,
+      id: `${alarmIncidentKey(e)}::${e.startTime}`,
       events: [e],
       oldest: e,
       latest: e,
       state: 'firing',
       triggerCount: 1,
       recoveredCount: 0,
-      layerKey: e.layerKey,
+      layerKeys: alarmLayerKeys(e),
+      ownerKeys: alarmOwnerKeys(e),
     });
   }
 
-  /* Recovered events: group by OAP id and collapse into one row each.
+  /* Recovered events: group by incident key and collapse into one row each.
    * The latest event in the group represents the row (freshest
    * snapshot); `triggerCount` is the recovered count so the chip
    * reads e.g. `triggered 4× · recovered`. */
   const recoveredGroups = new Map<string, AlarmMessage[]>();
   for (const e of events) {
     if (e.recoveryTime === null) continue;
-    let arr = recoveredGroups.get(e.id);
+    const key = alarmIncidentKey(e);
+    let arr = recoveredGroups.get(key);
     if (!arr) {
       arr = [];
-      recoveredGroups.set(e.id, arr);
+      recoveredGroups.set(key, arr);
     }
     arr.push(e);
   }
@@ -183,7 +206,8 @@ export function splitForList(events: AlarmMessage[]): AlarmIncident[] {
       state: 'recovered',
       triggerCount: arr.length,
       recoveredCount: arr.length,
-      layerKey: latest.layerKey,
+      layerKeys: alarmLayerKeys(latest),
+      ownerKeys: alarmOwnerKeys(latest),
     });
   }
 

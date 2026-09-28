@@ -26,13 +26,23 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import { alarmPinMatches, layerFilterPin } from '@skywalking-horizon-ui/api-client';
 import type { ToolContext } from '../../tool-context.js';
 import { graphqlPost } from '../../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../../util/window.js';
+import { readFilteredPage } from '../../../../logic/paging/read-page.js';
+import { serviceLayerCatalog } from '../../../../logic/services/service-layer-catalog.js';
+import { ServiceLookupUnavailable, catalogIndex } from '../../../../logic/services/service-identity.js';
+import { alarmLayers, alarmOwnerKeys } from '../../../../logic/alarms/owners.js';
+import { AlarmRowAccess, keepAll, readsEveryAlarm } from '../../../../logic/alarms/readable.js';
+import { canonicalLayerKey } from '../../../../logic/templates/identity.js';
 import { toolPrompt } from '../../skills/loader.js';
-import { denied, readsEverything } from '../access.js';
+import { denied, holds, unverifiable } from '../access.js';
 
 const ALARM_WINDOW_MS = 3 * 60 * 60_000; // under OAP's 4h alarm cap
+const ALARM_ROWS = 30;
+/** How far a filtered read looks for its rows — see `readFilteredPage`. */
+const FILTERED_READ = { first: 200, maxRows: 2_000 };
 
 const QUERY_ALARMS = /* GraphQL */ `
   query AiQueryAlarms($condition: AlarmQueryCondition!) {
@@ -56,9 +66,7 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
   const alarms = toolPrompt('telemetry', 'list_alarms');
   const listAlarms = tool(
     async ({ layer, keyword }): Promise<string> => {
-      // Alarms for every service in the window: a caller whose alarms:read is
-      // limited to some layers cannot be answered from this query.
-      if (!readsEverything(ctx, 'alarms:read')) return denied('alarms:read', 'every layer');
+      if (!holds(ctx, 'alarms:read')) return denied('alarms:read');
       const offset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
       const endMs = ctx.range.endMs;
       // Independent look-back — NOT clamped to the (often narrower, 60m-default)
@@ -66,34 +74,74 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
       // exactly what "what's unhealthy?" must surface. Fixed ≤3h stays under
       // OAP's 4h alarm cap.
       const startMs = endMs - ALARM_WINDOW_MS;
-      const condition: Record<string, unknown> = {
-        duration: { start: fmtSecond(startMs, offset), end: fmtSecond(endMs, offset), step: 'SECOND' },
-        paging: { pageNum: 1, pageSize: 30 },
+      const duration = { start: fmtSecond(startMs, offset), end: fmtSecond(endMs, offset), step: 'SECOND' };
+      // OAP stores one layer per alarm, so the layer is applied here by the
+      // layers of the services an alarm concerns, as the Alarms page does.
+      const fetchFirst = async (rows: number): Promise<AlarmMsg[]> => {
+        const condition: Record<string, unknown> = { duration, paging: { pageNum: 1, pageSize: rows } };
+        if (keyword) condition.keyword = keyword;
+        const raw = await graphqlPost<{ queryAlarms?: { msgs?: AlarmMsg[] } }>(ctx.opts, QUERY_ALARMS, { condition });
+        return raw.queryAlarms?.msgs ?? [];
       };
-      if (layer) condition.layer = layer;
-      if (keyword) condition.keyword = keyword;
+      // A layer, or one service group of it as `GENERAL~payments`.
+      const wantedPin = layer ? layerFilterPin(layer, canonicalLayerKey) : null;
+      const wanted = wantedPin ? (wantedPin.groups ? `${wantedPin.layer}~${wantedPin.groups[0]}` : wantedPin.layer) : null;
+      const everything = readsEveryAlarm(ctx.access);
+      let msgs: AlarmMsg[];
+      // The filtered read stops at its budget: an empty answer from it then
+      // proves nothing about the alarms it did not read.
+      let unread = false;
       try {
-        const raw = await graphqlPost<{ queryAlarms?: { msgs?: AlarmMsg[] } }>(ctx.opts, QUERY_ALARMS, {
-          condition,
-        });
-        const msgs = raw.queryAlarms?.msgs ?? [];
-        if (msgs.length === 0) return 'No alarms in the recent window — nothing is firing.';
-        // Active (not yet recovered) first — those are the live problems.
-        const rows = msgs
-          .map((m) => ({
-            name: m.name,
-            scope: m.scope,
-            message: m.message,
-            entity: m.tags?.find((t) => t.key === 'entityName' || t.key === 'name')?.value,
-            active: !m.recoveryTime,
-          }))
-          .sort((a, b) => Number(b.active) - Number(a.active));
-        return JSON.stringify(rows);
+        if (everything && !wanted) {
+          msgs = await fetchFirst(ALARM_ROWS);
+        } else {
+          const cat = await serviceLayerCatalog({ config: ctx.config, fetch: ctx.fetch }).get();
+          if (cat.unreachable && cat.byLayer.size === 0) {
+            return 'The service catalog could not be read, so alarms cannot be told apart by the services they concern right now. This is not a permission problem; try again shortly.';
+          }
+          const index = catalogIndex(cat);
+          const rowAccess = ctx.access && !everything ? new AlarmRowAccess(ctx.access, index) : null;
+          const page = await readFilteredPage(
+            async (rows) => {
+              const fetched = await fetchFirst(rows);
+              return rowAccess ? rowAccess.decide(fetched) : keepAll(fetched);
+            },
+            (d) => d.kept && (!wantedPin || alarmPinMatches(wantedPin, { layerKeys: alarmLayers(d.row, index), ownerKeys: alarmOwnerKeys(d.row, index) })),
+            { pageNum: 1, pageSize: ALARM_ROWS },
+            FILTERED_READ,
+          );
+          msgs = page.rows.map((d) => d.row);
+          unread = page.hasNext;
+        }
       } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return unverifiable('each alarmed service');
         return `Alarm query failed (this OAP may not support queryAlarms): ${
           err instanceof Error ? err.message : String(err)
         }`;
       }
+      if (msgs.length === 0 && unread) {
+        const which = [wanted ? `in layer ${wanted}` : '', everything ? '' : 'about a service the current user may read']
+          .filter(Boolean)
+          .join(' and ');
+        return `None of the newest ${FILTERED_READ.maxRows} alarms in the recent window is ${which}, and the older alarms in the window were not read — this does not show that nothing is firing. Narrow the search with a keyword.`;
+      }
+      if (msgs.length === 0) {
+        // Only an unfiltered read may say nothing is firing anywhere.
+        if (wanted) return `No alarms in the recent window for layer ${wanted}.`;
+        if (!everything) return 'No alarms in the recent window among the services the current user may read.';
+        return 'No alarms in the recent window — nothing is firing.';
+      }
+      // Active (not yet recovered) first — those are the live problems.
+      const rows = msgs
+        .map((m) => ({
+          name: m.name,
+          scope: m.scope,
+          message: m.message,
+          entity: m.tags?.find((t) => t.key === 'entityName' || t.key === 'name')?.value,
+          active: !m.recoveryTime,
+        }))
+        .sort((a, b) => Number(b.active) - Number(a.active));
+      return JSON.stringify(rows);
     },
     {
       name: 'list_alarms',

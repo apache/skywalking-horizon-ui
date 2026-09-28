@@ -33,6 +33,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { bff, type AlarmMessage, type AlertingRuleDetailResponse } from '@/api/client';
 import AlarmSnapshotChart from './AlarmSnapshotChart.vue';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
+import { alarmLayerKeys } from '@/utils/alarmIncidents';
 
 const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{ alarm: AlarmMessage | null }>();
@@ -176,7 +177,7 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
     <div class="ad__sub">
       <span>{{ t('started {when}', { when: startedRelative }) }}</span>
       <template v-if="!firing"> · {{ t('recovered {when}', { when: recoveredRelative }) }}</template>
-      <template v-if="alarm.layerKey"> · {{ alarm.layerKey }}</template>
+      <template v-if="alarmLayerKeys(alarm).length"> · {{ alarmLayerKeys(alarm).join(', ') }}</template>
     </div>
 
     <section class="ad__sec">

@@ -181,6 +181,15 @@ const shellRoutes: RouteRecordRaw[] = [
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
+  // A named alarm page: the same view over the same alarms, arranged by that
+  // page's pins. Moving between pages reuses the component instance, so the
+  // view resets itself when `pageId` changes.
+  {
+    path: 'alarms/:pageId',
+    name: 'alarm-page',
+    component: () => import('@/features/alarms/AlarmsView.vue'),
+    props: true,
+  },
   // The signed-in operator's own account. No `meta.verb`: reading your own
   // identity is not a privilege, so the guard's auth check is the only gate.
   // Named `account`, not `profile` — `profile` is SkyWalking's profiling
@@ -292,8 +301,9 @@ const shellRoutes: RouteRecordRaw[] = [
     // it in read-only. Every save is refused server-side by the write half.
     meta: { verb: 'layer-template:read' },
   },
-  // Alert page setup — sits under Dashboard setup in the sidebar but
-  // routes off the admin tree since it's an operator-only config view.
+  // Alarm pages — the default alarm page and the named ones. Sits under
+  // Dashboard setup in the sidebar but routes off the admin tree since it's an
+  // operator-only config view.
   {
     path: 'admin/alert-page-setup',
     name: 'alert-page-setup',

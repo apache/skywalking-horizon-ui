@@ -19,13 +19,10 @@
   the last 60 minutes and shows the top N rows + the total.
 
   Dual-mode (driven by `useOapInfo().capabilities.queryAlarms`):
-   - **New API (`queryAlarms` available)** — narrows to the dashboard's
-     layer via the new entities/layers filter. The widget shows alarms
-     scoped to that layer.
-   - **Legacy API (`getAlarm` only)** — no server-side layer filter
-     exists. We fetch all-layers and surface a small "all layers"
-     banner so the operator understands why the rail isn't matching
-     the dashboard's layer.
+   - **New API (`queryAlarms` available)** — the BFF narrows the read
+     to the widget's layer, or to one service group of it.
+   - **Legacy API (`getAlarm` only)** — the read covers every layer,
+     and the rows are narrowed here by the same rule.
 
   Read-only by design. Click "view all" to jump to /alarms for triage.
 -->
@@ -36,17 +33,20 @@ import { useRefreshErrorReport } from '@/controls/errorCenter';
 import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import { alarmPinMatches, layerFilterPin, type AlarmPin } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import {
   bff,
+  describeApiError,
   OVERVIEW_ALARMS_LIMIT_DEFAULT,
   type AlarmMessage,
   type AlarmsConfig,
 } from '@/api/client';
 import { useOapInfo } from '@/shell/useOapInfo';
+import { canonicalLayerKey } from '@/state/verbGrammar';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
-import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
+import { alarmLayerKeys, alarmOwnerKeys, mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -57,15 +57,16 @@ const props = withDefaults(
     /** Top-N cap; defaults to 10. The BFF still fetches up to 500 so
      *  the "total" count is meaningful even when only N rows render. */
     limit?: number;
-    /** Overview's layer (`GENERAL`, `MESH`, …). Used only in
-     *  new-API mode for server-side filtering; ignored in legacy. */
+    /** Overview's layer (`GENERAL`, `MESH`, …), or a split menu entry's
+     *  `GENERAL~payments` for one service group. The BFF filters by it in
+     *  new-API mode; legacy mode filters the fetched rows here. */
     layer?: string;
   }>(),
   { limit: 10 },
 );
 
 // Fallback window when the admin config hasn't loaded yet — matches
-// the alert page-setup bundled default so the first paint reads the
+// the default alarm page's bundled window so the first paint reads the
 // same window as the admin's saved value once it lands.
 const FALLBACK_WINDOW_MS = 20 * 60_000;
 
@@ -75,11 +76,8 @@ const hasQueryAlarms = computed<boolean>(() => capabilities.value.queryAlarms);
 /* Shares the queryKey `['alarms/config']` with the page + admin
  * view so the per-poll fetch cap (`overviewAlarmsLimit`) AND the
  * window (`defaultWindowMs`) stay in sync without a separate
- * roundtrip. Previously this widget hardcoded a 60-minute window,
- * which contradicted the alarms page + topbar badge using the
- * admin's `defaultWindowMs` (default 20m). Unified now: all three
- * surfaces query the same window per the operator-configured value
- * in `/admin/alert-page-setup`. */
+ * roundtrip: the widget, the default alarm page and the topbar badge
+ * all read the default page's window, set in `/admin/alert-page-setup`. */
 const cfgQuery = useQuery({
   queryKey: ['alarms/config'],
   queryFn: (): Promise<AlarmsConfig> => bff.alarms.config(),
@@ -158,21 +156,24 @@ useAutoRefreshSubscribe(
   () => alarmsKey.value,
 );
 
-const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []);
-const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);
+// A failed read shows as failed, never as a window with no alarms.
+const readFailed = computed(() => alarmsQuery.isError.value);
+const alarms = computed<AlarmMessage[]>(() => (readFailed.value ? [] : alarmsQuery.data.value?.msgs ?? []));
+const truncated = computed<boolean>(() => !readFailed.value && (alarmsQuery.data.value?.truncated ?? false));
 
 /* In legacy mode the BFF can't server-side-filter by layer, but every
- * row already carries `layerKey` (resolved against the server-global
- * service-layer catalog). Filter client-side so the widget shows only
- * the layer the dashboard is scoped to — same observable behavior as
- * the new-API path. Rows whose `layerKey` couldn't be resolved
- * (unknown service prefix, instance/endpoint scopes) drop out
- * silently; an unresolved row can't be confidently attributed to
- * any layer, so showing it on a per-layer dashboard would mislead. */
+ * row already carries `layerKeys` and `ownerKeys` (its services' layers
+ * and `LAYER~group` pairs, from the server-global service-layer catalog).
+ * Filter client-side, by the same rule as the BFF, so the widget shows
+ * only the layer or group the dashboard is scoped to. A row no known
+ * service owns drops out silently; it can't be confidently attributed to
+ * any layer, so showing it on a per-layer dashboard would mislead. The
+ * group keeps its case: OAP groups are case-sensitive. */
+const layerPin = computed<AlarmPin | null>(() => (props.layer ? layerFilterPin(props.layer, canonicalLayerKey) : null));
 const layerScoped = computed<AlarmMessage[]>(() => {
-  if (hasQueryAlarms.value || !props.layer) return alarms.value;
-  const wanted = props.layer.toUpperCase();
-  return alarms.value.filter((a) => (a.layerKey ?? '').toUpperCase() === wanted);
+  const pin = layerPin.value;
+  if (hasQueryAlarms.value || !pin) return alarms.value;
+  return alarms.value.filter((a) => alarmPinMatches(pin, { layerKeys: alarmLayerKeys(a), ownerKeys: alarmOwnerKeys(a) }));
 });
 
 /* Counts use `mergeIncidents` (group by (entity, rule); active iff
@@ -237,13 +238,19 @@ function incidentEntity(i: AlarmIncident): string {
       <div class="aw-row-meta">
         <span class="window-tag">· {{ windowLabel }}</span>
         <span class="total mono" :class="{ active: activeIncidents > 0 }">
-          {{ activeIncidents }}{{ truncated ? '+' : '' }} {{ t('active') }}
+          {{ readFailed ? '—' : activeIncidents }}{{ truncated ? '+' : '' }} {{ t('active') }}
         </span>
       </div>
     </header>
 
     <div class="body">
       <div v-if="alarmsQuery.isPending.value" class="empty">{{ t('loading…') }}</div>
+      <div v-else-if="readFailed" class="empty empty--err">
+        {{ t('The alarms could not be read: {err}', { err: describeApiError(alarmsQuery.error.value) }) }}
+      </div>
+      <div v-else-if="rows.length === 0 && truncated" class="empty">
+        {{ t('more alarms in this window than were fetched — tighten the range') }}
+      </div>
       <div v-else-if="rows.length === 0" class="empty">
         {{ layer ? t('No alarms in the {window} for {layer}.', { window: windowLabel, layer }) : t('No alarms in the {window}.', { window: windowLabel }) }}
       </div>
@@ -321,6 +328,7 @@ h4 {
   font-size: 11px;
   color: var(--sw-fg-3);
 }
+.empty--err { color: var(--sw-err); }
 .rows { display: flex; flex-direction: column; gap: 4px; overflow: auto; }
 .alarm-row {
   display: flex; align-items: flex-start; gap: 8px; padding: 6px 0;

@@ -362,6 +362,19 @@ export {
   type InstanceAlarmStatus,
 } from './alarm-status.js';
 export {
+  ALERT_DEFAULT_PAGE_ID,
+  UNGROUPED_PIN,
+  alarmOwnerKey,
+  alarmPinKey,
+  alarmPinMatches,
+  formatAlarmPin,
+  layerFilterPin,
+  parseAlarmPin,
+  type AlarmPageView,
+  type AlarmPagesResponse,
+  type AlarmPin,
+} from './alarm-pages.js';
+export {
   UITemplateClient,
   UITemplateApiError,
   type UITemplateClientOptions,

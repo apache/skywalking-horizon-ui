@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-// The Alarms page-setup config and its validate helper. A leaf module
+// The default alarm page's config and its validate helper. A leaf module
 // (imports nothing internal) so the alarms api scope can read the effective
-// config without a cycle through client.ts. It is the
-// `horizon.alert.page-setup` singleton template — edited on the Alert page
-// admin, and read back as one of the effective org settings.
+// config without a cycle through client.ts. It is the `horizon.alert.default`
+// template — edited on the Alarm pages admin, and read back as one of the
+// effective org settings.
 
 /** Allowed values for `AlarmsConfig.defaultWindowMs`, in ms. Matches the alarms
  *  page's preset list so the admin's choice always corresponds to a real tab. */
@@ -35,8 +35,9 @@ export const OVERVIEW_ALARMS_LIMIT_MAX = 500;
 export const OVERVIEW_ALARMS_LIMIT_DEFAULT = 200;
 
 export interface AlarmsConfig {
-  /** OAP layer keys (canonical `GENERAL`, `MESH`, …) that get a dedicated tile
-   *  on the alarms page header. Render order matches the array order. */
+  /** Pins, each a tile on the default alarm page: a layer key, optionally
+   *  with OAP service groups (`GENERAL`, `GENERAL[payments, -]`, see
+   *  `parseAlarmPin`). Render order matches the array order. */
   pinnedLayers: string[];
   /** Default time window in ms for the topbar alarm badge AND the alarms page's
    *  initial picker selection. */
@@ -46,15 +47,15 @@ export interface AlarmsConfig {
   overviewAlarmsLimit: number;
 }
 
-/** Shipped default — kept in sync with the bundled alert page-setup template
- *  (`apps/bff/src/bundled_templates/alert/page-setup.json`). */
+/** Shipped default — kept in sync with the bundled default alarm page
+ *  (`apps/bff/src/bundled_templates/alert/default.json`). */
 export const DEFAULT_ALARMS_CONFIG: AlarmsConfig = {
   pinnedLayers: ['GENERAL', 'MESH'],
   defaultWindowMs: ALARMS_WINDOW_OPTIONS[0],
   overviewAlarmsLimit: OVERVIEW_ALARMS_LIMIT_DEFAULT,
 };
 
-/** Validate the alert page-setup content the BFF resolved for its template
+/** Validate the default alarm page content the BFF resolved for its template
  *  mode. Any missing / out-of-range field falls back to the shipped default,
  *  so a partial template — or none at all, when live mode has no readable OAP
  *  row — still yields a usable config. */

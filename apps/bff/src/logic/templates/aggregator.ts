@@ -16,10 +16,10 @@
  */
 
 /**
- * Bridges the per-kind bundled loaders (layers loader, overview loader,
- * alert bundled file) into the sync orchestrator's `BundledTemplate`
- * iterator. One function, three callsites — keeps the orchestrator from
- * importing each loader directly.
+ * Bridges the per-kind bundled loaders (layers loader, overview loader, the
+ * default alarm page's bundled file) into the sync orchestrator's
+ * `BundledTemplate` iterator. One function, three callsites — keeps the
+ * orchestrator from importing each loader directly.
  *
  * Re-reads every call so the layer-template fs.watch + overview cache
  * invalidation pick up edits without requiring an orchestrator restart.
@@ -27,14 +27,14 @@
 
 import { allLayerTemplates } from '../layers/loader.js';
 import { loadOverviewDashboards } from '../overview/loader.js';
-import { loadBundledAlertPageSetup } from '../alarms/bundled.js';
+import { loadBundledAlertDefaultPage } from '../alarms/bundled.js';
 import {
   loadBundledThemeActive,
   loadBundledTimeDefaults,
 } from './global-defaults-bundled.js';
 import { loadBundledInfra3dConfig } from '../infra-3d/bundled.js';
 import {
-  ALERT_PAGE_SETUP_KEY,
+  ALERT_DEFAULT_KEY,
   THEME_ACTIVE_KEY,
   TIME_DEFAULTS_KEY,
   INFRA3D_CONFIG_KEY,
@@ -52,8 +52,8 @@ export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
   }
   yield {
     kind: 'alert' satisfies TemplateKind,
-    key: ALERT_PAGE_SETUP_KEY,
-    content: loadBundledAlertPageSetup(),
+    key: ALERT_DEFAULT_KEY,
+    content: loadBundledAlertDefaultPage(),
   };
   yield {
     kind: 'theme' satisfies TemplateKind,

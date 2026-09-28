@@ -141,7 +141,7 @@ export interface EffectiveSettings {
   theme: unknown;
   /** `horizon.time-defaults.global` content — `{ defaultWindowMinutes }`. */
   timeDefaults: unknown;
-  /** `horizon.alert.page-setup` content — see `AlarmsConfig`. */
+  /** `horizon.alert.default` content, the default alarm page — see `AlarmsConfig`. */
   alert: unknown;
 }
 

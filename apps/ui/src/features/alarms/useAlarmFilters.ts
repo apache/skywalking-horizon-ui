@@ -84,13 +84,14 @@ export interface AlarmFilters {
   clearFilters: () => void;
 }
 
-export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
+/** `pageId`: the named page whose pins bound the choices; absent on the default page. */
+export function useAlarmFilters(hasQueryAlarms: Ref<boolean>, pageId?: Ref<string | undefined>): AlarmFilters {
   const draft = ref<FilterValues>(emptyFilters());
   const applied = ref<FilterValues>(emptyFilters());
 
   const servicesQuery = useQuery({
-    queryKey: computed(() => ['alarms/services', draft.value.layer]),
-    queryFn: () => bff.alarms.services(draft.value.layer),
+    queryKey: computed(() => ['alarms/services', draft.value.layer, pageId?.value ?? '']),
+    queryFn: () => bff.alarms.services(draft.value.layer, pageId?.value),
     enabled: computed(() => hasQueryAlarms.value && draft.value.layer.length > 0),
     staleTime: 30_000,
   });

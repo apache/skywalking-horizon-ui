@@ -121,7 +121,7 @@ it empties it. A Cold toggle would blank the alarm list and the entity pickers.
 | `zipkin.ts` — the Zipkin list and trace-by-id (`coldStage` is OAP's own addition to the Zipkin API, bounded by `endTs` + `lookback`) | |
 | `log.ts`, `browser-errors.ts` — logs | `instance.ts` — the instance picker |
 | `dashboard.ts`, `landing.ts`, `explore.ts` — metrics | `endpoint.ts` — the endpoint picker |
-| `mqe-exec.ts` — one metric expression, run from the template editor | |
+| `mqe-exec.ts` — one metric expression, run from the template editor | `alarm-pages.ts` — `/api/alarms/pages`, which reads only the template store |
 | `ai-conversation.ts` — the conversation list (`Duration.coldStage`) and view relay (`coldStage=true` query parameter), only when the UI selects cold | |
 
 The conversation VIEW relay holds the whole document before answering (gzip in memory, a fifth of the document's size): OAP streams it without a length, and the page shows "n of m MB" only because the BFF is the first to know `m`. It therefore asks OAP for gzip or plain bytes only — never the browser's own `Accept-Encoding` list — since it decodes what it holds to count it and to read the summary off the head (`logic/ai-conversation/hold-document.ts`). The decoded size and the summary's counts travel as `x-horizon-document-bytes` and `x-horizon-document-summary`.
@@ -305,6 +305,9 @@ Two rules that are easy to break:
 - **An empty selector reads every service.** OAP reads a missing `serviceId`
   as "all services", not "this layer's services", so a layer-limited caller
   must name one (`requireService`). Plain grants keep the cross-service read.
+  The alarm list and count are the exception: they read every service and
+  keep only the rows whose services the caller may read
+  (`logic/alarms/readable.ts`), so no caller has to name one.
 
 The AI tools reach OAP without passing through these routes, and their figures
 replay from the captured payload, so each tool asks `ctx.access` itself before

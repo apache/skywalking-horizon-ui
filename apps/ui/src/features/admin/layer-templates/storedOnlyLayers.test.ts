@@ -124,7 +124,7 @@ describe('the editor picker', () => {
   });
 
   it('ignores stored rows of another kind', () => {
-    const r = compose(BUNDLED, ['horizon.overview.services', 'horizon.alert.page-setup'], () => stored('X'), []);
+    const r = compose(BUNDLED, ['horizon.overview.services', 'horizon.alert.default'], () => stored('X'), []);
     expect(r.list.map((t) => t.key)).toEqual(['GENERAL']);
   });
 

@@ -16,7 +16,7 @@ limitations under the License.
 -->
 # Alarms
 
-Path: `/alarms`. The page is read-only and needs no special permission to view.
+Path: `/alarms`, and `/alarms/<id>` for a named alarm page. Viewing needs `alarms:read`; a role limited to some layers or service groups sees only the alarms of its own services — see [Alarm Pages](../customization/alarm-pages.md).
 
 The Alarms page is the triage surface for everything OAP's alerting engine is firing right now, across every layer. It pulls the alarms OAP recorded over a recent window, groups the repeat firings of a rule on the same entity into a single incident, lays them out on a per-layer timeline, and shows the trigger expression and the captured metric snapshot for whichever alarm you select.
 
@@ -28,25 +28,28 @@ The window picker offers three presets — `20m`, `2h`, `4h` — plus a custom r
 
 Alarms are second-precision events, and a long window pulls thousands of rows that some storage backends struggle to return; the 4-hour ceiling is enforced both in the picker and on the server, so a custom range wider than 4 hours is rejected. When the window genuinely holds more alarms than were fetched, the timeline header says so — narrow the window to see a complete slice. A window that exactly fills the fetch is complete and carries no notice.
 
-The window's starting preset can be set per deployment — see [Alert page setup](#admin-setup-pinned-layers-and-default-window) below.
+The window each page opens on is part of its setup — see [Alarm Pages](../customization/alarm-pages.md).
 
 ## Active count and per-layer breakdown
 
 The KPI strip at the top counts what is **actively firing**, not the raw event count.
 
 - **Active** — the total number of incidents that are currently firing. A fully recovered incident contributes nothing here, so this number answers "what is on fire right now?" rather than "what happened recently?".
-- **Per-layer tiles** — one tile per pinned layer (for example `General`, `Mesh`), each showing that layer's active count. Pinned layers always render, even at zero, so the strip is stable across refreshes.
-- **Other** — a read-only aggregate of active alarms in layers you did not pin, plus any alarm OAP could not attribute to a known layer. The arithmetic `Active = (sum of pinned tiles) + Other` always holds, so nothing hides off-screen.
-- **Overflow chips** — below the tiles, the non-pinned layers that actually have an active alarm appear as small pills, sorted by count, as a filter shortcut.
+- **Pinned tiles** — one tile per pin of the page: a layer (for example `General`, `Mesh`), or service groups within a layer (`payments · General`), each showing its active count. Pinned tiles always render, even at zero, so the strip is stable across refreshes. A pin your role cannot reach is left out, and a note says so.
+- **Other** — on the **Alarms** page, the active alarms that match no pinned tile, including those no known service owns. Click it to list them. A named alarm page has no **Other**: it lists only the alarms its pins cover.
 
-Clicking a tile, a chip, or a list tab narrows the timeline and the list to that layer; the selection is reflected in the URL, so a refresh or a shared link preserves it. Click the active tile again (or the **Active** tile) to clear the filter.
+An alarm counts under every tile it matches — a service in two layers, or a relation between two services, can count twice — so the tiles can add up to more than **Active**.
+
+Above the list, **All** and a tab per pinned tile repeat the strip; on the **Alarms** page there is also a tab for every other layer with an active alarm, and one for **Other**.
+
+Clicking a tile or a tab narrows the timeline and the list to it; the selection is reflected in the URL, so a refresh or a shared link preserves it. Click the active tile again (or the **Active** tile) to clear the filter.
 
 ## Filtering
 
 Above the timeline is a filter row. What it offers depends on the connected OAP version:
 
-- On a current OAP, you get a cascading **Layer → Service → Instance → Endpoint** picker plus a free-text **Keyword** match on the alarm message. These filters are applied at the source, so the page only fetches the alarms that match.
-- On an older OAP that does not support entity-scoped alarm queries, the row collapses to **Keyword** only, with a note inviting an upgrade for the full layer and entity filters.
+- On a current OAP, you get a cascading **Layer → Service → Instance → Endpoint** picker plus a free-text **Keyword** match on the alarm message. A picked service, instance or endpoint, and the keyword, narrow what the page reads; a layer on its own keeps the alarms of that layer's services, the way its tile counts them.
+- On an older OAP that does not support entity-scoped alarm queries, the row collapses to **Keyword** only, with a note inviting an upgrade for the full layer and entity filters. A role limited to some layers cannot read alarms from such an OAP.
 
 The filter is a draft until you press **apply** — nothing refires while you are composing it. **clear** resets every field.
 
@@ -82,9 +85,9 @@ Selecting an alarm — from a timeline flag, a list row, or an expanded history 
 - **Rule** — when the OAP admin port is reachable, the matched rule's body: `period`, `silence`, `recovery-obs`, notification hooks, and the metrics it references. A "view in catalog" link jumps to the same rule on the [Alerting rules](#alerting-rules-the-running-context) page. When the admin port is unreachable, this section is omitted.
 - **Snapshot** — one small chart per metric, plotting the values OAP captured at the firing moment so you can see what actually crossed the threshold. The trigger minute is marked, and the rule's evaluation window is shaded when the rule body is available. An alarm recorded without an MQE snapshot (older OAP, or snapshot capture disabled in the rule) shows a note instead of charts.
 
-## Admin: setup, pinned layers, and default window
+## Alarm pages
 
-Which layers get their own KPI tile, and which window preset the page opens on, are configured on the **Alert page setup** admin page (`/admin/alert-page-setup`, verb `alarm-setup:read`), reachable from the page's intro text.
+Besides **Alarms**, a deployment can have named alarm pages — for example one per team — each with its own pinned tiles, shown as their own rows in the sidebar. Which tiles a page pins, which window it opens on, and which pages exist are set up at **Dashboard setup → Alarm pages**; see [Alarm Pages](../customization/alarm-pages.md).
 
 ## Alerting rules: the running context
 

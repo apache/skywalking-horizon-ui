@@ -24,10 +24,11 @@ import type {
   AlertingRulesListResponse,
   BffClient,
 } from '../client';
+import type { AlarmPagesResponse } from '@skywalking-horizon-ui/api-client';
 import { normalizeAlarmsConfig, type AlarmsConfig } from '../alarmsConfig';
 
-/** `bff.alarms` — alarm list + topbar count probe + alarm-page
- *  config CRUD. */
+/** `bff.alarms` — alarm list, topbar count probe, the alarm pages and the
+ *  default page's config. */
 export class AlarmsApi {
   constructor(private readonly bff: BffClient) {}
 
@@ -41,6 +42,7 @@ export class AlarmsApi {
       pageNum: String(q.pageNum ?? 1),
       pageSize: String(q.pageSize ?? 500),
     });
+    if (q.page) p.set('page', q.page);
     if (q.scope) p.set('scope', q.scope);
     if (q.keyword) p.set('keyword', q.keyword);
     if (q.layer) p.set('layer', q.layer);
@@ -63,17 +65,25 @@ export class AlarmsApi {
   /** Service roster for one OAP layer (alpha-sorted) — feeds the
    *  alarms page's cascading filter. Rows carry the id as well as the name:
    *  the alarm entity filter is name-scoped (OAP's alarm query has no id
-   *  form), but the instance / endpoint pickers below it are id-scoped. */
-  services(layer: string): Promise<{
+   *  form), but the instance / endpoint pickers below it are id-scoped.
+   *  With a named page, only the services that page's pins cover. */
+  services(layer: string, page?: string): Promise<{
     layer: string;
-    services: Array<{ id: string; name: string; normal: boolean | null }>;
+    services: Array<{ id: string; name: string; normal: boolean | null; group?: string | null }>;
   }> {
     const p = new URLSearchParams({ layer });
+    if (page) p.set('page', page);
     return this.bff.request('GET', `/api/alarms/services?${p.toString()}`);
   }
 
-  /** The alarms page-setup — the `horizon.alert.page-setup` singleton template.
-   *  Read as one of the effective org settings, like the theme / time-defaults
+  /** The alarm pages this caller is served: the default page and the named
+   *  ones, each with only the pins the caller's `alarms:read` reaches. */
+  pages(signal?: AbortSignal): Promise<AlarmPagesResponse> {
+    return this.bff.request<AlarmPagesResponse>('GET', '/api/alarms/pages', undefined, undefined, signal);
+  }
+
+  /** The default alarm page — the `horizon.alert.default` template. Read as
+   *  one of the effective org settings, like the theme / time-defaults
    *  singletons: the BFF resolves it for its template mode and returns nothing
    *  when live mode has no readable OAP row, in which case the shipped default
    *  applies. Edits are saved to OAP via `bff.templateSync.save`. */

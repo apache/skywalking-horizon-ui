@@ -45,8 +45,7 @@ import { logger } from '../logger.js';
 export type RoutePolicy = 'public' | 'auth' | string | string[] | { anyOf: readonly string[] };
 
 /** A config-surface write. The template routes push to OAP's ui_template store
- *  (the alert page-setup rides this path too, as the `horizon.alert.page-setup`
- *  singleton). In `templates.mode=readonly` the whole config surface is served
+ *  (the alarm pages ride this path too, as `horizon.alert.*` rows). In `templates.mode=readonly` the whole config surface is served
  *  from the local bundle and read-only, so these are denied at the edge
  *  regardless of the verb grant (the UI hides them too, but a direct request must
  *  still fail — the BFF is the authority). */
@@ -147,7 +146,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/menu':                                 'auth',
   'GET /api/preflight':                            'auth',
   'GET /api/configs/bundle':                       'auth',
-  // Org-wide singletons (theme / global time window / alert page setup) every
+  // Org-wide settings (theme / global time window / default alarm page) every
   // signed-in user needs to render the shell. The full template rows stay on
   // the admin sync-status route below; this one serves only these three
   // effective values, so no custom role needs `overview:read` to boot.
@@ -157,6 +156,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/alarms':                               'alarms:read',
   'GET /api/alarms/count':                         'alarms:read',
   'GET /api/alarms/services':                      'alarms:read',
+  'GET /api/alarms/pages':                         'alarms:read',
 
   'POST /api/layer/:key/traces':                   'traces:read',
   'GET /api/trace/:traceId':                       'traces:read',

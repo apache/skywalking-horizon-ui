@@ -35,6 +35,7 @@ import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { useDebugPanel } from '@/controls/debugPanel';
 import { useSidebar } from '@/controls/sidebar';
 import { useAlarmCount } from '@/shell/useAlarmCount';
+import { useAlarmPages } from '@/shell/useAlarmPages';
 import { useConfigBundle } from '@/controls/configBundle';
 
 const { enabled: debugPanelEnabled, toggle: toggleDebugPanel } = useDebugPanel();
@@ -42,6 +43,7 @@ const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebar();
 // Shares the same composable as the topbar badge — one query feeds both,
 // so the two surfaces never disagree regardless of which renders first.
 const alarmCount = useAlarmCount();
+const { namedPages: alarmPages } = useAlarmPages();
 
 const auth = useAuthStore();
 const { bundle } = useConfigBundle();
@@ -149,11 +151,12 @@ function isLayerDiverged(key: string): boolean {
           <Icon :name="(ov.icon as IconName) || 'dash'" /><span>{{ ov.title }}</span>
         </RouterLink>
       </template>
+      <!-- Exact match: `/alarms/<id>` is a named page, which has its own row. -->
       <RouterLink
         v-if="auth.hasVerbOnSomeLayer('alarms:read')"
         to="/alarms"
         class="sw-nav-item"
-        :class="{ 'is-active': isActive('/alarms') }"
+        :class="{ 'is-active': isActiveExact('/alarms') }"
       >
         <Icon name="alert" /><span>{{ t('Alarms') }}</span>
         <span
@@ -161,6 +164,15 @@ function isLayerDiverged(key: string): boolean {
           class="sw-badge err"
           style="margin-left: auto"
         >{{ alarmCount.displayCount.value }}</span>
+      </RouterLink>
+      <RouterLink
+        v-for="p in alarmPages"
+        :key="`alarm-page:${p.id}`"
+        :to="`/alarms/${p.id}`"
+        class="sw-nav-item"
+        :class="{ 'is-active': isActiveExact(`/alarms/${p.id}`) }"
+      >
+        <Icon name="alert" /><span>{{ p.title ?? p.id }}</span>
       </RouterLink>
 
       <div class="sw-nav-section sw-nav-section--icon" style="justify-content: space-between">

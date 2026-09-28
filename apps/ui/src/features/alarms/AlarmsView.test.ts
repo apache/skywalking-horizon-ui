@@ -33,7 +33,7 @@ import AlarmsView from './AlarmsView.vue';
 
 // A plain alarms reader — the page as every deployment without layer grants sees it.
 vi.mock('@/state/auth', () => ({
-  useAuthStore: () => ({ hasVerb: () => true, layerLimited: () => false, layersFor: () => null }),
+  useAuthStore: () => ({ hasVerb: () => true, hasVerbOnSomeLayer: () => true, layerLimited: () => false, layersFor: () => null }),
 }));
 
 const LAYER = 'VIRTUAL_DATABASE';
@@ -48,30 +48,20 @@ function jsonResponse(payload: unknown): Response {
   });
 }
 
+function menuLayer(key: string, name: string, serviceGroup?: string) {
+  return { key, name, serviceGroup, color: '#fff', serviceCount: 2, active: true, level: null, slots: {}, caps: {} };
+}
+
 /** A BFF whose alarms roster carries both flags, so the page has to pick the
  *  right one rather than land on it by default. */
-function fakeBff() {
+function fakeBff(menu = [menuLayer(LAYER, 'Virtual Database')]) {
   const asked: string[] = [];
   const fetchSpy = vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
     asked.push(url);
     const path = new URL(url, 'http://ui').pathname;
     if (path === '/api/menu') {
-      return jsonResponse({
-        layers: [
-          {
-            key: LAYER,
-            name: 'Virtual Database',
-            color: '#fff',
-            serviceCount: 2,
-            active: true,
-            level: null,
-            slots: {},
-            caps: {},
-          },
-        ],
-        oap: { reachable: true },
-      });
+      return jsonResponse({ layers: menu, oap: { reachable: true } });
     }
     if (path === '/api/oap/info') {
       return jsonResponse({ reachable: true, capabilities: { queryAlarms: true } });
@@ -198,5 +188,29 @@ describe('Alarms page — the applied filter sends the service identity', () => 
     expect(q.get('layer')).toBe(LAYER);
     expect(q.get('service')).toBeNull();
     expect(q.get('normal')).toBeNull();
+  });
+});
+
+describe('Alarms page — a layer split by service group is one filter option', () => {
+  it('offers the layer once, by its own name, and filters by the layer key alone', async () => {
+    const bff = fakeBff([
+      menuLayer('GENERAL~payments', 'payments · General', 'payments'),
+      menuLayer('GENERAL~risk', 'risk · General', 'risk'),
+      menuLayer('database', 'Database'),
+    ]);
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    const w = await mountAlarms();
+
+    const options = w.findAll('.ax__filters select')[0]!.findAll('option').slice(1);
+    expect(options.map((o) => [o.attributes('value'), o.text()])).toEqual([
+      ['GENERAL', 'General'],
+      ['VIRTUAL_DATABASE', 'Database'],
+    ]);
+
+    await w.findAll('.ax__filters select')[0]!.setValue('GENERAL');
+    await flushPromises();
+    await w.get('.ax__filter-apply').trigger('click');
+    await flushPromises();
+    expect(bff.lastAlarmsQuery().get('layer')).toBe('GENERAL');
   });
 });

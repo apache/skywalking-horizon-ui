@@ -64,8 +64,6 @@ export function describeRefusal(d: PermissionDenied): string | null {
       return t('This read does not name a service, and you can read only some services.');
     case 'alarm_filter_unsupported':
       return t('This OAP cannot filter alarms by service, and you can read only some services.');
-    case 'alarm_counts_are_deployment_wide':
-      return t('Alarm counts cover every service, and you can read only some services.');
     case 'preview_needs_template_write':
       return t('Previewing a draft template needs the layer-template:write permission.');
     default:

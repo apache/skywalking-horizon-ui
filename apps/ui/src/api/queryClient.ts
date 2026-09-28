@@ -43,7 +43,8 @@ export const queryClient = new QueryClient({
        * abort the fan-out and then immediately ask for it again.
        *
        * A refusal (403) is an answer too: the caller's grants will not change
-       * between the attempt and the retry.
+       * between the attempt and the retry. So is an alarm page this caller is
+       * not served (404 `alarm_page_not_found`).
        *
        * Matched by NAME rather than by class: importing the error here would
        * close an import cycle back through the graph layer, and the name is
@@ -54,6 +55,7 @@ export const queryClient = new QueryClient({
         if (err.name === 'AbortError') return false;
         if ((err as { cancelled?: boolean }).cancelled === true) return false;
         if (err.name === 'BffApiError' && (err as { status?: number }).status === 403) return false;
+        if (err.name === 'BffApiError' && (err as { body?: { error?: unknown } }).body?.error === 'alarm_page_not_found') return false;
         return count < 1;
       },
     },

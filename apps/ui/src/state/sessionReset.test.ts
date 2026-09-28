@@ -330,6 +330,8 @@ describe('resetSessionState — the 3D infrastructure map', () => {
         message: 'Response time > 1s',
         tags: [],
         snapshot: { expression: '', metrics: [] },
+        layerKeys: ['GENERAL'],
+        ownerKeys: ['GENERAL~'],
         layerKey: 'GENERAL',
       })),
     };
