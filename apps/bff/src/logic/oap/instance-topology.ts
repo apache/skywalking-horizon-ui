@@ -37,6 +37,7 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe, instanceNodeFragment } from './topology-mqe.js';
+import { entityServiceName } from '../services/service-identity.js';
 
 interface OapInstNode {
   id: string;
@@ -102,10 +103,10 @@ function relationFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: {` +
-    ` serviceName: ${JSON.stringify(srcServiceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(srcServiceName))},` +
     ` normal: ${srcNormal ? 'true' : 'false'},` +
     ` serviceInstanceName: ${JSON.stringify(srcInstanceName)},` +
-    ` destServiceName: ${JSON.stringify(dstServiceName)},` +
+    ` destServiceName: ${JSON.stringify(entityServiceName(dstServiceName))},` +
     ` destNormal: ${dstNormal ? 'true' : 'false'},` +
     ` destServiceInstanceName: ${JSON.stringify(dstInstanceName)} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +

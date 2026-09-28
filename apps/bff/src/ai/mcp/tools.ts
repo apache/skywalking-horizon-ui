@@ -37,6 +37,7 @@ import { buildTools } from '../lib/registry.js';
 import { rcaTools } from '../lib/tools/rca/tools.js';
 import { createCaptureContext, type CaptureDeps, type CaptureStep } from './capture.js';
 import { emitsCard } from '../lib/graphic-card.js';
+import { buildRequestAccess } from '../../rbac/request-access.js';
 
 export interface McpToolDef {
   name: string;
@@ -500,8 +501,10 @@ export async function callTool(
   args: Record<string, unknown>,
 ): Promise<McpToolResult> {
   const { windowMinutes, step, ...toolArgs } = args;
+  const requestAccess = deps.access ? await buildRequestAccess(deps.config.current, deps.subject, deps.access) : undefined;
   const run = createCaptureContext({
     ...deps,
+    requestAccess,
     // Enforce the bounds the schema ADVERTISES. A caller is a language model,
     // which is exactly the kind of caller that sends a plausible-looking value
     // outside the range it was given — and `> 0` accepted 1e15, which becomes a

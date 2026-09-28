@@ -106,10 +106,10 @@ describe('auth store — no cached data survives an identity change', () => {
 
 /**
  * The same table `apps/bff/src/rbac/verbs.test.ts` asserts, run through the
- * UI's copy of the matcher. Three copies of it exist — this store, the Roles
- * board, and the BFF — and they diverged together once: a malformed grant
- * (`rule:*:typo`) read as the area wildcard on all three, so the sidebar
- * offered pages the server would have allowed too. Pin them to one answer.
+ * UI's copy of the matcher (`verbGrammar.ts`, which the Roles board shares).
+ * The copies diverged together once: a malformed grant (`rule:*:typo`) read as
+ * the area wildcard on every side, so the sidebar offered pages the server
+ * would have allowed too. Pin them to one answer.
  */
 const MATCHER_CASES: ReadonlyArray<[string, string, boolean]> = [
   ['rule:*:typo', 'rule:delete', false],
@@ -138,5 +138,94 @@ describe('the auth store answers the verb grammar exactly as the BFF does', () =
     const auth = useAuthStore();
     auth.user = { username: 'u', roles: ['r'], verbs: [grant] } as MeResponse;
     expect(auth.hasVerb(required)).toBe(expected);
+  });
+});
+
+/**
+ * `verb@LAYER[groups]` grants, answered as the BFF's `SessionAccess` answers
+ * them (`apps/bff/src/rbac/layer-grants.test.ts`). A session with none must
+ * see exactly what it saw before layer grants existed.
+ */
+describe('the auth store answers layer-qualified grants as the BFF does', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  function signIn(verbs: string[], verbCap?: string[]) {
+    const auth = useAuthStore();
+    auth.user = { username: 'u', roles: ['r'], verbs, ...(verbCap ? { verbCap } : {}) };
+    return auth;
+  }
+
+  it('never lets a layer grant answer a plain question', () => {
+    for (const g of ['metrics:read@GENERAL', '*:read@GENERAL', '*@GENERAL', 'metrics:*@GENERAL']) {
+      const auth = signIn([g]);
+      expect(auth.hasVerb('metrics:read'), g).toBe(false);
+      expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL'), g).toBe(true);
+      expect(auth.hasVerbOnSomeLayer('metrics:read'), g).toBe(true);
+      expect(auth.layerLimited('metrics:read'), g).toBe(true);
+      expect(auth.hasVerb('overview:read'), g).toBe(false);
+    }
+  });
+
+  it('reaches exactly the named layer, with case and OAP aliases folded', () => {
+    const auth = signIn(['traces:read@general', 'logs:read@DATABASE']);
+    expect(auth.hasVerbOnLayer('traces:read', 'GENERAL')).toBe(true);
+    expect(auth.hasVerbOnLayer('traces:read', 'general')).toBe(true);
+    expect(auth.hasVerbOnLayer('traces:read', 'MESH')).toBe(false);
+    expect(auth.hasVerbOnLayer('logs:read', 'VIRTUAL_DATABASE')).toBe(true);
+    expect(auth.hasVerbOnLayer('logs:read', 'virtual_database')).toBe(true);
+  });
+
+  it('reads a split sidebar entry by its layer and its group', () => {
+    const auth = signIn(['metrics:read@GENERAL[payments]', 'logs:read@GENERAL[-]', 'traces:read@GENERAL']);
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL~payments')).toBe(true);
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL~risk')).toBe(false);
+    expect(auth.hasVerbOnLayer('metrics:read', 'MESH~payments')).toBe(false);
+    // `[-]` is the ungrouped services, whose entry key ends in a bare `~`.
+    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL~')).toBe(true);
+    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL~payments')).toBe(false);
+    expect(auth.hasVerbOnLayer('traces:read', 'GENERAL~risk')).toBe(true);
+    // On the whole layer, the group limit is the BFF's to apply.
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL')).toBe(true);
+  });
+
+  it('keeps a plain grant off the operate layers without cluster:read', () => {
+    expect(signIn(['metrics:read']).hasVerbOnLayer('metrics:read', 'BANYANDB', true)).toBe(false);
+    expect(signIn(['metrics:read', 'cluster:read']).hasVerbOnLayer('metrics:read', 'BANYANDB', true)).toBe(true);
+    expect(signIn(['metrics:read@BANYANDB']).hasVerbOnLayer('metrics:read', 'BANYANDB', true)).toBe(true);
+  });
+
+  it('grants nothing through a malformed qualifier, admin, or a verb with no layer', () => {
+    for (const g of ['metrics:read@', 'metrics:read@GENERAL[]', 'metrics:read@GENERAL[a,,b]', 'admin@GENERAL']) {
+      const auth = signIn([g]);
+      expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL'), g).toBe(false);
+      expect(auth.layerLimited('metrics:read'), g).toBe(false);
+    }
+    const auth = signIn(['cluster:read@GENERAL', '*@GENERAL']);
+    expect(auth.hasVerbOnLayer('cluster:read', 'GENERAL')).toBe(false);
+    expect(auth.hasVerbOnSomeLayer('audit:read')).toBe(false);
+  });
+
+  it('decides layer-limited per verb', () => {
+    const auth = signIn(['alarms:read', 'metrics:read@GENERAL']);
+    expect(auth.layerLimited('metrics:read')).toBe(true);
+    expect(auth.layerLimited('alarms:read')).toBe(false);
+    expect(auth.layerLimited('traces:read')).toBe(false);
+  });
+
+  it('answers every layer question plainly for a session with no layer grant', () => {
+    const auth = signIn(['*:read']);
+    for (const v of ['metrics:read', 'traces:read', 'logs:read', 'events:read']) {
+      expect(auth.hasVerbOnLayer(v, 'GENERAL')).toBe(auth.hasVerb(v));
+      expect(auth.hasVerbOnSomeLayer(v)).toBe(auth.hasVerb(v));
+      expect(auth.layerLimited(v)).toBe(false);
+    }
+  });
+
+  it('narrows by the OAuth scope cap, by verb and never by layer', () => {
+    const auth = signIn(['metrics:*@GENERAL', 'profile:enable', 'rule:write'], ['*:read']);
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL')).toBe(true);
+    expect(auth.hasVerbOnLayer('profile:enable', 'GENERAL')).toBe(false);
+    expect(auth.hasVerb('profile:enable')).toBe(false);
+    expect(auth.hasVerb('rule:write')).toBe(false);
   });
 });

@@ -267,6 +267,15 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         } satisfies BrowserErrorsResponse);
       }
       const serviceId = scope.kind === 'service' ? scope.service.id : null;
+      // Only the browser receiver writes these rows, so they all belong to
+      // BROWSER services — filed under a name OAP may have shortened, which the
+      // row does not carry. A list across every service is therefore that
+      // layer's, read whole or not at all.
+      if (!serviceId && req.access && !req.access.onLayer(['browser-errors:read'], 'BROWSER')?.whole) {
+        return reply
+          .code(403)
+          .send({ error: 'permission_denied', verb: 'browser-errors:read', reason: 'layer_not_granted', layer: 'BROWSER' });
+      }
 
       const res = await fetchBrowserErrors(
         opts,

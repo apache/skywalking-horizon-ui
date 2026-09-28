@@ -198,10 +198,103 @@ function aliasesFor(grant: string): readonly Verb[] {
   return [];
 }
 
+/**
+ * A grant limited to one layer, and optionally to OAP service groups in it:
+ * `metrics:read@GENERAL`, `metrics:read@GENERAL[payments,risk]`. The groups
+ * are OAP `Service.group` values (the `<group>::` prefix); `-` names the
+ * services that have no group.
+ */
+export interface LayerQualifier {
+  /** Upper-cased as written; the access check canonicalises aliases. */
+  layer: string;
+  /** Absent = the whole layer. `''` is the ungrouped services. */
+  groups?: readonly string[];
+}
+
+export interface ParsedGrant {
+  verb: Verb;
+  qualifier?: LayerQualifier;
+}
+
+/** How a grant spells "the services with no group". */
+export const UNGROUPED_GRANT = '-';
+
+/**
+ * The verbs a layer qualifier means something on: their data belongs to one
+ * service, so "which layer, which group" has an answer. Any other verb written
+ * with `@` grants nothing — `cluster:read@GENERAL` or `overview:read@GENERAL`
+ * would promise a narrowing no route could enforce. `layer-grants.test.ts`
+ * checks every `/api/layer/:key/` route's verb is listed here.
+ */
+export const LAYER_SCOPED_VERBS: ReadonlySet<Verb> = new Set<Verb>([
+  'metrics:read',
+  'traces:read',
+  'logs:read',
+  'browser-errors:read',
+  'ai-conversation:read',
+  'events:read',
+  'alarms:read',
+  'topology:read',
+  'profile:read',
+  'profile:enable',
+]);
+
+/** The verbs that open a layer PAGE — a sidebar entry is shown to a caller
+ *  who holds one of them on that layer. Alarms and events have pages of their
+ *  own, and `profile:enable` only acts on a page something else opened. */
+export const LAYER_PAGE_VERBS: readonly Verb[] = [
+  'metrics:read',
+  'traces:read',
+  'logs:read',
+  'topology:read',
+  'profile:read',
+  'browser-errors:read',
+  'ai-conversation:read',
+];
+
+const QUALIFIER = /^([A-Za-z0-9_]+)(?:\[([^\]]*)\])?$/;
+
+/**
+ * Split a grant into its verb and its layer qualifier. `null` for a malformed
+ * qualifier (`metrics:read@`, `@GENERAL[]`, `@GENERAL[a,,b]`, anything after
+ * the `]`), which grants nothing — a typo must not confer the whole layer.
+ */
+export function parseGrant(grant: string): ParsedGrant | null {
+  const at = grant.indexOf('@');
+  if (at < 0) return { verb: grant };
+  const verb = grant.slice(0, at);
+  const m = QUALIFIER.exec(grant.slice(at + 1));
+  if (!verb || !m) return null;
+  const layer = m[1]!.toUpperCase();
+  if (m[2] === undefined) return { verb, qualifier: { layer } };
+  const groups = m[2].split(',').map((g) => g.trim());
+  if (groups.some((g) => g === '')) return null;
+  return {
+    verb,
+    qualifier: { layer, groups: groups.map((g) => (g === UNGROUPED_GRANT ? '' : g)) },
+  };
+}
+
+/**
+ * Does a layer grant's VERB part cover `required`? `*@GENERAL` covers every
+ * layer-scoped verb on GENERAL; `admin@GENERAL` covers nothing — the sentinel
+ * means "everything", and everything has no layer.
+ */
+export function qualifiedVerbCovers(grant: ParsedGrant, required: Verb): boolean {
+  if (!grant.qualifier || grant.verb === 'admin' || !LAYER_SCOPED_VERBS.has(required)) return false;
+  return grant.verb === '*' || matchOne(grant.verb, required);
+}
+
 /** True for a grant the verb grammar accepts even though it names no known
  *  verb: the wildcards, and any retired name still expanded by VERB_ALIASES.
- *  Used by the boot-time warning so it does not flag the stock `admin` role. */
+ *  Used by the boot-time warning so it does not flag the stock `admin` role.
+ *  A layer grant is recognised only when it covers a layer-scoped verb. */
 export function isGrantRecognised(grant: string): boolean {
+  if (grant.includes('@')) {
+    const parsed = parseGrant(grant);
+    if (!parsed?.qualifier) return false;
+    return [...LAYER_SCOPED_VERBS].some((v) => qualifiedVerbCovers(parsed, v));
+  }
   if (grant === '*' || grant === 'admin') return true;
   if (aliasesFor(grant).length > 0) return true;
   // Ask the matcher itself rather than re-deriving the grammar beside it: a
@@ -213,6 +306,9 @@ export function isGrantRecognised(grant: string): boolean {
 }
 
 function matchOne(grant: Verb, required: Verb): boolean {
+  // A layer-limited grant never answers a question that has no layer in it:
+  // `metrics:read@GENERAL` must not open the overview or the 3D map.
+  if (grant.includes('@')) return false;
   if (grant === '*' || grant === 'admin') return true;
   if (grant === required) return true;
   if (WILDCARD_EXEMPT_VERBS.has(required)) return false;
@@ -250,7 +346,38 @@ export function resolveVerbsForRoles(
   for (const r of userRoles)
     for (const v of rolePolicy[r] ?? []) {
       set.add(v);
+      // Retired names expand only when written plain: `dashboard:read@X`
+      // names no layer verb, and expanding it would hand out an UNQUALIFIED
+      // `layer-template:read` from a grant that asked for one layer.
       for (const a of aliasesFor(v)) set.add(a);
     }
   return [...set];
+}
+
+/**
+ * What a grant still confers under an OAuth scope's cap. A cap is a set of
+ * PLAIN verbs and narrows by verb, never by layer: `metrics:*@GENERAL` under
+ * `*:read` is `metrics:read@GENERAL`. A plain grant is returned as it is —
+ * the gate intersects it with the cap on every check.
+ */
+export function capGrant(grant: Verb, cap: readonly Verb[] | undefined): Verb[] {
+  if (!cap || !grant.includes('@')) return [grant];
+  const parsed = parseGrant(grant);
+  if (!parsed?.qualifier) return [];
+  if (hasVerb(cap, parsed.verb)) return [grant];
+  const where = grant.slice(grant.indexOf('@'));
+  return [...LAYER_SCOPED_VERBS].filter((v) => qualifiedVerbCovers(parsed, v) && hasVerb(cap, v)).map((v) => `${v}${where}`);
+}
+
+/** Does any grant cover `required`, plain or on some layer? The route gate
+ *  asks this for a route that names a layer or a service, so a user whose
+ *  only grant is `metrics:read@GENERAL` reaches the handler; which layer and
+ *  which service they may read is decided per request after that. */
+export function hasVerbOnSomeLayer(grantedVerbs: readonly Verb[], required: Verb): boolean {
+  if (hasVerb(grantedVerbs, required)) return true;
+  for (const g of grantedVerbs) {
+    const parsed = g.includes('@') ? parseGrant(g) : null;
+    if (parsed && qualifiedVerbCovers(parsed, required)) return true;
+  }
+  return false;
 }

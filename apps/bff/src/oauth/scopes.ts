@@ -33,7 +33,7 @@
  */
 
 import type { HorizonConfig } from '../config/schema.js';
-import { hasVerb, resolveVerbsForRoles } from '../rbac/verbs.js';
+import { capGrant, hasVerb, resolveVerbsForRoles } from '../rbac/verbs.js';
 
 export const DEFAULT_SCOPE = 'horizon:read';
 
@@ -93,5 +93,6 @@ export function grantedVerbs(config: HorizonConfig, roles: readonly string[], sc
   // `metrics:*` as matching nothing, so a role granted a whole area was shown
   // fewer permissions than the grant actually carried — the one direction a
   // consent screen must never be wrong in.
-  return [...owned].filter((v) => hasVerb(cap, v)).sort();
+  // A layer grant keeps its layer and loses only the verbs the cap excludes.
+  return [...new Set([...owned].flatMap((v) => (v.includes('@') ? capGrant(v, cap) : hasVerb(cap, v) ? [v] : [])))].sort();
 }

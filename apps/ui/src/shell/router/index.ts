@@ -437,7 +437,10 @@ router.beforeEach(async (to) => {
   // OAP chip (where the page's data comes from shared `auth` endpoints
   // the BFF can't gate per-page).
   const requiredVerb = to.meta.verb as string | undefined;
-  if (requiredVerb && auth.isAuthenticated && !auth.hasVerb(requiredVerb)) {
+  // A layer sub-page asks on its own layer, so a `verb@LAYER` grant opens it.
+  const layerKey = typeof to.params.layerKey === 'string' ? to.params.layerKey : null;
+  const allowed = !requiredVerb || (layerKey ? auth.hasVerbOnLayer(requiredVerb, layerKey) : auth.hasVerb(requiredVerb));
+  if (auth.isAuthenticated && !allowed) {
     return { path: '/' };
   }
 });

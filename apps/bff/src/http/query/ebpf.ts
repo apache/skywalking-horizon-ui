@@ -60,6 +60,7 @@ import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
 import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { entityServiceName, serviceIdOf } from '../../logic/services/service-identity.js';
 
 export interface EBPFRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -331,11 +332,11 @@ function processRelationFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(expr)},\n` +
     `      entity: {` +
-    ` serviceName: ${JSON.stringify(src.serviceName)},` +
+    ` serviceName: ${JSON.stringify(entityServiceName(src.serviceName))},` +
     ` normal: ${src.normal === false ? 'false' : 'true'},` +
     ` serviceInstanceName: ${JSON.stringify(src.serviceInstanceName)},` +
     ` processName: ${JSON.stringify(src.processName)},` +
-    ` destServiceName: ${JSON.stringify(dst.serviceName)},` +
+    ` destServiceName: ${JSON.stringify(entityServiceName(dst.serviceName))},` +
     ` destNormal: ${dst.normal === false ? 'false' : 'true'},` +
     ` destServiceInstanceName: ${JSON.stringify(dst.serviceInstanceName)},` +
     ` destProcessName: ${JSON.stringify(dst.processName)} },\n` +
@@ -401,6 +402,17 @@ async function queryEbpfTasksBothTriggers(
     }).then((d) => d.queryEBPFTasks ?? []);
   const [fixed, continuous] = await Promise.all([ask('FIXED_TIME'), ask('CONTINUOUS_PROFILING')]);
   return [...fixed, ...continuous].sort((a, b) => (b.taskStartTime ?? 0) - (a.taskStartTime ?? 0));
+}
+
+/** A schedule id names no service; its process does. Keep the schedules
+ *  whose process belongs to a service the caller may read. */
+async function readableSchedules<T extends { process?: { serviceId?: string | null } | null }>(
+  req: FastifyRequest,
+  schedules: T[],
+): Promise<T[]> {
+  const access = req.access;
+  if (!access) return schedules;
+  return access.keepReadable(['profile:read'], schedules, (s) => ({ id: s.process?.serviceId ?? '' }));
 }
 
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
@@ -507,7 +519,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
           QUERY_EBPF_SCHEDULES,
           { taskId: params.taskId },
         );
-        payload.schedules = data.eBPFSchedules ?? [];
+        payload.schedules = await readableSchedules(req, data.eBPFSchedules ?? []);
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));
@@ -782,6 +794,10 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         endMs = Date.now();
         startMs = endMs - minutes * 60_000;
       }
+      const focus = [src, dst]
+        .filter((e) => typeof e.serviceName === 'string')
+        .map((e) => serviceIdOf(e.serviceName, e.normal !== false));
+      const edgeMetrics = resolveEdgeMetrics(req.access ? await req.access.graphConfig(['profile:read'], focus, cfg) : cfg);
       // Match the network-topology route's OAP-local formatting so the
       // edge metrics window lines up with the rendered graph window.
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
@@ -790,7 +806,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       // Build one aliased execExpression per metric across both sides.
       const aliasMap = new Map<string, { side?: 'client' | 'server'; metric: TopologyMetricDef }>();
       const fragments: string[] = [];
-      resolveEdgeMetrics(cfg).forEach((m, i) => {
+      edgeMetrics.forEach((m, i) => {
         const alias = `m_${i}`;
         aliasMap.set(alias, { ...(m.side ? { side: m.side } : {}), metric: m });
         fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, false));

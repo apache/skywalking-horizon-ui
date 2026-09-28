@@ -19,9 +19,12 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { LandingConfig, LandingResponse, LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { errorText } from '@/api/permissionDenied';
 import { fetchDrawable, GraphUnavailableError, useTimeIdentity } from '@/layer/graphQuery';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useRefreshErrorReport } from '@/controls/errorCenter';
+import { useAuthStore } from '@/state/auth';
+import { useLayerServices } from '@/layer/useLayerServices';
 
 /**
  * Live top-N service rollup for one Overview landing card. Polls every
@@ -90,7 +93,33 @@ export function useLayerLanding(
   //   2. The manual refresh button in LayerShell — `q.refetch()`.
   // No silent vue-query-driven refetch under the operator, so the
   // service list never moves on its own between operator actions.
-  const isEnabled = computed(() => !(replay?.value ?? false));
+  // The rows are metric reads. A role that opens this layer's other pages
+  // without `metrics:read` on it still picks a service on them, so the roster —
+  // which answers any layer-page permission — stands in, unmeasured. A role
+  // whose metrics grant reaches only some of the groups its page grants do
+  // gets the roster's other services added to the sample the pickers read.
+  const auth = useAuthStore();
+  const operate = computed(() => layer.value.visibility === 'operate');
+  const readsMetrics = computed(() => auth.hasVerbOnLayer('metrics:read', layerKey.value, operate.value));
+  const partialMetrics = computed(() => readsMetrics.value && auth.layerLimited('metrics:read'));
+  const roster = useLayerServices(layerKey, {
+    rideTicker: false,
+    replay: computed(() => (replay?.value ?? false) || (readsMetrics.value && !partialMetrics.value)),
+  });
+  const unmeasured = (s: { id: string; name: string; group?: string | null }) => ({
+    serviceId: s.id,
+    serviceName: s.name,
+    group: s.group ?? undefined,
+    metrics: {},
+  });
+  const beyondMetrics = computed(() => {
+    if (!partialMetrics.value) return [];
+    const base = layerKey.value.split('~', 1)[0];
+    return roster.services.value
+      .filter((s) => !auth.hasVerbOnLayer('metrics:read', `${base}~${s.group ?? ''}`, operate.value))
+      .map(unmeasured);
+  });
+  const isEnabled = computed(() => !(replay?.value ?? false) && readsMetrics.value);
   const q = useQuery({
     queryKey: ['layer-landing', layerKey, cfgHash, rangeKey],
     // Wrapped for the same reason the graphs are: the route answers HTTP 200
@@ -126,8 +155,12 @@ export function useLayerLanding(
 
   // `data` is the last roster worth showing — an unreadable answer never
   // becomes it, so a failed read leaves the previous services on screen.
-  const data = computed<LandingResponse | null>(() => q.data.value ?? null);
-  const rows = computed(() => data.value?.rows ?? []);
+  const data = computed<LandingResponse | null>(() => {
+    const d = q.data.value ?? null;
+    if (!d || beyondMetrics.value.length === 0) return d;
+    return { ...d, sampledRows: [...(d.sampledRows ?? d.rows), ...beyondMetrics.value] };
+  });
+  const rows = computed(() => (readsMetrics.value ? (data.value?.rows ?? []) : roster.services.value.map(unmeasured)));
   /**
    * Reachable describes the LATEST ATTEMPT, not the rows above.
    *
@@ -139,18 +172,29 @@ export function useLayerLanding(
   const failed = computed(() =>
     q.error.value instanceof GraphUnavailableError ? (q.error.value.response as LandingResponse) : null,
   );
-  const reachable = computed(() => (failed.value ? false : (data.value?.reachable ?? false)));
-  const error = computed(
-    () => failed.value?.error ?? data.value?.error ?? (q.error.value ? String(q.error.value) : undefined),
+  const reachable = computed(() => {
+    if (!readsMetrics.value) return !roster.isError.value;
+    return failed.value ? false : (data.value?.reachable ?? false);
+  });
+  const error = computed(() => {
+    if (!readsMetrics.value) return roster.error.value ? errorText(roster.error.value) : undefined;
+    return failed.value?.error ?? data.value?.error ?? (q.error.value ? errorText(q.error.value) : undefined);
+  });
+  /** An answer is in hand, or the read failed: nothing more is coming. */
+  const settled = computed(() =>
+    readsMetrics.value ? data.value !== null || q.error.value !== null : roster.data.value !== null || roster.isError.value,
   );
 
   return {
-    isLoading: q.isLoading,
-    isFetching: q.isFetching,
+    isLoading: computed(() => (readsMetrics.value ? q.isLoading.value : roster.isLoading.value)),
+    isFetching: computed(() => (readsMetrics.value ? q.isFetching.value : roster.isFetching.value)),
     data,
     rows,
     reachable,
     error,
-    refetch: q.refetch,
+    settled,
+    // Refresh whichever list the page is showing: a role without metrics:read
+    // here would otherwise refire the refused metrics read.
+    refetch: () => (readsMetrics.value ? q.refetch() : roster.refetch()),
   };
 }

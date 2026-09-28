@@ -137,7 +137,7 @@ export function registerInstanceTopologyRoute(
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg: instCfg,
+        cfg: req.access ? await req.access.graphConfig(['topology:read'], [clientServiceId, serverServiceId], instCfg) : instCfg,
         layerKey,
         clientServiceId,
         serverServiceId,

@@ -55,6 +55,8 @@ import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { bodySchema, MAX_REQUEST_WIDGETS } from '../../logic/dashboard/schema.js';
 import { flattenTabWidgets } from '../../logic/dashboard/gates.js';
 import { runWidgets } from '../../logic/dashboard/run.js';
+import { readsByNameOnly, type ServiceRef } from '../../rbac/request-access.js';
+import { entityServiceName } from '../../logic/services/service-identity.js';
 
 export interface DashboardRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -199,7 +201,8 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       type PickRow = { id: string; name: string; normal: boolean | null; group?: string | null };
       const pick = (all: PickRow[]): PickRow | undefined => {
         if (serviceName) return all.find((s) => s.name === serviceName) ?? all.find((s) => s.id === serviceName);
-        const inGroup = group === undefined ? all : all.filter((s) => (s.group ?? '') === group);
+        const readable = req.access ? req.access.filterRoster(['metrics:read'], layerKey, all) : all;
+        const inGroup = group === undefined ? readable : readable.filter((s) => (s.group ?? '') === group);
         return inGroup[0];
       };
       let picked = pick((await serviceLayerCatalog(deps).get()).byLayer.get(layerKey.toUpperCase()) ?? []);
@@ -217,6 +220,11 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             widgets: widgets.map((w) => ({ id: w.id, error: 'oap unreachable' })),
           });
         }
+        // To a caller limited to some groups, a named service that is not in
+        // the layer answers as one of another group does.
+        if (!picked && serviceName && req.access?.layerLimited(['metrics:read'])) {
+          return reply.code(403).send({ error: 'permission_denied', verb: 'metrics:read', reason: 'service_not_granted' });
+        }
         if (!picked) {
           return reply.send({
             ...baseResp,
@@ -225,6 +233,25 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
               error: serviceName ? `service "${serviceName}" not in layer` : 'no service in layer',
             })),
           });
+        }
+      }
+      // The caller must be able to read the service the widgets read — and,
+      // for `baseline`, every service its name can mean. Decided through the
+      // resolver, not the roster row: a roster kept through a failed refresh is
+      // display data, not current membership.
+      const expressions = widgets.flatMap((w) => [
+        ...(w.expressions ?? []),
+        ...(w.visibleWhen && 'expression' in w.visibleWhen ? [w.visibleWhen.expression] : []),
+      ]);
+      const refs: ServiceRef[] = [{ id: picked.id }, ...(readsByNameOnly(expressions) ? [{ name: entityServiceName(picked.name) }] : [])];
+      const access = req.access;
+      const decisions = access ? await Promise.all(refs.map((ref) => access.decide(['metrics:read'], ref))) : [];
+      for (const d of decisions) {
+        if (d === 'unavailable') {
+          return reply.code(503).send({ error: 'oap_unreachable', message: 'OAP did not answer who owns the service this request reads' });
+        }
+        if (d === 'deny') {
+          return reply.code(403).send({ error: 'permission_denied', verb: 'metrics:read', reason: 'service_not_granted' });
         }
       }
       serviceName = picked.name;
@@ -277,7 +304,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       const { widgets: results, reachable } = await runWidgets(
         widgets,
         {
-          service: serviceName,
+          service: entityServiceName(serviceName),
           serviceId: serviceId || undefined,
           instance: selectedInstance,
           endpoint: selectedEndpoint,

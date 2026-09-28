@@ -38,8 +38,11 @@ vi.mock('@/layer/traces/useResultTracePopout', () => ({
   useResultTracePopout: () => ({ openResultTrace: api.openTrace }),
 }));
 vi.mock('@/controls/useAutoRefreshSubscribe', () => ({ useAutoRefreshSubscribe: () => {} }));
-const authState = vi.hoisted(() => ({ verbs: null as Set<string> | null }));
-vi.mock('@/state/auth', () => ({ useAuthStore: () => ({ hasVerb: (verb: string) => (authState.verbs ? authState.verbs.has(verb) : true) }) }));
+const authState = vi.hoisted(() => ({ verbs: null as Set<string> | null, layerLimited: new Set<string>() }));
+vi.mock('@/state/auth', () => ({ useAuthStore: () => {
+  const hasVerb = (verb: string) => (authState.verbs ? authState.verbs.has(verb) : true);
+  return { hasVerb, hasVerbOnSomeLayer: hasVerb, layerLimited: (verb: string) => authState.layerLimited.has(verb) };
+} }));
 
 let wrapper: VueWrapper;
 let router: Router;
@@ -60,6 +63,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   authState.verbs = null;
+  authState.layerLimited = new Set();
   wrapper?.unmount();
   client?.clear();
   document.body.innerHTML = '';

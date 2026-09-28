@@ -37,6 +37,7 @@ vi.mock('../../../../logic/oap/profiling.js', () => ({
   findInstanceWithProcesses: vi.fn(async () => ({ instance: { id: 'i-1', name: 'inst-1', language: 'java' }, checked: 1, total: 1, failed: 0 })),
   analyzeProfiling: vi.fn(),
   analyzeNetworkProfiling: vi.fn(),
+  profilingServiceId: vi.fn(async () => ({ id: 'svc-1' })),
   MAX_PROCESS_PROBES: 60,
   serviceCanEbpfProfile: vi.fn(async () => ({ could: true })),
 }));
@@ -46,6 +47,9 @@ import { layerCapabilities } from '../../../../logic/layers/capabilities.js';
 import { resolveEffectiveLayer } from '../../../../logic/layers/effective.js';
 import { findInstanceWithProcesses, listServiceInstances, serviceCanEbpfProfile } from '../../../../logic/oap/profiling.js';
 import type { ToolContext } from '../../tool-context.js';
+import { RequestAccess } from '../../../../rbac/request-access.js';
+import { SessionAccess } from '../../../../rbac/layer-access.js';
+import type { ServiceIdentityResolver } from '../../../../logic/services/service-identity.js';
 
 function mockCtx(hasVerb: boolean) {
   const emitProposal = vi.fn();
@@ -424,5 +428,47 @@ describe('analyze_profiling', () => {
     const out = await analyze.invoke({ layer: 'general', service: 'agent::frontend', profilingType: 'trace' });
     expect(String(out)).toMatch(/do not retry indefinitely/i);
     expect(String(out)).not.toMatch(/Call analyze_profiling again with that event/);
+  });
+});
+
+describe('analyze_profiling for a layer-limited caller', () => {
+  // A GENERAL service and a conjectured namesake in a layer the role is not granted.
+  const real = { id: 'svc-1', name: 'agent::frontend', normal: true, group: 'agent', layers: ['GENERAL'] };
+  const conjectured = { ...real, id: 'svc-1-conj', normal: false, layers: ['VIRTUAL_DATABASE'] };
+  const resolver = {
+    byId: async (id: string) => [real, conjectured].find((s) => s.id === id) ?? null,
+    byName: async () => [real, conjectured],
+  } as unknown as ServiceIdentityResolver;
+  const limited = () => {
+    const { ctx } = mockCtx(false);
+    const session = new SessionAccess(['profile:read@GENERAL[agent]'], undefined, {
+      isOperate: () => false,
+      canonical: (l: string) => l.toUpperCase(),
+    });
+    (ctx as { access?: RequestAccess }).access = new RequestAccess(session, resolver);
+    return ctx;
+  };
+
+  it('checks the service the name resolves to in the layer, and reads that one', async () => {
+    const { analyzeProfiling, profilingServiceId } = await import('../../../../logic/oap/profiling.js');
+    (analyzeProfiling as unknown as Mock).mockResolvedValueOnce({
+      profilingType: 'trace', taskId: null, trees: [], metricKey: 'count', tip: null, logs: [],
+      summary: { service: real.name, frameCount: 0 }, reachable: true,
+    });
+    const [, analyze] = triggerTools(limited());
+    const out = String(await analyze.invoke({ layer: 'general', service: real.name, profilingType: 'trace' }));
+    expect(out).not.toMatch(/^Permission denied/);
+    expect(analyzeProfiling).toHaveBeenLastCalledWith(expect.objectContaining({ serviceId: 'svc-1' }));
+
+    (profilingServiceId as unknown as Mock).mockResolvedValueOnce({ id: conjectured.id });
+    const refused = String(await analyze.invoke({ layer: 'virtual_database', service: real.name, profilingType: 'trace' }));
+    expect(refused).toMatch(/^Permission denied/);
+  });
+
+  it('refuses a name OAP would not read as written', async () => {
+    const [, analyze] = triggerTools(limited());
+    for (const service of ['', ' agent::frontend', '\u0000']) {
+      expect(String(await analyze.invoke({ layer: 'general', service, profilingType: 'trace' }))).toMatch(/exactly as list_services/);
+    }
   });
 });

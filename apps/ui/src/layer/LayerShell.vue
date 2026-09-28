@@ -32,6 +32,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { LayerDef, LandingServiceRow } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { isPermissionDenied } from '@/api/permissionDenied';
 import { useAuthStore } from '@/state/auth';
 import { useEventsPopout } from '@/features/events/useEventsPopout';
 import Icon from '@/components/icons/Icon.vue';
@@ -153,13 +154,23 @@ const previewLayer = computed<LayerDef | null>(() => {
 });
 const layer = computed<LayerDef | null>(() => menuLayer.value ?? previewLayer.value);
 
+// Full service roster (the layer's REAL catalog, independent of landing's
+// top-N sample which misses low-traffic services / anything beyond the
+// landingServiceCap). A URL `?service=` is validated against THIS, not the
+// sample, and `selectedRow` resolves an off-sample selection from it.
+//
+// The menu omits a layer the caller may not open, and this read for the same
+// key is refused — which is what tells "no access" apart from an unknown
+// layer. It also settles a menu that is empty because nothing is granted.
+const { services: fullRoster, isLoading: rosterLoading, error: rosterError } = useLayerServices(layerKey);
+const layerDenied = computed<boolean>(() => !menuLayer.value && isPermissionDenied(rosterError.value));
 // Distinguishes "still loading" from "truly absent" so the "Layer
 // not found" card doesn't flash during a login → layer-URL redirect
 // (the menu fetch is in-flight and `layers.value` is briefly []).
 // We treat the layer as missing only after the menu request has
 // settled AND — in preview mode — the template fetch has settled too.
 const menuStillLoading = computed<boolean>(
-  () => !menuLayer.value && (layersLoading.value || layers.value.length === 0),
+  () => !menuLayer.value && !layerDenied.value && (layersLoading.value || layers.value.length === 0),
 );
 const layerMissing = computed<boolean>(() => {
   if (layer.value) return false;
@@ -179,6 +190,14 @@ const missingReason = computed<LayerMissingReason>(() =>
 // The duplicate is resolved on the template admin page; link there only for
 // operators who may open it (the route itself requires `layer-template:read`).
 const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('layer-template:read'));
+// Held back until the roster answers, so a layer the caller may not open never
+// flashes "Layer not found" before the refusal lands.
+const accessPending = computed<boolean>(
+  () => layerMissing.value && missingReason.value !== 'duplicated' && rosterLoading.value,
+);
+const canReadEvents = computed<boolean>(
+  () => !!layer.value && auth.hasVerbOnLayer('events:read', layer.value.key, layer.value.visibility === 'operate'),
+);
 
 // Auto-redirect when the URL targets a sub-route the layer doesn't
 // support — e.g. `/layer/mesh_dp/service` on a layer with
@@ -378,11 +397,6 @@ const aggregates = computed(() =>
 const { selectedId, setSelected, lockedServiceIds, toggleLockService } = useSelectedService();
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const selectorColumns = computed(() => safeCfg.value.columns);
-// Full service roster (the layer's REAL catalog, independent of landing's
-// top-N sample which misses low-traffic services / anything beyond the
-// landingServiceCap). A URL `?service=` is validated against THIS, not the
-// sample, and `selectedRow` resolves an off-sample selection from it.
-const { services: fullRoster, isLoading: rosterLoading } = useLayerServices(layerKey);
 const selectedRow = computed<LandingServiceRow | null>(() => {
   const id = selectedId.value;
   if (id) {
@@ -744,7 +758,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
              Passes the FULL OAP service NAME (events filter on the literal
              `<group>::<base>` name, not the group-stripped display label). -->
         <button
-          v-if="auth.hasVerb('events:read') && selectedRow?.serviceName"
+          v-if="canReadEvents && selectedRow?.serviceName"
           class="sw-btn ghost svc-events"
           type="button"
           :title="t('View events for {name}', { name: selectedName })"
@@ -794,7 +808,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
     <!-- Loading state for the menu fetch — appears in the login →
          layer-URL redirect window where the menu is still in flight
          and we can't yet tell whether the layer exists. -->
-    <div v-if="menuStillLoading || previewLoading" class="missing">
+    <div v-if="menuStillLoading || previewLoading || accessPending" class="missing">
       <div class="sw-card missing-card">
         <Icon name="event" :size="18" />
         <div>
@@ -821,6 +835,18 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
               {{ t('Dashboard setup → Layer dashboards') }}
             </RouterLink>
             <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>
+          </p>
+        </div>
+      </div>
+      <div v-else-if="layerDenied" class="sw-card missing-card">
+        <Icon name="alert" :size="18" />
+        <div>
+          <h2>{{ t('No access to this layer') }}</h2>
+          <p>
+            <i18n-t keypath="Your roles do not give you access to the {layer} layer. Ask an administrator if you need it." scope="global">
+              <template #layer><code>{{ layerKey }}</code></template>
+            </i18n-t>
+            <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>.
           </p>
         </div>
       </div>

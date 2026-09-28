@@ -104,5 +104,7 @@ export function useLayerServices(
     /** The roster read failed. A caller resolving an id against it treats this
      *  as settled-with-nothing: there is no further answer coming. */
     isError: q.isError,
+    error: q.error,
+    refetch: q.refetch,
   };
 }

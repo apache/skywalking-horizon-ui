@@ -67,7 +67,7 @@ None of these is granted to `viewer` or `maintainer`. Those roles read the dashb
 
 | Verb | Gates |
 |---|---|
-| `cluster:read` | Cluster Status page (`/operate/cluster`). |
+| `cluster:read` | Cluster Status page (`/operate/cluster`), and the **Platform monitoring layers** — the OAP, BanyanDB, agent and Satellite self-observability dashboards, and any other layer whose template sets `visibility: operate`. A role that reads layer data (`metrics:read`, `traces:read`, …) without `cluster:read` does not see those layers and cannot read their services, by page, by URL or through the AI assistant, and their services' rows are left out of the all-services Logs and Events views; an explicit [layer grant](#limiting-a-verb-to-layers-and-service-groups) such as `metrics:read@BANYANDB` opens one without it. |
 | `ttl:read` | Data Retention page (`/operate/ttl`). |
 | `config:read` | OAP Configuration page (`/operate/config`). |
 
@@ -107,6 +107,51 @@ A user's grant string is matched against a required verb using these rules:
 | `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`), and does **not** match `audit:read` — see below. |
 
 Effective verbs for a session are the **union** of all grants from all roles.
+
+## Limiting a verb to layers and service groups
+
+A data verb can carry the layer it applies to, and optionally one or more of the layer's OAP service groups:
+
+```
+<verb>@<LAYER>                          # every service of the layer
+<verb>@<LAYER>[<group1>, <group2>, …]   # only the services of these groups
+```
+
+The role then reads those services only, and the sidebar shows that layer only:
+
+| Grant | Reaches |
+|---|---|
+| `metrics:read@GENERAL` | Every service of the GENERAL layer. |
+| `metrics:read@GENERAL[payments]` | The GENERAL services whose OAP service group is `payments` — the `payments::` prefix of the service name. |
+| `metrics:read@GENERAL[payments,risk]` | Both groups. |
+| `metrics:read@GENERAL[-]` | The GENERAL services that have no group. |
+| `"*:read@GENERAL[payments]"` | Every read that can carry a layer, on those services. Quote a grant that starts with `*`. |
+| `metrics:read` (no `@`) | What it has always meant: every layer, except the Platform monitoring layers, which also need `cluster:read`. |
+
+Layer keys are the ones the sidebar and the layer templates use (`GENERAL`, `K8S_SERVICE`, `VIRTUAL_DATABASE`, …), in any case. A group is OAP's own service group, so a layer that is [split by service group](../customization/layer-templates.md) shows one sidebar entry per group, and each entry can be granted to a different role.
+
+Only verbs whose data belongs to a service can carry a layer: `metrics:read`, `traces:read`, `logs:read`, `browser-errors:read`, `ai-conversation:read`, `events:read`, `alarms:read`, `topology:read`, `profile:read` and `profile:enable`. Any other verb written with `@` grants nothing, and Horizon names it in a startup warning.
+
+**What the role sees.** The sidebar lists the layers, and the group entries, that the role's layer grants reach — each with all of its pages, as for any role; a page whose data the role cannot read answers with a refusal. The Zipkin and TraceQL pages have no per-service control of their own and follow the layer's visibility. Every request is checked on its own: a page, an API call, and every read the AI assistant or an MCP agent makes on the role's behalf must name a service the grant covers, whichever layer's page or URL it arrives through. A service that reports into several layers is one service to OAP, so granting any of those layers grants it. An explicit grant on a Platform monitoring layer, such as `metrics:read@BANYANDB`, opens that layer without `cluster:read`.
+
+**What the role still sees of other services.** Links between services are navigation, not access: the page a link opens is checked like any other. The views that draw relationships still show what OAP returns for the role's own service — the topology map shows its neighbours in other layers or groups with their names and headline metrics, the hierarchy view names the same workload's services in other layers, and an instance map or a network-profiling edge between two services opens when the role reads either one. An MQE expression is read through its entity's service: a relation metric is readable from the service that makes the call. `baseline(...)` is looked up by service name alone, so it needs every service of that name to be readable. Pod logs are read per pod, the way Kubernetes grants them: an instance the role may read opens every container of its pod, sidecars included.
+
+**Traces cross layers.** A trace follows a request through services of any layer, so Horizon does not narrow traces by layer. A role with `traces:read` on a layer reads that layer's trace tabs — the SkyWalking trace list for the service picked on the page, and the Zipkin and TraceQL stores the layer lists — and opens any trace by its id, every span included.
+
+**Alarms.** With `alarms:read` limited to layers, the Alarms page lists the granted layers; pick one and a service in it, and the page shows that service's alarms. The alarm count in the top bar and the page's all-services view need `alarms:read` without a layer.
+
+**Evaluation records.** They belong to a call from an application service to a GenAI provider and are read on the VIRTUAL_GENAI layer, so the role needs that layer granted: add `logs:read@VIRTUAL_GENAI`. With it, a record is readable when the role reads either the provider or the calling service.
+
+**What needs the verb without a layer.** A query that would read every service cannot be narrowed, so a layer-limited role cannot use it:
+
+- the SkyWalking trace list, the Logs tab and the Browser Logs tab need a service picked (there is no "all services" choice);
+- totals across a whole layer — the overview KPI tiles computed across a layer;
+- log tag autocomplete, source maps, the alarm counts and the unfiltered alarm list, and any alarm list from an OAP older than the `queryAlarms` API, which cannot filter alarms by service;
+- profiling results looked up by segment or schedule id, and keeping a network-profiling task alive.
+
+**Combining roles.** Grants from all of a user's roles are pooled, and a verb without a layer in ANY role lifts the limit for that verb: a user who also holds the built-in `viewer` role reads every layer. An OAuth scope narrows by verb and keeps the layer: `horizon:read` over `metrics:*@GENERAL` leaves `metrics:read@GENERAL`.
+
+A role with no `@` grant is unaffected by any of this: it sees the menu and the data it always has.
 
 ## Built-in roles
 
@@ -178,7 +223,7 @@ When a user has multiple roles, the **first role on the user** wins. Order matte
 
 ## Enforcement
 
-Access is enforced server-side, not in the browser. Every protected request is checked for a valid session (an unauthenticated request is rejected with `401`) and then for the verb that request requires (a session lacking the verb is rejected with `403`). The UI hides controls a session cannot use, but a forged UI cannot bypass these checks.
+Access is enforced server-side, not in the browser. Every protected request is checked for a valid session (an unauthenticated request is rejected with `401`), then for the verb that request requires, and then — for a request that reads a layer or a service — for the layer and every service it names (a session lacking any of these is rejected with `403`). The UI hides controls a session cannot use, but a forged UI cannot bypass these checks.
 
 Enforcement is fail-safe: a request with no explicit verb still requires a valid session, so a misconfiguration cannot accidentally expose a protected endpoint to anonymous callers.
 
@@ -214,6 +259,22 @@ roles:
 landingByRole:
   on-call: /alarms       # land on the alarm board
 ```
+
+### A team that sees only its own services
+
+```yaml
+roles:
+  payments-viewer:
+    - "metrics:read@GENERAL[payments]"
+    - "traces:read@GENERAL[payments]"
+    - "logs:read@GENERAL[payments]"
+    - "topology:read@GENERAL[payments]"
+    - "alarms:read@GENERAL[payments]"
+    - "metrics:read@K8S_SERVICE"   # the team's Kubernetes services, if K8S_SERVICE holds only theirs
+    - ai:read                      # the assistant reads what the grants above allow, no more
+```
+
+Service groups come from the service name (`payments::checkout`), so this works when every service the team runs carries the prefix. Kubernetes service names carry a namespace rather than a group; grant the whole `K8S_SERVICE` layer only when it holds the team's services alone.
 
 ### Lockdown for an external auditor
 

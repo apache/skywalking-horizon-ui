@@ -132,7 +132,7 @@ export function registerDeploymentRoute(
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg,
+        cfg: req.access ? await req.access.graphConfig(['topology:read'], [serviceId], cfg) : cfg,
         layerKey,
         serviceId,
       });

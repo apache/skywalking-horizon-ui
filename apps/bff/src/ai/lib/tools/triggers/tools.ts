@@ -36,12 +36,14 @@ import {
   analyzeNetworkProfiling,
   findInstanceWithProcesses,
   listServiceInstances,
+  profilingServiceId,
   serviceCanEbpfProfile,
 } from '../../../../logic/oap/profiling.js';
 import type { ProfilingAnalysis } from '../../../../logic/oap/profiling.js';
 import { layerCapabilities } from '../../../../logic/layers/capabilities.js';
 import { resolveEffectiveLayer } from '../../../../logic/layers/effective.js';
 import { getServerOffsetMinutes } from '../../../../util/window.js';
+import { decide, holds, inexact, tellsUnknownApart, unverifiable } from '../access.js';
 
 // Horizon-side template config, NOT an OAP capability: none of OAP's five
 // profiling create paths takes a layer, so a missing type is a hint, not proof
@@ -136,8 +138,12 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
   const t = toolPrompt('triggers', 'propose_profiling');
   const propose = tool(
     async ({ layer, serviceId, service, profilingType, durationMinutes, endpoint, event, targetType, instances, cause, rationale, expectation }): Promise<string> => {
-      if (!ctx.hasVerb('profile:enable')) {
-        return 'You lack permission to start profiling (profile:enable). Do not propose it; explain what a profiling task would reveal instead.';
+      const bad = inexact(serviceId, 'the service id');
+      if (bad) return bad;
+      const may = holds(ctx, 'profile:enable') ? await decide(ctx, 'profile:enable', { id: serviceId }) : 'deny';
+      if (may === 'unavailable') return unverifiable(service);
+      if (may === 'deny') {
+        return `Permission denied: the current user cannot start profiling on ${service} (profile:enable). Do not propose it; explain what a profiling task would reveal instead.`;
       }
       const layerKey = layer.toUpperCase();
       // Readiness signals are ADVICE, never a veto: OAP's checkCreateRequest /
@@ -346,9 +352,24 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
     async ({ layer, service, profilingType, taskId, event }): Promise<string> => {
       // Same read verb the profiling routes require — the assistant never widens
       // the caller's read scope (profile:enable does NOT imply profile:read).
-      if (!ctx.hasVerb('profile:read')) {
-        return 'Permission denied: the current user lacks profile:read. Do not analyze; say profiling results are not readable for this user.';
+      const bad = inexact(service);
+      if (bad) return bad;
+      const refused = `Permission denied: the current user cannot read profiling results for ${service} (profile:read). Do not analyze; say profiling results are not readable for this user.`;
+      if (!holds(ctx, 'profile:read')) return refused;
+      // The analysis reads the one service the name resolves to in this layer,
+      // so that is the identity to check — not every service of the name.
+      let serviceId: string;
+      try {
+        const found = await profilingServiceId(ctx.opts, layer, service);
+        // To a layer-limited caller an unknown service reads as a refusal.
+        if ('error' in found) return tellsUnknownApart(ctx, 'profile:read') ? found.error : refused;
+        serviceId = found.id;
+      } catch (err) {
+        return `Could not read the services of ${layer.toUpperCase()}: ${err instanceof Error ? err.message : String(err)}`;
       }
+      const may = await decide(ctx, 'profile:read', { id: serviceId });
+      if (may === 'unavailable') return unverifiable(service);
+      if (may === 'deny') return refused;
       // Network profiling has no flame — its result is a process-conversation
       // graph. CAPTURE it and render a frozen block (never a live tab, which would
       // drift). When no processes report — Rover/eBPF absent — say it out in text.
@@ -366,6 +387,7 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
           rangeMs: { startMs: ctx.range.startMs, endMs: ctx.range.endMs },
           offsetMinutes: await getServerOffsetMinutes(ctx.config, ctx.fetch),
           taskId,
+          serviceId,
         });
         const topo = r.topology;
         const windowLabel = `${r.queried.start} to ${r.queried.end}`;
@@ -397,7 +419,7 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
         });
         return `Captured the network process-conversation graph for ${service} (instance ${r.instanceName ?? 'unknown'}; ${scope}; times are OAP-server local): ${topo.nodes.length} process(es), ${topo.calls.length} conversation(s).`;
       }
-      const a = await analyzeProfiling({ opts: ctx.opts, profilingType, layerKey: layer, service, taskId, event });
+      const a = await analyzeProfiling({ opts: ctx.opts, profilingType, layerKey: layer, service, taskId, event, serviceId });
       ctx.emitProfiling({
         title: `Profiling — ${service} (${profilingType})`,
         profilingType: a.profilingType,

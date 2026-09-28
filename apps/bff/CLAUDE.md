@@ -203,7 +203,11 @@ Two consequences worth stating, because both have been mistaken for bugs:
   surface by asking. A column that carries its own `mqe` is a different
   request: it names the expression to evaluate and is answered live. The
   Overview is built that way, synthesising `w_0`, `w_1`… from its own widgets,
-  which no layer template declares and never will.
+  which no layer template declares and never will. A SELF-AGGREGATING column
+  is the exception: it runs with no service in its entity, so it reads the
+  metric across every service, and it is evaluated only when a stored overview
+  (or the layer header) declares that exact expression — otherwise any caller
+  could read any metric of any layer through a layer it can open.
 - **The hourly header cache holds only what the template declares.** Its
   whitelist is the set of (MQE, entity) pairs under `layer-header.columns`,
   matched on the EXPRESSION rather than the column's name — the name is the
@@ -278,6 +282,37 @@ Things worth remembering:
   byte arrives only after OAP has folded the whole chain (8.5 s on the largest
   real conversation), so it runs under `performance.aiConversation.viewTimeoutMs`,
   never `oap.timeoutMs`.
+
+## Which layer, which service: `ROUTE_SCOPE`
+
+A verb says WHAT a route reads; `rbac/route-scope.ts` says WHERE. A route whose
+verb can carry a layer (`LAYER_SCOPED_VERBS` — the per-service reads) must have
+an entry there, or registration throws, the same contract `ROUTE_POLICY` holds.
+The entry names the URL's `:key` and every request field that names a service or
+something a service owns (an instance / endpoint id is `<serviceId>_…`; a trace,
+async or pprof task id is `<createTime>_<serviceId>`). The gate checks each one
+before the handler runs; a roster the handler builds itself is filtered through
+`req.access`.
+
+Two rules that are easy to break:
+
+- **Check exactly the identity the handler QUERIES.** A picker sends a
+  service's id and its name; a handler that queries by the id has its id
+  listed, and the name beside it is an echo — checking it too would refuse a
+  caller whose name also belongs to a conjectured service they may not read.
+  A handler that queries by the name (process-relation metrics, events) has
+  the name listed.
+- **An empty selector reads every service.** OAP reads a missing `serviceId`
+  as "all services", not "this layer's services", so a layer-limited caller
+  must name one (`requireService`). Plain grants keep the cross-service read.
+
+The AI tools reach OAP without passing through these routes, and their figures
+replay from the captured payload, so each tool asks `ctx.access` itself before
+it reads and before it emits — see `ai/lib/tools/access.ts`. A tool that sends
+a service name or id to OAP as the model wrote it must refuse one OAP would not
+read as written (padding, control characters, a lone surrogate), as the gate
+does; a tool that looks the name up in the catalog and sends the row's id is
+safe already.
 
 ## Do not invent fields
 

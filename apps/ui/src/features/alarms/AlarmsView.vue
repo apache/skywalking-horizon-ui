@@ -48,6 +48,7 @@ import {
   type AlarmsResponse,
 } from '@/api/client';
 import { useOapInfo } from '@/shell/useOapInfo';
+import { useAuthStore } from '@/state/auth';
 import AlarmsTimeline from '@/components/charts/AlarmsTimeline.vue';
 import AlarmDetailPanel from './AlarmDetailPanel.vue';
 import AlarmWindowPicker from './AlarmWindowPicker.vue';
@@ -136,7 +137,12 @@ function clearSelection(): void {
   selectedRange.value = null;
 }
 
+// A reader whose alarms:read is limited to some layers is answered only for a
+// named service, so nothing is read until one is applied.
+const auth = useAuthStore();
+const serviceNeeded = computed(() => auth.layerLimited('alarms:read') && !applied.value.service);
 const alarmsQuery = useQuery({
+  enabled: computed(() => !serviceNeeded.value),
   queryKey: computed(() => [
     'alarms',
     startTime.value,
@@ -508,7 +514,8 @@ async function onRefresh(): Promise<void> {
           </button>
         </div>
 
-        <div v-if="alarmsQuery.isPending.value" class="ax__empty">{{ t('loading…') }}</div>
+        <div v-if="serviceNeeded" class="ax__empty">{{ t('Pick a layer and a service to see their alarms.') }}</div>
+        <div v-else-if="alarmsQuery.isPending.value" class="ax__empty">{{ t('loading…') }}</div>
         <div v-else-if="filteredIncidents.length === 0" class="ax__empty">
           {{ t('No alarms in the current window.') }}
         </div>

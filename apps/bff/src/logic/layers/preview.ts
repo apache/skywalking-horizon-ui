@@ -67,7 +67,8 @@ function isMetricList(v: unknown): v is TopologyMetricDef[] {
 }
 
 function parseJson(raw: string | undefined): Record<string, unknown> | null {
-  if (!raw || raw.length > MAX_RAW_BYTES) return null;
+  // A query string can arrive as an array, which `JSON.parse` would coerce.
+  if (typeof raw !== 'string' || !raw || raw.length > MAX_RAW_BYTES) return null;
   try {
     const o = JSON.parse(raw);
     return o && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, unknown>) : null;

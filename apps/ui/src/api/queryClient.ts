@@ -42,6 +42,9 @@ export const queryClient = new QueryClient({
        * request the cancellation existed to stop, so the sixty-second cap would
        * abort the fan-out and then immediately ask for it again.
        *
+       * A refusal (403) is an answer too: the caller's grants will not change
+       * between the attempt and the retry.
+       *
        * Matched by NAME rather than by class: importing the error here would
        * close an import cycle back through the graph layer, and the name is
        * what the class sets.
@@ -50,6 +53,7 @@ export const queryClient = new QueryClient({
         if (err.name === 'GraphUnavailableError') return false;
         if (err.name === 'AbortError') return false;
         if ((err as { cancelled?: boolean }).cancelled === true) return false;
+        if (err.name === 'BffApiError' && (err as { status?: number }).status === 403) return false;
         return count < 1;
       },
     },

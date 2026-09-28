@@ -209,15 +209,17 @@ describe('API dependency takes the whole roster row', () => {
     expect(oap.asked('getEndpointDependencies')).toHaveLength(0);
   });
 
-  it('finds the endpoint by the id and builds the entity from the name + flag, with no roster lookup', async () => {
+  it('finds the endpoint by the id and builds the entity from the id\'s flag, with no roster lookup', async () => {
     const oap = fakeOap();
+    // A real service's id with `normal=false` beside it: the flag would name
+    // its conjectured namesake, which is not the service that was checked.
     const { status } = await get(registerEndpointDependencyRoute, oap.fetch, url(`${PAIR}&normal=false`));
     expect(status).toBe(200);
     expect(oap.asked('findEndpoint')[0]?.variables.serviceId).toBe(SERVICE_ID);
     expect(oap.asked('listServices')).toHaveLength(0);
     const metrics = oap.calls.find((c) => c.query.includes('execExpression'));
     expect(metrics?.query).toContain(`serviceName: "${SERVICE_NAME}"`);
-    expect(metrics?.query).toContain('normal: false');
+    expect(metrics?.query).toContain('normal: true');
   });
 });
 

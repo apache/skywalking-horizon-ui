@@ -71,6 +71,8 @@ import type {
   ServiceCatalog,
   ServiceLayerCatalog,
 } from '../../logic/services/service-layer-catalog.js';
+import { readsByNameOnly } from '../../rbac/request-access.js';
+import { entityServiceName } from '../../logic/services/service-identity.js';
 
 export interface AlarmsQueryRouteDeps extends AuthDeps {
   /** Server-global service-by-layer index (shared with config/alarms.ts +
@@ -238,7 +240,7 @@ const COUNT_QUERY_ALARMS_QUERY = /* GraphQL */ `
 `;
 const LIST_SERVICES_QUERY = /* GraphQL */ `
   query HorizonAlarmServices($layer: String!) {
-    listServices(layer: $layer) { id name normal }
+    listServices(layer: $layer) { id name normal group }
   }
 `;
 
@@ -249,7 +251,7 @@ interface QueryAlarmsRaw {
   queryAlarms?: { msgs?: AlarmMessage[] } | null;
 }
 interface ListServicesRaw {
-  listServices: Array<{ id: string; name: string; normal: boolean | null }>;
+  listServices: Array<{ id: string; name: string; normal: boolean | null; group?: string | null }>;
 }
 
 /** Window cap for `/api/alarms` and `/api/alarms/count`. Defence-in-
@@ -352,6 +354,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     /* One page of raw alarm rows for a given paging pair. Handed to the shared
      * over-fetch seam, which asks for one row more than the page displays so
      * `truncated` is exact instead of a `length >= pageSize` guess. */
+    // The legacy query takes no service, so it cannot keep a layer-limited
+    // caller to their own services: it would answer with every alarm.
+    if (!caps.queryAlarms && req.access?.layerLimited(['alarms:read'])) {
+      return reply.code(403).send({ error: 'permission_denied', verb: 'alarms:read', reason: 'alarm_filter_unsupported' });
+    }
     const fetchAlarms = async (paging: OapPaging): Promise<AlarmMessage[]> => {
       if (caps.queryAlarms) {
         /* New-mode condition. `entities` + `layer` ride server-side;
@@ -394,7 +401,25 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       });
     }
 
-    const tagged = tagWithLayer(page.rows, catalog);
+    let tagged = tagWithLayer(page.rows, catalog);
+    // A `baseline` in the rule was looked up by the alarm entity's NAME alone,
+    // and its values ride in the snapshot: a caller limited to some groups
+    // sees them only when every service of that name is readable. Only a
+    // Service alarm's name is a service's; the others are composite.
+    const byName = (m: AlarmMessage) => readsByNameOnly([m.snapshot?.expression ?? '']);
+    const access = req.access;
+    if (access?.layerLimited(['alarms:read']) && tagged.some(byName)) {
+      const readable = new Map<string, boolean>();
+      const keeps = async (m: AlarmMessage): Promise<boolean> => {
+        if (m.scope !== 'Service') return false;
+        const name = entityServiceName(m.name);
+        if (!readable.has(name)) readable.set(name, (await access.decide(['alarms:read'], { name })) === 'allow');
+        return readable.get(name)!;
+      };
+      const out: typeof tagged = [];
+      for (const m of tagged) out.push(byName(m) && !(await keeps(m)) ? { ...m, snapshot: { ...m.snapshot, metrics: [] } } : m);
+      tagged = out;
+    }
 
     const body: AlarmsResponse = {
       returned: tagged.length,
@@ -508,9 +533,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
       try {
         const got = await graphqlPost<ListServicesRaw>(opts, LIST_SERVICES_QUERY, { layer });
-        const services = (got.listServices ?? [])
+        const listed = (got.listServices ?? [])
           .filter((s) => typeof s?.name === 'string' && s.name.length > 0)
           .sort((a, b) => a.name.localeCompare(b.name));
+        const access = req.access;
+        const services = access ? access.filterRoster(['alarms:read'], layer, listed) : listed;
         return reply.send({ layer, services });
       } catch (err) {
         return reply.code(502).send({

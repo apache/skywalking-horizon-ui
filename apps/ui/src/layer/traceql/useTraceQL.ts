@@ -35,6 +35,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { traceOutcome } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { errorText } from '@/api/permissionDenied';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 
 /** Adapt a TraceQL row onto the shared list/scatter row — a presentation
@@ -122,7 +123,7 @@ export function useTraceQLSearch(input: TraceQLSearchInput) {
     // Reading only the payload's own flag turned a failed fetch into an empty
     // list, which reads as "no traces matched" — the wrong conclusion.
     reachable: computed(() => (q.error.value ? false : (q.data.value?.reachable ?? true))),
-    error: computed(() => q.data.value?.error ?? (q.error.value ? String(q.error.value) : null)),
+    error: computed(() => q.data.value?.error ?? (q.error.value ? errorText(q.error.value) : null)),
     /** True once a run has produced an answer of any kind. */
     answered: computed(() => q.data.value !== undefined || q.error.value != null),
     isFetching: q.isFetching,

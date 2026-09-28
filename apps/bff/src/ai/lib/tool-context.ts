@@ -29,6 +29,7 @@ import type { FetchLike, UITemplateClient } from '@skywalking-horizon-ui/api-cli
 import type { GraphqlOptions } from '../../client/graphql.js';
 import type { ConfigSource } from '../../config/loader.js';
 import type { Window } from '../../util/window.js';
+import type { RequestAccess } from '../../rbac/request-access.js';
 import type {
   ChatFigure,
   DeploymentSpec,
@@ -64,6 +65,11 @@ export interface ToolContext {
   /** Caller's roles — every tool checks its own read verb before touching OAP,
    *  so the agent inherits the caller's read scopes and never widens them. */
   hasVerb(verb: string): boolean;
+  /** Which layers and services the caller may read. A tool that names a
+   *  service asks this before it reads, and before it emits anything: its
+   *  figures replay from the captured payload and never pass back through an
+   *  HTTP route that could check them. Absent in unit tests — no restriction. */
+  access?: RequestAccess;
   /** Queue/emit a figure. With a `group` label, consecutive figures sharing it
    *  are buffered and flushed as ONE tabbed figure block (the "figures 2–5,
    *  tab-based" UX); without a group, any pending group is flushed first and

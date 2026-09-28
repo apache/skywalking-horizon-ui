@@ -30,6 +30,7 @@ import type { ToolContext } from '../../tool-context.js';
 import { graphqlPost } from '../../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../../util/window.js';
 import { toolPrompt } from '../../skills/loader.js';
+import { denied, readsEverything } from '../access.js';
 
 const ALARM_WINDOW_MS = 3 * 60 * 60_000; // under OAP's 4h alarm cap
 
@@ -55,9 +56,9 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
   const alarms = toolPrompt('telemetry', 'list_alarms');
   const listAlarms = tool(
     async ({ layer, keyword }): Promise<string> => {
-      if (!ctx.hasVerb('alarms:read')) {
-        return 'Permission denied: the current user lacks alarms:read.';
-      }
+      // Alarms for every service in the window: a caller whose alarms:read is
+      // limited to some layers cannot be answered from this query.
+      if (!readsEverything(ctx, 'alarms:read')) return denied('alarms:read', 'every layer');
       const offset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
       const endMs = ctx.range.endMs;
       // Independent look-back — NOT clamped to the (often narrower, 60m-default)

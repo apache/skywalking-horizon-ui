@@ -353,6 +353,32 @@ HORIZON_SERVER_PORT=10081 BFF_PORT=10081 UI_DEV_PORT=10091 \
 **Prod is single-port.** The BFF serves the built UI as static files, so
 `UI_DEV_PORT` is meaningless outside Vite; only `HORIZON_SERVER_PORT` matters.
 
+## Boot the layer / group grant demo (two service groups in one layer)
+
+The public demo OAP has one service group per layer, so it cannot show a
+group-limited role beside a whole-layer one. `rbac-demo/` stands up a local
+OAP (BanyanDB, the e2e-pinned images) with `payments::checkout`,
+`payments::ledger` and `risk::scorer` in GENERAL, the OAP's own metrics in
+SO11Y_OAP (a Platform monitoring layer), and a BFF on **:10083** + Vite on
+**:10093** with one user per grant shape — password == username:
+
+| User | Grant | Sees |
+|---|---|---|
+| `viewer` | built-in | every layer but Platform monitoring; both GENERAL groups |
+| `maintainer` | built-in | every layer, Platform monitoring included |
+| `payments` | `…:read@GENERAL[payments]` | the payments entry of GENERAL only |
+| `risk` | `…:read@GENERAL[risk]` | the risk entry only; its map still names `payments::ledger` as a neighbour |
+| `general` | `…:read@GENERAL` | the whole layer, both entries |
+| `so11y` | `metrics:read@SO11Y_OAP` | that operate layer, without `cluster:read` |
+| `mixed` | metrics on payments, logs on risk, plain `alarms:read` | both entries, metrics on one side only |
+
+```bash
+.claude/skills/local-boot/rbac-demo/up.sh     # compose up → BFF → Vite → split GENERAL by group
+.claude/skills/local-boot/rbac-demo/down.sh   # stop both processes, compose down -v
+```
+
+`up.sh` ends by pushing GENERAL's bundled template with `splitByServiceGroup: true` to that OAP, the way the Layer dashboards admin would, so the sidebar shows one entry per group. The first metrics appear a minute or two after the load generator starts. Images come from `test/e2e/script/env`; export a variable first to override a pin (`SW_OTEL_COLLECTOR_IMAGE=…`).
+
 ## Boot against an LDAP directory (test)
 
 Stand up a throwaway OpenLDAP, seed it from `ldap-seed.ldif`, then boot with

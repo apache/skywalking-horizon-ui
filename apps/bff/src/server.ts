@@ -29,8 +29,11 @@ import { LdapHealth } from './user/ldap-health.js';
 import { UserSeenCache } from './user/seen-cache.js';
 import { loadConfig, type ConfigSource, BootstrapError } from './config/loader.js';
 import type { HorizonConfig } from './config/schema.js';
-import { isGrantRecognised } from './rbac/verbs.js';
+import { isGrantRecognised, parseGrant } from './rbac/verbs.js';
 import { makeRouteAuthHook } from './rbac/route-policy.js';
+import type { AccessDeps } from './rbac/request-access.js';
+import { ServiceIdentityResolver } from './logic/services/service-identity.js';
+import { classifyLayers } from './logic/layers/operate-layers.js';
 // User
 import { registerAuthRoutes } from './http/user.js';
 import { registerOidcRoutes } from './user/oidc/route.js';
@@ -160,12 +163,25 @@ setTemplateReadOnly(bootTemplatesMode === 'readonly');
 // `rbac.roles` is read per request, so an edit takes effect without a restart.
 function warnUnrecognisedGrants(cfg: HorizonConfig): void {
   const unknown: string[] = [];
+  const noLayer: string[] = [];
   for (const [role, grants] of Object.entries(cfg.rbac.roles))
-    for (const g of grants) if (!isGrantRecognised(g)) unknown.push(`${role}: ${g}`);
+    for (const g of grants) {
+      if (isGrantRecognised(g)) continue;
+      // `cluster:read@GENERAL`: a real verb, but one whose data has no layer.
+      const base = g.includes('@') ? parseGrant(g)?.verb : undefined;
+      if (base && isGrantRecognised(base)) noLayer.push(`${role}: ${g}`);
+      else unknown.push(`${role}: ${g}`);
+    }
   if (unknown.length > 0) {
     logger.warn(
       { grants: unknown },
       'rbac.roles names verbs this build does not know; they grant nothing — check for a typo or a verb retired by an upgrade',
+    );
+  }
+  if (noLayer.length > 0) {
+    logger.warn(
+      { grants: noLayer },
+      'rbac.roles limits verbs to a layer that have no layer to limit (only per-service reads such as metrics:read or traces:read can carry @LAYER); these grants give nothing',
     );
   }
 }
@@ -267,6 +283,12 @@ await sourceMapStore.loadMountDir(source.current.sourceMaps.bootMountDir);
 // mapping. 60s TTL + single-flight dedup; one OAP fan-out per minute
 // regardless of how many routes are polling.
 const serviceLayer = serviceLayerCatalog({ config: source });
+// Which layers and services each caller may read — shared by the route gate,
+// the handlers that filter rosters, and the AI / MCP tool context.
+const accessDeps: AccessDeps = {
+  services: new ServiceIdentityResolver({ config: source, catalog: serviceLayer }),
+  classify: () => classifyLayers(() => buildOapClients(source.current).uiTemplate()),
+};
 
 await app.register(cookie);
 
@@ -315,7 +337,7 @@ registerColdStageHook(app);
 // Auto-apply RBAC pre-handlers to every route as it's registered. Must
 // be added BEFORE the route registrations below — onRoute fires for
 // each subsequent app.get/post/...
-app.addHook('onRoute', makeRouteAuthHook({ ...authDeps }));
+app.addHook('onRoute', makeRouteAuthHook({ ...authDeps, access: accessDeps }));
 
 // ── User ───────────────────────────────────────────────────────────
 registerAuthRoutes(app, { ...authDeps, ldapHealth, seenCache, audit });
@@ -379,6 +401,7 @@ registerAlarmsQueryRoutes(app, { ...authDeps, serviceLayer });
 registerAiRoutes(app, {
   ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+  access: accessDeps,
 });
 registerOAuthRoutes(app, {
   ...authDeps,
@@ -388,6 +411,7 @@ registerMcpRoutes(app, {
   ...authDeps,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
   version: HORIZON_VERSION,
+  access: accessDeps,
 });
 registerPreflightRoutes(app, { ...authDeps });
 registerTtlRoute(app, { ...authDeps });

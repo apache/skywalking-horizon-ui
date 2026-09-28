@@ -18,6 +18,7 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import { errorText } from '@/api/permissionDenied';
 import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 import type { LogFacetsResponse, LogsResponse, LogTagFilter } from '@/api/client';
 
@@ -96,7 +97,7 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
   // failure replays as a failure instead of an innocent "no logs" empty state.
   const reachable = computed<boolean>(() => data.value?.reachable ?? true);
   const error = computed<string | null>(() => {
-    if (!replay.value && q.error.value) return String(q.error.value);
+    if (!replay.value && q.error.value) return errorText(q.error.value);
     return data.value && !data.value.reachable ? (data.value.error ?? null) : null;
   });
   return {

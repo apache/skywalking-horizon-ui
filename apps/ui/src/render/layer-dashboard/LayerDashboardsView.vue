@@ -554,7 +554,7 @@ function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
   return (
     layerKey.value.toUpperCase() === 'VIRTUAL_GENAI' &&
     layer.value?.caps?.evaluationRecord === true &&
-    auth.hasVerb('logs:read') &&
+    auth.hasVerbOnLayer('logs:read', layerKey.value) &&
     scope.value === 'instance' &&
     w.type === 'line' &&
     w.id === 'evaluation score' &&

@@ -148,7 +148,7 @@ export function useLayerServiceName(
     resolveLayerServiceName({
       selectedId: selectedId.value,
       landingRows: landing.data.value?.sampledRows ?? landing.rows.value ?? [],
-      landingSettled: landing.data.value !== null || Boolean(landing.error.value),
+      landingSettled: landing.settled.value,
       roster: roster.value,
       rosterSettled: rosterData.value !== null || rosterFailed.value,
     }),

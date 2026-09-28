@@ -32,6 +32,7 @@ import { serviceLayerCatalog } from '../../../../logic/services/service-layer-ca
 import { getServiceHierarchy } from '../../../../logic/oap/hierarchy.js';
 import { layerCapabilitiesResult } from '../../../../logic/layers/capabilities.js';
 import { toolPrompt } from '../../skills/loader.js';
+import { denied as deniedOn, holds, inexact, refusal } from '../access.js';
 import { getLayerCatalog } from './catalog.js';
 import { explainEmptyCatalog } from './unreadable.js';
 
@@ -57,7 +58,7 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const cap0 = toolPrompt('metric-catalog', 'kb_layer_capabilities');
   const capabilities = tool(
     async ({ layer }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const { capabilities, reason } = await layerCapabilitiesResult(ctx.uiTemplateClient, layer);
       if (!capabilities) return explainEmptyCatalog(reason, layer);
       return JSON.stringify(capabilities);
@@ -72,7 +73,7 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const brw = toolPrompt('metric-catalog', 'kb_browse_catalog');
   const browse = tool(
     async ({ layer, scope }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const { entries, reason } = await getLayerCatalog(
         { config: ctx.config, uiTemplateClient: ctx.uiTemplateClient },
         layer,
@@ -106,7 +107,11 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const drl = toolPrompt('metric-catalog', 'kb_resolve_scope_drill');
   const drill = tool(
     async ({ serviceId, toScope, keyword }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
+      const bad = inexact(serviceId, 'the service id');
+      if (bad) return bad;
+      const no = await refusal(ctx, 'metrics:read', { id: serviceId }, 'this service');
+      if (no) return no;
       try {
         if (toScope === 'instance') {
           const data = await graphqlPost<{ instances: Array<{ id: string; name: string; language?: string | null }> }>(
@@ -148,7 +153,7 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const dsc = toolPrompt('metric-catalog', 'kb_describe_metric');
   const describe = tool(
     async ({ layer, scope, id }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const { entries, reason } = await getLayerCatalog(
         { config: ctx.config, uiTemplateClient: ctx.uiTemplateClient },
         layer,
@@ -183,7 +188,7 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const srch = toolPrompt('metric-catalog', 'kb_search_metrics');
   const search = tool(
     async ({ keyword, scope }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const k = keyword.toLowerCase();
       const sc = (scope ?? 'service') as DashboardScope;
       const cat = await serviceLayerCatalog({ config: ctx.config, fetch: ctx.fetch }).get();
@@ -232,7 +237,11 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const hier = toolPrompt('metric-catalog', 'kb_resolve_hierarchy');
   const hierarchy = tool(
     async ({ serviceId, layer }): Promise<string> => {
-      if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
+      if (!holds(ctx, 'topology:read')) return deniedOn('topology:read');
+      const bad = inexact(serviceId, 'the service id');
+      if (bad) return bad;
+      const no = await refusal(ctx, 'topology:read', { id: serviceId }, 'this service');
+      if (no) return no;
       try {
         const res = await getServiceHierarchy(ctx.config.current, serviceId, layer, ctx.fetch);
         if (!res.reachable) return 'Hierarchy is unavailable (OAP unreachable).';

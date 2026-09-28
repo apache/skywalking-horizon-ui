@@ -29,6 +29,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
+import { errorText } from '@/api/permissionDenied';
 import {
   type GenAIEvaluationRecordStreamRow,
   useLayerEvaluationRecord,
@@ -81,7 +82,7 @@ const callerServicesLoading = computed(() => callerServicesQuery.isLoading.value
 // it is reported where the prompt would otherwise ask for a provider that
 // cannot be picked.
 const catalogFailure = computed<string | null>(() => {
-  if (callerServicesQuery.error.value) return String(callerServicesQuery.error.value);
+  if (callerServicesQuery.error.value) return errorText(callerServicesQuery.error.value);
   const answer = callerServicesQuery.data.value;
   return answer && answer.reachable === false ? (answer.error || t('Backend unreachable.')) : null;
 });
@@ -790,7 +791,7 @@ watch([drillArmed, providerReady], ([armed, ready]) => {
           </label>
           <!-- Reading a trace needs traces:read, as the row links do; the
                address can still be typed without it. -->
-          <label v-if="auth.hasVerb('traces:read')" class="cf cf-action">
+          <label v-if="auth.hasVerbOnSomeLayer('traces:read')" class="cf cf-action">
             <span>&nbsp;</span>
             <button class="sw-btn small cf-pick-span" type="button" @click="openSpanPicker">{{ t('Pick span…') }}</button>
           </label>

@@ -22,7 +22,7 @@
  */
 
 import type { HorizonConfig } from '../config/schema.js';
-import { hasVerb, resolveVerbsForRoles } from './verbs.js';
+import { hasVerb, hasVerbOnSomeLayer, resolveVerbsForRoles } from './verbs.js';
 
 /**
  * Whoever a verb is being checked FOR. Takes the session rather than its roles
@@ -48,5 +48,18 @@ export function sessionHasVerb(
 ): boolean {
   const verbs = resolveVerbsForRoles(config.rbac.roles, subject.roles, config.rbac.enabled);
   if (!hasVerb(verbs, required)) return false;
+  return subject.verbCap ? hasVerb(subject.verbCap, required) : true;
+}
+
+/** The same question for a route that reads one layer or one service: a
+ *  layer grant counts here, and which layer it reaches is the scope gate's
+ *  to decide. */
+export function sessionHasVerbOnSomeLayer(
+  config: HorizonConfig,
+  subject: VerbSubject,
+  required: string,
+): boolean {
+  const verbs = resolveVerbsForRoles(config.rbac.roles, subject.roles, config.rbac.enabled);
+  if (!hasVerbOnSomeLayer(verbs, required)) return false;
   return subject.verbCap ? hasVerb(subject.verbCap, required) : true;
 }

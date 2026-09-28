@@ -34,6 +34,7 @@ import type {
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { bffClient, type ZipkinTraceQuery } from '@/api/client';
+import { errorText } from '@/api/permissionDenied';
 
 export interface ZipkinTracesParams {
   serviceName: Ref<string | null>;
@@ -117,7 +118,7 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
   // failure replays as a failure instead of an innocent empty window.
   const reachable = computed<boolean>(() => data.value?.reachable ?? true);
   const error = computed<string | null>(() => {
-    if (!replay.value && q.error.value) return String(q.error.value);
+    if (!replay.value && q.error.value) return errorText(q.error.value);
     return data.value && !data.value.reachable ? (data.value.error ?? null) : null;
   });
   return {

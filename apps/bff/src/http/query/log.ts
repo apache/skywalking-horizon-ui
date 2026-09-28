@@ -51,6 +51,7 @@ import {
 } from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
+import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
 
 export interface LogRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -296,6 +297,16 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         paging,
         !!req.coldStage,
       );
+      // A read across every service keeps only the services this caller may
+      // read — for a plain grant that leaves out the Platform monitoring ones.
+      if (!serviceId && req.access) {
+        try {
+          res.logs = await req.access.keepReadable(['logs:read'], res.logs, (r) => ({ id: r.serviceId ?? '' }));
+        } catch (err) {
+          if (!(err instanceof ServiceLookupUnavailable)) throw err;
+          return reply.send({ ...res, logs: [], hasNext: false, reachable: false, error: err.message, query: body } satisfies LogsResponse);
+        }
+      }
       // Echo the operator's query (the shared helper returns an empty
       // echo since it's entity-agnostic).
       return reply.send({ ...res, query: body } satisfies LogsResponse);
@@ -363,7 +374,10 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           pageNum: 1,
           pageSize: sampleSize,
         });
-        const rows = sample.rows;
+        const rows =
+          !serviceId && req.access
+            ? await req.access.keepReadable(['logs:read'], sample.rows, (r) => ({ id: r.serviceId ?? '' }))
+            : sample.rows;
         const level: LogFacetsResponse['level'] = { error: 0, warn: 0, info: 0, debug: 0, other: 0 };
         const svcMap = new Map<string, number>();
         for (const r of rows) {

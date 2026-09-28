@@ -29,6 +29,7 @@ import { serviceLayerCatalog } from '../../../../logic/services/service-layer-ca
 import { resolveEffectiveLayer } from '../../../../logic/layers/effective.js';
 import { getPreflight } from '../../../../logic/preflight/preflight.js';
 import { toolPrompt } from '../../skills/loader.js';
+import { holds, readableRows } from '../access.js';
 
 export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
   const catalog = () => serviceLayerCatalog({ config: ctx.config, fetch: ctx.fetch }).get();
@@ -36,12 +37,15 @@ export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
 
   const listLayers = tool(
     async (): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const cat = await catalog();
+      // The layers the caller's sidebar shows, counted the way it counts them.
+      const layers = ctx.access ? cat.layers.filter((l) => ctx.access!.menuShows(l)) : cat.layers;
       const rows = await Promise.all(
-        cat.layers.map(async (layer) => {
+        layers.map(async (layer) => {
           const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
-          return { layer, alias: eff.template?.alias, services: cat.byLayer.get(layer)?.length ?? 0 };
+          const services = readableRows(ctx, 'metrics:read', layer, cat.byLayer.get(layer) ?? []).length;
+          return { layer, alias: eff.template?.alias, services };
         }),
       );
       return JSON.stringify(rows);
@@ -57,7 +61,7 @@ export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
   const svc = toolPrompt('context', 'list_services');
   const listServices = tool(
     async ({ layer, keyword }): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const cat = await catalog();
       const k = keyword?.toLowerCase();
       // Each row is tagged with its layer. A service can belong to more than one
@@ -65,7 +69,7 @@ export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
       // so it appears once per layer — the agent still needs a layer to browse
       // that service's metric catalog, so the layer rides with every row.
       const collect = (l: string): Array<{ id: string; name: string; layer: string }> =>
-        (cat.byLayer.get(l) ?? [])
+        readableRows(ctx, 'metrics:read', l, cat.byLayer.get(l) ?? [])
           .filter((r) => !k || r.name.toLowerCase().includes(k))
           .map((r) => ({ id: r.id, name: r.name, layer: l }));
       const rows = layer ? collect(layer.toUpperCase()) : cat.layers.flatMap(collect);
@@ -89,7 +93,7 @@ export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
   // runs, behind its single-flight cache.
   const health = tool(
     async (): Promise<string> => {
-      if (!ctx.hasVerb('metrics:read')) return denied();
+      if (!holds(ctx, 'metrics:read')) return denied();
       const pre = await getPreflight(
         ctx.config.current,
         ctx.fetch ?? globalThis.fetch.bind(globalThis),

@@ -30,6 +30,7 @@ import type { FetchLike, UITemplateClient } from '@skywalking-horizon-ui/api-cli
 import type { ConfigSource } from '../../config/loader.js';
 import { buildOapOpts } from '../../client/graphql.js';
 import { sessionHasVerb, type VerbSubject } from '../../rbac/policy.js';
+import type { AccessDeps, RequestAccess } from '../../rbac/request-access.js';
 import { defaultMinuteWindow, windowFromRange } from '../../util/window.js';
 import { createGraphicCardBuffer } from '../lib/graphic-card-buffer.js';
 import type { ToolContext } from '../lib/tool-context.js';
@@ -47,6 +48,9 @@ export interface CaptureDeps {
   subject: VerbSubject;
   /** OAP-server-local offset, resolved once by the caller (it needs a fetch). */
   offsetMinutes: number;
+  access?: AccessDeps;
+  /** Built from `access` by the caller, which can await. */
+  requestAccess?: RequestAccess;
   windowMinutes: number;
   step: CaptureStep;
 }
@@ -80,6 +84,7 @@ export function createCaptureContext(deps: CaptureDeps): CapturedRun {
     range: { startMs, endMs, step: deps.step },
     bulkSize: cfg.performance.bulk.dashboard.bulkSize,
     hasVerb: (verb) => sessionHasVerb(cfg, deps.subject, verb),
+    access: deps.requestAccess,
     ...buffer,
     // No activity line to paint: an MCP host shows its own tool-call status.
     emitTool: () => {},

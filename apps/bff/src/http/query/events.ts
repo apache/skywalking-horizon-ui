@@ -48,6 +48,7 @@ import {
   type PagedQuerySpec,
 } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
+import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
 
 export interface EventsRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -235,6 +236,11 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
   const auth = requireAuth(deps);
   app.post('/api/events', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const body = (req.body ?? {}) as EventsQueryRequest;
+    // The body's layer selects which events OAP reads, the way a URL's layer
+    // does elsewhere.
+    if (body.layer && req.access && !req.access.onLayer(['events:read'], body.layer)) {
+      return reply.code(403).send({ error: 'permission_denied', verb: 'events:read', reason: 'layer_not_granted', layer: body.layer });
+    }
     const opts = buildOapOpts(deps.config.current, deps.fetch);
     const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
     const window = resolveWindow(offset, body.windowMinutes, { startMs: body.startMs, endMs: body.endMs });
@@ -261,13 +267,23 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
       false,
     );
 
+    let events = res.events;
+    if (!body.service && req.access) {
+      try {
+        events = await req.access.keepReadable(['events:read'], res.events, (e) => ({ name: e.source?.service ?? '' }));
+      } catch (err) {
+        if (!(err instanceof ServiceLookupUnavailable)) throw err;
+        const empty = { generatedAt: Date.now(), query: body, pageNum, pageSize, hasNext: false, events: [] };
+        return reply.send({ ...empty, reachable: false, error: err.message } satisfies EventsResponse);
+      }
+    }
     return reply.send({
       generatedAt: Date.now(),
       query: body,
       pageNum,
       pageSize,
       hasNext: res.hasNext,
-      events: res.events,
+      events,
       reachable: res.reachable,
       ...(res.error ? { error: res.error } : {}),
     } satisfies EventsResponse);

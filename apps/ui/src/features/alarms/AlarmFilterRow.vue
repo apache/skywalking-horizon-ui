@@ -26,7 +26,10 @@
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { computed } from 'vue';
 import { useLayers } from '@/shell/useLayers';
+import { useAuthStore } from '@/state/auth';
+import { canonicalLayerKey } from '@/state/verbGrammar';
 import type { AlarmFilters } from './useAlarmFilters';
 
 const { t } = useI18n();
@@ -35,7 +38,22 @@ const f = props.filters;
 const draft = f.draft;
 const applied = f.applied;
 
-const { availableLayers } = useLayers();
+const { availableLayers, alarmLayers } = useLayers();
+const auth = useAuthStore();
+// A reader whose alarms:read is limited to some layers picks one of those, and
+// a service in it: the BFF answers such a reader only for a named service.
+const limitedLayers = computed(() => auth.layersFor('alarms:read'));
+const layerOptions = computed(() => {
+  // With layer grants the sidebar follows page permissions, not alarms:read,
+  // so the BFF lists the alarm layers on their own.
+  if (alarmLayers.value) return alarmLayers.value;
+  const limited = limitedLayers.value;
+  if (!limited) return availableLayers.value.map((L) => ({ key: L.key.toUpperCase(), name: L.name }));
+  return limited.map((key) => ({
+    key,
+    name: availableLayers.value.find((L) => canonicalLayerKey(L.key.split('~', 1)[0]!) === key)?.name ?? key,
+  }));
+});
 </script>
 
 <template>
@@ -43,15 +61,15 @@ const { availableLayers } = useLayers();
     <label class="ax__filter">
       <span>{{ t('Layer') }}</span>
       <select v-model="draft.layer" @change="f.onLayerChange()">
-        <option value="">{{ t('any layer') }}</option>
-        <option v-for="L in availableLayers" :key="L.key" :value="L.key.toUpperCase()">{{ L.name }}</option>
+        <option value="">{{ limitedLayers ? t('pick a layer first') : t('any layer') }}</option>
+        <option v-for="L in layerOptions" :key="L.key" :value="L.key">{{ L.name }}</option>
       </select>
     </label>
     <label class="ax__filter" :class="{ 'is-disabled': !draft.layer }">
       <span>{{ t('Service') }}</span>
       <select v-model="draft.service" :disabled="!draft.layer" @change="f.onServiceChange()">
         <option value="">
-          {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : t('any service') }}
+          {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : limitedLayers ? t('Pick a service') : t('any service') }}
         </option>
         <option v-for="s in f.serviceOptions.value" :key="`${s.name}/${s.normal}`" :value="s.name">{{ s.name }}</option>
       </select>

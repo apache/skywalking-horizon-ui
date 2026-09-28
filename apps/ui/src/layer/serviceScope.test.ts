@@ -39,6 +39,7 @@ import { resolveLayerServiceName, tabServiceScope } from './useLayerServiceName'
 import LayerTracesView from './traces/LayerTracesView.vue';
 import LayerLogsView from './logs/LayerLogsView.vue';
 import LayerBrowserErrorsView from './browser-errors/LayerBrowserErrorsView.vue';
+import { useAuthStore } from '@/state/auth';
 
 const SERVICE_ID = 'bWVzaC1zdnI6OnNvbmdz.1';
 const SERVICE_NAME = 'songs';
@@ -295,6 +296,9 @@ async function fireRunQuery(w: VueWrapper, selector: string): Promise<void> {
 beforeEach(async () => {
   pinia = createPinia();
   setActivePinia(pinia);
+  // Signed in with every permission: the tab reads its landing rows, as it
+  // does for any session that holds metrics:read on the layer.
+  useAuthStore().user = { username: 'op', roles: ['admin'], verbs: ['*'] };
   router = createRouter({
     history: createMemoryHistory(),
     routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],

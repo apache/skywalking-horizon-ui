@@ -544,11 +544,12 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
             QUERY_TRACE_DETAIL,
             { traceId: params.traceId, duration },
           );
+          const spans = env.trace?.spans ?? [];
           const detail: NativeTraceDetailResponse = {
             source: 'native',
             api,
             traceId: params.traceId,
-            spans: env.trace?.spans ?? [],
+            spans,
             reachable: true,
           };
           return reply.send({

@@ -43,6 +43,11 @@ describe('preview traces block', () => {
     expect(stores('{"source":"both"}')).toEqual(['native', 'zipkin']);
   });
 
+  it('previews nothing from a draft that is not a string', () => {
+    // A repeated query parameter arrives as an array, which `JSON.parse` would coerce.
+    expect(stores(['{}'] as unknown as string)).toBeNull();
+  });
+
   it('previews an explicit empty list as no stores', () => {
     expect(stores('{"sources":[]}')).toEqual([]);
   });

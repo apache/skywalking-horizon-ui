@@ -59,6 +59,13 @@ export interface TopologyRouteDeps extends AuthDeps {
 
 const DEFAULT_WINDOW_MIN = 60;
 
+/** The groups a layer-limited caller may seed the whole-layer map with;
+ *  `undefined` when they read the whole layer. */
+function seedGroupsFor(req: FastifyRequest, layerKey: string): ReadonlySet<string> | undefined {
+  const reach = req.access?.onLayer(['topology:read'], layerKey);
+  return reach && !reach.whole ? reach.groups : undefined;
+}
+
 export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteDeps): void {
   const auth = requireAuth(deps);
   app.get(
@@ -143,16 +150,18 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
             defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
+      const focus = serviceArg.split(',').map((s) => s.trim()).filter(Boolean);
       const response = await buildServiceTopology({
         opts,
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg: topoCfg,
+        cfg: req.access ? await req.access.graphConfig(['topology:read'], focus, topoCfg) : topoCfg,
         layerKey,
         serviceArg,
         depth,
         group: q.group,
+        seedGroups: seedGroupsFor(req, layerKey),
       });
       return reply.send(response);
     },

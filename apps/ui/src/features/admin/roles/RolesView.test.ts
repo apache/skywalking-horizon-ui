@@ -34,7 +34,10 @@ import RolesView from './RolesView.vue';
 const RESERVED = 'user:write';
 const ENFORCED = 'alarms:read';
 
-function fakeAuthStatus(): typeof fetch {
+function fakeAuthStatus(
+  roles: Record<string, string[]> = { viewer: [ENFORCED], operator: [ENFORCED, RESERVED] },
+  knownVerbs: string[] = [ENFORCED, RESERVED],
+): typeof fetch {
   const body = {
     configPath: '/etc/horizon.yaml',
     configMtime: null,
@@ -47,9 +50,9 @@ function fakeAuthStatus(): typeof fetch {
     breakGlass: { configured: false, armed: false, username: null },
     rbac: {
       enabled: true,
-      roles: { viewer: [ENFORCED], operator: [ENFORCED, RESERVED] },
+      roles,
       landingByRole: { viewer: '/' },
-      knownVerbs: [ENFORCED, RESERVED],
+      knownVerbs,
       reservedVerbs: [RESERVED],
     },
   };
@@ -106,5 +109,41 @@ describe('Roles board — reserved capabilities', () => {
     // viewer · operator, in that column order — only operator was granted it.
     const cells = row.findAll('.td-cell .check');
     expect(cells.map((c) => c.classes().includes('check-on'))).toEqual([false, true]);
+  });
+});
+
+describe('Roles board — layer-qualified grants', () => {
+  const roles = {
+    viewer: ['metrics:read'],
+    payments: ['metrics:read@GENERAL[payments, -]', 'traces:read@general', 'cluster:read@GENERAL'],
+  };
+
+  it('lists each role\'s layer grants, and marks one that grants nothing', async () => {
+    vi.stubGlobal('fetch', fakeAuthStatus(roles, ['metrics:read', 'traces:read']));
+    const w = await mountRoles();
+
+    const card = w.findAll('.role-card').find((c) => c.text().includes('payments'))!;
+    const items = card.findAll('.role-layers-list li').map((li) => li.text());
+    expect(items).toEqual([
+      'metrics:read on GENERAL[payments, no group]',
+      'traces:read on GENERAL',
+      'cluster:read on GENERALNo effect',
+    ]);
+    const viewer = w.findAll('.role-card').find((c) => c.text().includes('viewer'))!;
+    expect(viewer.find('.role-layers').exists()).toBe(false);
+  });
+
+  it('draws a partial mark, not a check, for a verb held only on some layers', async () => {
+    vi.stubGlobal('fetch', fakeAuthStatus(roles, ['metrics:read', 'traces:read']));
+    const w = await mountRoles();
+
+    // viewer · payments, in that column order.
+    const marks = (label: string) =>
+      w.findAll('.perm tbody tr')
+        .find((tr) => tr.text().includes(label))!
+        .findAll('.td-cell .check')
+        .map((c) => c.classes().find((k) => k.startsWith('check-')));
+    expect(marks('See metric dashboards')).toEqual(['check-on', 'check-part']);
+    expect(marks('See traces')).toEqual(['check-off', 'check-part']);
   });
 });
