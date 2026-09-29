@@ -73,11 +73,11 @@ cat <<MSG
 
 Open http://127.0.0.1:$UI_PORT — password is the username.
 
-  viewer      every layer but Platform monitoring; both GENERAL groups
+  viewer      every layer but Platform monitoring; every GENERAL entry
   maintainer  every layer, Platform monitoring included
   payments    the payments group of GENERAL only
   risk        the risk group of GENERAL only (its map still shows payments::ledger as a neighbour)
-  general     the whole GENERAL layer, both groups
+  general     the whole GENERAL layer: payments, risk and the ungrouped audit
   so11y       the OAP self-observability layer only, without cluster:read
   mixed       metrics on payments, logs on risk, alarms everywhere
 

@@ -49,7 +49,6 @@ import {
   alarmPinKey,
   parseAlarmPin,
   type AlarmPin,
-  isBuiltInLayerRow,
   menuOrderIssues,
   resolveLayerMenuRows,
   walkWidgets,
@@ -241,15 +240,8 @@ function extPagesSchemaFor<T extends z.ZodTypeAny>(widget: T) {
       id: z
         .string()
         .max(MAX_EXT_PAGE_ID_LENGTH, `must be at most ${MAX_EXT_PAGE_ID_LENGTH} characters`)
-        .regex(EXT_PAGE_ID_RE, 'must be lowercase alphanumeric with hyphens, starting with a letter or digit')
-        // A page id becomes a path segment, and several features sniff the
-        // WHOLE route path rather than one segment — `/zipkin-trace` decides
-        // trace mode and hides the layer header in three places. Rejecting
-        // the collision here is cheaper and more honest than hardening
-        // every such regex against a page that impersonates a tab.
-        .refine((v) => !isBuiltInLayerRow(v), (v) => ({
-          message: `"${v}" is a built-in layer tab — pick an id that is not a layer route`,
-        })),
+        // Any name a tab has is fine: a page's URL is `<component>/page/<id>`.
+        .regex(EXT_PAGE_ID_RE, 'must be lowercase alphanumeric with hyphens, starting with a letter or digit'),
       // Names may repeat; identity is the id. Blank is rejected at BOTH
       // bars, unlike the work-in-progress holes the push bar tolerates
       // elsewhere: a page's name is its sidebar row, so publishing an

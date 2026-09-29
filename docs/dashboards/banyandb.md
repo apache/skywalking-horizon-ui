@@ -226,7 +226,7 @@ For one selected group — a BanyanDB storage group, mapped to the endpoint slot
 
 ## Trace Sampling
 
-An **extension page under Cluster**, reached from its own sidebar row directly below the Cluster row (route `/layer/BANYANDB/service/trace-sampling`). It covers BanyanDB **trace tail sampling**: from 0.11 a data node can run an ordered chain of sampler plugins during trace merge and finalization, dropping whole traces after their fragments have already landed. See [Trace Tail Sampling](https://skywalking.apache.org/docs/main/next/en/banyandb/tail-sampling/) for how a trace is judged and how the chain is configured in OAP's `bydb.yml`.
+An **extension page under Cluster**, reached from its own sidebar row directly below the Cluster row (route `/layer/banyandb/service/page/trace-sampling`). It covers BanyanDB **trace tail sampling**: from 0.11 a data node can run an ordered chain of sampler plugins during trace merge and finalization, dropping whole traces after their fragments have already landed. See [Trace Tail Sampling](https://skywalking.apache.org/docs/main/next/en/banyandb/tail-sampling/) for how a trace is judged and how the chain is configured in OAP's `bydb.yml`.
 
 The plugin chain is **optional**, and this page is honest about that. Only the **Active Samplers** table is always shown; every other panel is gated on one shared probe, so on a cluster with no sampler configured the page collapses to that single table reading `no data` — rather than two dozen empty charts — and OAP runs one gate query instead of the whole page's MQE.
 

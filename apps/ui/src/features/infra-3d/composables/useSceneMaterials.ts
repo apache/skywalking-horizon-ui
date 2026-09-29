@@ -54,7 +54,7 @@ import {
   getLayerIconTexture,
   type LayerIconName,
 } from './useLayerIconTexture';
-import { colorForLayer } from './useInfra3dConfig';
+import { colorForLayer, configLayer } from './useInfra3dConfig';
 import { readTintColor, type ZoneTint } from './useScenePlacement';
 import { readScenePalette, type ScenePalette } from './useScenePalette';
 
@@ -67,7 +67,7 @@ const KNOWN_ICONS: ReadonlySet<LayerIconName> = new Set([
   'mesh', 'cluster', 'sky', 'skywalking', 'web', 'fn', 'db', 'cache', 'topic', 'flame', 'svc',
 ]);
 function iconForLayer(layerKey: string): LayerIconName {
-  const n = layerIconByKey(layerKey);
+  const n = layerIconByKey(configLayer(layerKey).toLowerCase());
   return KNOWN_ICONS.has(n as LayerIconName) ? (n as LayerIconName) : 'svc';
 }
 

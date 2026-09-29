@@ -91,12 +91,9 @@ describe('dashboardExtPages — schema', () => {
   });
 
   it.each(['service', 'instance', 'zipkin-trace', 'pprof', 'pod-logs', 'continuous-profiling'])(
-    'rejects the page id %s because it collides with a built-in tab',
+    'accepts the page id %s: a page sits under page/, so no tab name is taken',
     (id) => {
-      const r = layerTemplateSchema.safeParse(tpl({ dashboardExtPages: { service: [page({ id })] } }));
-      expect(r.success).toBe(false);
-      const msg = r.success ? '' : r.error.issues.map((i) => i.message).join(' ');
-      expect(msg).toContain('built-in layer tab');
+      expect(layerTemplateSchema.safeParse(tpl({ dashboardExtPages: { service: [page({ id })] } })).success).toBe(true);
     },
   );
 

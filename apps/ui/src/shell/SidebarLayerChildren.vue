@@ -32,13 +32,14 @@ import { useI18n } from 'vue-i18n';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { layerMenuRows } from '@/shell/useLayers';
-import { useRouteActive } from '@/shell/useSidebarActive';
+import { useActiveEntry } from '@/shell/useLayerEntry';
 import { useAuthStore } from '@/state/auth';
+import { entryOf, layerPath } from '@/utils/layerRoute';
 
 const props = defineProps<{ layer: LayerDef; inGroup?: boolean }>();
 
 const { t } = useI18n({ useScope: 'global' });
-const { route, isActive, isActiveExact } = useRouteActive();
+const { isRowActive } = useActiveEntry();
 const auth = useAuthStore();
 
 const L = computed(() => props.layer);
@@ -79,20 +80,15 @@ const rows = computed(() =>
     .filter((r) => r.path !== 'evaluation-record' || canReadLogs.value)
     .map((r) => ({
     ...r,
-    to: `/layer/${L.value.key}/${r.path}`,
+    to: layerPath(entryOf(L.value), r.path),
     // The page's own name when it has one; otherwise the component's
     // literal translation.
     label: r.name ?? labelFor(r.path),
-    // An extension page's route sits UNDER its component's, so the
-    // prefix match that lights up a component would light it up for
-    // every one of its pages too. Component rows therefore match
-    // exactly; only they can be a prefix of another row.
-    exact: !r.path.includes('/'),
   })),
 );
-// The layer's own row already links here, and the bare `/layer/:key` URL
-// redirects to it — both light up the first row.
-const firstRowTo = computed(() => rows.value[0]?.to ?? '');
+// The layer's own row already links here, and the bare entry URL redirects to
+// it — both light up the first row.
+const firstRow = computed(() => rows.value[0]?.path ?? '');
 </script>
 
 <template>
@@ -103,9 +99,7 @@ const firstRowTo = computed(() => rows.value[0]?.to ?? '');
       :to="row.to"
       class="sw-nav-item"
       :class="{
-        'is-active':
-          (row.exact ? isActiveExact(row.to) : isActive(row.to)) ||
-          (row.to === firstRowTo && route.path === `/layer/${L.key}`),
+        'is-active': isRowActive(L, row.path, firstRow),
       }"
     >
       <Icon :name="row.icon" /><span>{{ row.label }}</span>

@@ -180,11 +180,10 @@ export interface LayerDef {
   group?: string;
   /** When this layer is split by service group (template
    *  `splitByServiceGroup`), the OAP `Service.group` this menu entry is
-   *  scoped to. The sidebar appends it to the display name and forwards
-   *  it as `?group=`. Absent on unsplit layers. Distinct from `group`
-   *  above (the sidebar-section label). The `key` of a split entry is the
-   *  composite `<layerKey>~<serviceGroup>`; the real layer key is `key`
-   *  with the `~…` suffix stripped. */
+   *  scoped to — `''` for the services with no group; every entry of the
+   *  layer carries the layer's `key`. The sidebar appends it to the display
+   *  name and its reads send it as `?group=`. Absent on unsplit layers.
+   *  Distinct from `group` above (the sidebar-section label). */
   serviceGroup?: string;
   /** Sidebar placement — `public` (default) for layers visible to
    *  everyone in the Layers section, `operate` for operations-only

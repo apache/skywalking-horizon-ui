@@ -46,7 +46,7 @@ const NOW = Date.now();
 const CHECKOUT = 'cGF5bWVudHM6OmNoZWNrb3V0.1';
 const USER_EP = 'VXNlcg==.0_VXNlcg==';
 
-type Row = Partial<AlarmMessage> & Pick<AlarmMessage, 'id' | 'scope' | 'name' | 'layerKeys' | 'ownerKeys'>;
+type Row = Partial<AlarmMessage> & Pick<AlarmMessage, 'id' | 'scope' | 'name' | 'layerKeys' | 'owners'>;
 function alarm(p: Row, expression = 'rule-a'): AlarmMessage {
   return {
     startTime: NOW - 60_000,
@@ -61,22 +61,22 @@ function alarm(p: Row, expression = 'rule-a'): AlarmMessage {
 
 const MSGS: AlarmMessage[] = [
   // One service, two rules, in two layers.
-  alarm({ id: CHECKOUT, scope: 'Service', name: 'payments::checkout', layerKeys: ['SO11Y_JAVA_AGENT', 'GENERAL'], ownerKeys: ['SO11Y_JAVA_AGENT~payments', 'GENERAL~payments'] }, 'rule-a'),
-  alarm({ id: CHECKOUT, scope: 'Service', name: 'payments::checkout', layerKeys: ['SO11Y_JAVA_AGENT', 'GENERAL'], ownerKeys: ['SO11Y_JAVA_AGENT~payments', 'GENERAL~payments'] }, 'rule-b'),
+  alarm({ id: CHECKOUT, scope: 'Service', name: 'payments::checkout', layerKeys: ['SO11Y_JAVA_AGENT', 'GENERAL'], owners: [{ layer: 'SO11Y_JAVA_AGENT', group: 'payments' }, { layer: 'GENERAL', group: 'payments' }] }, 'rule-a'),
+  alarm({ id: CHECKOUT, scope: 'Service', name: 'payments::checkout', layerKeys: ['SO11Y_JAVA_AGENT', 'GENERAL'], owners: [{ layer: 'SO11Y_JAVA_AGENT', group: 'payments' }, { layer: 'GENERAL', group: 'payments' }] }, 'rule-b'),
   // Two relations from one source: same id, different destination.
-  alarm({ id: USER_EP, scope: 'EndpointRelation', name: 'User in User to POST:/users in payments::checkout', layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~payments'] }),
-  alarm({ id: USER_EP, scope: 'EndpointRelation', name: 'User in User to POST:/users in mesh::edge', layerKeys: ['MESH'], ownerKeys: ['MESH~mesh'] }),
+  alarm({ id: USER_EP, scope: 'EndpointRelation', name: 'User in User to POST:/users in payments::checkout', layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: 'payments' }] }),
+  alarm({ id: USER_EP, scope: 'EndpointRelation', name: 'User in User to POST:/users in mesh::edge', layerKeys: ['MESH'], owners: [{ layer: 'MESH', group: 'mesh' }] }),
   // No known service owns it.
-  alarm({ id: 'Z2hvc3Q=.1_Zy0x', scope: 'ServiceInstance', name: 'g-1 of ghost', layerKeys: [], ownerKeys: [] }),
+  alarm({ id: 'Z2hvc3Q=.1_Zy0x', scope: 'ServiceInstance', name: 'g-1 of ghost', layerKeys: [], owners: [] }),
 ];
 
 /** One layer, three groups: payments, risk, and the services with none. */
 const GROUPED: AlarmMessage[] = [
-  alarm({ id: 'cGF5.1', scope: 'Service', name: 'payments::checkout', layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~payments'] }),
-  alarm({ id: 'cmlzaw==.1', scope: 'Service', name: 'risk::scorer', layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~risk'] }),
-  alarm({ id: 'cGxhaW4=.1', scope: 'Service', name: 'plain', layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~'] }),
+  alarm({ id: 'cGF5.1', scope: 'Service', name: 'payments::checkout', layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: 'payments' }] }),
+  alarm({ id: 'cmlzaw==.1', scope: 'Service', name: 'risk::scorer', layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: 'risk' }] }),
+  alarm({ id: 'cGxhaW4=.1', scope: 'Service', name: 'plain', layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: '' }] }),
   // Between two groups: counts under each.
-  alarm({ id: 'cmlzaw==.1', scope: 'ServiceRelation', name: 'risk::scorer to payments::checkout', layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~risk', 'GENERAL~payments'] }),
+  alarm({ id: 'cmlzaw==.1', scope: 'ServiceRelation', name: 'risk::scorer to payments::checkout', layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: 'risk' }, { layer: 'GENERAL', group: 'payments' }] }),
 ];
 
 function json(payload: unknown, status = 200): Response {

@@ -152,7 +152,7 @@ async function call(
   return { status: res.statusCode, body: res.json() as Record<string, unknown> };
 }
 
-type Msg = Row & { layerKeys: string[]; ownerKeys: string[] };
+type Msg = Row & { layerKeys: string[]; owners: Array<{ layer: string; group: string }> };
 const msgs = (body: Record<string, unknown>) => body.msgs as Msg[];
 const names = (body: Record<string, unknown>) => msgs(body).map((m) => m.name);
 
@@ -201,8 +201,11 @@ describe('alarms:read on a layer\'s group, with no service named', () => {
   it('tags each row with the layer-and-group pairs of its services', async () => {
     const list = await call('payments', `/api/alarms?${WINDOW}`, fakeOap(ROWS));
     const [own, inbound] = msgs(list.body);
-    expect(own).toMatchObject({ layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~payments'] });
-    expect(inbound!.ownerKeys).toEqual(['GENERAL~risk', 'GENERAL~payments']);
+    expect(own).toMatchObject({ layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: 'payments' }] });
+    expect(inbound!.owners).toEqual([
+      { layer: 'GENERAL', group: 'risk' },
+      { layer: 'GENERAL', group: 'payments' },
+    ]);
     expect(Object.keys(own!)).not.toContain('kept');
   });
 
@@ -257,25 +260,32 @@ describe('alarms:read on a layer\'s group, with no service named', () => {
   });
 });
 
-// An overview widget bound to a split menu entry filters by `<LAYER>~<group>`.
+// An overview widget bound to one service group filters by `GENERAL[payments]`.
 describe('a layer filter on one service group', () => {
   it('keeps the alarms of that group\'s services, a relation across groups under each', async () => {
-    const payments = await call('ops', `/api/alarms?${WINDOW}&layer=GENERAL~payments`, fakeOap(ROWS));
+    const payments = await call('ops', `/api/alarms?${WINDOW}&layer=GENERAL[payments]`, fakeOap(ROWS));
     expect(payments.status).toBe(200);
     expect(names(payments.body)).toEqual([CHECKOUT.name, INBOUND.name, OUTBOUND.name]);
-    const risk = await call('ops', `/api/alarms?${WINDOW}&layer=general~risk`, fakeOap(ROWS));
+    const risk = await call('ops', `/api/alarms?${WINDOW}&layer=general[risk]`, fakeOap(ROWS));
     expect(names(risk.body)).toEqual([INBOUND.name, OUTBOUND.name, SCORER.name]);
   });
 
   it('keeps the group as written, and reads an empty group as the services with none', async () => {
-    const cased = await call('ops', `/api/alarms?${WINDOW}&layer=GENERAL~Payments`, fakeOap(ROWS));
+    const cased = await call('ops', `/api/alarms?${WINDOW}&layer=GENERAL[Payments]`, fakeOap(ROWS));
     expect(names(cased.body)).toEqual([]);
-    const ungrouped = await call('ops', `/api/alarms?${WINDOW}&layer=BANYANDB~`, fakeOap(ROWS));
+    const ungrouped = await call('ops', `/api/alarms?${WINDOW}&layer=BANYANDB[-]`, fakeOap(ROWS));
     expect(names(ungrouped.body)).toEqual([BDB.name]);
   });
 
+  it('refuses a filter that names no layer, rather than reading every one', async () => {
+    for (const layer of ['GENERAL~payments', 'GENERAL[]']) {
+      const res = await call('ops', `/api/alarms?${WINDOW}&layer=${encodeURIComponent(layer)}`, fakeOap(ROWS));
+      expect(res.status, layer).toBe(400);
+    }
+  });
+
   it('narrows only what the grant already reads', async () => {
-    const list = await call('payments', `/api/alarms?${WINDOW}&layer=GENERAL~risk`, fakeOap(ROWS));
+    const list = await call('payments', `/api/alarms?${WINDOW}&layer=GENERAL[risk]`, fakeOap(ROWS));
     expect(list.status).toBe(200);
     expect(names(list.body)).toEqual([INBOUND.name, OUTBOUND.name]);
   });

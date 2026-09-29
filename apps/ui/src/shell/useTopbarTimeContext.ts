@@ -16,6 +16,7 @@
 import { computed, type ComputedRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useTimeRangeStore } from '@/controls/timeRange';
+import { routeRow } from '@/utils/layerRoute';
 
 /**
  * Routes where the global topbar time picker + auto-refresh are disabled
@@ -26,40 +27,44 @@ import { useTimeRangeStore } from '@/controls/timeRange';
  *      every operate page) — they never poll metrics, so a rolling window
  *      + auto-refresh make no sense. See `noTimeContext` for the wording.
  *
- * Add more per-page-picker routes here as Logs / Traces / etc. opt out.
+ * Add a layer tab to the row set, or another page to the path list.
  */
-const TIME_RANGE_OPT_OUT = [
+/** Layer tabs, by their row, whatever entry they sit under. */
+const LAYER_ROWS_OWNING_TIME = new Set([
   // Every trace row owns its own time range and runs from its own button —
   // native, Zipkin, and the TraceQL pair over either store.
-  /^\/layer\/[^/]+\/trace$/,
-  /^\/layer\/[^/]+\/zipkin-trace$/,
-  /^\/layer\/[^/]+\/traceql-native-trace$/,
-  /^\/layer\/[^/]+\/traceql-zipkin-trace$/,
-  /^\/layer\/[^/]+\/traceql-otlp-trace$/,
+  'trace',
+  'zipkin-trace',
+  'traceql-native-trace',
+  'traceql-zipkin-trace',
+  'traceql-otlp-trace',
   // Logs carry their own time picker (the condition bar); the level /
   // keyword filters make rolling-window refresh awkward mid-investigation.
-  /^\/layer\/[^/]+\/logs$/,
-  /^\/layer\/[^/]+\/evaluation-record$/,
+  'logs',
+  'evaluation-record',
   // Browser Logs has its own Time range picker — auto-refresh would shift
   // the visible window mid-investigation.
-  /^\/layer\/[^/]+\/browser-errors$/,
+  'browser-errors',
   // AI agent conversations: own range in days, fired on Run query.
-  /^\/layer\/[^/]+\/conversations$/,
+  'conversations',
   // Pod Logs is a live tail driven by its own interval poll — the global
   // ticker would double-fire and there's no rolling window to refresh.
-  /^\/layer\/[^/]+\/pod-logs$/,
+  'pod-logs',
+  // Profiling tabs bind to a *task*; auto-refresh would yank the task list,
+  // re-pick the first task, and blow away the analyze pane mid-investigation.
+  // The pages expose their own "refresh tasks" affordance instead.
+  'trace-profiling',
+  'ebpf-profiling',
+  'network-profiling',
+  'async-profiling',
+  'pprof',
+]);
+
+const PATHS_OWNING_TIME = [
   // Alarms is a triage view — auto-refresh shifts the window out from under
   // any selection/brush, and the traffic backfill is chunked with its own
   // explicit delta refresh.
   /^\/alarms(\/[^/]+)?$/,
-  // Profiling tabs bind to a *task*; auto-refresh would yank the task list,
-  // re-pick the first task, and blow away the analyze pane mid-investigation.
-  // The pages expose their own "refresh tasks" affordance instead.
-  /^\/layer\/[^/]+\/trace-profiling$/,
-  /^\/layer\/[^/]+\/ebpf-profiling$/,
-  /^\/layer\/[^/]+\/network-profiling$/,
-  /^\/layer\/[^/]+\/async-profiling$/,
-  /^\/layer\/[^/]+\/pprof$/,
   // Config (admin) + operate pages have no time concept — they never poll
   // metrics, so the global picker + auto-refresh are off on all of them.
   /^\/admin\//,
@@ -90,7 +95,9 @@ export interface TopbarTimeContext {
 
 export function useTopbarTimeContext(): TopbarTimeContext {
   const route = useRoute();
-  const ownsTimeRange = computed<boolean>(() => TIME_RANGE_OPT_OUT.some((r) => r.test(route.path)));
+  const ownsTimeRange = computed<boolean>(
+    () => LAYER_ROWS_OWNING_TIME.has(routeRow(route) ?? '') || PATHS_OWNING_TIME.some((r) => r.test(route.path)),
+  );
   const noTimeContext = computed<boolean>(() => /^\/(admin|operate)\//.test(route.path));
   const hasFrozenRange = computed<boolean>(() => useTimeRangeStore().presetId === 'custom');
   const autoSuspended = computed<boolean>(() => ownsTimeRange.value || hasFrozenRange.value);

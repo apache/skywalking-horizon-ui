@@ -149,18 +149,17 @@ test('an operator can author extension pages and the layer renders them', async 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });
 
-test('a page named after a built-in tab gets a safe id, not a rejection', async ({ page }) => {
+test('a page can be named after a built-in tab', async ({ page }) => {
   await openAdmin(page, extAdmin());
   await page.locator('.page-chip.add').click();
   await page.locator('.page-add-form .page-rename').fill('Topology');
 
-  // A display name is not an id. Pages and tabs share a URL space, so the
-  // derived id must not be `topology` — but the operator named a page,
-  // they did not ask for a route, so the name itself stands.
-  await expect(page.locator('.page-id-input')).toHaveValue('topology-2', { timeout: READY });
+  // A page's address sits under `page/`, apart from the tabs, so no name is
+  // taken: the id is the name's.
+  await expect(page.locator('.page-id-input')).toHaveValue('topology', { timeout: READY });
   await expect(page.locator('.page-add-form .sw-btn').first()).toBeEnabled();
   await page.locator('.page-add-form .sw-btn').first().click();
-  await expect(page).toHaveURL(/[?&]page=topology-2/, { timeout: READY });
+  await expect(page).toHaveURL(/[?&]page=topology(&|$)/, { timeout: READY });
 });
 
 test('two pages sharing a display name stay distinguishable', async ({ page }) => {
@@ -267,8 +266,8 @@ test('a page id is asked for once, and the admin selector keeps showing it', asy
   // Required: clearing it blocks the add rather than silently deriving one.
   await id.fill('');
   await expect(page.locator('.page-add-form .sw-btn').first()).toBeDisabled();
-  // A built-in route is refused here, not at push.
-  await id.fill('service');
+  // A malformed id is refused here, not at push.
+  await id.fill('Not An Id');
   await expect(page.locator('.page-add-form .page-issue')).toBeVisible({ timeout: READY });
 
   await id.fill('brokers');
@@ -335,13 +334,13 @@ test('pages appear as sidebar rows, render, and deep-link', async ({ page, pageE
   // The page is a sibling row, directly after the component it belongs to.
   await expect
     .poll(() => sidebarRows(page), { timeout: READY })
-    .toEqual(expect.arrayContaining(['service', 'service/resource-usage']));
+    .toEqual(expect.arrayContaining(['service', 'service/page/resource-usage']));
   const rows = await sidebarRows(page);
-  expect(rows.indexOf('service/resource-usage')).toBe(rows.indexOf('service') + 1);
+  expect(rows.indexOf('service/page/resource-usage')).toBe(rows.indexOf('service') + 1);
 
   // Deep-linking to it names the page on screen — several pages of one
   // component share the entity pickers and otherwise look alike.
-  await page.goto(`/layer/${LAYER}/service/resource-usage${preview}`);
+  await page.goto(`/layer/${LAYER}/service/page/resource-usage${preview}`);
   await expect(page.locator('.page-heading')).toHaveText('Resource usage', { timeout: READY });
 
   expect(pageErrors).toEqual([]);
@@ -390,7 +389,7 @@ test('a previewed page loads metrics for its primary AND its pinned entities', a
     if (r.method() === 'POST' && /\/api\/layer\/[^/]+\/dashboard/.test(r.url())) posts += 1;
   });
 
-  await page.goto(`/layer/${LAYER}/service/pinned?mode=preview&source=local`);
+  await page.goto(`/layer/${LAYER}/service/page/pinned?mode=preview&source=local`);
   await expect(page.locator('.page-heading')).toHaveText('Pinned', { timeout: READY });
   await expect(page.locator('.widget').first()).toBeVisible({ timeout: READY });
 
@@ -443,7 +442,7 @@ test('every row of a layer WITH pages resolves and renders, all three scopes', a
   const rows = await sidebarRows(page);
 
   // The three pages must actually BE rows, or the walk below proves nothing.
-  for (const p of ['service/svc-extra', 'instance/inst-extra', 'endpoint/ep-extra']) {
+  for (const p of ['service/page/svc-extra', 'instance/page/inst-extra', 'endpoint/page/ep-extra']) {
     expect(rows, `${p} is not a sidebar row`).toContain(p);
   }
 
@@ -462,7 +461,7 @@ test('an unknown page id is not answered with the default grid', async ({ page }
   await addPage(page, 'Resource usage');
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${EXT_LAYER}/service/no-such-page?${PREVIEW}`);
+  await page.goto(`/layer/${EXT_LAYER}/service/page/no-such-page?${PREVIEW}`);
   // The failure this guards is the opposite: real widgets under a URL that
   // promised different ones, which an operator cannot tell from the page
   // they asked for.
@@ -484,7 +483,7 @@ test('a filtered page shows the narrowed list and never mentions the filter', as
   const selectedBefore = (await page.locator('.svc-name').first().innerText()).trim();
   expect(selectedBefore.length, 'no service is selected — wrong fixture?').toBeGreaterThan(0);
 
-  await page.goto(`/layer/${LAYER}/service/agents${preview}`);
+  await page.goto(`/layer/${LAYER}/service/page/agents${preview}`);
   await expect(page.locator('.page-heading')).toHaveText('Agents', { timeout: READY });
 
   // Nothing on the page mentions a filter. The chip is gone on purpose:
@@ -512,7 +511,7 @@ test('an Instance page renders at runtime, narrowed to what it selects', async (
   await page.locator('button:has-text("Save")').first().click();
 
   const preview = '?mode=preview&source=local';
-  await page.goto(`/layer/${LAYER}/instance/runtimes${preview}`);
+  await page.goto(`/layer/${LAYER}/instance/page/runtimes${preview}`);
   await expect(page.locator('.page-heading')).toHaveText('Runtimes', { timeout: READY });
 
   // The instance list is the page's set, and the entity the page presents
@@ -532,7 +531,7 @@ test('an Instance page that selects nothing says so, without blaming the service
   await page.locator('.pef-instance-filter').fill('zzz-matches-nothing');
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${LAYER}/instance/empty-set?mode=preview&source=local`);
+  await page.goto(`/layer/${LAYER}/instance/page/empty-set?mode=preview&source=local`);
   await expect(page.locator('.page-heading')).toHaveText('Empty set', { timeout: READY });
 
   // The layer's ORDINARY empty state, with no wording of its own: the
@@ -551,7 +550,7 @@ test('an Endpoint page renders at runtime under the services it selects', async 
   await page.locator('.pef-service-filter').fill('provider');
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${LAYER}/endpoint/public-api?mode=preview&source=local`);
+  await page.goto(`/layer/${LAYER}/endpoint/page/public-api?mode=preview&source=local`);
   await expect(page.locator('.page-heading')).toHaveText('Public API', { timeout: READY });
   // The service picker is narrowed by the page, and says so only by what
   // it lists — never by showing the filter.
@@ -570,7 +569,7 @@ test('a page can rename the entity it lists, and the layer keeps naming the defa
   await alias.fill('JVMs');
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${LAYER}/instance/brokers?mode=preview&source=local`);
+  await page.goto(`/layer/${LAYER}/instance/page/brokers?mode=preview&source=local`);
   await expect(page.locator('.page-heading')).toHaveText('Brokers', { timeout: READY });
   // The alias names the ENTITY this page lists, which the instance bar
   // prints as its kicker; the heading stays the page's NAME.
@@ -651,7 +650,7 @@ test('deleting the last page in preview does not resurrect it', async ({ page })
   await openAdmin(page, extAdmin());
   await addPage(page, 'Resource usage');
   await page.locator('button:has-text("Save")').first().click();
-  await page.goto(`/layer/${EXT_LAYER}/service/resource-usage?${PREVIEW}`);
+  await page.goto(`/layer/${EXT_LAYER}/service/page/resource-usage?${PREVIEW}`);
   await expect(page.locator('.page-heading')).toHaveText('Resource usage', { timeout: READY });
 
   // Delete it — the LAST page, which removes the whole block from the
@@ -665,7 +664,7 @@ test('deleting the last page in preview does not resurrect it', async ({ page })
   await expect.poll(() => pageOptions(page), { timeout: READY }).toHaveLength(1);
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${EXT_LAYER}/service/resource-usage?${PREVIEW}`);
+  await page.goto(`/layer/${EXT_LAYER}/service/page/resource-usage?${PREVIEW}`);
   await expect(page.locator('.page-missing')).toBeVisible({ timeout: READY });
 });
 
@@ -749,15 +748,15 @@ test('the RUNTIME sidebar row for a page shows active on it', async ({ page }) =
   await openAdmin(page);
   await addPage(page, 'Resource usage');
   await page.locator('button:has-text("Save")').first().click();
-  await page.goto(`/layer/${LAYER}/service/resource-usage?mode=preview&source=local`);
+  await page.goto(`/layer/${LAYER}/service/page/resource-usage?mode=preview&source=local`);
   await expect(page.locator('.layer-children a').first()).toBeVisible({ timeout: READY });
 
   const active = page.locator('.layer-children a.is-active');
   // Exactly one row, and it is the page's. Flat siblings must match the
-  // route EXACTLY or `/service/resource-usage` also lights up the Service
+  // route EXACTLY or `/service/page/resource-usage` also lights up the Service
   // row it sits beside — the two would then both read as current.
   await expect(active).toHaveCount(1, { timeout: READY });
-  await expect(active).toHaveAttribute('href', `/layer/${LAYER}/service/resource-usage`);
+  await expect(active).toHaveAttribute('href', `/layer/${LAYER}/service/page/resource-usage`);
 });
 
 test('a page renders its own widgets, not the default grid', async ({ page }) => {
@@ -771,7 +770,7 @@ test('a page renders its own widgets, not the default grid', async ({ page }) =>
   await expect(page.locator('.canvas-widget')).toHaveCount(1, { timeout: READY });
   await page.locator('button:has-text("Save")').first().click();
 
-  await page.goto(`/layer/${EXT_LAYER}/service/resource-usage?${PREVIEW}`);
+  await page.goto(`/layer/${EXT_LAYER}/service/page/resource-usage?${PREVIEW}`);
   await expect(page.locator('.page-heading')).toHaveText('Resource usage', { timeout: READY });
   // One widget here, against the default grid's many — proof the page's
   // own set is what rendered.

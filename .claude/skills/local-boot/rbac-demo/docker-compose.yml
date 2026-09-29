@@ -19,7 +19,9 @@
 # and group grants can be seen side by side. Images are the ones the e2e
 # fixture pins (test/e2e/script/env); `up.sh` exports them from that file.
 #
-#   GENERAL  payments::checkout -> payments::ledger <- risk::scorer
+#   GENERAL  payments::checkout -> payments::ledger <- risk::scorer, <- audit
+#            (`audit` has no group: GENERAL splits into a `payments`, a `risk`
+#            and an ungrouped entry)
 #   SO11Y_OAP  the OAP itself, scraped by the collector (an operate layer)
 #
 # Host ports are offset so this runs beside the other local environments:
@@ -116,6 +118,21 @@ services:
       payments-ledger:
         condition: service_healthy
 
+  # No `<group>::` prefix: the services with no group get their own entry.
+  audit:
+    image: "horizon-e2e-demo-consumer:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    environment:
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_AGENT_NAME: "audit"
+      SW_AGENT_INSTANCE_NAME: audit-1
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_METER_ACTIVE: 'true'
+      PROVIDER_URL: http://payments-ledger:9090
+    depends_on:
+      payments-ledger:
+        condition: service_healthy
+
   loadgen:
     image: "alpine:3.22"
     command:
@@ -123,7 +140,7 @@ services:
       - -c
       - |
         while true; do
-          for h in payments-checkout risk-scorer; do
+          for h in payments-checkout risk-scorer audit; do
             wget -q -O /dev/null --post-data='{"id":"1","name":"demo"}' --header='Content-Type: application/json' "http://$$h:9092/users" || true
           done
           sleep 2
@@ -131,3 +148,4 @@ services:
     depends_on:
       - payments-checkout
       - risk-scorer
+      - audit

@@ -58,7 +58,7 @@ import {
   type ZoneTint,
 } from './composables/useScenePlacement';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
-import { levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
+import { configLayer, levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import { useInfra3dAlarms, cubeAlarmKey } from './composables/useInfra3dAlarms';
 import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMetrics';
@@ -76,6 +76,7 @@ import {
 } from './composables/useSceneMaterials';
 import { readScenePalette } from './composables/useScenePalette';
 import { useThemeStore } from '@/state/theme';
+import { layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -196,12 +197,12 @@ function chipVisible(node: SceneServiceNode): boolean {
 }
 
 function trafficText(node: SceneServiceNode): string | null {
-  const key = `${node.layerKey.toUpperCase()}::${node.name}`;
+  const key = `${configLayer(node.layerKey)}::${node.name}`;
   const v = metricValues.value.get(key);
   return formatMetricValue(v);
 }
 function trafficUnit(node: SceneServiceNode): string {
-  return metricUnits.value.get(node.layerKey.toUpperCase()) ?? '';
+  return metricUnits.value.get(configLayer(node.layerKey)) ?? '';
 }
 
 emit('zones', placement.zones);
@@ -826,7 +827,7 @@ interface NodeInfo {
 }
 function describeNode(node: SceneServiceNode): NodeInfo {
   const li = layerInfo.get(node.layerKey);
-  const rule = props.namingByLayer?.[node.layerKey.toUpperCase()] ?? null;
+  const rule = props.namingByLayer?.[configLayer(node.layerKey)] ?? null;
   const id = resolveServiceIdentity(node.name, rule);
   return {
     display: id.display || node.shortName,
@@ -871,7 +872,7 @@ const openDashboardHref = computed<string>(() => {
   if (!d) return import.meta.env.BASE_URL;
   const base = import.meta.env.BASE_URL; // ends with '/'
   const n = d.node;
-  return `${base}layer/${n.layerKey}/service?service=${encodeURIComponent(n.serviceId)}`;
+  return `${base}${layerPath(parseEntryKey(n.layerKey), 'service').slice(1)}?service=${encodeURIComponent(n.serviceId)}`;
 });
 
 // Detail-card side: flip to whichever side of the canvas has more room,

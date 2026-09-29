@@ -52,6 +52,7 @@ import { onMounted, onUnmounted, readonly, ref, shallowRef } from 'vue';
 import { bff } from '../../../api/client';
 import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import { alarmLayerKeys } from '@/utils/alarmIncidents';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 const TWENTY_MIN_MS = 20 * 60_000;
 const POLL_INTERVAL_MS = 60_000;
@@ -78,10 +79,9 @@ export function alarmKey(layerKey: string, serviceName: string): string {
 }
 
 /** The key a cube is looked up by. A cube in a layer split by service group
- *  sits under its entry's key (`general~payments`); an alarm is keyed by the
- *  layer alone. */
+ *  sits under its entry's key; an alarm is keyed by the layer alone. */
 export function cubeAlarmKey(layerKey: string, serviceName: string): string {
-  return alarmKey(layerKey.split('~', 1)[0]!, serviceName);
+  return alarmKey(parseEntryKey(layerKey).layer, serviceName);
 }
 const error = ref<string | null>(null);
 let timer: ReturnType<typeof setInterval> | null = null;

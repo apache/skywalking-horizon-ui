@@ -38,12 +38,6 @@ describe('layerMissingReason', () => {
     expect(layerMissingReason([differing], 'general')).toBe('duplicated');
   });
 
-  it('reads a split-by-service-group key as its base layer', () => {
-    // The sidebar key for a split layer is `<key>~<group>`; the template name
-    // is the layer alone, so a bookmarked group entry must resolve the same.
-    expect(layerMissingReason([differing], 'general~agent')).toBe('duplicated');
-  });
-
   it('does not claim duplication for a byte-identical duplicate', () => {
     // Those layers stay in the menu, so a missing one went missing for some
     // other reason (admin-disabled, config-excluded, unknown key).

@@ -45,7 +45,7 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 |---|---|---|---|
 | `key` | string (UPPER_SNAKE) | **required** | Matches the OAP layer enum. The filename is the lowercased key. |
 | `alias` | string | OAP-reported name | Display name in the sidebar and page headers. |
-| `splitByServiceGroup` | boolean | `false` | Split this layer into one sidebar entry per OAP service group (the `<group>::` prefix), each scoped to that group. Off keeps a single combined entry. Toggled in the admin right after **Alias**. Splitting only arranges the sidebar; to limit who reads a group, grant it — see [Limiting a verb to layers and service groups](../access-control/rbac.md#limiting-a-verb-to-layers-and-service-groups). |
+| `splitByServiceGroup` | boolean | `false` | Split this layer into one sidebar entry per OAP service group (the `<group>::` prefix), each scoped to that group. A group's pages are at `/layer/<key>/<group>/…`; the services whose names have no group share one entry named after the layer, at the layer's own URLs, `/layer/<key>/…`. A reader with no such entry — the layer has no ungrouped services, or the role's grant does not reach them — who opens the layer's own URL is taken to the same page of their first group entry. Off keeps a single combined entry. Toggled in the admin right after **Alias**. Turning the option on or off moves these addresses, so links saved before point elsewhere. Splitting only arranges the sidebar; to limit who reads a group, grant it — see [Limiting a verb to layers and service groups](../access-control/rbac.md#limiting-a-verb-to-layers-and-service-groups). |
 | `group` | string | — | Sidebar grouping label. Layers sharing a `group` collapse together. |
 | `visibility` | `public` \| `operate` | `public` | Section placement. `operate` puts the layer under the Operate group. |
 | `color` | string | `var(--sw-accent)` | Hex or CSS variable for the layer's accent. |
@@ -288,7 +288,7 @@ Adding widgets works exactly as it does on the default page — the canvas edits
 
 A few rules the editor enforces as you type:
 
-- A page's **id** is derived from its name and may not collide with a built-in tab (`topology`, `pprof`, `zipkin-trace`, …), because pages and tabs share a URL space. The name itself is never refused: calling a page "Topology" simply gives it the id `topology-2`.
+- A page's **id** is derived from its name. Any name is allowed, a tab's included: a page lives at `/layer/<key>/<component>/page/<id>`, apart from the tabs.
 - A page is created with a **name** and an **id**. The id is proposed from the name and can be edited before the page is added — after that it is fixed. It is the page's URL segment, its entry in a custom menu order, and the key its translations are stored under, so renaming the page later never moves it. An id is at most 48 characters and a name at most 64. The id is shown again on the **Menu key** line when the entry is selected in the Setup tab's menu preview.
 - Two pages of one component may share a display name; they are told apart by their ids.
 - A widget id must be unique across **all** pages of one component. The editor mints ids for you, so this only matters when importing a template by hand.
@@ -365,7 +365,7 @@ The layer header's KPIs and its service count stay layer-wide either way; the pi
 }
 ```
 
-`id` is the URL segment (`/layer/<key>/service/resource`) and the key translations are attached to, so it is stable across renames and reordering. `name` is translatable; `widgets` uses the same widget schema as `dashboards`.
+`id` is the URL segment (`/layer/<key>/service/page/resource`) and the key translations are attached to, so it is stable across renames and reordering. `name` is translatable; `widgets` uses the same widget schema as `dashboards`.
 
 `serviceFilter` may appear on any entity page, because all three show the service picker, and on `dashboardDefaultFilters.<scope>` — the same fields for the page that has no page object of its own. `alias` is an extension page's entity label. `instanceFilter` and `instanceAttributes` belong to Instance pages; placed on another component they are refused, because they would otherwise travel to the browser and be ignored, which reads as a filter that does not work. `op` is `exists` or `eq` (the editor labels it **equals**), an `eq` needs a value, and a page carries at most eight conditions.
 

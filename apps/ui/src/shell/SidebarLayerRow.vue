@@ -28,41 +28,42 @@ import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { firstLayerTab, isSingleFeatureLayer } from '@/shell/useLayers';
 import { layerIcon as layerIconByKey } from '@/shell/icons';
-import { useRouteActive } from '@/shell/useSidebarActive';
+import { useActiveEntry } from '@/shell/useLayerEntry';
+import { entryOf, layerPath } from '@/utils/layerRoute';
 
 const props = defineProps<{
   layer: LayerDef;
   expanded: boolean;
   variant: 'grouped' | 'ungrouped';
-  /** Layer template has local edits not yet published to OAP. */
+  /** The template OAP stores for this layer differs from the shipped one. */
   diverged?: boolean;
 }>();
 
 defineEmits<{ toggle: [key: string] }>();
 
 const { t } = useI18n({ useScope: 'global' });
-const { isActive, isActiveExact } = useRouteActive();
+const { isEntryActive, onEntryBareUrl } = useActiveEntry();
 
 const L = computed(() => props.layer);
 const single = computed(() => isSingleFeatureLayer(L.value));
 const inGroup = computed(() => props.variant === 'grouped');
 const showWarn = computed(() => Boolean(props.diverged));
-const icon = computed(() => layerIconByKey(L.value.key));
+const icon = computed(() => layerIconByKey(entryOf(L.value).layer));
 </script>
 
 <template>
   <RouterLink
     v-if="single"
-    :to="`/layer/${L.key}/${firstLayerTab(L)}`"
+    :to="layerPath(entryOf(L), firstLayerTab(L))"
     class="layer-row direct"
-    :class="{ 'in-group': inGroup, 'is-active': isActive(`/layer/${L.key}`) }"
+    :class="{ 'in-group': inGroup, 'is-active': isEntryActive(L) }"
   >
     <Icon :name="icon" />
     <span class="layer-name">{{ L.name }}</span>
     <span
       v-if="showWarn"
       class="layer-warn"
-      :title="t('Local changes not published to OAP')"
+      :title="t('The template OAP stores differs from the shipped one')"
     ><Icon name="alert" :size="11" /></span>
   </RouterLink>
   <div
@@ -71,7 +72,7 @@ const icon = computed(() => layerIconByKey(L.value.key));
     :class="{
       'in-group': inGroup,
       'is-expanded': expanded,
-      'is-active': isActiveExact(`/layer/${L.key}`),
+      'is-active': isEntryActive(L) && onEntryBareUrl,
     }"
     @click="$emit('toggle', L.key)"
   >
@@ -80,7 +81,7 @@ const icon = computed(() => layerIconByKey(L.value.key));
     <span
       v-if="showWarn"
       class="layer-warn"
-      :title="t('Local changes not published to OAP')"
+      :title="t('The template OAP stores differs from the shipped one')"
     ><Icon name="alert" :size="11" /></span>
     <span class="caret" :class="{ open: expanded }">
       <Icon name="caret" :size="10" />

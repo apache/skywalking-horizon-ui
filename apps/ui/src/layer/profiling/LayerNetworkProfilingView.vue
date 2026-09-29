@@ -34,7 +34,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
-import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
@@ -53,10 +52,11 @@ import { useNetworkProcesses } from '@/layer/profiling/useNetworkProcesses';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
 
 const { t } = useI18n();
-const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 // Preview-only: forward the draft `processTopology` block so a clicked
 // edge's metrics reflect the unpublished config.
 const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology');
@@ -251,6 +251,7 @@ watch(selectedCall, async (call) => {
           }
         : { windowMinutes: windowMinutes.value };
     const resp = await bffClient.networkProfile.relationMetrics(layerKey.value, {
+      serviceInstanceId: task?.serviceInstanceId ?? selectedInstanceId.value ?? '',
       source: endpointRef(src),
       dest: endpointRef(dst),
       ...taskWindow,

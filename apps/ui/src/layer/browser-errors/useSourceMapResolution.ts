@@ -33,7 +33,7 @@
  * nothing that disables queries could reach it.
  */
 
-import { onMounted, ref, type Ref } from 'vue';
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue';
 import type {
   BrowserErrorRow,
   ResolveResponse,
@@ -41,9 +41,12 @@ import type {
   SourceMapUsage,
 } from '@/api/client';
 import { bffClient, describeApiError } from '@/api/client';
+import { useAuthStore } from '@/state/auth';
 
 export interface SourceMapResolution {
   showMaps: Ref<boolean>;
+  /** Whether the caller may read source maps at all. */
+  mapsReadable: ComputedRef<boolean>;
   sourceMaps: Ref<SourceMapDescriptor[]>;
   usage: Ref<SourceMapUsage | null>;
   mapsEnabled: Ref<boolean>;
@@ -116,8 +119,12 @@ export function useSourceMapResolution(
       mapsBusy.value = false;
     }
   }
+  // A source map belongs to no service, so reading them needs the verb on
+  // every layer: a role limited to some services is not offered them.
+  const auth = useAuthStore();
+  const mapsReadable = computed(() => !auth.layerLimited('browser-errors:read'));
   onMounted(() => {
-    if (replay?.value) return;
+    if (replay?.value || !mapsReadable.value) return;
     void loadMaps();
   });
 
@@ -161,6 +168,7 @@ export function useSourceMapResolution(
 
   return {
     showMaps,
+    mapsReadable,
     sourceMaps,
     usage,
     mapsEnabled,

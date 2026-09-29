@@ -274,7 +274,7 @@ export function predicateService(
  */
 export function predicateKey(p: GraphPredicate): string {
   const svc = (s: PredicateService | null | undefined): string =>
-    s ? `${s.id}~${s.name}~${s.normal === null ? '' : String(s.normal)}` : '';
+    s ? JSON.stringify([s.id, s.name, s.normal]) : '';
   const focus = [...(p.focus ?? [])]
     .map(svc)
     .sort()

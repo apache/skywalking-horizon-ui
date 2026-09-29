@@ -34,6 +34,7 @@
 
 import { readonly, shallowRef } from 'vue';
 import { onSessionReset } from '@/state/sessionReset';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 const values = shallowRef<Map<string, number | null>>(new Map());
 const units = shallowRef<Map<string, string>>(new Map()); // key: layerKey upper-case
@@ -62,7 +63,7 @@ export function setValues(partial: Record<string, number | null>): void {
 }
 
 export function setUnitForLayer(layerKey: string, unit: string): void {
-  const k = layerKey.toUpperCase();
+  const k = unitKey(layerKey);
   if (units.value.get(k) === unit) return;
   const next = new Map(units.value);
   next.set(k, unit);
@@ -70,11 +71,16 @@ export function setUnitForLayer(layerKey: string, unit: string): void {
 }
 
 export function valueFor(layer: string, serviceName: string): number | null | undefined {
-  return values.value.get(`${layer.toUpperCase()}::${serviceName}`);
+  return values.value.get(`${unitKey(layer)}::${serviceName}`);
 }
 
 export function unitFor(layer: string): string {
-  return units.value.get(layer.toUpperCase()) ?? '';
+  return units.value.get(unitKey(layer)) ?? '';
+}
+
+/** A layer's unit is its whole layer's, whichever split entry asks. */
+function unitKey(layerKey: string): string {
+  return parseEntryKey(layerKey).layer.toUpperCase();
 }
 
 export function reset(): void {

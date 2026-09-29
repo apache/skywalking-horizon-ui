@@ -43,7 +43,7 @@ function jsonResponse(payload: unknown): Response {
   });
 }
 
-function fakeBff(rosterNormal: boolean | null = false) {
+function fakeBff(rosterNormal: boolean | null = false, dependency: { nodes: unknown[]; calls: unknown[]; config?: unknown } = { nodes: [], calls: [] }) {
   const urls: string[] = [];
   const fetchSpy = vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
@@ -56,9 +56,9 @@ function fakeBff(rosterNormal: boolean | null = false) {
       return jsonResponse({
         layer: 'general',
         endpointId: 'ep-1',
-        nodes: [],
-        calls: [],
-        config: { nodeMetrics: [], linkMetrics: [] },
+        nodes: dependency.nodes,
+        calls: dependency.calls,
+        config: dependency.config ?? { nodeMetrics: [], linkMetrics: [] },
         reachable: true,
         generatedAt: 0,
       });
@@ -161,5 +161,46 @@ describe('API dependency — every read carries the service pair', () => {
 
     expect(bff.to('/endpoints')).toHaveLength(0);
     expect(bff.to('/endpoint-dependency')).toHaveLength(0);
+  });
+});
+
+describe('API dependency — a call whose values were not read', () => {
+  const node = (id: string, serviceName: string, blocked: boolean) => ({
+    id, name: id, serviceId: `${serviceName}.1`, serviceName, type: null, isReal: true,
+    metrics: {}, cpm: null, respTime: null, sla: null, ...(blocked ? { metricsBlocked: true } : {}),
+  });
+  const call = (id: string, source: string, target: string, extra: Record<string, unknown>) => ({
+    id, source, target, detectPoints: ['SERVER'], metrics: {}, metricSeries: {}, cpm: null, respTime: null, ...extra,
+  });
+
+  it('says blocked on the edge and in its panel, instead of a value', async () => {
+    const bff = fakeBff(false, {
+      nodes: [node('ep-1', SERVICE_NAME, false), node('ep-2', 'risk::scorer', true), node('ep-3', 'risk::ledger', true)],
+      calls: [
+        call('c-open', 'ep-1', 'ep-2', { metrics: { cpm: 12 }, cpm: 12 }),
+        call('c-blocked', 'ep-2', 'ep-3', { metricsBlocked: true }),
+      ],
+      config: { nodeMetrics: [], linkMetrics: [{ id: 'cpm', label: 'Load', mqe: 'endpoint_relation_cpm', role: 'lineServer' }] },
+    });
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    useLayerSelectionStore().setService(SERVICE_ID);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const wrapper = mount(LayerEndpointDependencyView, {
+      props: { layerKey: 'general' },
+      global: { plugins: [pinia, router, i18n, [VueQueryPlugin, { queryClient }]] },
+    });
+    await flushPromises();
+    await flushPromises();
+
+    const edges = wrapper.findAll('g.ep-edge');
+    expect(edges).toHaveLength(2);
+    const [open, blocked] = edges;
+    expect(open!.text()).toContain('12');
+    expect(blocked!.find('title').text()).toBe('Load: blocked');
+    expect(blocked!.find('rect').exists()).toBe(true);
+    expect(blocked!.text()).not.toContain('—');
+
+    await blocked!.trigger('click');
+    expect(wrapper.find('.ep-detail').text()).toContain('Metrics blocked: your role reads neither end of this call.');
   });
 });

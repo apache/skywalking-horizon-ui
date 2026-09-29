@@ -55,17 +55,18 @@ import { useI18n } from 'vue-i18n';
 import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
 import { tracesInclude } from '@skywalking-horizon-ui/api-client';
 import { refusalText } from '@/api/permissionDenied';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 const auth = useAuthStore();
 
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
-// Scope comes from the matched route record, not from the URL text. The
-// previous rule tested whether the path ENDED WITH a known segment, which
-// a page id breaks: `/layer/K/instance/runtime` ends with neither, so it
-// resolved `service` and would have queried Service-scope metrics on an
-// Instance page — a grid that renders and is wrong.
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
+// Scope comes from the matched route record, not from the URL text: a page
+// id or a group can sit where a component name would, and a wrong scope
+// renders a grid of the wrong entity's metrics without any error.
 const scope = computed<string>(() => String(route.meta.dashboardScope ?? 'service'));
 // Absent on the component's default grid, set on an extension page. The
 // distinction is the route shape, so it needs no separate flag.
@@ -80,7 +81,7 @@ const { layers } = useLayers();
 // An exact match dropped the layer entirely there — taking the page name,
 // the slot aliases and the seeded filter with it.
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key.toLowerCase() === layerKey.value.toLowerCase()) ?? null,
+  () => findEntry(layers.value, layerKey.value),
 );
 
 const store = useSetupStore();
@@ -556,7 +557,7 @@ function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
 }
 function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
   return (
-    layerKey.value.toUpperCase() === 'VIRTUAL_GENAI' &&
+    parseEntryKey(layerKey.value).layer.toUpperCase() === 'VIRTUAL_GENAI' &&
     layer.value?.caps?.evaluationRecord === true &&
     auth.hasVerbOnLayer('logs:read', layerKey.value) &&
     scope.value === 'instance' &&
@@ -615,7 +616,7 @@ function onDrillPoint(
     drill.value = {
       widgetId: w.id,
       point: { x: p.x, y: p.y },
-      path: `/layer/${layerKey.value}/evaluation-record`,
+      path: layerPath(parseEntryKey(layerKey.value), 'evaluation-record'),
       query: {
         providerId: selectedId.value!,
         modelId: effectiveInstanceId.value!,
@@ -645,7 +646,7 @@ function onDrillPoint(
   drill.value = {
     widgetId: w.id,
     point: { x: p.x, y: p.y },
-    path: `/layer/${layerKey.value}/trace`,
+    path: layerPath(parseEntryKey(layerKey.value), 'trace'),
     query,
     title: w.title,
     meta:
@@ -760,7 +761,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
     <div v-if="pageNotFound" class="page-missing">
       <strong>{{ t('Page not found.') }}</strong>
       <p>{{ t('This layer has no page with that name. It may have been renamed or removed.') }}</p>
-      <RouterLink class="sw-btn xs" :to="`/layer/${layerKey}/${scope}`">
+      <RouterLink class="sw-btn xs" :to="layerPath(parseEntryKey(layerKey), scope)">
         {{ t('Go to {component}', { component: scopeFallbackLabel }) }}
       </RouterLink>
     </div>

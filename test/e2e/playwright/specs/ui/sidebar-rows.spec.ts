@@ -40,7 +40,7 @@ async function renderedRows(page: import('@playwright/test').Page, layer: string
 }
 
 /**
- * Row paths the BFF resolved, read through the runner rather than from
+ * Row addresses the BFF resolved, read through the runner rather than from
  * inside the page — a spec that fetches in `page.evaluate` is testing its
  * own JavaScript and inherits the page's CSP.
  *
@@ -56,7 +56,8 @@ async function servedRows(api: import('@playwright/test').APIRequestContext, lay
   const body = (await res.json()) as {
     layers: Array<{ key: string; menuRows?: Array<{ path: string }> }>;
   };
-  return (body.layers.find((x) => x.key === layer)?.menuRows ?? []).map((r) => r.path);
+  // A sub page, `service/<id>` in the menu, has the address `service/page/<id>`.
+  return (body.layers.find((x) => x.key === layer)?.menuRows ?? []).map((r) => r.path.replace('/', '/page/'));
 }
 
 test('the sidebar renders exactly the rows the BFF resolved', async ({ page, request: api, pageErrors }) => {

@@ -28,6 +28,7 @@
  */
 
 import fallbackJson from '../data/fallback-topology.json';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 export interface MapLayer {
   key: string;
@@ -177,6 +178,10 @@ export interface SceneGraph {
   crossLayerEdges: SceneCrossLayerEdge[];
 }
 
+function layerServiceKey(layerKey: string, serviceId: string): string {
+  return `${parseEntryKey(layerKey).layer}::${serviceId}`;
+}
+
 function nodeKey(layerKey: string, serviceId: string): string {
   return `${layerKey.toUpperCase()}::${serviceId}`;
 }
@@ -282,7 +287,7 @@ export function buildSceneGraph(
       // Guard: a degenerate "cross-layer" where both sides resolve
       // to the SAME layer (can happen if an external service id
       // collides with a local one) collapses to intra-layer.
-      if (sourceLayer.toUpperCase() === targetLayer.toUpperCase()) continue;
+      if (sourceLayer === targetLayer) continue;
       const fromNodeId = nodeKey(sourceLayer, c.source);
       const toNodeId = nodeKey(targetLayer, c.target);
       if (!nodesByKey.has(fromNodeId) || !nodesByKey.has(toNodeId)) continue;
@@ -302,16 +307,22 @@ export function buildSceneGraph(
 
   // Cross-layer hierarchy edges. Anchored at level-3 services in the
   // snapshot. We drop self-edges and dedupe undirected pairs.
+  // OAP names a peer by its layer; on a layer split by service group the
+  // service's cube sits under its group's entry, so ends are found by layer
+  // and service id.
+  const byLayerService = new Map<string, string>();
+  for (const L of layers) for (const n of L.nodes) byLayerService.set(layerServiceKey(n.layerKey, n.serviceId), n.nodeId);
   const seen = new Set<string>();
   const edges: SceneHierarchyEdge[] = [];
   for (const h of topo.hierarchy) {
-    const from = nodeKey(h.fromLayer, h.fromService.id);
-    if (!nodesByKey.has(from)) continue;
+    const from = byLayerService.get(layerServiceKey(h.fromLayer, h.fromService.id));
+    if (!from) continue;
+    const fromLayer = parseEntryKey(h.fromLayer).layer;
     for (const p of h.peers) {
-      if (p.layer.toUpperCase() === h.fromLayer.toUpperCase()) continue;
+      if (parseEntryKey(p.layer).layer === fromLayer) continue;
       for (const s of p.services) {
-        const to = nodeKey(p.layer, s.id);
-        if (!nodesByKey.has(to)) continue;
+        const to = byLayerService.get(layerServiceKey(p.layer, s.id));
+        if (!to) continue;
         const sig = `${from}|${to}`;
         const rev = `${to}|${from}`;
         if (seen.has(sig) || seen.has(rev)) continue;

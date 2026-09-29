@@ -149,8 +149,10 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
     analyzeTrees.value = [];
     analyzeTip.value = '';
     schedulesError.value = null;
+    const svc = service.value;
+    if (!svc) return;
     try {
-      const resp = await bffClient.ebpf.schedules(t.taskId);
+      const resp = await bffClient.ebpf.schedules(layerKey.value, svc, t.taskId);
       // Rapid task clicks race here.
       if (generation !== schedulesRequestGeneration) return;
       if (!resp.reachable && resp.error) schedulesError.value = resp.error;
@@ -227,11 +229,14 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
         merged.push({ ...r });
       }
     }
+    const svc = service.value;
+    const task = currentTask.value;
+    if (!svc || !task) return;
     const generation = (analyzeRequestGeneration += 1);
     analyzeLoading.value = true;
     analyzeTip.value = '';
     try {
-      const resp = await bffClient.ebpf.analyze({
+      const resp = await bffClient.ebpf.analyze(layerKey.value, svc, task.taskId, {
         scheduleIdList: matching.map((sc) => sc.scheduleId),
         timeRanges: merged,
         aggregateType: aggregateType.value,

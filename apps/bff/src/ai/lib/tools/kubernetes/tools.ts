@@ -45,7 +45,7 @@ import type { PodLogLine } from '../../graphic-card.js';
 import { graphqlPost } from '../../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../../util/window.js';
 import { toolPrompt } from '../../skills/loader.js';
-import { holds, inexact, refusal } from '../access.js';
+import { holds, inexact, layerRefusal, refusal } from '../access.js';
 
 const DEFAULT_WINDOW_SEC = 120; // 2m trailing look-back for the agent's read
 const MAX_WINDOW_SEC = 30 * 60; // 30m — same ceiling as the Pod Logs tab
@@ -156,6 +156,8 @@ export function kubernetesTools(ctx: ToolContext): StructuredToolInterface[] {
   const fetchLogs = tool(
     async (input): Promise<string> => {
       if (!holds(ctx, 'logs:read')) return denied();
+      const offLayer = input.layer ? layerRefusal(ctx, 'logs:read', input.layer) : null;
+      if (offLayer) return offLayer;
       const { serviceInstanceId } = input;
       const bad = inexact(serviceInstanceId, 'the instance id', 'kb_resolve_scope_drill');
       if (bad) return bad;

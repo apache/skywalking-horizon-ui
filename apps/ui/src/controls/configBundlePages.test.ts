@@ -128,6 +128,30 @@ describe('getDashboardConfig — extension pages', () => {
     }
   });
 
+  // A split layer's group entries all show the layer's one template, so a
+  // group entry's key finds the layer's draft.
+  it('answers a split layer\'s group entry from the layer\'s draft', async () => {
+    const override = usePreviewOverride();
+    override.set('horizon.layer.CUSTOM_MQ', {
+      key: 'CUSTOM_MQ',
+      dashboardExtPages: { service: [{ id: 'kept', name: 'Kept', widgets: [w('k-a')] }] },
+    });
+    setPreviewMode(true, 'remote');
+    try {
+      expect(getDashboardConfig('custom_mq/payments', 'service', 'kept')?.map((x) => x.id)).toEqual(['k-a']);
+      expect(getDashboardConfig('custom_mq/', 'service', 'kept')?.map((x) => x.id)).toEqual(['k-a']);
+    } finally {
+      setPreviewMode(false);
+      override.clear('horizon.layer.CUSTOM_MQ');
+    }
+  });
+
+  it('answers a split layer\'s group entry from the layer\'s published template', () => {
+    expect(getDashboardConfig('custom_mq/payments', 'service')?.map((x) => x.id)).toEqual(['svc-default']);
+    expect(getDashboardConfig('custom_mq/', 'service', 'resource')?.map((x) => x.id)).toEqual(['res-a', 'res-b']);
+    expect(getDashboardConfig('custom_mq/a%2Fb', 'instance', 'runtime')?.map((x) => x.id)).toEqual(['rt-a']);
+  });
+
   it('reads a bundle with no layerExtPages block without throwing', async () => {
     await load({ ...BUNDLE, layerExtPages: undefined });
     expect(getDashboardConfig('custom_mq', 'service')?.map((x) => x.id)).toEqual(['svc-default']);

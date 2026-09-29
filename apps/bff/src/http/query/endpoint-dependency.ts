@@ -143,7 +143,7 @@ export function registerEndpointDependencyRoute(
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg: req.access ? await req.access.graphConfig(['topology:read'], [service.id], epCfg) : epCfg,
+        cfg: epCfg,
         layerKey,
         service,
         endpointArg,

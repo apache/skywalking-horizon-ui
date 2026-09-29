@@ -66,7 +66,7 @@ import { formatAlarmEntity } from '@/utils/alarmEntity';
 import {
   alarmIncidentKey,
   alarmLayerKeys,
-  alarmOwnerKeys,
+  alarmOwners,
   mergeIncidents,
   type AlarmIncident,
 } from '@/utils/alarmIncidents';
@@ -321,7 +321,7 @@ function stateBadgeClass(inc: AlarmIncident): string {
  *  recovered pattern is fully visible. */
 const timelineAlarms = computed<AlarmMessage[]>(() => {
   if (!chipLayer.value) return alarms.value;
-  return alarms.value.filter((a) => inChip({ layerKeys: alarmLayerKeys(a), ownerKeys: alarmOwnerKeys(a) }));
+  return alarms.value.filter((a) => inChip({ layerKeys: alarmLayerKeys(a), owners: alarmOwners(a) }));
 });
 
 const selectedAlarm = computed<AlarmMessage | null>(() => {

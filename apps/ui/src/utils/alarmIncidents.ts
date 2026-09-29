@@ -35,7 +35,7 @@
  *     `recoveryTime` is null, else `recovered`. The state of earlier
  *     entries doesn't matter; only the tail decides.
  *   - Latest entry's `message` / `name` / `scope` / `layerKeys` /
- *     `ownerKeys` / `tags` / `snapshot` represent the incident — those are what
+ *     `owners` / `tags` / `snapshot` represent the incident — those are what
  *     the operator sees in the row.
  *
  * Count semantics (per the spec):
@@ -49,6 +49,7 @@
  */
 
 import type { AlarmMessage } from '@/api/client';
+import type { AlarmOwner } from '@skywalking-horizon-ui/api-client';
 
 export function alarmIncidentKey(m: Pick<AlarmMessage, 'scope' | 'id' | 'name'> & { snapshot?: { expression?: string } | null }): string {
   return [m.scope ?? '', m.id, m.name, m.snapshot?.expression ?? ''].join('|');
@@ -60,10 +61,10 @@ export function alarmLayerKeys(m: Pick<AlarmMessage, 'layerKey'> & { layerKeys?:
   return m.layerKeys ?? (m.layerKey ? [m.layerKey] : []);
 }
 
-/** The `LAYER~group` pairs of the services an alarm concerns; empty for a row
+/** The layer and group of each service an alarm concerns; empty for a row
  *  from a BFF that sent none, which then matches no pin with groups. */
-export function alarmOwnerKeys(m: { ownerKeys?: string[] }): string[] {
-  return m.ownerKeys ?? [];
+export function alarmOwners(m: { owners?: AlarmOwner[] }): AlarmOwner[] {
+  return m.owners ?? [];
 }
 
 export type AlarmIncidentState = 'firing' | 'recovered' | 'unstable';
@@ -93,8 +94,8 @@ export interface AlarmIncident {
   recoveredCount: number;
   /** The latest event's layers (the BFF's tag; empty = in no known layer). */
   layerKeys: string[];
-  /** The latest event's layer-and-group pairs — see `AlarmMessage.ownerKeys`. */
-  ownerKeys: string[];
+  /** The latest event's layers and groups — see `AlarmMessage.owners`. */
+  owners: AlarmOwner[];
 }
 
 export function mergeIncidents(events: AlarmMessage[]): AlarmIncident[] {
@@ -130,7 +131,7 @@ export function mergeIncidents(events: AlarmMessage[]): AlarmIncident[] {
       triggerCount: arr.length,
       recoveredCount,
       layerKeys: alarmLayerKeys(latest),
-      ownerKeys: alarmOwnerKeys(latest),
+      owners: alarmOwners(latest),
     });
   }
   /* Stable display order — most-recent latest event first. */
@@ -176,7 +177,7 @@ export function splitForList(events: AlarmMessage[]): AlarmIncident[] {
       triggerCount: 1,
       recoveredCount: 0,
       layerKeys: alarmLayerKeys(e),
-      ownerKeys: alarmOwnerKeys(e),
+      owners: alarmOwners(e),
     });
   }
 
@@ -207,7 +208,7 @@ export function splitForList(events: AlarmMessage[]): AlarmIncident[] {
       triggerCount: arr.length,
       recoveredCount: arr.length,
       layerKeys: alarmLayerKeys(latest),
-      ownerKeys: alarmOwnerKeys(latest),
+      owners: alarmOwners(latest),
     });
   }
 

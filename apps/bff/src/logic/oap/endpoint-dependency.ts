@@ -39,6 +39,8 @@ import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe } from './topology-mqe.js';
 import { entityServiceName } from '../services/service-identity.js';
+import type { GraphChecks } from '../../rbac/request-access.js';
+import { graphAccess, type GraphOwner } from './graph-access.js';
 
 interface OapEpNode {
   id: string;
@@ -188,15 +190,14 @@ export interface BuildEndpointDependencyInput {
   service: { id: string; name: string; normal: boolean };
   /** Endpoint NAME or id — resolved to an endpointId that PINS the chain. */
   endpointArg: string;
-  /** Of the services the graph's endpoints belong to, the ones whose values
-   *  the caller may see; absent when it may see every one. The others'
-   *  endpoints are drawn without metrics, and a call keeps its values when
-   *  the caller reads either end. */
-  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
+  /** What the caller may read of the services the endpoints belong to
+   *  (graph-access.ts); absent when it may read every one. */
+  readableOf?: GraphChecks['readableOf'];
+  namesReadableOf?: GraphChecks['namesReadableOf'];
 }
 
 export async function buildEndpointDependency(input: BuildEndpointDependencyInput): Promise<EndpointDependencyResponse> {
-  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg, readableOf } = input;
+  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg, readableOf, namesReadableOf } = input;
   const serviceId = service.id;
   const serviceArg = service.name;
   // The id carries the flag (`.1` real, `.0` conjectured) and is what was
@@ -242,12 +243,26 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
     return emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, endpointId, epCfg, false, err instanceof Error ? err.message : String(err));
   }
 
-  const readable = readableOf ? await readableOf([...new Set(graph.nodes.map((n) => n.serviceId))]) : null;
-  const withheld = (n: { serviceId: string } | undefined): boolean => readable !== null && (!n || !readable.has(n.serviceId));
-  const blocked = (n: { isReal: boolean; name: string; serviceId: string }): boolean =>
-    n.isReal && n.name !== 'User' && withheld(n);
+  const linkMetrics = epCfg.linkMetrics ?? [];
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  // A synthetic source (`User`) carries no service: it is read by that name.
+  const owner = (n: { serviceId: string; serviceName: string } | undefined): GraphOwner => ({
+    id: n?.serviceId ?? '',
+    name: n?.serviceName || 'User',
+  });
+  const measured = (n: { isReal: boolean; name: string }): boolean => n.isReal && n.name !== 'User';
+  const access = await graphAccess({
+    opts,
+    checks: { ...(readableOf ? { readableOf } : {}), ...(namesReadableOf ? { namesReadableOf } : {}) },
+    nodes: graph.nodes.filter(measured).map(owner),
+    calls: graph.calls.map((c) => ({ source: owner(nodeById.get(c.source)), target: owner(nodeById.get(c.target)) })),
+    nodeMqe: epCfg.nodeMetrics.map((m) => m.mqe),
+    callMqe: linkMetrics.map((m) => m.mqe),
+  });
+  const markOf = (n: { isReal: boolean; name: string; serviceId: string; serviceName: string }) =>
+    measured(n) ? access.mark(owner(n)) : {};
   const realNodes = graph.nodes.filter(
-    (n) => n.isReal && n.serviceName && n.name && n.name !== 'User' && !withheld(n),
+    (n) => n.isReal && n.serviceName && n.name && n.name !== 'User' && !access.withheld(owner(n)),
   );
   // Per-node + per-edge MQE. Build both fragment families, then fan them
   // out concurrently (disjoint OAP entities + result maps); each chunks
@@ -263,6 +278,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       const isFocus = n.serviceId === serviceId;
       const useNormal = isFocus ? normal : true;
       epCfg.nodeMetrics.forEach((m, j) => {
+        if (!access.runsOnNode(m.mqe, owner(n))) return;
         const alias = `e${i}_${j}`;
         nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
         nodeFragments.push(endpointFragment(alias, m, n.serviceName, n.name, useNormal, window, coldStage));
@@ -281,14 +297,10 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
   // still produce server-side numbers). When the source is
   // virtual we use a synthetic source service name and
   // `sourceNormal: false`, which is what booster does too.
-  const linkMetrics = epCfg.linkMetrics ?? [];
   const realEndpointMap = new Map(realNodes.map((n) => [n.id, n]));
-  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
-  const callOpen = (c: { source: string; target: string }): boolean =>
-    !withheld(nodeById.get(c.source)) || !withheld(nodeById.get(c.target));
   const candidateEdges = graph.calls.filter((c) => {
     const dst = nodeById.get(c.target);
-    return !!dst && dst.isReal && !!dst.name && !!dst.serviceName && callOpen(c);
+    return !!dst && dst.isReal && !!dst.name && !!dst.serviceName;
   });
   const edgeAliasMap = new Map<string, { callId: string; metric: TopologyMetricDef }>();
   const edgeFragments: string[] = [];
@@ -305,6 +317,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       const srcNormal = src ? src.isReal : false;
       const dstNormal = dst.serviceId === serviceId ? normal : true;
       linkMetrics.forEach((m, j) => {
+        if (!access.runsOnCall(m.mqe, owner(src), owner(dst))) return;
         const alias = `r${i}_${j}`;
         edgeAliasMap.set(alias, { callId: c.id, metric: m });
         edgeFragments.push(
@@ -365,7 +378,8 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
     for (const def of epCfg.nodeMetrics) filled[def.id] = m[def.id] ?? null;
     // A blocked endpoint has no values because none were read, not because it
     // carried no traffic: it stays, and says so.
-    if (n.isReal && n.name !== 'User' && !hasAnyValue(filled) && !blocked(n)) continue;
+    const mark = markOf(n);
+    if (n.isReal && n.name !== 'User' && !hasAnyValue(filled) && Object.keys(mark).length === 0) continue;
     liveNodes.push({
       id: n.id,
       name: n.name,
@@ -375,7 +389,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       isReal: n.isReal,
       metrics: filled,
       ...legacyNodeView(filled),
-      ...(blocked(n) ? { metricsBlocked: true } : {}),
+      ...mark,
     });
   }
   const liveIds = new Set(liveNodes.map((n) => n.id));
@@ -398,7 +412,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       metrics: filled,
       metricSeries: filledSeries,
       ...legacyEdgeView(filled),
-      ...(callOpen(c) ? {} : { metricsBlocked: true }),
+      ...access.markCall(owner(nodeById.get(c.source)), owner(nodeById.get(c.target))),
     });
   }
 

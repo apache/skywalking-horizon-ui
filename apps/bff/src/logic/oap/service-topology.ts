@@ -38,6 +38,8 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe, nodeFragment, relationFragment } from './topology-mqe.js';
+import type { GraphChecks } from '../../rbac/request-access.js';
+import { graphAccess, type GraphOwner, type WithheldMark } from './graph-access.js';
 
 interface OapTopoNode {
   id: string;
@@ -145,15 +147,14 @@ export interface BuildServiceTopologyInput {
   /** Layer-overview only: the Service.group values the caller may read, when
    *  that is not every group. Neighbours still render as OAP returns them. */
   seedGroups?: ReadonlySet<string>;
-  /** Of the services drawn, the ones whose values the caller may see; absent
-   *  when it may see every one. The rest are drawn, but their metrics are not
-   *  read: a node keeps only its name, and a call keeps its values when the
-   *  caller reads either end. */
-  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
+  /** What the caller may read of the services drawn (graph-access.ts);
+   *  absent when it may read every one. */
+  readableOf?: GraphChecks['readableOf'];
+  namesReadableOf?: GraphChecks['namesReadableOf'];
 }
 
 export async function buildServiceTopology(input: BuildServiceTopologyInput): Promise<TopologyResponse> {
-  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group, seedGroups, readableOf } = input;
+  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group, seedGroups, readableOf, namesReadableOf } = input;
   const oapLayer = layerKey.toUpperCase();
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
@@ -231,16 +232,24 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
     } satisfies TopologyResponse;
   }
 
-  // Every service drawn is asked about at once, virtual ones included: a call
-  // is open when the caller reads either end, whatever that end is.
-  const readable = readableOf ? await readableOf([...nodes.keys()]) : null;
-  const withheld = (id: string): boolean => readable !== null && !readable.has(id);
-  const callOpen = (c: OapTopoCall): boolean => !withheld(c.source) || !withheld(c.target);
+  const linkSrv = topoCfg.linkServerMetrics ?? [];
+  const linkCli = topoCfg.linkClientMetrics ?? [];
+  const owner = (n: OapTopoNode): GraphOwner => ({ id: n.id, name: n.name });
+  const drawnCalls = [...calls.values()].filter((c) => nodes.has(c.source) && nodes.has(c.target));
+  const access = await graphAccess({
+    opts,
+    checks: { ...(readableOf ? { readableOf } : {}), ...(namesReadableOf ? { namesReadableOf } : {}) },
+    nodes: [...nodes.values()].filter((n) => n.isReal).map(owner),
+    calls: drawnCalls.map((c) => ({ source: owner(nodes.get(c.source)!), target: owner(nodes.get(c.target)!) })),
+    nodeMqe: topoCfg.nodeMetrics.map((m) => m.mqe),
+    callMqe: [...linkSrv, ...linkCli].map((m) => m.mqe),
+  });
+  const callMark = (c: OapTopoCall): WithheldMark => access.markCall(owner(nodes.get(c.source)!), owner(nodes.get(c.target)!));
 
   // ── Per-node MQE. Builds fragments off the layer's
   // `topology.nodeMetrics`. Synthetic nodes (User / external) are
   // skipped since OAP has no metrics for them.
-  const realNodes = [...nodes.values()].filter((n) => n.isReal && !withheld(n.id));
+  const realNodes = [...nodes.values()].filter((n) => n.isReal && !access.withheld(owner(n)));
   const nodeMetricVals = new Map<string, Record<string, number | null>>();
   const serverMetricVals = new Map<string, Record<string, number | null>>();
   const clientMetricVals = new Map<string, Record<string, number | null>>();
@@ -260,6 +269,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       const meta = knownServices.get(n.id);
       const normal = meta?.normal ?? true;
       topoCfg.nodeMetrics.forEach((m, j) => {
+        if (!access.runsOnNode(m.mqe, owner(n))) return;
         const alias = `n${i}_${j}`;
         nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
         nodeFragments.push(nodeFragment(alias, m, n.name, normal, window, coldStage));
@@ -277,13 +287,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
   //     works on the client side, `User → consumer` does not.
   // Filtering edges per-side keeps OAP from rejecting queries that
   // would never have data and avoids empty result rows.
-  const candidateEdges = [...calls.values()].filter((c) => {
-    const a = nodes.get(c.source);
-    const b = nodes.get(c.target);
-    return !!a && !!b && !!a.name && !!b.name && callOpen(c);
-  });
-  const linkSrv = topoCfg.linkServerMetrics ?? [];
-  const linkCli = topoCfg.linkClientMetrics ?? [];
+  const candidateEdges = drawnCalls.filter((c) => !!nodes.get(c.source)!.name && !!nodes.get(c.target)!.name);
   const edgeAliasMap = new Map<
     string,
     { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
@@ -303,6 +307,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       // Server metrics live on the DEST — fetch only when the dest is real.
       if (dst.isReal) {
         linkSrv.forEach((m, j) => {
+          if (!access.runsOnCall(m.mqe, owner(src), owner(dst))) return;
           const alias = `s${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
           edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
@@ -311,6 +316,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       // Client metrics live on the SOURCE — fetch only when the source is real.
       if (src.isReal) {
         linkCli.forEach((m, j) => {
+          if (!access.runsOnCall(m.mqe, owner(src), owner(dst))) return;
           const alias = `c${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
           edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
@@ -381,7 +387,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       layers: n.layers ?? [],
       metrics: filled,
       ...legacyNodeView(filled),
-      ...(n.isReal && withheld(n.id) ? { metricsBlocked: true } : {}),
+      ...(n.isReal ? access.mark(owner(n)) : {}),
     });
   }
   // Re-prune edges whose endpoint(s) were dropped.
@@ -415,7 +421,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       serverMetricSeries: filledSrvSeries,
       clientMetricSeries: filledCliSeries,
       ...legacyEdgeView(filledSrv, filledCli),
-      ...(callOpen(c) ? {} : { metricsBlocked: true }),
+      ...callMark(c),
     });
   }
 

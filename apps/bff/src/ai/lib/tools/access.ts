@@ -24,11 +24,19 @@
 
 import type { ToolContext } from '../tool-context.js';
 import { isExactIdentity, type ServiceRef } from '../../../rbac/request-access.js';
+import type { ServiceCatalog } from '../../../logic/services/service-layer-catalog.js';
+
+type CatalogService = NonNullable<ReturnType<ServiceCatalog['byLayer']['get']>>[number];
 
 /** The verb gate a tool opens with: held plainly, or on some layer. Which
  *  layer and which service is decided once the tool knows them. */
 export function holds(ctx: ToolContext, verb: string): boolean {
   return ctx.access ? ctx.access.session.holds(verb) : ctx.hasVerb(verb);
+}
+
+/** {@link holds} for a read the matching route takes with any of `verbs`. */
+export function holdsAny(ctx: ToolContext, verbs: readonly string[]): boolean {
+  return verbs.some((v) => holds(ctx, v));
 }
 
 /** The denial every tool answers with — the chat activity line marks a tool
@@ -45,8 +53,8 @@ export function inexact(value: string | undefined, what = 'the service', source 
 
 export type ReadDecision = 'allow' | 'deny' | 'unavailable';
 
-export async function decide(ctx: ToolContext, verb: string, ref: ServiceRef): Promise<ReadDecision> {
-  return ctx.access ? ctx.access.decide([verb], ref) : 'allow';
+export async function decide(ctx: ToolContext, verb: string | readonly string[], ref: ServiceRef): Promise<ReadDecision> {
+  return ctx.access ? ctx.access.decide(typeof verb === 'string' ? [verb] : verb, ref) : 'allow';
 }
 
 /** An OAP that could not say who owns a service is an outage, not a refusal —
@@ -66,17 +74,31 @@ export function noReadableService(verb: string, layer: string, name: string): st
   return `Permission denied: layer ${layer.toUpperCase()} has no service "${name}" the current user may read with ${verb}. list_services shows the ones it can.`;
 }
 
-/** The roster row named `name`, when the caller may read it; otherwise what
- *  the tool answers — see {@link tellsUnknownApart}. */
-export async function readableRow<T extends { id: string; name: string }>(
+/** What a tool answers when the service catalog could not be read: a missing
+ *  row is then no answer about the service, and no refusal either. */
+export function catalogUnavailable(what: string): string {
+  return `The service catalog could not be read, so ${what} cannot be looked up right now. This is not a permission problem; try again shortly.`;
+}
+
+/** Null when the caller reaches `layer` with `verb` — what the page's URL is
+ *  checked for; otherwise what the tool answers. */
+export function layerRefusal(ctx: ToolContext, verb: string, layer: string): string | null {
+  return !ctx.access || ctx.access.onLayer([verb], layer) ? null : denied(verb, `layer ${layer.toUpperCase()}`);
+}
+
+/** The roster row named `name` in `layer`, when the caller may read it on that
+ *  layer; otherwise what the tool answers — see {@link tellsUnknownApart}. */
+export async function readableRow(
   ctx: ToolContext,
   verb: string,
   layer: string,
   name: string,
-  rows: readonly T[],
-): Promise<{ row: T } | { answer: string }> {
-  const row = rows.find((s) => s.name === name);
+  cat: ServiceCatalog,
+): Promise<{ row: CatalogService } | { answer: string }> {
+  if (ctx.access && !ctx.access.onLayer([verb], layer)) return { answer: noReadableService(verb, layer, name) };
+  const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === name);
   if (!row) {
+    if (cat.unreachable) return { answer: catalogUnavailable(`service "${name}"`) };
     return {
       answer: tellsUnknownApart(ctx, verb)
         ? `Unknown service "${name}" in layer ${layer}. Use list_services first.`
@@ -89,9 +111,9 @@ export async function readableRow<T extends { id: string; name: string }>(
 }
 
 /** Null when the caller may read `ref`; otherwise what the tool answers. */
-export async function refusal(ctx: ToolContext, verb: string, ref: ServiceRef, what: string): Promise<string | null> {
+export async function refusal(ctx: ToolContext, verb: string | readonly string[], ref: ServiceRef, what: string): Promise<string | null> {
   const d = await decide(ctx, verb, ref);
-  return d === 'allow' ? null : d === 'unavailable' ? unverifiable(what) : denied(verb, what);
+  return d === 'allow' ? null : d === 'unavailable' ? unverifiable(what) : denied(typeof verb === 'string' ? verb : verb.join(' or '), what);
 }
 
 /** The graph block to draw for the caller — see `RequestAccess.graphConfig`. */
@@ -99,14 +121,14 @@ export async function graphConfig<T>(ctx: ToolContext, verb: string, focusIds: r
   return ctx.access ? ctx.access.graphConfig([verb], focusIds, cfg) : cfg;
 }
 
-/** Keep the rows of `layer` the caller may read with `verb`. */
+/** Keep the rows of `layer` the caller may read with `verb` (or any of them). */
 export function readableRows<T extends { group?: string | null }>(
   ctx: ToolContext,
-  verb: string,
+  verb: string | readonly string[],
   layer: string,
   rows: T[],
 ): T[] {
-  return ctx.access ? ctx.access.filterRoster([verb], layer, rows) : rows;
+  return ctx.access ? ctx.access.filterRoster(typeof verb === 'string' ? [verb] : verb, layer, rows) : rows;
 }
 
 /** A whole-deployment read (a store with no service scoping, alarms with no

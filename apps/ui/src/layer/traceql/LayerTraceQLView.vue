@@ -54,17 +54,20 @@ import {
   TRACE_ID_LOOKUP_MAX,
   type TraceQLSubmission,
 } from './useTraceQL';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { routeRow } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const time = useTimeRangeStore();
 
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const layerKey = computed(() => routeEntryKey.value);
 /** The row decides the store — each store has its own row. */
 const ds = computed<TraceQLDatasource>(() =>
-  /traceql-zipkin-trace/.test(route.path) ? 'zipkin'
-    : /traceql-otlp-trace/.test(route.path) ? 'otlp'
+  routeRow(route) === 'traceql-zipkin-trace' ? 'zipkin'
+    : routeRow(route) === 'traceql-otlp-trace' ? 'otlp'
       : 'native',
 );
 

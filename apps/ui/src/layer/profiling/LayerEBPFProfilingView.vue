@@ -34,7 +34,6 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -51,13 +50,15 @@ import {
   type NewEBPFTaskPayload,
 } from '@/layer/profiling/useEBPFProfiling';
 import Icon from '@/components/icons/Icon.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const { t } = useI18n();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const layerKey = computed(() => routeEntryKey.value);
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key === layerKey.value) ?? null,
+  () => findEntry(layers.value, layerKey.value) ?? null,
 );
 
 // Resolve URL-bound service id → name (same trick as the trace tab).

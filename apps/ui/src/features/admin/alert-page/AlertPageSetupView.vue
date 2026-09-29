@@ -37,6 +37,7 @@ import NewAlertPageModal from './NewAlertPageModal.vue';
 import DeleteAlertPageModal from './DeleteAlertPageModal.vue';
 import { alertRowName, pageNotServed, type AlertPageListItem, type NamedAlertPage } from './alertPages';
 import { useAlertPageEditor } from './useAlertPageEditor';
+import { entryOf } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -49,7 +50,7 @@ const ed = useAlertPageEditor(sync.readOnly);
 // group is chosen instead.
 const layersList = useLayers();
 const knownLayerKeys = computed<string[]>(() =>
-  [...new Set(layersList.layers.value.map((l) => canonicalLayerKey(l.key.split('~', 1)[0]!)))].sort(),
+  [...new Set(layersList.layers.value.map((l) => canonicalLayerKey(entryOf(l).layer)))].sort(),
 );
 
 // Read-only has two causes, and "OAP unreachable" is the wrong answer for

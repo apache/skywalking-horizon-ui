@@ -78,7 +78,7 @@ The 72 px row height is tuned for KPI tile content; widgets that need more verti
 | `id` | Unique within the dashboard. |
 | `title` | Card title (not used by `section-break` — uses `title` as the section header). |
 | `tip` | Optional one-line hover hint next to the title. |
-| `layer` | Layer key (UPPER_SNAKE). Used to scope MQE evaluation. Optional for `section-break` and `alarms` (alarms can scope server-side if the layer is set). |
+| `layer` | Layer key (UPPER_SNAKE), or one service group of a layer split by service group, written the way a role grant names it: `GENERAL[payments]`, or `GENERAL[-]` for the services with no group. A group whose name contains `,`, `[` or `]`, starts or ends with a space, or is `-` cannot be written this way, and the editor does not offer it. Used to scope MQE evaluation. Optional for `section-break` and `alarms` (alarms can scope server-side if the layer is set). |
 | `type` | One of `metric`, `topology`, `section-break`, `kpi-tile`, `alarms`, `metric-composite`, `calendar-heatmap`, or `ranking`. |
 | `span` | Column span. Defaults vary per widget type. |
 | `rowSpan` | Row span. Defaults vary per widget type. |

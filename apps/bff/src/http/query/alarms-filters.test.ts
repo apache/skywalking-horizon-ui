@@ -291,7 +291,7 @@ describe('a named page', () => {
   });
 
   it('composes with a layer filter, a keyword and a picked service', async () => {
-    const layered = await call('ops', '&page=risk&layer=GENERAL~payments', fakeOap(ROWS));
+    const layered = await call('ops', '&page=risk&layer=GENERAL[payments]', fakeOap(ROWS));
     expect(names(layered.body)).toEqual(namesOf([TO_SCORER, FROM_SCORER, INSTANCE_FROM_SCORER]));
 
     const oap = fakeOap(ROWS);
@@ -351,7 +351,7 @@ describe('a service picked alone', () => {
   it('keeps the same rows the unfiltered list counts under the service', async () => {
     const byService = await call('ops', SERVICE, fakeOap(ROWS));
     // Checkout is the only service of the payments group.
-    const byGroup = await call('ops', '&layer=GENERAL~payments', fakeOap(ROWS));
+    const byGroup = await call('ops', '&layer=GENERAL[payments]', fakeOap(ROWS));
     expect(names(byService.body)).toEqual(names(byGroup.body));
   });
 

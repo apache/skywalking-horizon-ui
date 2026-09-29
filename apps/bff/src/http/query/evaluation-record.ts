@@ -46,6 +46,7 @@ import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { readPage, type PagedQuerySpec } from '../../logic/paging/read-page.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
 
 export interface EvaluationRecordRouteDeps {
   config: ConfigSource;
@@ -338,6 +339,20 @@ interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
   traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
 }
 
+/**
+ * Each condition follows its own layer's grant. One left unselected reads
+ * every service on its side — every provider is the whole VIRTUAL_GENAI
+ * layer, every caller is every layer — so it needs that side whole; a role
+ * granted part of it must name one of its own.
+ */
+function unselectedRefusal(req: FastifyRequest, body: EvaluationRecordBody): string | null {
+  const access = req.access;
+  if (!access || access.readsEveryLayer(['logs:read'])) return null;
+  if (!body.providerId && !body.modelId && !access.onLayer(['logs:read'], 'VIRTUAL_GENAI')?.whole) return 'provider_required';
+  if (!body.serviceId && !body.service && access.layerLimited(['logs:read'])) return 'caller_required';
+  return null;
+}
+
 export function registerEvaluationRecordRoute(app: FastifyInstance, deps: EvaluationRecordRouteDeps): void {
   const auth = requireAuth(deps);
   const catalog = serviceLayerCatalog({ config: deps.config, fetch: deps.fetch });
@@ -353,7 +368,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
             readable = await req.access.keepReadable(['logs:read'], all, (s) => ({ id: s.id }));
           } catch (err) {
             if (!(err instanceof ServiceLookupUnavailable)) throw err;
-            return reply.send({ reachable: false, services: [], error: err.message });
+            return ownershipUnavailable(reply);
           }
         }
         return reply.send({
@@ -384,8 +399,14 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         });
         if ('error' in window) return reply.code(400).send({ error: window.error });
 
+        const refused = unselectedRefusal(req, body);
+        if (refused) return reply.code(403).send({ error: 'permission_denied', verb: 'logs:read', reason: refused });
         let resolvedServiceId = body.serviceId ?? null;
         if (!resolvedServiceId && body.service) {
+          // A name the catalog cannot be read to resolve is an outage, not a
+          // service that does not exist.
+          const snap = await catalog.get();
+          if (snap.unreachable && snap.byLayer.size === 0) return ownershipUnavailable(reply);
           const services = await catalog.allServices();
           const matches = services.filter((s) => s.id === body.service || s.name === body.service);
           const ids = [...new Set(matches.map((s) => s.id))];
@@ -455,8 +476,14 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           endTime: body.endTime == null ? undefined : Number(body.endTime),
         });
         if ('error' in window) return reply.code(400).send({ error: window.error });
+        const refused = unselectedRefusal(req, body);
+        if (refused) return reply.code(403).send({ error: 'permission_denied', verb: 'logs:read', reason: refused });
         let resolvedServiceId = body.serviceId ?? null;
         if (!resolvedServiceId && body.service) {
+          // A name the catalog cannot be read to resolve is an outage, not a
+          // service that does not exist.
+          const snap = await catalog.get();
+          if (snap.unreachable && snap.byLayer.size === 0) return ownershipUnavailable(reply);
           const services = await catalog.allServices();
           const matches = services.filter((s) => s.id === body.service || s.name === body.service);
           const ids = [...new Set(matches.map((s) => s.id))];

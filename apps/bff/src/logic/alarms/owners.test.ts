@@ -18,7 +18,7 @@
 import { describe, expect, it } from 'vitest';
 import { catalogIndex, serviceIdOf } from '../services/service-identity.js';
 import type { ServiceCatalog } from '../services/service-layer-catalog.js';
-import { alarmConcernsService, alarmDestinations, alarmIncidentKey, alarmLayers, alarmOwnerKeys, alarmSourceId, isRelationAlarm } from './owners.js';
+import { alarmConcernsService, alarmDestinations, alarmIncidentKey, alarmLayers, alarmOwners, alarmSourceId, isRelationAlarm } from './owners.js';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 const svc = (name: string, group = '', normal = true) => ({ id: serviceIdOf(name, normal), name, normal, group });
@@ -182,11 +182,14 @@ describe('whether an alarm concerns one service', () => {
 describe('the layer-and-group pairs an alarm belongs to', () => {
   it('pairs every layer of the owner service with its group, and an ungrouped service with none', () => {
     expect(
-      alarmOwnerKeys({ scope: 'ServiceInstance', id: `${checkout.id}_${b64('checkout-1')}`, name: 'checkout-1 of payments::checkout' }, index),
-    ).toEqual(['SO11Y_JAVA_AGENT~payments', 'GENERAL~payments']);
-    expect(alarmOwnerKeys({ scope: 'ServiceRelation', id: ledger.id, name: 'payments::ledger to localhost:3306' }, index)).toEqual([
-      'GENERAL~payments',
-      'VIRTUAL_DATABASE~',
+      alarmOwners({ scope: 'ServiceInstance', id: `${checkout.id}_${b64('checkout-1')}`, name: 'checkout-1 of payments::checkout' }, index),
+    ).toEqual([
+      { layer: 'SO11Y_JAVA_AGENT', group: 'payments' },
+      { layer: 'GENERAL', group: 'payments' },
+    ]);
+    expect(alarmOwners({ scope: 'ServiceRelation', id: ledger.id, name: 'payments::ledger to localhost:3306' }, index)).toEqual([
+      { layer: 'GENERAL', group: 'payments' },
+      { layer: 'VIRTUAL_DATABASE', group: '' },
     ]);
   });
 
@@ -202,11 +205,11 @@ describe('the layer-and-group pairs an alarm belongs to', () => {
     // Both are GENERAL, so the layer counts; their groups differ, so the
     // destination adds no pair — the one listed is the source's.
     expect(alarmLayers(m, both)).toEqual(['GENERAL']);
-    expect(alarmOwnerKeys(m, both)).toEqual(['GENERAL~payments']);
+    expect(alarmOwners(m, both)).toEqual([{ layer: 'GENERAL', group: 'payments' }]);
   });
 
   it('is empty when no end is a service the catalog knows', () => {
-    expect(alarmOwnerKeys({ scope: 'Service', id: serviceIdOf('ghost', true), name: 'ghost' }, index)).toEqual([]);
+    expect(alarmOwners({ scope: 'Service', id: serviceIdOf('ghost', true), name: 'ghost' }, index)).toEqual([]);
   });
 });
 

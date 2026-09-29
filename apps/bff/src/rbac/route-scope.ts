@@ -32,7 +32,6 @@
  */
 
 import type { FastifyRequest } from 'fastify';
-import { isExactIdentity } from './request-access.js';
 
 type Where = 'query' | 'body' | 'params';
 
@@ -61,8 +60,6 @@ export type IdSpec =
   | { entity: Field }
   /** A list of `{ name, normal }` services (the 3D map). */
   | { serviceList: Field }
-  /** `{ serviceName, normal? }` objects (process-relation ends); `normal` defaults to true. */
-  | { processEnd: Field }
   /** A service id, or when it is absent an id-or-name — the one the handler
    *  queries when a request carries both. */
   | { serviceIdElse: Field; idOrName: Field };
@@ -128,14 +125,9 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
   'POST /api/layer/:key/traces': {
     layer: true,
     ids: [{ serviceId: b('serviceId') }, { childId: b('instanceId') }, { childId: b('endpointId') }],
-    // Only the native `traceId` narrows the native query; `traceIds` is the
-    // Zipkin half's, and the native half ignores it. OAP drops a blank trace
-    // id and lists every service's traces, so only an exact one counts.
-    requireService: (req) => {
-      const body = bodyOf(req);
-      return body.source !== 'zipkin' && !(typeof body.traceId === 'string' && isExactIdentity(body.traceId));
-    },
     preview: b('previewConfig'),
+    // Which stores are read is the layer template's, which the gate cannot see.
+    handler: 'a native read naming no service, instance, endpoint or exact trace id needs the verb without a layer'
   },
   'GET /api/trace/:traceId': {},
 
@@ -152,19 +144,20 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
   },
   'GET /api/layer/:key/pod-logs/containers': { layer: true, ids: [{ childId: q('instance') }], requireService: true },
   'POST /api/layer/:key/pod-logs': { layer: true, ids: [{ childId: b('serviceInstanceId') }], requireService: true },
-  // A record is one call from an application service to a GenAI provider: the
-  // provider's owner reads all its callers, a caller's owner its own calls.
+  // A record is one call from an application service to a GenAI provider.
+  // Each condition follows its own layer's grant: a provider or caller named
+  // must be readable, and one left unselected needs its whole side.
   'POST /api/layer/:key/evaluation-records': {
     layer: true,
     fixedLayer: 'VIRTUAL_GENAI',
-    relation: evaluationEnds,
-    requireService: true,
+    ids: evaluationEnds,
+    handler: 'refuses an unselected provider or caller the grant does not cover whole',
   },
   'POST /api/layer/:key/evaluation-records/facets': {
     layer: true,
     fixedLayer: 'VIRTUAL_GENAI',
-    relation: evaluationEnds,
-    requireService: true,
+    ids: evaluationEnds,
+    handler: 'refuses an unselected provider or caller the grant does not cover whole',
   },
   'GET /api/evaluation-record/caller-services': { handler: 'keeps the services the caller may read' },
 
@@ -240,7 +233,14 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
   'POST /api/layer/:key/profile/tasks': { layer: true, ids: [{ serviceId: b('serviceId') }], requireService: true },
   'GET /api/profile/tasks/:taskId/segments': { ids: [{ taskId: p('taskId') }], requireService: true },
   'GET /api/profile/tasks/:taskId/logs': { ids: [{ taskId: p('taskId') }], requireService: true },
-  'POST /api/profile/analyze': { limitedDenied: () => 'segment_ids_name_no_service' },
+  // A segment or schedule id names no service: analysis is of a task's own,
+  // on the page's layer and the task's service.
+  'POST /api/layer/:key/profile/tasks/:taskId/analyze': {
+    layer: true,
+    ids: [{ taskId: p('taskId') }],
+    requireService: true,
+    handler: 'refuses a segment that is not one of the task\'s',
+  },
   'GET /api/layer/:key/async/tasks': { layer: true, ids: byId(q), requireService: true },
   'POST /api/layer/:key/async/tasks': {
     layer: true,
@@ -265,10 +265,20 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
   },
   'GET /api/layer/:key/ebpf/tasks': { layer: true, ids: byId(q), requireService: true },
   'POST /api/layer/:key/ebpf/tasks': { layer: true, ids: [{ serviceId: b('serviceId') }], requireService: true },
-  'GET /api/ebpf/tasks/:taskId/schedules': {
-    handler: 'keeps the schedules whose process belongs to a service the caller may read',
+  // A task is the service's it was created for: the page's layer and service
+  // decide, and the handler keeps the schedules of that service's processes.
+  'GET /api/layer/:key/ebpf/tasks/:taskId/schedules': {
+    layer: true,
+    ids: byId(q),
+    requireService: true,
+    handler: 'keeps the schedules whose process belongs to the named service',
   },
-  'POST /api/ebpf/analyze': { limitedDenied: () => 'schedule_ids_name_no_service' },
+  'POST /api/layer/:key/ebpf/tasks/:taskId/analyze': {
+    layer: true,
+    ids: [{ serviceId: b('serviceId') }],
+    requireService: true,
+    handler: 'refuses a schedule that is not one of the task\'s on the named service',
+  },
   'GET /api/layer/:key/ebpf/network/tasks': {
     layer: true,
     ids: [...byId(q), { childId: q('serviceInstance') }],
@@ -280,11 +290,12 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
   'POST /api/ebpf/network/tasks/:taskId/keep-alive': { limitedDenied: () => 'task_id_names_no_service' },
   'POST /api/layer/:key/ebpf/network/process-relation-metrics': {
     layer: true,
-    // An edge between two processes opens for a role that reads either end,
-    // as the instance map does.
-    relation: [{ processEnd: b('source') }, { processEnd: b('dest') }],
+    // The processes and their calls come from the profiling of one instance:
+    // that instance decides, and the handler keeps the pair to its calls.
+    ids: [{ childId: b('serviceInstanceId') }],
     requireService: true,
     preview: b('previewConfig'),
+    handler: 'refuses a process pair neither end of which is the profiled instance',
   },
   'GET /api/continuous-profiling/policy-summary': {
     handler: 'summarises only the services of the layer the caller may read',

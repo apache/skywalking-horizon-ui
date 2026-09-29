@@ -38,7 +38,9 @@ import { bff } from '@/api/client';
 import { AiConversationViewError } from '@/api/scopes/ai-conversation';
 import LocaleChip from '@/shell/LocaleChip.vue';
 import ThemeChip from '@/shell/ThemeChip.vue';
+import { useLayers } from '@/shell/useLayers';
 import { AVAILABLE_THEMES, useThemeStore } from '@/state/theme';
+import { layerPath } from '@/utils/layerRoute';
 import ConversationViewHost from './ConversationViewHost.vue';
 
 const route = useRoute();
@@ -108,7 +110,8 @@ async function painted(): Promise<void> {
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 }
 const title = computed(() => doc.value?.summary.title || t('(untitled)'));
-const listRoute = computed(() => ({ path: '/layer/AI_AGENT/conversations' }));
+const { entryFor } = useLayers();
+const listRoute = computed(() => ({ path: layerPath(entryFor('AI_AGENT', service.value), 'conversations') }));
 
 function describe(err: unknown): { title: string; detail: string | null } {
   if (err instanceof AiConversationViewError) {

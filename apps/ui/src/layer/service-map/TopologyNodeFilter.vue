@@ -32,6 +32,7 @@ import type { LayerDef, TopologyNode } from '@/api/client';
 import { isUserNode } from '@/layer/service-map/useTopologyIcons';
 import Icon from '@/components/icons/Icon.vue';
 import { layerIcon } from '@/shell/icons';
+import { entryLayerName, entryOf } from '@/utils/layerRoute';
 
 const props = defineProps<{
   nodes: TopologyNode[];
@@ -63,8 +64,9 @@ function titleCaseEnum(raw: string): string {
 }
 function layerLabel(token: string): string {
   if (token === OTHERS_TOKEN) return t('Others');
-  const def = props.layers.find((l) => l.key === token.toLowerCase());
-  return def?.name ?? titleCaseEnum(token);
+  // Any entry of the layer: a layer split by service group has one per group.
+  const def = props.layers.find((l) => entryOf(l).layer === token.toLowerCase());
+  return def ? entryLayerName(def) : titleCaseEnum(token);
 }
 
 interface Facet { token: string; label: string; count: number }

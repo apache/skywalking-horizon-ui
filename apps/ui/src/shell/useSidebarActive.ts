@@ -19,6 +19,8 @@ import { computed, nextTick, onMounted, ref, watch, type Ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { firstLayerTab } from '@/shell/useLayers';
+import { useActiveEntry } from '@/shell/useLayerEntry';
+import { entryOf, layerPath } from '@/utils/layerRoute';
 
 /**
  * Stateless route-active reads, shared by the sidebar shell and the
@@ -59,6 +61,7 @@ export function useRouteActive() {
 export function useSidebarActive(orderedLayers: Ref<readonly LayerDef[]>) {
   const router = useRouter();
   const { route, isActive, isActiveExact } = useRouteActive();
+  const { isEntryActive } = useActiveEntry();
 
   const expandedLayer = ref<string | null>(null);
   function toggleLayer(key: string): void {
@@ -67,10 +70,8 @@ export function useSidebarActive(orderedLayers: Ref<readonly LayerDef[]>) {
     if (!wasExpanded) {
       const L = orderedLayers.value.find((l) => l.key === key);
       if (!L) return;
-      const target = `/layer/${L.key}/${firstLayerTab(L)}`;
-      if (route.path === target) return;
-      if (route.path.startsWith(`/layer/${L.key}/`)) return;
-      void router.push(target);
+      if (isEntryActive(L)) return;
+      void router.push(layerPath(entryOf(L), firstLayerTab(L)));
     }
   }
 
@@ -100,12 +101,9 @@ export function useSidebarActive(orderedLayers: Ref<readonly LayerDef[]>) {
   // nav), not just the first paint.
   watch(
     [() => route.path, orderedLayers],
-    ([path, rows]) => {
-      const m = path.match(/^\/layer\/([^/]+)/);
-      if (m) {
-        const L = rows.find((l) => l.key.toUpperCase() === m[1]!.toUpperCase());
-        if (L) expandedLayer.value = L.key;
-      }
+    ([, rows]) => {
+      const L = rows.find((l) => isEntryActive(l));
+      if (L) expandedLayer.value = L.key;
       void scrollActiveIntoView();
     },
     { immediate: true },

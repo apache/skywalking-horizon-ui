@@ -65,6 +65,20 @@ export type Resolution =
   /** OAP could not be asked — never taken as an answer. */
   | { kind: 'unavailable' };
 
+/** What a graph builder learns of the services it drew: the ones the caller
+ *  may see the values of, and the ones OAP could not say the owner of. */
+export interface GraphReach {
+  readable: ReadonlySet<string>;
+  unavailable: ReadonlySet<string>;
+}
+
+export interface GraphChecks {
+  /** By service id. */
+  readableOf?: (ids: readonly string[]) => Promise<GraphReach>;
+  /** By service name, for a metric OAP resolves by name alone. */
+  namesReadableOf?: (names: readonly string[]) => Promise<GraphReach>;
+}
+
 /** MQE functions OAP evaluates by the service NAME alone — `baseline` looks up
  *  its prediction by name, whatever the entity's `normal` says — so they read
  *  every service the name can mean. */
@@ -213,20 +227,44 @@ export class RequestAccess {
     await this.services.prefetch(ids, this.signal);
   }
 
-  /** Of `ids`, the services the caller may read with any of `verbs`, OAP asked
-   *  at once about those the catalog lacks. One OAP could not answer about is
-   *  left out: a graph then draws it without its values. */
-  async readableIds(verbs: readonly Verb[], ids: readonly string[]): Promise<Set<string>> {
+  /** Of `ids`, the services the caller may read with any of `verbs`, and those
+   *  OAP could not say the owner of — OAP asked at once about the ids the
+   *  catalog lacks. Neither kind is read; they are told apart on screen. */
+  async readableIds(verbs: readonly Verb[], ids: readonly string[]): Promise<GraphReach> {
     await this.prefetch(ids.map((id): ServiceRef => ({ id })));
-    const out = new Set<string>();
-    for (const id of ids) if ((await this.decide(verbs, { id })) === 'allow') out.add(id);
-    return out;
+    const readable = new Set<string>();
+    const unavailable = new Set<string>();
+    for (const id of ids) {
+      const d = await this.decide(verbs, { id });
+      if (d === 'allow') readable.add(id);
+      else if (d === 'unavailable') unavailable.add(id);
+    }
+    return { readable, unavailable };
   }
 
-  /** For a graph builder: the check that tells which drawn services the
-   *  caller may see the values of — none to pass when it may see every one. */
-  graphReadable(verbs: readonly Verb[]): { readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>> } {
-    return this.readsEveryLayer(verbs) ? {} : { readableOf: (ids) => this.readableIds(verbs, ids) };
+  /** Of `names`, those every service of which the caller may read — what a
+   *  metric OAP resolves by name alone (`baseline`) needs — and those OAP could
+   *  not answer about. */
+  async readableNames(verbs: readonly Verb[], names: readonly string[]): Promise<GraphReach> {
+    const unique = [...new Set(names.map((n) => entityServiceName(n)))];
+    await this.prefetch(unique.map((name): ServiceRef => ({ name })));
+    const readable = new Set<string>();
+    const unavailable = new Set<string>();
+    for (const name of unique) {
+      const d = await this.decide(verbs, { name });
+      if (d === 'allow') readable.add(name);
+      else if (d === 'unavailable') unavailable.add(name);
+    }
+    return { readable, unavailable };
+  }
+
+  /** For a graph builder: the checks that tell which drawn services, and which
+   *  names, the caller may see the values of — none to pass when it may see
+   *  every one. */
+  graphReadable(verbs: readonly Verb[]): GraphChecks {
+    return this.readsEveryLayer(verbs)
+      ? {}
+      : { readableOf: (ids) => this.readableIds(verbs, ids), namesReadableOf: (names) => this.readableNames(verbs, names) };
   }
 
   /** May the caller read this service with any of `verbs`? A name that can
@@ -245,34 +283,33 @@ export class RequestAccess {
   }
 
   /**
-   * The graph block a caller may evaluate. A graph's metrics run for every
-   * node it draws, and a `baseline` among them reads a service by name alone —
-   * the real service and any conjectured namesake. Such metrics stay only when
-   * every name of the FOCUS services (`focusIds` the caller reads; other ends
-   * are drawn as neighbours) is readable, as MQE sends it. A layer-wide map
-   * with no focus keeps them for a caller holding the verb plainly, as before
-   * layer grants existed. Otherwise they are left out of the graph, as a
-   * refused landing column is.
+   * The graph block a caller may evaluate over the services `focusIds` — for a
+   * graph whose every metric is read for those services (a deployment, a
+   * profiled process pair). A `baseline` among them reads a service by name
+   * alone, the real service and any conjectured namesake, so such metrics stay
+   * only when every name of every focus is readable; otherwise they are left
+   * out, as a refused landing column is. The service map, instance map and API
+   * dependency graph decide this per node and per call instead
+   * (graph-access.ts). Throws {@link ServiceLookupUnavailable} when OAP could
+   * not answer: the whole block depends on it.
    */
   async graphConfig<T>(verbs: readonly Verb[], focusIds: readonly string[], cfg: T): Promise<T> {
     if (!hasNameOnlyMetric(cfg) || this.readsEveryLayer(verbs)) return cfg;
-    if (focusIds.length === 0 && !this.layerLimited(verbs)) return cfg;
-    let keep = true;
-    let checked = 0;
+    const strip = withoutNameOnlyMetrics(cfg) as T;
+    if (focusIds.length === 0) return strip;
     for (const id of focusIds) {
-      if ((await this.decide(verbs, { id })) !== 'allow') continue;
-      checked++;
       const r = await this.resolve({ id });
+      if (r.kind === 'unavailable') throw new ServiceLookupUnavailable('OAP did not answer which service a graph reads');
       // A focus OAP does not know has no name to check, but OAP still answers
       // a `baseline` for whatever name the request carries.
-      if (r.kind !== 'found') keep = false;
-      else {
-        for (const s of r.services) {
-          if ((await this.decide(verbs, { name: entityServiceName(s.name) })) !== 'allow') keep = false;
-        }
+      if (r.kind !== 'found') return strip;
+      for (const s of r.services) {
+        const d = await this.decide(verbs, { name: entityServiceName(s.name) });
+        if (d === 'unavailable') throw new ServiceLookupUnavailable('OAP did not answer which service a graph reads');
+        if (d !== 'allow') return strip;
       }
     }
-    return keep && checked > 0 ? cfg : (withoutNameOnlyMetrics(cfg) as T);
+    return cfg;
   }
 
   /** For a read that named no service: keep the rows of services the caller

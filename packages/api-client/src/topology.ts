@@ -240,6 +240,9 @@ export interface TopologyNode {
   /** Drawn because it is connected, but the caller may not read it: its
    *  metrics were not read, and the node says so rather than showing none. */
   metricsBlocked?: boolean;
+  /** OAP could not say who owns it, so its metrics were not read either — an
+   *  outage, told apart from a refusal. */
+  metricsUnavailable?: boolean;
 }
 
 export interface TopologyCall {
@@ -267,6 +270,9 @@ export interface TopologyCall {
   clientRespTime: number | null;
   /** The caller reads neither end: the call is drawn without its values. */
   metricsBlocked?: boolean;
+  /** OAP could not say who owns it, so its metrics were not read either — an
+   *  outage, told apart from a refusal. */
+  metricsUnavailable?: boolean;
 }
 
 export interface TopologyResponse {
@@ -312,6 +318,9 @@ export interface InstanceTopologyNode {
   /** The caller may not read this instance's service: its metrics were not
    *  read, and the node says so. */
   metricsBlocked?: boolean;
+  /** OAP could not say who owns it, so its metrics were not read either — an
+   *  outage, told apart from a refusal. */
+  metricsUnavailable?: boolean;
 }
 
 /** One instance-to-instance call. Same per-side metric shape as
@@ -325,6 +334,10 @@ export interface InstanceTopologyCall {
   clientMetrics: Record<string, number | null>;
   serverMetricSeries: Record<string, Array<number | null> | null>;
   clientMetricSeries: Record<string, Array<number | null> | null>;
+  /** The caller reads neither end's service: drawn without its values. */
+  metricsBlocked?: boolean;
+  /** Its values were not read because OAP did not answer a lookup they need. */
+  metricsUnavailable?: boolean;
 }
 
 /** Response of `GET /api/layer/:key/instance-topology`. The graph is the
@@ -371,6 +384,9 @@ export interface EndpointDependencyNode {
   /** The caller may not read this endpoint's service: its metrics were not
    *  read, and the node says so. */
   metricsBlocked?: boolean;
+  /** OAP could not say who owns it, so its metrics were not read either — an
+   *  outage, told apart from a refusal. */
+  metricsUnavailable?: boolean;
 }
 
 export interface EndpointDependencyCall {
@@ -391,6 +407,9 @@ export interface EndpointDependencyCall {
   /** The caller reads neither end's service: the call is drawn without its
    *  values. */
   metricsBlocked?: boolean;
+  /** OAP could not say who owns it, so its metrics were not read either — an
+   *  outage, told apart from a refusal. */
+  metricsUnavailable?: boolean;
 }
 
 export interface EndpointDependencyResponse {

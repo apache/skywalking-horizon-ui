@@ -409,7 +409,7 @@ function scopeMenu(
 ): LayerDef[] {
   if (!access) return layers;
   return layers.flatMap((l): LayerDef[] => {
-    const layerKey = l.key.split('~')[0]!;
+    const layerKey = l.key;
     if (!access.menuShows(layerKey, l.serviceGroup)) return [];
     // A layer entry is shown with all its pages or not at all; a page whose
     // data this caller cannot read answers with a refusal.
@@ -430,7 +430,7 @@ function alarmLayersFor(layers: LayerDef[], access: RequestAccess | undefined): 
   if (!access || !access.session.hasLayerGrants()) return undefined;
   const out = new Map<string, { key: string; name: string }>();
   for (const l of layers) {
-    const key = canonicalLayerKey(l.key.split('~')[0]!);
+    const key = canonicalLayerKey(l.key);
     if (l.serviceCount <= 0 || out.has(key) || !access.onLayer(['alarms:read'], key)) continue;
     // A group entry's name leads with its group.
     out.set(key, { key, name: l.serviceGroup ? l.name.replace(`${l.serviceGroup} · `, '') : l.name });
@@ -540,10 +540,9 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
           );
           // Per-group menu split — opt-in per layer via the template. One
           // level-0 entry per distinct OAP Service.group (sorted; '' =
-          // ungrouped → plain layer name). The composite `<key>~<group>`
-          // keeps sidebar identity unique while the REAL layer key stays
-          // `base.key` (so routes / the BFF still see `general`, with the
-          // group carried separately as `?group=`). Off ⇒ one combined entry.
+          // ungrouped → plain layer name). Every entry keeps the layer's key;
+          // `serviceGroup` tells a split layer's entries apart. Off ⇒ one
+          // combined entry.
           const tpl = resolveLayerTemplate(key, layerRowsByName);
           const groups = groupsByCanonical.get(key);
           if (!tpl?.splitByServiceGroup || !groups || groups.size === 0) return [base];
@@ -553,14 +552,9 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
               // The display NAME carries the group when split (`General
               // Service · agent`), so every surface — sidebar, page header,
               // landing KPI tile — reads the group, not just one sidebar
-              // tag. `serviceGroup` still carries the raw value for
-              // ordering / data scoping. The composite `<layerKey>~<group>`
-              // is the route + sidebar key; the UI api-client splits it on
-              // the first `~` into the real layer key + `?group=` for the
-              // BFF (raw group — OAP groups are service-name-shaped,
-              // URL-safe; layer keys never contain `~`).
+              // tag. `serviceGroup` carries the raw value for ordering and
+              // data scoping; its reads send it as `?group=`.
               ...base,
-              key: `${base.key}~${g}`,
               serviceGroup: g,
               // Group FIRST so the distinguishing part survives sidebar
               // truncation (`agent · General Ser…` rather than

@@ -39,7 +39,7 @@ import {
 } from './composables/useScenePlacement';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { AVAILABLE_THEMES, useThemeStore } from '@/state/theme';
-import { useInfra3dConfig } from './composables/useInfra3dConfig';
+import { configLayer, useInfra3dConfig } from './composables/useInfra3dConfig';
 import { useInfra3dLoader } from './composables/useInfra3dLoader';
 
 // The shipped logo is white-fill; a light theme gets the blue one, as the topbar does.
@@ -103,11 +103,12 @@ const ready = ref(false);
 
 // Per-layer topology-cluster rules (k8s/mesh namespace) from the live
 // layer menu — drives the 3D namespace clustering, matching the 2D
-// Service Map. Keyed upper-case to match the scene's lookup.
+// Service Map. Keyed by the upper-case layer, which the scene looks up by —
+// every entry of a split layer shares its layer's naming rule.
 const { layers: menuLayers, isLoading: menuLoading } = useLayers();
 const namingByLayer = computed<Record<string, ServiceNamingRule | null>>(() => {
   const out: Record<string, ServiceNamingRule | null> = {};
-  for (const L of menuLayers.value) out[L.key.toUpperCase()] = L.naming ?? null;
+  for (const L of menuLayers.value) out[configLayer(L.key)] = L.naming ?? null;
   return out;
 });
 // Scene builds placement once at setup from namingByLayer; if the menu

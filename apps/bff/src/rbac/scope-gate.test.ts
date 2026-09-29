@@ -113,6 +113,9 @@ async function build(fetch: FetchLike = unknownToOap): Promise<{ as: (role: keyo
   app.post('/api/mqe/exec', ok);
   app.post('/api/events', ok);
   app.post('/api/layer/:key/ebpf/network/process-relation-metrics', ok);
+  app.post('/api/layer/:key/profile/tasks/:taskId/analyze', ok);
+  app.post('/api/layer/:key/ebpf/tasks/:taskId/analyze', ok);
+  app.get('/api/layer/:key/ebpf/tasks/:taskId/schedules', ok);
   app.get('/api/menu', async (req) => ({ access: req.access !== undefined }));
   await app.ready();
   return { as: (role) => `horizon_sid=${sessions.create(role, [role]).sid}` };
@@ -263,38 +266,43 @@ describe('a group-limited grant reads its own services only', () => {
     expect(res.body.reason).toBe('layer_not_granted');
   });
 
-  it('reads an evaluation record through either end of the call', async () => {
+  it('reads an evaluation record only when every condition it names is readable', async () => {
     const { as } = await build();
     const pay = as('payGenai');
     const url = '/api/layer/virtual_genai/evaluation-records';
     expect((await call(pay, 'POST', url, { providerId: PAY.id })).status).toBe(200);
-    expect((await call(pay, 'POST', url, { providerId: RISK.id, serviceId: PAY.id })).status).toBe(200);
+    expect((await call(pay, 'POST', url, { providerId: PAY.id, serviceId: PAY.id })).status).toBe(200);
+    // Each condition follows its own grant: one end the role reads is not enough.
+    expect((await call(pay, 'POST', url, { providerId: RISK.id, serviceId: PAY.id })).status).toBe(403);
     expect((await call(pay, 'POST', url, { providerId: RISK.id })).status).toBe(403);
     // The handler queries `serviceId` and ignores `service` beside it.
-    expect((await call(pay, 'POST', url, { serviceId: RISK.id, service: PAY.name })).status).toBe(403);
-    expect((await call(pay, 'POST', url, {})).body.reason).toBe('service_required');
+    expect((await call(pay, 'POST', url, { providerId: PAY.id, serviceId: RISK.id, service: PAY.name })).status).toBe(403);
   });
 
-  it('reads a process end as the service the handler reads, normal unless it says false', async () => {
+  it('reads a network-profiling call through the profiled instance alone', async () => {
     const { as } = await build();
     const url = '/api/layer/general/ebpf/network/process-relation-metrics';
-    const end = (normal?: unknown) => ({ source: { serviceName: PAY.name, ...(normal === undefined ? {} : { normal }) } });
-    expect((await call(as('payments'), 'POST', url, end())).status).toBe(200);
-    expect((await call(as('payments'), 'POST', url, end('false'))).status).toBe(200);
-    // The conjectured namesake sits in a layer the payments role is not granted.
-    expect((await call(as('payments'), 'POST', url, end(false))).status).toBe(403);
-    // An edge opens for a role that reads either end.
-    const edge = (from: { name: string }, to: { name: string }) => ({
-      source: { serviceName: from.name, processName: 'p' },
-      dest: { serviceName: to.name, processName: 'q' },
-    });
-    expect((await call(as('payments'), 'POST', url, edge(PAY, RISK))).status).toBe(200);
-    expect((await call(as('payments'), 'POST', url, edge(RISK, PAY))).status).toBe(200);
-    expect((await call(as('payments'), 'POST', url, edge(RISK, RISK))).status).toBe(403);
-    for (const serviceName of ['', null, undefined]) {
-      const ends = { source: { serviceName, processName: 'p' }, dest: { serviceName: PAY.name, processName: 'q' } };
-      expect((await call(as('viewer'), 'POST', url, ends)).body.reason, String(serviceName)).toBe('identity_not_normalized');
-    }
+    const instance = (serviceId: string) => `${serviceId}_${Buffer.from('i-1').toString('base64')}`;
+    const pair = { source: { serviceName: RISK.name, serviceInstanceName: 'r-1', processName: 'p' }, dest: { serviceName: RISK.name, serviceInstanceName: 'r-1', processName: 'q' } };
+    // The processes' own services are not checked: the profiled instance is.
+    expect((await call(as('payments'), 'POST', url, { ...pair, serviceInstanceId: instance(PAY.id) })).status).toBe(200);
+    expect((await call(as('payments'), 'POST', url, { ...pair, serviceInstanceId: instance(RISK.id) })).status).toBe(403);
+    expect((await call(as('payments'), 'POST', url, pair)).body.reason).toBe('service_required');
+  });
+
+  it('analyzes profiling on the page\'s layer and the task\'s service', async () => {
+    const { as } = await build();
+    const trace = (task: string) => `/api/layer/general/profile/tasks/${encodeURIComponent(task)}/analyze`;
+    expect((await call(as('payments'), 'POST', trace(`1700000000000_${PAY.id}`), { queries: [] })).status).toBe(200);
+    expect((await call(as('payments'), 'POST', trace(`1700000000000_${RISK.id}`), { queries: [] })).status).toBe(403);
+    const ebpf = '/api/layer/general/ebpf/tasks/t-1/analyze';
+    expect((await call(as('payments'), 'POST', ebpf, { serviceId: PAY.id, scheduleIdList: ['s'] })).status).toBe(200);
+    expect((await call(as('payments'), 'POST', ebpf, { serviceId: RISK.id, scheduleIdList: ['s'] })).status).toBe(403);
+    expect((await call(as('payments'), 'POST', ebpf, { scheduleIdList: ['s'] })).body.reason).toBe('service_required');
+    const schedules = '/api/layer/general/ebpf/tasks/t-1/schedules';
+    expect((await call(as('payments'), 'GET', `${schedules}?${q(PAY)}`)).status).toBe(200);
+    expect((await call(as('payments'), 'GET', `${schedules}?${q(RISK)}`)).status).toBe(403);
+    expect((await call(as('payments'), 'GET', schedules)).body.reason).toBe('service_required');
   });
 
   it('attributes a profiling task to the service its id ends with', async () => {
@@ -312,12 +320,8 @@ describe('a group-limited grant reads its own services only', () => {
     const traces = (body: Record<string, unknown>) => call(as('payments'), 'POST', '/api/layer/general/traces', body);
     expect((await traces({ source: 'zipkin', service: 'any-zipkin-name' })).status).toBe(200);
     expect((await traces({ source: 'native', traceId: 't-1' })).status).toBe(200);
-    // OAP drops a blank trace id and lists every service's traces.
-    for (const traceId of [' ', '', ' t-1']) {
-      expect((await traces({ source: 'native', traceId })).body.reason, JSON.stringify(traceId)).toBe('service_required');
-    }
-    expect((await traces({ source: 'native', traceIds: ['t-1'] })).body.reason).toBe('service_required');
-    expect((await traces({ source: 'native' })).body.reason).toBe('service_required');
+    // A service the list names is checked here; a list naming none is the
+    // handler's to refuse, which knows whether the native store is read.
     expect((await traces({ source: 'native', serviceId: RISK.id })).status).toBe(403);
   });
 });

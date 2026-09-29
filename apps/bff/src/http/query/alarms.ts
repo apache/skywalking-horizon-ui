@@ -60,10 +60,10 @@
  *     (`layerKeys`, see logic/alarms/owners.ts): the owner service read
  *     from the entity id, and for a relation both ends. A row no known
  *     service owns gets none, and the UI counts it under "Other".
- *     `ownerKeys` carries the same services as `LAYER~group` pairs.
- *   - `layer` may be a split menu entry's `<LAYER>~<group>` key, which an
- *     overview widget is bound to: it keeps the rows of that group's
- *     services, by `ownerKeys`. It narrows what the caller may read; it
+ *     `owners` carries the same services as layer-and-group pairs.
+ *   - `layer` may name service groups of the layer, `GENERAL[payments]`, as
+ *     an overview widget bound to one does: it keeps the rows of that group's
+ *     services, by `owners`. It narrows what the caller may read; it
  *     grants nothing.
  *   - A caller who does not hold `alarms:read` on every layer gets only
  *     the rows of services they may read (logic/alarms/readable.ts),
@@ -84,6 +84,7 @@ import {
   alarmPinMatches,
   formatAlarmPin,
   layerFilterPin,
+  type AlarmOwner,
   type AlarmPin,
   type FetchLike,
   type UITemplateClient,
@@ -102,9 +103,8 @@ import type {
   ServiceCatalog,
   ServiceLayerCatalog,
 } from '../../logic/services/service-layer-catalog.js';
-import { readsByNameOnly } from '../../rbac/request-access.js';
-import { ServiceLookupUnavailable, catalogIndex, entityServiceName, serviceIdOf, type Index } from '../../logic/services/service-identity.js';
-import { alarmConcernsService, alarmIncidentKey, alarmLayers, alarmOwnerKeys } from '../../logic/alarms/owners.js';
+import { ServiceLookupUnavailable, catalogIndex, serviceIdOf, type Index } from '../../logic/services/service-identity.js';
+import { alarmConcernsService, alarmIncidentKey, alarmLayers, alarmOwners } from '../../logic/alarms/owners.js';
 import { namedPagePins, pinReachOf, readStoredAlarmPages } from '../../logic/alarms/pages.js';
 import { AlarmRowAccess, readsEveryAlarm, type DecidedRow } from '../../logic/alarms/readable.js';
 import { canonicalLayerKey } from '../../logic/templates/identity.js';
@@ -177,10 +177,9 @@ export interface AlarmMessage {
   layerKeys: string[];
   /** The first of `layerKeys`, for readers that take one. */
   layerKey: string | null;
-  /** The same services as `LAYER~group` pairs (`alarmOwnerKey`), a
-   *  destination the name fits to several services adding only the pairs
-   *  all of them share. */
-  ownerKeys: string[];
+  /** The layer and group of those same services, a destination the name
+   *  fits to several services adding only the pairs all of them share. */
+  owners: AlarmOwner[];
 }
 
 export interface AlarmsResponse {
@@ -355,7 +354,7 @@ function buildEntity(
 function tagWithOwners(msgsRaw: AlarmMessage[], index: Index): AlarmMessage[] {
   return msgsRaw.map((m) => {
     const layerKeys = alarmLayers(m, index);
-    return { ...m, layerKeys, layerKey: layerKeys[0] ?? null, ownerKeys: alarmOwnerKeys(m, index) };
+    return { ...m, layerKeys, layerKey: layerKeys[0] ?? null, owners: alarmOwners(m, index) };
   });
 }
 
@@ -468,6 +467,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       return raw.getAlarm?.msgs ?? [];
     };
 
+    // The schema has checked that `layer` names a pin.
     const layerPin = q.layer && !named ? layerFilterPin(q.layer, canonicalLayerKey) : null;
     const index = catalogIndex(catalog);
     // A picked service narrows which rows are listed, not who may read them:
@@ -500,24 +500,8 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       return readFailed(reply, err);
     }
 
-    // A `baseline` in the rule was looked up by the alarm entity's NAME alone,
-    // and its values ride in the snapshot: a caller limited to some groups
-    // sees them only when every service of that name is readable. Only a
-    // Service alarm's name is a service's; the others are composite.
-    const byName = (m: AlarmMessage) => readsByNameOnly([m.snapshot?.expression ?? '']);
-    if (access?.layerLimited(['alarms:read']) && tagged.some(byName)) {
-      const readable = new Map<string, boolean>();
-      const keeps = async (m: AlarmMessage): Promise<boolean> => {
-        if (m.scope !== 'Service') return false;
-        const name = entityServiceName(m.name);
-        if (!readable.has(name)) readable.set(name, (await access.decide(['alarms:read'], { name })) === 'allow');
-        return readable.get(name)!;
-      };
-      const out: typeof tagged = [];
-      for (const m of tagged) out.push(byName(m) && !(await keeps(m)) ? { ...m, snapshot: { ...m.snapshot, metrics: [] } } : m);
-      tagged = out;
-    }
-
+    // The snapshot is part of the alarm, not a metric read: a row the caller
+    // may see comes back whole, a `baseline` in its rule included.
     const body: AlarmsResponse = {
       returned: tagged.length,
       pageNum: q.pageNum,

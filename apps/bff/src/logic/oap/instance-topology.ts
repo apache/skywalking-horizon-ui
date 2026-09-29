@@ -38,6 +38,8 @@ import type { Window } from '../../util/window.js';
 import { graphqlPost, fetchAliasedChunks } from '../../client/graphql.js';
 import { type MqeShape, aggregateMqe, seriesFromMqe, instanceNodeFragment } from './topology-mqe.js';
 import { entityServiceName } from '../services/service-identity.js';
+import type { GraphChecks } from '../../rbac/request-access.js';
+import { graphAccess, type GraphOwner } from './graph-access.js';
 
 interface OapInstNode {
   id: string;
@@ -147,13 +149,14 @@ export interface BuildInstanceTopologyInput {
   layerKey: string;
   clientServiceId: string;
   serverServiceId: string;
-  /** Of the two services, the ones whose values the caller may see; absent
-   *  when it may see both. The other's instances are drawn without metrics. */
-  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
+  /** What the caller may read of the two services (graph-access.ts); absent
+   *  when it may read both. */
+  readableOf?: GraphChecks['readableOf'];
+  namesReadableOf?: GraphChecks['namesReadableOf'];
 }
 
 export async function buildInstanceTopology(input: BuildInstanceTopologyInput): Promise<InstanceTopologyResponse> {
-  const { opts, perf, window, coldStage, cfg: instCfg, layerKey, clientServiceId, serverServiceId, readableOf } = input;
+  const { opts, perf, window, coldStage, cfg: instCfg, layerKey, clientServiceId, serverServiceId, readableOf, namesReadableOf } = input;
   const oapLayer = layerKey.toUpperCase();
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
@@ -209,14 +212,25 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
   const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
   const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
 
-  const readable = readableOf ? await readableOf([clientServiceId, serverServiceId]) : null;
-  const withheld = (n: OapInstNode): boolean => readable !== null && !readable.has(n.serviceId);
-  const realNodes = nodes.filter((n) => n.isReal && !withheld(n));
+  const linkSrv = instCfg.linkServerMetrics ?? [];
+  const linkCli = instCfg.linkClientMetrics ?? [];
+  const owner = (n: OapInstNode): GraphOwner => ({ id: n.serviceId, name: n.serviceName });
+  const drawnCalls = calls.filter((c) => nodeById.has(c.source) && nodeById.has(c.target));
+  const access = await graphAccess({
+    opts,
+    checks: { ...(readableOf ? { readableOf } : {}), ...(namesReadableOf ? { namesReadableOf } : {}) },
+    nodes: nodes.filter((n) => n.isReal).map(owner),
+    calls: drawnCalls.map((c) => ({ source: owner(nodeById.get(c.source)!), target: owner(nodeById.get(c.target)!) })),
+    nodeMqe: instCfg.nodeMetrics.map((m) => m.mqe),
+    callMqe: [...linkSrv, ...linkCli].map((m) => m.mqe),
+  });
+  const realNodes = nodes.filter((n) => n.isReal && !access.withheld(owner(n)));
   const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
   const nodeFragments: string[] = [];
   if (realNodes.length > 0 && instCfg.nodeMetrics.length > 0) {
     realNodes.forEach((n, i) => {
       instCfg.nodeMetrics.forEach((m, j) => {
+        if (!access.runsOnNode(m.mqe, owner(n))) return;
         const alias = `n${i}_${j}`;
         nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
         nodeFragments.push(instanceNodeFragment(alias, m, n.serviceName, n.name, normalFor(n), window, coldStage));
@@ -226,13 +240,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
 
   // Per-edge: server + client families, per-side gate (server needs a real
   // DEST, client a real SOURCE).
-  const linkSrv = instCfg.linkServerMetrics ?? [];
-  const linkCli = instCfg.linkClientMetrics ?? [];
-  const candidateEdges = calls.filter((c) => {
-    const a = nodeById.get(c.source);
-    const b = nodeById.get(c.target);
-    return !!a && !!b && !!a.name && !!b.name;
-  });
+  const candidateEdges = drawnCalls.filter((c) => !!nodeById.get(c.source)!.name && !!nodeById.get(c.target)!.name);
   const edgeAliasMap = new Map<
     string,
     { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
@@ -246,6 +254,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
       const dstNormal = normalFor(dst);
       if (dst.isReal) {
         linkSrv.forEach((m, j) => {
+          if (!access.runsOnCall(m.mqe, owner(src), owner(dst))) return;
           const alias = `s${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
           edgeFragments.push(
@@ -255,6 +264,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
       }
       if (src.isReal) {
         linkCli.forEach((m, j) => {
+          if (!access.runsOnCall(m.mqe, owner(src), owner(dst))) return;
           const alias = `c${i}_${j}`;
           edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
           edgeFragments.push(
@@ -314,7 +324,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
       serviceName: n.serviceName,
       isReal: n.isReal,
       metrics: filled,
-      ...(n.isReal && withheld(n) ? { metricsBlocked: true } : {}),
+      ...(n.isReal ? access.mark(owner(n)) : {}),
     });
   }
   const liveNodeIds = new Set(liveNodes.map((n) => n.id));
@@ -346,6 +356,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
       clientMetrics: filledCli,
       serverMetricSeries: filledSrvSeries,
       clientMetricSeries: filledCliSeries,
+      ...access.markCall(owner(nodeById.get(c.source)!), owner(nodeById.get(c.target)!)),
     });
   }
 

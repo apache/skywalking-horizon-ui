@@ -26,9 +26,9 @@
  * which OAP formats as `<source> to <destination>`.
  */
 
-import { alarmOwnerKey } from '@skywalking-horizon-ui/api-client';
+import type { AlarmOwner } from '@skywalking-horizon-ui/api-client';
 import type { Index, ResolvedService } from '../services/service-identity.js';
-import { serviceIdOfChild } from '../services/service-identity.js';
+import { serviceIdOfChild, serviceNameOfId } from '../services/service-identity.js';
 
 export interface AlarmEntity {
   scope: string | null;
@@ -43,11 +43,6 @@ function decode(b64: string): string {
   return Buffer.from(b64, 'base64').toString('utf8');
 }
 
-/** `<base64 name>.<0|1>` → the name. */
-function serviceNameOfId(serviceId: string): string | null {
-  const dot = serviceId.lastIndexOf('.');
-  return dot > 0 ? decode(serviceId.slice(0, dot)) : null;
-}
 
 export function isRelationAlarm(m: { scope: string | null }): boolean {
   return m.scope !== null && RELATION_SCOPES.has(m.scope);
@@ -135,10 +130,14 @@ export function alarmLayers(m: AlarmEntity, index: Index): string[] {
   return ownedKeys(m, index, (s) => s.layers);
 }
 
-/** Every `LAYER~group` pair of the services an alarm belongs to, by the same
+/** Every layer and group of the services an alarm belongs to, by the same
  *  rule as {@link alarmLayers}. A pin with groups counts a row by these. */
-export function alarmOwnerKeys(m: AlarmEntity, index: Index): string[] {
-  return ownedKeys(m, index, (s) => s.layers.map((layer) => alarmOwnerKey(layer, s.group)));
+export function alarmOwners(m: AlarmEntity, index: Index): AlarmOwner[] {
+  // Keyed as a JSON pair only to dedupe them here.
+  return ownedKeys(m, index, (s) => s.layers.map((layer) => JSON.stringify([layer, s.group]))).map((k) => {
+    const [layer, group] = JSON.parse(k) as [string, string];
+    return { layer, group };
+  });
 }
 
 /** One incident per entity and rule. OAP's `id` names the entity only, and

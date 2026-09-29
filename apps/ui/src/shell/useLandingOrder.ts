@@ -18,6 +18,7 @@
 import { computed, type ComputedRef } from 'vue';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { useSetupStore } from '@/state/setup';
+import { entryOf } from '@/utils/layerRoute';
 
 /**
  * Sort layers by `landing.priority` (lower first). Ties break by the OAP
@@ -39,11 +40,10 @@ export function useLandingOrder(layers: ComputedRef<readonly LayerDef[]>) {
   const store = useSetupStore();
   return computed<LayerDef[]>(() => {
     return [...layers.value].sort((a, b) => {
-      // A split layer's group-entries carry a composite `<layer>~<group>`
-      // key; resolve priority from the BASE layer so they all land in the
-      // layer's one slot, then keep them contiguous + group-sorted.
-      const ba = a.key.split('~', 1)[0];
-      const bb = b.key.split('~', 1)[0];
+      // A split layer's group entries take the layer's priority, so they all
+      // land in its one slot, contiguous and group-sorted.
+      const ba = entryOf(a).layer;
+      const bb = entryOf(b).layer;
       const pa = store.priorityFor(ba);
       const pb = store.priorityFor(bb);
       if (pa !== pb) return pa - pb;

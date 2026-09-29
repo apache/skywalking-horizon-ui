@@ -66,7 +66,8 @@ import {
   type Window,
 } from '../../util/window.js';
 import { readsByNameOnly } from '../../rbac/request-access.js';
-import { entityServiceName } from '../../logic/services/service-identity.js';
+import { ServiceLookupUnavailable, entityServiceName } from '../../logic/services/service-identity.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
 
 export interface LandingRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -429,6 +430,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           services = services.filter((s) => ((s as { group?: string }).group ?? '') === group);
         }
       } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return ownershipUnavailable(reply);
         const body: LandingResponse = {
           layer: layerKey,
           topN: cfg.topN,

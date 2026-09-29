@@ -54,6 +54,7 @@ import {
   loadLiveHierarchy,
   type LiveWindow,
 } from './useLiveTopology';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 type Infra3dConfigApi = ReturnType<typeof useInfra3dConfig>;
 
@@ -264,7 +265,9 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
       interface FetchUnit { name: string; layer: string; normal: boolean; mqe: string; nodeKey: string }
       const units: FetchUnit[] = [];
       for (const [layerKey, nodes] of Object.entries(ctx.servicesByLayer)) {
-        const upperLayer = layerKey.toUpperCase();
+        // The config, the unit and the value are the layer's, whichever
+        // entry of a split layer the services were read under.
+        const upperLayer = parseEntryKey(layerKey).layer.toUpperCase();
         const spec = cfg.layers[upperLayer];
         if (!spec) continue;
         const mqe = spec.metric ?? spec.topology?.server ?? spec.topology?.client ?? spec.load ?? null;

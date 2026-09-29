@@ -58,6 +58,7 @@ import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vu
 import Infra3dLayerRow, { type LayerRow } from './Infra3dLayerRow.vue';
 import Modal from '@/components/primitives/Modal.vue';
 import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
+import { entryOf } from '@/utils/layerRoute';
 
 // We hydrate the Layers section from the catalog union'd with config
 // keys, so an OAP layer the admin hasn't classified yet shows up here
@@ -147,7 +148,8 @@ async function onImport(): Promise<void> {
 /** Union of OAP-reported + config-declared layer keys (canonical upper). */
 const allLayerKeys = computed<string[]>(() => {
   const s = new Set<string>();
-  for (const L of availableLayers.value ?? []) s.add(L.key.toUpperCase());
+  // By layer: a layer split by service group is one row, configured once.
+  for (const L of availableLayers.value ?? []) s.add(entryOf(L).layer.toUpperCase());
   if (draft.value) for (const k of Object.keys(draft.value.layers)) s.add(k.toUpperCase());
   return [...s].sort((a, b) => a.localeCompare(b));
 });
@@ -156,7 +158,8 @@ const layerRows = computed<LayerRow[]>(() => {
   if (!draft.value) return [];
   const oap = new Map<string, { hasTopology: boolean }>();
   for (const L of availableLayers.value ?? []) {
-    oap.set(L.key.toUpperCase(), { hasTopology: !!L.caps?.serviceMap });
+    const k = entryOf(L).layer.toUpperCase();
+    oap.set(k, { hasTopology: !!oap.get(k)?.hasTopology || !!L.caps?.serviceMap });
   }
   const keys = new Set<string>([...oap.keys(), ...Object.keys(draft.value.layers).map((k) => k.toUpperCase())]);
   const out: LayerRow[] = [];

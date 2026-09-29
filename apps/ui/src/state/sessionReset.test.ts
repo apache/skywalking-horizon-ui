@@ -331,7 +331,7 @@ describe('resetSessionState — the 3D infrastructure map', () => {
         tags: [],
         snapshot: { expression: '', metrics: [] },
         layerKeys: ['GENERAL'],
-        ownerKeys: ['GENERAL~'],
+        owners: [{ layer: 'GENERAL', group: '' }],
         layerKey: 'GENERAL',
       })),
     };

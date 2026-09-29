@@ -33,6 +33,7 @@ import { useConfigBundle } from '@/controls/configBundle';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import { usePreviewMode } from '@/controls/previewMode';
 import { useAuthStore } from '@/state/auth';
+import { entryLayerName, entryOf } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
@@ -76,8 +77,8 @@ const draftItems = computed<DraftItem[]>(() => {
     const key = rest.join('.');
     if (kind === 'layer') {
       if (!canEditLayers.value) continue;
-      const L = layers.value.find((l) => l.key.toUpperCase() === key.toUpperCase());
-      out.push({ kind, key, label: L?.name ? `${t('Layer')} · ${L.name}` : `${t('Layer')} · ${key}` });
+      const L = layers.value.find((l) => entryOf(l).layer === key.toLowerCase());
+      out.push({ kind, key, label: `${t('Layer')} · ${L ? entryLayerName(L) : key}` });
     } else if (kind === 'overview') {
       if (!canEditOverviews.value) continue;
       const ov = overviews.find((o) => o.id === key);

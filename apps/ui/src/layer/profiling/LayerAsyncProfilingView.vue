@@ -26,7 +26,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -43,10 +42,11 @@ import AsyncProfilingTaskDetailModal from '@/layer/profiling/AsyncProfilingTaskD
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
 
 const { t } = useI18n();
-const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 const { selectedId: serviceId } = useSelectedService();
 const service = useSelectedServiceRef(layerKey);
 const instances = useLayerInstances(layerKey, service);

@@ -48,13 +48,22 @@ export class EbpfApi {
       body,
     );
   }
-  schedules(taskId: string): Promise<EBPFSchedulesResponse> {
+  /** A task's schedules, of the page's layer and service — the task is the
+   *  service's it was created for. */
+  schedules(layerKey: string, service: ServiceRef, taskId: string): Promise<EBPFSchedulesResponse> {
+    const qs = new URLSearchParams({ serviceId: service.id });
     return this.bff.request<EBPFSchedulesResponse>(
       'GET',
-      `/api/ebpf/tasks/${encodeURIComponent(taskId)}/schedules`,
+      `/api/layer/${encodeURIComponent(layerKey)}/ebpf/tasks/${encodeURIComponent(taskId)}/schedules?${qs.toString()}`,
     );
   }
-  analyze(body: EBPFAnalyzeRequest): Promise<EBPFAnalyzeResponse> {
-    return this.bff.request<EBPFAnalyzeResponse>('POST', '/api/ebpf/analyze', body);
+  /** Analyze schedules of one task, on the page's layer and service: the
+   *  schedules must be the task's, on that service's processes. */
+  analyze(layerKey: string, service: ServiceRef, taskId: string, body: EBPFAnalyzeRequest): Promise<EBPFAnalyzeResponse> {
+    return this.bff.request<EBPFAnalyzeResponse>(
+      'POST',
+      `/api/layer/${encodeURIComponent(layerKey)}/ebpf/tasks/${encodeURIComponent(taskId)}/analyze`,
+      { ...body, serviceId: service.id },
+    );
   }
 }

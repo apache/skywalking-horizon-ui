@@ -20,7 +20,7 @@ Eight widget types render on overview pages. Each `widget.type` you set in a tem
 | `id` | string | Required. |
 | `title` | string | Required. Card title. |
 | `tip` | string | Optional hover hint. |
-| `layer` | string | Layer key for MQE scope. |
+| `layer` | string | Layer key for MQE scope, or one service group of it: `GENERAL[payments]` (`GENERAL[-]` for the services with no group). |
 | `mqe` | string | MQE expression. Must collapse to one scalar. |
 | `unit` | string | Unit suffix (e.g. `ms`, `%`, `rpm`). |
 | `aggregation` | `sum` \| `avg` | Window aggregation. |
@@ -60,7 +60,7 @@ Values are formatted compactly:
 | Field | Type | Notes |
 |---|---|---|
 | `id`, `title`, `tip`, `layer`, `span`, `rowSpan` | — | Common. |
-| `showCount` | boolean | If true, renders the layer's service count as a header row. Clicking it navigates to `/layer/<layer>/service`. |
+| `showCount` | boolean | If true, renders the layer's service count as a header row. Clicking it navigates to `/layer/<layer>/service`, or `/layer/<layer>/<group>/service` for a widget on one service group. |
 | `kpis` | `OverviewKpi[]` | One per row. |
 
 ### `OverviewKpi`
@@ -156,7 +156,7 @@ Otherwise it lands in the count tiles. This lets you author a Kubernetes-style s
 | Field | Type | Notes |
 |---|---|---|
 | `id`, `title`, `tip`, `span`, `rowSpan` | — | Common. |
-| `layer` | string | Optional. If set, alarms are filtered by layer (server-side on modern OAP, client-side on legacy). |
+| `layer` | string | Optional. If set, alarms are filtered by layer, or by one service group of it, `GENERAL[payments]` (server-side on modern OAP, client-side on legacy). |
 | `limit` | number | Cap on rows. Default 10. |
 
 ### Behavior

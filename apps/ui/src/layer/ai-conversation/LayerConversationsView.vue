@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import Icon from '@/components/icons/Icon.vue';
 import { computed, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { AiConversationRow, LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
@@ -36,14 +36,16 @@ import { useLayerTabService } from '@/layer/useLayerServiceName';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerConversations } from '@/layer/ai-conversation/useLayerConversations';
 import { formatDuration, timestampLabel } from '@/utils/formatters';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const layerKey = computed(() => routeEntryKey.value);
 
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const senderLabel = computed(() => layer.value?.slots.instances ?? t('Agent runtime'));
 
 // The runtime is the shell's picked service, resolved to the NAME the OAP

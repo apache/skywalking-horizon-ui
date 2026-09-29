@@ -59,7 +59,7 @@ async function draw(layer = 'GENERAL') {
   return w;
 }
 
-function firing(name: string, layerKeys: string[], ownerKeys: string[]): AlarmMessage {
+function firing(name: string, layerKeys: string[], owners: AlarmMessage['owners']): AlarmMessage {
   return {
     id: btoa(name),
     startTime: Date.now() - 60_000,
@@ -71,12 +71,12 @@ function firing(name: string, layerKeys: string[], ownerKeys: string[]): AlarmMe
     snapshot: { expression: 'rule', metrics: [] },
     layerKeys,
     layerKey: layerKeys[0] ?? null,
-    ownerKeys,
+    owners,
   };
 }
-const CHECKOUT = firing('checkout', ['GENERAL'], ['GENERAL~payments']);
-const SCORER = firing('scorer', ['GENERAL'], ['GENERAL~risk']);
-const EDGE = firing('edge', ['MESH'], ['MESH~']);
+const CHECKOUT = firing('checkout', ['GENERAL'], [{ layer: 'GENERAL', group: 'payments' }]);
+const SCORER = firing('scorer', ['GENERAL'], [{ layer: 'GENERAL', group: 'risk' }]);
+const EDGE = firing('edge', ['MESH'], [{ layer: 'MESH', group: '' }]);
 const listed = (msgs: AlarmMessage[]) => () =>
   reply(200, { returned: msgs.length, pageNum: 1, pageSize: 200, truncated: false, generatedAt: Date.now(), msgs });
 const shown = (w: Awaited<ReturnType<typeof draw>>) => w.findAll('.alarm-row .rule').map((r) => r.text());
@@ -105,21 +105,28 @@ describe('AlarmsWidget', () => {
   });
 });
 
-// A widget bound to a split menu entry names one service group of a layer.
+// A widget on one service group of a layer names it `GENERAL[payments]`.
 describe('AlarmsWidget on one service group', () => {
   it('asks the BFF for the group as written, and shows what it returns', async () => {
     alarmsReply = listed([CHECKOUT]);
-    const w = await draw('GENERAL~payments');
-    expect(alarmReads.at(-1)!.get('layer')).toBe('GENERAL~payments');
+    const w = await draw('GENERAL[payments]');
+    expect(alarmReads.at(-1)!.get('layer')).toBe('GENERAL[payments]');
     expect(shown(w)).toEqual(['checkout fired']);
   });
 
   it('narrows a legacy read, which covers every layer, to that group', async () => {
     queryAlarms = false;
     alarmsReply = listed([CHECKOUT, SCORER, EDGE]);
-    const w = await draw('general~payments');
+    const w = await draw('general[payments]');
     expect(alarmReads.every((q) => q.get('layer') === null)).toBe(true);
     expect(shown(w)).toEqual(['checkout fired']);
+  });
+
+  it('shows nothing for a layer that names no pin, rather than every layer', async () => {
+    queryAlarms = false;
+    alarmsReply = listed([CHECKOUT, SCORER, EDGE]);
+    const w = await draw('GENERAL~payments');
+    expect(shown(w)).toEqual([]);
   });
 
   it('narrows a legacy read to a whole layer by the rows\' layers', async () => {

@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { isBuiltInLayerRow } from '@skywalking-horizon-ui/api-client';
 import type { AdminExtPage } from '@/api/client';
 import { extPageIdIssue, suggestPageId, MAX_EXT_PAGES } from './useExtPages';
 import { MAX_EXT_PAGE_ID_LENGTH, MAX_EXT_PAGE_NAME_LENGTH } from '@skywalking-horizon-ui/api-client';
@@ -67,7 +66,7 @@ const takenIds = computed(() => props.pages.map((p) => p.id));
  *  `menuOrder` entry and the translation anchor, so a later rename must
  *  not move it. */
 const effectiveId = computed(() =>
-  idTouched.value ? draftId.value.trim() : suggestPageId(draftName.value, takenIds.value, isBuiltInLayerRow),
+  idTouched.value ? draftId.value.trim() : suggestPageId(draftName.value, takenIds.value),
 );
 const addIssue = computed<string | null>(() => {
   const name = draftName.value.trim();
@@ -79,9 +78,8 @@ const addIssue = computed<string | null>(() => {
   if (effectiveId.value.length > MAX_EXT_PAGE_ID_LENGTH) {
     return t('An id is at most {n} characters.', { n: MAX_EXT_PAGE_ID_LENGTH });
   }
-  const issue = extPageIdIssue(effectiveId.value, takenIds.value, isBuiltInLayerRow);
+  const issue = extPageIdIssue(effectiveId.value, takenIds.value);
   if (issue === 'duplicate') return t('That id is already used by another page.');
-  if (issue === 'reserved') return t('That id is a built-in menu entry — pick another.');
   if (issue) return t('An id uses lowercase letters, digits and dashes.');
   return null;
 });

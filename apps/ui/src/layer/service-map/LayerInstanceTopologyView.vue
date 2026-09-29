@@ -46,6 +46,8 @@ import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 // The AI chat mounts this view embedded (read-only) for a source→dest service
 // pair. The props are additive + default-off: the interactive route passes none
@@ -67,12 +69,13 @@ const props = defineProps<{
 }>();
 
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 
 const embedded = computed(() => Boolean(props.embedded));
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 // Embedded (chat) look-back window — threaded into BOTH the picker's layer-graph
 // query and the instance-topology query so the whole block owns its own frozen
@@ -83,10 +86,10 @@ const layerKey = computed(() =>
 const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
-const { layers } = useLayers();
+const { layers, entryFor } = useLayers();
 // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
 // arrive lowercased (the AI chat block passes spec.layer.toLowerCase()).
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const instanceWord = computed(() => layer.value?.slots?.instances ?? 'Instances');
 const serviceWord = computed(() => layer.value?.slots?.services ?? 'Services');
 const instanceMapLabel = computed(() => layer.value?.slots?.instanceTopology || t('Instance map'));
@@ -98,7 +101,7 @@ function backToServiceMap(): void {
   delete q.view;
   delete q.client;
   delete q.server;
-  void router.push({ path: `/layer/${layerKey.value}/topology`, query: q });
+  void router.push({ path: layerPath(parseEntryKey(layerKey.value), 'topology'), query: q });
 }
 const namingRule = computed(() => layer.value?.naming ?? null);
 function displayName(name: string | null | undefined): string {
@@ -562,7 +565,8 @@ function nodeInLayer(n: InstanceTopologyNode): boolean {
 function openInstanceDashboard(n: InstanceTopologyNode): void {
   if (!nodeInLayer(n)) return; // defensive — the button is hidden for these
   const href = router.resolve({
-    path: `/layer/${layerKey.value}/instance`,
+    // The service's own entry: an embedded view may hold the whole layer.
+    path: layerPath(entryFor(parseEntryKey(layerKey.value).layer, n.serviceName), 'instance'),
     query: { service: n.serviceId, instance: n.name },
   }).href;
   window.open(href, '_blank', 'noopener');
@@ -755,8 +759,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
                 @click.stop="selectNode(n.id)"
               >
                 <circle :r="NODE_R" class="node-bg" :stroke="ringColor(n)" :stroke-width="popoverNodeId === n.id ? 4 : 3" />
-                <text class="node-center" text-anchor="middle" :dy="n.metricsBlocked || !centerDef?.unit ? '0.36em' : '-1'">{{ n.metricsBlocked ? t('blocked') : fmtVal(nodeVal(n, centerDef), undefined, centerDef?.format, true) }}</text>
-                <text v-if="centerDef?.unit && !n.metricsBlocked" class="node-unit" text-anchor="middle" dy="12">{{ centerDef.unit }}</text>
+                <text class="node-center" text-anchor="middle" :dy="n.metricsBlocked || n.metricsUnavailable || !centerDef?.unit ? '0.36em' : '-1'">{{ n.metricsBlocked ? t('blocked') : n.metricsUnavailable ? t('unavailable') : fmtVal(nodeVal(n, centerDef), undefined, centerDef?.format, true) }}</text>
+                <text v-if="centerDef?.unit && !n.metricsBlocked && !n.metricsUnavailable" class="node-unit" text-anchor="middle" dy="12">{{ centerDef.unit }}</text>
                 <text class="node-label mono" text-anchor="middle" :y="NODE_R + 15">{{ n.name }}</text>
               </g>
             </g>
@@ -769,7 +773,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
             </header>
             <div class="np-svc mono dim">{{ displayName(popoverNode.serviceName) }}</div>
             <p v-if="popoverNode.metricsBlocked" class="np-note">{{ t('Metrics blocked: your role cannot read this service.') }}</p>
-            <dl v-else class="np-kv">
+            <p v-else-if="popoverNode.metricsUnavailable" class="np-note">{{ t('Metrics not read: OAP did not say who owns this service. Try again shortly.') }}</p>
+            <dl v-if="!popoverNode.metricsBlocked && !popoverNode.metricsUnavailable" class="np-kv">
               <template v-for="def in cfg.nodeMetrics" :key="def.id">
                 <dt>{{ def.label }}</dt>
                 <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit, def.format) }}</dd>
@@ -828,7 +833,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
           <span class="sw-tag">{{ selectedCall.detectPoints.join(' · ') || t('relation') }}</span>
         </div>
         <div class="imv-panel-body">
-          <div v-if="edgeRows.length > 0" class="ip-edge-rows">
+          <p v-if="selectedCall.metricsBlocked" class="np-note">{{ t('Metrics blocked: your role reads neither end of this call.') }}</p>
+          <p v-else-if="selectedCall.metricsUnavailable" class="np-note">{{ t('Metrics not read: OAP did not answer a lookup this call needs. Try again shortly.') }}</p>
+          <div v-else-if="edgeRows.length > 0" class="ip-edge-rows">
             <div v-for="row in edgeRows" :key="row.id" class="ip-edge-row">
               <div class="ip-edge-row-head">
                 <span class="ip-edge-row-label">{{ row.label }}<span v-if="row.unit" class="ru"> ({{ row.unit }})</span></span>

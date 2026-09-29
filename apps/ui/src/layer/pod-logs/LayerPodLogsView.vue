@@ -24,7 +24,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
 import * as monaco from 'monaco-editor';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
@@ -32,10 +31,11 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerPodLogs, WINDOW_OPTS, INTERVAL_OPTS } from './useLayerPodLogs';
 import { setupMonaco, RR_THEME_NAME } from '@/monaco/setup';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
 
 const { t } = useI18n({ useScope: 'global' });
-const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 
 // Service comes from the shell header picker; the pod list is fetched by the
 // roster row it selected — id and name together.

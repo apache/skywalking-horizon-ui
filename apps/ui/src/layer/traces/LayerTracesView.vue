@@ -74,6 +74,8 @@ import TagInput from '@/components/primitives/TagInput.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
 const props = defineProps<{
   /** Embedded (AI-chat) mode: seed the focus from props, bypass the shared
@@ -94,16 +96,17 @@ const props = defineProps<{
   replayData?: TraceListResponse | null;
 }>();
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const embedded = computed(() => Boolean(props.embedded));
 const replay = computed(() => Boolean(props.replay));
 const replayDataRef = computed<TraceListResponse | null>(() => props.replayData ?? null);
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const store = useSetupStore();
 const coldStage = useColdStageStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {

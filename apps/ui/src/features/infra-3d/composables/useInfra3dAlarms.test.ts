@@ -20,8 +20,8 @@ import { alarmKey, cubeAlarmKey } from './useInfra3dAlarms';
 describe('the key an alarm reddens a cube by', () => {
   it('finds a cube of a layer split by service group under the layer alone', () => {
     // An alarm is keyed by the plain layer; the cube by its sidebar entry.
-    expect(cubeAlarmKey('general~payments', 'payments::checkout')).toBe(alarmKey('GENERAL', 'payments::checkout'));
+    expect(cubeAlarmKey('general/payments', 'payments::checkout')).toBe(alarmKey('GENERAL', 'payments::checkout'));
     expect(cubeAlarmKey('general', 'payments::checkout')).toBe(alarmKey('GENERAL', 'payments::checkout'));
-    expect(cubeAlarmKey('general~payments', 'payments::checkout')).not.toBe(alarmKey('MESH', 'payments::checkout'));
+    expect(cubeAlarmKey('general/payments', 'payments::checkout')).not.toBe(alarmKey('MESH', 'payments::checkout'));
   });
 });

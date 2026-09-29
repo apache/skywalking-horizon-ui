@@ -30,7 +30,6 @@ import {
   SLOW_RECORD_RANGE_HOURS,
 } from '@/utils/recordTimeRange';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
 import type {
   TraceListRow,
   ZipkinSpan,
@@ -52,6 +51,7 @@ import ChipInput from '@/components/primitives/ChipInput.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
 
 // Zipkin trace data is keyed by its own service universe (the names
 // reported in span `localEndpoint.serviceName`), not by SkyWalking's
@@ -80,9 +80,9 @@ const props = defineProps<{
 const embedded = computed(() => Boolean(props.embedded));
 const replay = computed(() => Boolean(props.replay));
 
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 
 // Sentinel duration meaning "use the custom start/end instead of a preset

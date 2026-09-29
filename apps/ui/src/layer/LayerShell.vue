@@ -42,8 +42,7 @@ import { metricMeta } from '@/utils/metricCatalog';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore } from '@/controls/timeRange';
-import { isBuiltInLayerRow, FALLBACK_LAYER_ROW } from '@skywalking-horizon-ui/api-client';
-import { useLayers, firstLayerTab, layerMenuRows } from '@/shell/useLayers';
+import { useLayers } from '@/shell/useLayers';
 import { resolveTraceStores } from '@skywalking-horizon-ui/api-client';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -52,34 +51,43 @@ import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
 import { useConfigBundle } from '@/controls/configBundle';
 import { layerMissingReason, type LayerMissingReason } from './layerMissingReason';
+import { entryRedirect, rosterReadKey } from './entryRoute';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
+import { resolveEntry, routeRow } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const router = useRouter();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const layerParam = computed(() => String(route.params.layerKey ?? ''));
+const groupParam = computed(() => (typeof route.params.group === 'string' ? route.params.group : undefined));
+// What the URL names, known before the menu is: the picker's seed is keyed on
+// it, so a deep link's `?service=` survives the menu arriving.
+const urlEntry = computed(() => `${layerParam.value}/${groupParam.value ?? ''}`);
+const { layers, isLoading: layersLoading } = useLayers();
+// On a split layer a URL without a group segment is its services with no
+// group, which only the menu can tell from a layer that is not split.
+const entry = computed(() => resolveEntry(layers.value, layerParam.value, groupParam.value));
+/** The entry key the page's reads take. */
+const layerKey = computed(() => entry.value.key);
+/** The entry as its URL spells it, for the cards that name it. */
+const entryLabel = computed(() =>
+  groupParam.value === undefined ? layerParam.value : `${layerParam.value}/${entry.value.ref.group ?? groupParam.value}`,
+);
+const entryLayerLabel = computed(() => entry.value.ref.layer.toUpperCase());
 
-// Seed the selection store from the URL ONCE per (layer, scope)
-// entry. After this point the store owns the live picker state and
-// the URL stays frozen — see state/layerSelection.ts for the
-// contract. We rehydrate when the layer or scope segment of the
-// route changes so deep-linking still works for cross-layer
-// navigation. The scope segment is extracted from `/layer/<key>/<scope>`
-// without depending on the nested route's `meta` since that resolves
-// later than this watch needs.
+// Seed the selection store from the URL ONCE per entry. After this point the
+// store owns the live picker state and the URL stays frozen — see
+// state/layerSelection.ts for the contract.
 const selectionStore = useLayerSelectionStore();
-const scopeSegment = computed<string>(() => {
-  const m = route.path.match(/^\/layer\/[^/]+\/([^/?]+)/);
-  return m ? m[1] : 'service';
-});
-// Reset the picker state on LAYER change only. Scope/tab navigation
-// within the same layer keeps the operator's pick sticky — they
-// browse every tab against the service they chose. On a real layer
-// change `resetForLayer` reads `?service=` / `?instance=` / `?endpoint=`
-// from the new URL so shared / bookmarked deep links land on the
-// right service. `flush: 'sync'` makes the reset land before any
+const routeScope = computed<string>(() => routeRow(route)?.split('/', 1)[0] ?? 'service');
+// Reset the picker state on ENTRY change only — another layer, or another
+// service group of a split layer. Scope/tab navigation within the entry
+// keeps the operator's pick sticky — they browse every tab against the
+// service they chose. On a real entry change `resetForLayer` reads
+// `?service=` / `?instance=` / `?endpoint=` from the new URL so shared /
+// bookmarked deep links land on the right service. `flush: 'sync'` makes the reset land before any
 // downstream watch can read the previous layer's id.
 //
 // On unmount (operator leaves the layer to a non-layer page like
@@ -90,15 +98,15 @@ const scopeSegment = computed<string>(() => {
 onBeforeUnmount(() => {
   selectionStore.clear();
 });
-// Re-seed the selection store on layer ENTRY and on any SAME-LAYER
+// Re-seed the selection store on entering an entry and on any SAME-ENTRY
 // navigation that arrives with fresh ?service/?instance/?endpoint (deep
-// links into the layer the operator is already on). Keyed on the layer
-// key plus the three seed params — but the strip below removes those
-// params right after seeding, and that removal (params → absent) must NOT
-// re-seed, so we only act when the layer changed OR seed params are
+// links into the entry the operator is already on). Keyed on the entry as
+// the URL names it plus the three seed params — but the strip below removes
+// those params right after seeding, and that removal (params → absent) must
+// NOT re-seed, so we only act when the entry changed OR seed params are
 // actually present.
 watch(
-  [layerKey, () => route.query.service, () => route.query.instance, () => route.query.endpoint],
+  [urlEntry, () => route.query.service, () => route.query.instance, () => route.query.endpoint],
   ([key], prev) => {
     if (!key) return;
     const q = route.query;
@@ -117,13 +125,9 @@ watch(
   },
   { immediate: true, flush: 'sync' },
 );
-const { layers, isLoading: layersLoading } = useLayers();
-// Case-insensitive: URL layer keys are lowercase, registry keys UPPER_SNAKE.
 // In preview mode `useLayers` overlays/injects the previewed layer here, so
 // this already reflects the draft's components (tab visibility).
-const menuLayer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
-);
+const menuLayer = computed<LayerDef | null>(() => entry.value.def);
 
 // Preview mode (`?mode=preview`) — render a configured-but-inactive
 // layer (OAP reports no services, so it's absent from the live menu)
@@ -138,7 +142,7 @@ const isAdmin = computed<boolean>(() => !!auth.user?.roles?.includes('admin'));
 // link generates exactly this.
 const previewAllowed = computed<boolean>(() => route.query.mode === 'preview' && isAdmin.value);
 const wantPreviewFallback = computed<boolean>(
-  () => previewAllowed.value && !menuLayer.value && !!layerKey.value,
+  () => previewAllowed.value && !menuLayer.value && !!layerParam.value,
 );
 const tplQuery = useQuery({
   queryKey: ['layer-preview-templates'],
@@ -149,8 +153,8 @@ const tplQuery = useQuery({
 const previewLoading = computed<boolean>(() => wantPreviewFallback.value && tplQuery.isLoading.value);
 const previewLayer = computed<LayerDef | null>(() => {
   if (!wantPreviewFallback.value) return null;
-  const t = tplQuery.data.value?.templates.find((x) => x.key.toUpperCase() === layerKey.value.toUpperCase());
-  return t ? layerContentToDef(t as unknown as LayerTemplateContent) : null;
+  const t = tplQuery.data.value?.templates.find((x) => x.key.toLowerCase() === entry.value.ref.layer);
+  return t ? { ...layerContentToDef(t as unknown as LayerTemplateContent), key: entry.value.ref.layer } : null;
 });
 const layer = computed<LayerDef | null>(() => menuLayer.value ?? previewLayer.value);
 
@@ -162,7 +166,10 @@ const layer = computed<LayerDef | null>(() => menuLayer.value ?? previewLayer.va
 // The menu omits a layer the caller may not open, and this read for the same
 // key is refused — which is what tells "no access" apart from an unknown
 // layer. It also settles a menu that is empty because nothing is granted.
-const { services: fullRoster, isLoading: rosterLoading, error: rosterError } = useLayerServices(layerKey);
+const rosterKey = computed(() => rosterReadKey(layerParam.value, groupParam.value, entry.value, layersLoading.value));
+const { services: fullRoster, isLoading: rosterLoading, error: rosterError } = useLayerServices(rosterKey);
+// A roster not asked for yet is not an empty one.
+const rosterPending = computed<boolean>(() => rosterKey.value === '' || rosterLoading.value);
 const layerDenied = computed<boolean>(() => !menuLayer.value && isPermissionDenied(rosterError.value));
 // Distinguishes "still loading" from "truly absent" so the "Layer
 // not found" card doesn't flash during a login → layer-URL redirect
@@ -185,7 +192,7 @@ const layerMissing = computed<boolean>(() => {
 // plain not-found card until it reloads.
 const { bundle } = useConfigBundle();
 const missingReason = computed<LayerMissingReason>(() =>
-  layerMissingReason(bundle.value?.syncStatus.conflicts, layerKey.value),
+  layerMissingReason(bundle.value?.syncStatus.conflicts, entry.value.ref.layer),
 );
 // The duplicate is resolved on the template admin page; link there only for
 // operators who may open it (the route itself requires `layer-template:read`).
@@ -199,60 +206,19 @@ const canReadEvents = computed<boolean>(
   () => !!layer.value && auth.hasVerbOnLayer('events:read', layer.value.key, layer.value.visibility === 'operate'),
 );
 
-// Auto-redirect when the URL targets a sub-route the layer doesn't
-// support — e.g. `/layer/mesh_dp/service` on a layer with
-// `components.service: false`. Without this the operator lands on an
-// empty "No widgets defined" page even though the layer DOES have
-// other tabs (Instance / Logs / …). Fires once per change so the
-// browser-back button works as expected.
-//
-// The layer's resolved rows decide what is reachable — the same list the
-// sidebar renders — so a tab the sidebar offers can never bounce the
-// operator off it, and a tab it hides can never be sat on.
-//
-// A bare `/layer/:key` resolves here rather than in the router because the
-// answer is per-layer: the router has no menu data, so a static redirect
-// could only ever guess `service` and let this watcher correct it on the
-// next tick. Waiting for the layer costs the same paint and lands once.
+// Fires once per change, so the browser's back button works as expected.
 watch(
-  [() => route.path, layer, layerMissing],
-  ([path, L, missing]) => {
-    const bare = /^\/layer\/[^/]+\/?$/.test(path);
-    if (bare) {
-      if (L) void router.replace({ path: `/layer/${L.key}/${firstLayerTab(L)}`, query: route.query });
-      // Unknown layer, menu settled: still leave a real route behind so the
-      // shell can render its not-found card against a concrete sub-page.
-      else if (missing) void router.replace({ path: `/layer/${layerKey.value}/${FALLBACK_LAYER_ROW}`, query: route.query });
-      return;
-    }
-    if (!L) return;
-    const m = path.match(/^\/layer\/[^/]+\/([^/?]+)/);
-    if (!m) return;
-    const scope = m[1];
-    if (layerMenuRows(L).some((r) => r.path === scope)) return; // layer exposes it
-    if (!isBuiltInLayerRow(scope)) return; // not a layer sub-page — let the router resolve
-    // `zipkin-trace` is reachable WITHOUT being a row. The row exists only
-    // when a layer carries both formats and needs two tabs; a pure-zipkin
-    // layer shows one Traces row that embeds the same explorer, and the
-    // standalone URL still opens it in full. The predicate this watcher
-    // replaced had no entry for the path and so never bounced it — routing
-    // it by row alone redirected the URL onto the embedded view, which
-    // renders without its own toolbar.
-    if (scope === 'zipkin-trace' && L.caps?.traces) return;
-    // Old bookmarks. `/trace` used to render whichever store a layer had —
-    // a pure-Zipkin layer showed its Zipkin explorer under this path. Stores
-    // now own their rows, so send the URL to the layer's first trace row
-    // rather than to its first tab, which would be a dashboard.
-    if (scope === 'trace') {
-      const firstTrace = layerMenuRows(L).find((r) => r.path.endsWith('trace'));
-      if (firstTrace) {
-        void router.replace({ path: `/layer/${L.key}/${firstTrace.path}`, query: route.query });
-        return;
-      }
-    }
-    const fallback = firstLayerTab(L);
-    if (fallback === scope) return; // already at the best fallback
-    void router.replace({ path: `/layer/${L.key}/${fallback}`, query: route.query });
+  [() => route.fullPath, layer, () => entry.value.split],
+  ([, L]) => {
+    const to = entryRedirect({
+      menu: layers.value,
+      entry: entry.value,
+      groupParam: groupParam.value,
+      row: routeRow(route),
+      namesService: !!selectionStore.service,
+      layer: L,
+    });
+    if (to !== null) void router.replace({ path: to, query: route.query });
   },
   { immediate: true },
 );
@@ -272,10 +238,13 @@ watch(
 /** The route's entity scope and page id, once, for the page-scoped
  *  lookups below. */
 const routePage = computed(() => {
-  const m = route.path.match(/^\/layer\/([^/]+)\/([^/?]+)(?:\/([^/?]+))?/);
-  const scope = m?.[2] ?? '';
+  const scope = route.meta.dashboardScope;
+  const pageId = route.params.pageId;
   const ok = scope === 'service' || scope === 'instance' || scope === 'endpoint';
-  return { scope: (ok ? scope : '') as '' | 'service' | 'instance' | 'endpoint', pageId: m?.[3] };
+  return {
+    scope: (ok ? scope : '') as '' | 'service' | 'instance' | 'endpoint',
+    pageId: typeof pageId === 'string' ? pageId : undefined,
+  };
 });
 /** The extension page being rendered, when the route names one. */
 const activePageRef = computed(() => {
@@ -284,14 +253,11 @@ const activePageRef = computed(() => {
   return layer.value?.extPages?.[scope]?.find((p) => p.id === pageId) ?? null;
 });
 const pageScopeFilter = computed<string>(() => {
-  const m = route.path.match(/^\/layer\/([^/]+)\/([^/?]+)(?:\/([^/?]+))?/);
-  const scope = m?.[2] ?? '';
-  const pageId = m?.[3];
+  const { scope: entity, pageId } = routePage.value;
   // Any entity page may narrow the service picker: an Instance or
   // Endpoint page shows it too, because you pick a service before the
   // entity the page is about.
-  if (scope !== 'service' && scope !== 'instance' && scope !== 'endpoint') return '';
-  const entity = scope as 'service' | 'instance' | 'endpoint';
+  if (!entity) return '';
   // No page id is the component's DEFAULT page, which narrows too — it is
   // the page every component already has, not an unfiltered one.
   if (!pageId) return layer.value?.defaultFilters?.[entity]?.serviceFilter ?? '';
@@ -445,7 +411,7 @@ const viewOwnsServiceSelector = computed(() => Boolean(route.meta?.ownsServiceSe
 // locked cohort is DISPLAYED by the unified compare bar in the dashboard
 // view, so the shell only gates the picker pins, not a chip bar.
 const comparable = computed(
-  () => !viewOwnsServiceSelector.value && scopeSegment.value === 'service',
+  () => !viewOwnsServiceSelector.value && routeScope.value === 'service',
 );
 
 // Zipkin trace mode is a self-contained, cross-service explorer (its
@@ -458,8 +424,9 @@ const isZipkinTrace = computed<boolean>(() => {
   // Every TraceQL row is one too: the query names its own service, so the
   // shell's picked service would sit above a list that has nothing to do
   // with it — a header describing a different question than the page asks.
-  if (/\/(zipkin-trace|traceql-[a-z]+-trace)(\/|$|\?)/.test(route.path)) return true;
-  return scopeSegment.value === 'trace' && resolveTraceStores(layer.value?.traces).join() === 'zipkin';
+  const row = routeRow(route) ?? '';
+  if (row === 'zipkin-trace' || /^traceql-[a-z]+-trace$/.test(row)) return true;
+  return row === 'trace' && resolveTraceStores(layer.value?.traces).join() === 'zipkin';
 });
 
 // A requested service this page cannot show — outside the reader's grant, or
@@ -480,7 +447,7 @@ const replacedNotice = computed<boolean>(
 // (absent from the roster) auto-corrects to the first sampled row, and
 // only once the roster has loaded so a valid pin isn't clobbered in flight.
 watch(
-  [sampledServices, selectedId, viewOwnsServiceSelector, fullRoster, rosterLoading, kpiWarming],
+  [sampledServices, selectedId, viewOwnsServiceSelector, fullRoster, rosterPending, kpiWarming],
   ([rows, id, ownsSelector, roster, rosterIsLoading, warming]) => {
     if (ownsSelector) return;
     const first = rows[0];
@@ -778,7 +745,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
           class="sw-btn ghost svc-events"
           type="button"
           :title="t('View events for {name}', { name: selectedName })"
-          @click="() => eventsPopout.open(layerKey, selectedRow!.serviceName)"
+          @click="() => eventsPopout.open(entry.ref.layer, selectedRow!.serviceName)"
         >
           <Icon name="event" />
         </button>
@@ -829,7 +796,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <Icon name="event" :size="18" />
         <div>
           <h2>{{ t('Loading layers…') }}</h2>
-          <p>{{ t('Resolving') }} <code>{{ layerKey }}</code> {{ t('against the OAP layer registry.') }}</p>
+          <p>{{ t('Resolving') }} <code>{{ entryLabel }}</code> {{ t('against the OAP layer registry.') }}</p>
         </div>
       </div>
     </div>
@@ -843,7 +810,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <div>
           <h2>{{ t('Layer dashboard is duplicated') }}</h2>
           <p>
-            {{ t('More than one enabled OAP record holds the dashboard template for') }} <code>{{ layerKey }}</code>.
+            {{ t('More than one enabled OAP record holds the dashboard template for') }} <code>{{ entryLayerLabel }}</code>.
             {{ t('Which definition to render is ambiguous, so Horizon hides the layer and changes nothing on its own. Retire the extra record on OAP to bring it back.') }}
           </p>
           <p class="missing-links">
@@ -859,8 +826,23 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <div>
           <h2>{{ t('No access to this layer') }}</h2>
           <p>
-            <i18n-t keypath="Your roles do not give you access to the {layer} layer. Ask an administrator if you need it." scope="global">
-              <template #layer><code>{{ layerKey }}</code></template>
+            <i18n-t
+              v-if="entry.ref.group"
+              keypath="Your roles do not give you access to the {group} service group of the {layer} layer. Ask an administrator if you need it."
+              scope="global"
+            >
+              <template #group><code>{{ entry.ref.group }}</code></template>
+              <template #layer><code>{{ entryLayerLabel }}</code></template>
+            </i18n-t>
+            <i18n-t
+              v-else-if="entry.ref.group === ''"
+              keypath="Your roles do not give you access to the services with no service group in the {layer} layer. Ask an administrator if you need it."
+              scope="global"
+            >
+              <template #layer><code>{{ entryLayerLabel }}</code></template>
+            </i18n-t>
+            <i18n-t v-else keypath="Your roles do not give you access to the {layer} layer. Ask an administrator if you need it." scope="global">
+              <template #layer><code>{{ entryLayerLabel }}</code></template>
             </i18n-t>
             <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>.
           </p>
@@ -871,7 +853,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <div>
           <h2>{{ t('Layer not found') }}</h2>
           <p>
-            {{ t('No OAP layer matches') }} <code>{{ layerKey }}</code>. {{ t('The layer may be inactive or unknown.') }}
+            {{ t('No OAP layer matches') }} <code>{{ entryLabel }}</code>. {{ t('The layer may be inactive or unknown.') }}
             <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>.
           </p>
         </div>

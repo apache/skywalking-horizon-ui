@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import type {
   ClusterByRule,
   LayerDef,
@@ -68,6 +68,8 @@ import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useLayers } from '@/shell/useLayers';
 import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 // The AI chat mounts this view embedded (read-only, focused on one service). The
 // props are additive + default-off: the interactive route passes none and keeps
@@ -89,17 +91,17 @@ const props = defineProps<{
   replayData?: DeploymentResponse;
 }>();
 
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 
-const { layers } = useLayers();
+const { layers, entryFor } = useLayers();
 const embedded = computed(() => Boolean(props.embedded));
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
+  () => findEntry(layers.value, layerKey.value) ?? null,
 );
 const instanceWord = computed(() => layer.value?.slots?.instances ?? 'Instances');
 const title = computed(() => layer.value?.slots?.deployment || t('Deployment'));
@@ -601,7 +603,8 @@ const popoverStyle = computed<Record<string, string>>(() => {
 });
 function openInstanceDashboard(n: DeploymentNode): void {
   const href = router.resolve({
-    path: `/layer/${layerKey.value}/instance`,
+    // The service's own entry: an embedded view may hold the whole layer.
+    path: layerPath(entryFor(parseEntryKey(layerKey.value).layer, n.serviceName), 'instance'),
     query: { service: n.serviceId, instance: n.name },
   }).href;
   window.open(href, '_blank', 'noopener');

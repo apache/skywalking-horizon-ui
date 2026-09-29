@@ -42,6 +42,8 @@ import { policySummaryForServices } from '../../logic/oap/continuous-profiling.j
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
 
 export interface ContinuousProfilingRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -247,7 +249,8 @@ export function registerContinuousProfilingRoutes(
     '/api/continuous-profiling/policy-summary',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = req.query as { layer?: string };
+      // `group` narrows it to one service group of a split layer's entry.
+      const q = req.query as { layer?: string; group?: string };
       const payload: {
         services: Array<{ id: string; name: string; targets: ContinuousProfilingTargetType[] | null }>;
         checked: number;
@@ -262,7 +265,14 @@ export function registerContinuousProfilingRoutes(
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const snap = await catalog.get();
-        const roster = snap.byLayer.get(q.layer.toUpperCase()) ?? [];
+        // An empty roster from a catalog that could not be read is not a layer
+        // with no services.
+        if (snap.unreachable && snap.byLayer.size === 0) return reply.send(softErr(payload, 'service catalog unreachable'));
+        const roster = (snap.byLayer.get(q.layer.toUpperCase()) ?? []).filter(
+          (s) => q.group === undefined || (s.group ?? '') === q.group,
+        );
+        // The layer and the services the caller's grant reaches on it, each
+        // re-checked, since a held roster row can outlive its service's layers.
         const readable = req.access
           ? await req.access.keepReadable(['profile:read'], req.access.filterRoster(['profile:read'], q.layer, roster), (s) => ({ id: s.id }))
           : roster;
@@ -272,6 +282,7 @@ export function registerContinuousProfilingRoutes(
         payload.total = summary.total;
         return reply.send(payload);
       } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return ownershipUnavailable(reply);
         return reply.send(softErr(payload, err));
       }
     },

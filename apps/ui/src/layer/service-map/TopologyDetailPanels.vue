@@ -322,6 +322,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         <button class="sw-btn small" type="button" @click="emit('clearNode')">×</button>
       </header>
       <div v-if="selectedNode.metricsBlocked" class="sp-empty">{{ t('Metrics blocked: your role cannot read this service.') }}</div>
+      <div v-else-if="selectedNode.metricsUnavailable" class="sp-empty">{{ t('Metrics not read: OAP did not say who owns this service. Try again shortly.') }}</div>
       <div v-else class="sp-kpis">
         <div v-for="m in cfg.nodeMetrics" :key="m.id" class="sp-kpi">
           <div class="sp-kpi-label">{{ formatRowLabel(m) }}</div>
@@ -429,6 +430,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
       <div class="sp-section">
         <div class="sp-section-title">{{ t('Line metrics') }}</div>
         <div v-if="selectedCall.metricsBlocked" class="sp-empty">{{ t('Metrics blocked: your role reads neither end of this call.') }}</div>
+        <div v-else-if="selectedCall.metricsUnavailable" class="sp-empty">{{ t('Metrics not read: OAP did not answer a lookup this call needs. Try again shortly.') }}</div>
         <div v-else-if="edgeRows.length > 0" class="sp-edge-rows">
           <div v-for="row in edgeRows" :key="row.id" class="sp-edge-row-card">
             <div class="sp-edge-row-head">
