@@ -4,13 +4,13 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 합계 %"
       },
       {
         "label": "메모리 MB"
       },
       {
-        "label": "VMem %"
+        "label": "커밋됨 %"
       }
     ]
   },
@@ -37,7 +37,7 @@
       },
       {
         "id": "virtual_memory",
-        "title": "가상 메모리 (MB)",
+        "title": "커밋된 가상 메모리 (MB)",
         "expressionLabels": [
           "여유",
           "전체"

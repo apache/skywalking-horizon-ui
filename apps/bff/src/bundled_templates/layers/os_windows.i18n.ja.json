@@ -4,13 +4,13 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 合計 %"
       },
       {
         "label": "メモリ MB"
       },
       {
-        "label": "仮想メモリ %"
+        "label": "コミット済み %"
       }
     ]
   },
@@ -37,7 +37,7 @@
       },
       {
         "id": "virtual_memory",
-        "title": "仮想メモリ (MB)",
+        "title": "コミット済み仮想メモリ (MB)",
         "expressionLabels": [
           "空き",
           "合計"

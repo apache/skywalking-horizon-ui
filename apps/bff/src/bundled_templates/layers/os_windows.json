@@ -168,7 +168,7 @@
       {
         "id": "virtual_memory",
         "title": "Committed Virtual Memory (MB)",
-        "tip": "Committed bytes and the Windows commit limit. This is distinct from the paging-file capacity.",
+        "tip": "The Windows commit limit, and how much of it is still free (commit limit minus committed bytes). This is distinct from the paging-file capacity.",
         "type": "line",
         "unit": "MB",
         "expressions": [
@@ -296,7 +296,7 @@
       {
         "id": "process_top_cpu",
         "title": "Top Processes by CPU",
-        "tip": "Process groups with the highest share of total host CPU capacity. Select a row to open that process group in Processes.",
+        "tip": "Process groups with the highest share of total host CPU capacity.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_cpu_total_percent,10,des)",
@@ -325,7 +325,7 @@
       {
         "id": "process_top_memory",
         "title": "Top Processes by Memory",
-        "tip": "Process groups ranked by resident physical memory or percentage of host RAM. Select a row to open that process group in Processes.",
+        "tip": "Process groups ranked by resident physical memory or percentage of host RAM.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_memory_resident_bytes,10,des)/1024/1024",
@@ -350,7 +350,7 @@
       {
         "id": "process_top_resources",
         "title": "Top Processes by Resources",
-        "tip": "Process groups ranked by thread count, open handles or number of grouped PIDs. Select a row to open that process group in Processes.",
+        "tip": "Process groups ranked by thread count, open handles or number of grouped PIDs.",
         "type": "top",
         "expressions": [
           "top_n(mp_process_windows_num_threads,10,des)",

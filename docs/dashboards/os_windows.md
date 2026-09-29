@@ -16,11 +16,11 @@ limitations under the License.
 -->
 # Windows
 
-The **OS_WINDOWS** layer monitors Windows hosts from host telemetry collected by SkyWalking OAP. Hosts are represented as **Hosts** at the Service scope, while process groups collected by the OpenTelemetry process scraper are represented as **Processes** at the Service Instance scope.
+The **OS_WINDOWS** layer monitors Windows hosts. It is populated by OAP's Windows monitoring, which receives host metrics from Prometheus windows_exporter or from the OpenTelemetry Collector (its `hostmetrics` receiver plus Windows Performance Counters), and process metrics from the OpenTelemetry Collector process scraper — there is no language agent here, the data comes from the host telemetry.
 
-In Horizon's sidebar this layer lives under the **OS** group and is named **Windows**. The layer is metrics-only: it exposes **Hosts** and **Processes**, but no endpoint, topology, traces, or logs tabs.
+In Horizon's sidebar this layer lives under the **OS** group and is named **Windows**. Each monitored Windows machine is listed as a **Host**, and each process group on it as a **Process**. This is a metrics-only layer: it enables the **Service** and **Instance** scopes and nothing else — there is no endpoint scope, no topology, and no traces or logs tabs.
 
-This page is the **operator reference** for the bundled Windows dashboards: what is shown at the host and process scopes, and which telemetry is required.
+This page is the **operator reference** for the bundled Windows dashboards: what you see on each scope and what each widget means.
 
 > The widgets and metrics below are read from the bundled OS_WINDOWS template; if an operator has published a customized OS_WINDOWS template to OAP, the live dashboard reflects that copy instead. See [Layer Dashboard Templates](../customization/layer-templates.md) for how the bundled default, your local draft, and the OAP-published copy relate.
 
@@ -28,73 +28,100 @@ This page is the **operator reference** for the bundled Windows dashboards: what
 
 Before opening a host, the layer landing page lists every Windows host with three sortable columns, sorted by **CPU total %** by default:
 
-* **CPU total %** — host CPU utilization (`meter_win_cpu_total_percentage`).
-* **Memory MB** — physical memory used, in MB (`meter_win_memory_used/1024/1024`).
-* **Committed %** — committed virtual-memory utilization (`avg(meter_win_memory_virtual_memory_percentage)`).
+- **CPU total %** — host CPU utilization (`meter_win_cpu_total_percentage`), on the same scale as the **CPU Across Cores** card below.
+
+- **Memory MB** — physical memory used, in MB (`meter_win_memory_used/1024/1024`).
+
+- **Committed %** — committed memory as a percentage of the Windows commit limit (`avg(meter_win_memory_virtual_memory_percentage)`).
 
 ## Host dashboard
 
-The Host dashboard combines metrics available from the existing Windows monitoring source with additional metrics available from OpenTelemetry hostmetrics and performance counters.
+The primary drill-down for one selected Windows host. Some widgets exist only for one telemetry source; a widget whose source is not reporting for the host is hidden rather than shown empty.
 
-The summary cards include:
+**Status cards**
 
-* **CPU Across Cores** — current host CPU utilization.
-* **Memory Used** — current physical memory in use.
-* **Committed Memory Used** — committed virtual memory as a percentage of the Windows commit limit.
-* **Normalized CPU** — non-overlapping user and system CPU normalized to the conventional 0–100% host scale when available.
-* **Logical CPUs** — logical processor count reported by OpenTelemetry hostmetrics.
-* **Pagefile Used** — current paging-file utilization when reported by the OpenTelemetry performance counters.
+- **CPU Across Cores** — CPU in use right now, summed across logical CPUs, so a fully busy 4-CPU host reads 400% (`latest(meter_win_cpu_total_percentage)`).
 
-The historical charts include:
+- **Memory Used** — physical memory in use, in MB (`latest(meter_win_memory_used)/1024/1024`).
 
-* **CPU by State** — CPU utilization by reported processor state.
-* **Memory RAM (MB)** — used / total / available physical memory.
-* **Committed Virtual Memory (MB)** — committed bytes and the Windows commit limit.
-* **Network Bandwidth (KB/s)** — receive vs transmit throughput.
-* **Disk R/W (KB/s)** — disk read vs written throughput.
-* **CPU Load** — Windows processor queue length represented as 1m / 5m / 15m averages when available.
-* **Allocated Handles** — total handles allocated by Windows processes when available.
-* **Windows Pagefile (MB)** — free and total paging-file capacity when available.
-* **Filesystem Usage (%)** — utilization of Windows volumes or mount points.
+- **Committed Memory Used** — committed memory as a percentage of the Windows commit limit (`latest(meter_win_memory_virtual_memory_percentage)`).
 
-Widgets whose backing metrics are unavailable are hidden automatically.
+- **Normalized CPU** — user and system CPU divided by the number of logical CPUs, on a 0–100% host scale (`latest(meter_win_cpu_norm_percentage)`). OpenTelemetry only.
 
-## Top Processes
+- **Logical CPUs** — the number of logical CPUs (`latest(meter_win_cpu_cores_num)`). OpenTelemetry only.
 
-When the OpenTelemetry process scraper is enabled, the Host dashboard also shows three Top Process panels:
+- **Pagefile Used** — the percentage of the paging file in use (`latest(meter_win_memory_pagefile_percentage)`). OpenTelemetry only.
 
-* **Top Processes by CPU** — process groups ranked by total, user, or system CPU.
-* **Top Processes by Memory** — process groups ranked by resident memory or host-memory percentage.
-* **Top Processes by Resources** — process groups ranked by threads, open handles, or grouped PID count.
+**Time series**
 
-These panels are hidden when process metrics are not available.
+- **CPU by State (sum across cores)** — CPU utilization with one series per CPU state, each summed across logical CPUs (`meter_win_cpu_average_used`). Some Windows states overlap, so the series can add up to more than the host has; use **Normalized CPU** for a non-overlapping 0–100% value.
 
-## Processes dashboard
+- **Memory RAM (MB)** — physical memory in MB, three series: used / total / available (`meter_win_memory_used/1024/1024`, `meter_win_memory_total/1024/1024`, `meter_win_memory_available/1024/1024`).
 
-The **Processes** page represents normalized Windows process groups reported as Service Instances.
+- **Committed Virtual Memory (MB)** — the Windows commit limit, and how much of it is still free (commit limit minus committed bytes), in MB (`meter_win_memory_virtual_memory_free/1024/1024`, `meter_win_memory_virtual_memory_total/1024/1024`). This is not the paging-file size.
 
-For a selected process group Horizon shows current values for:
+- **Network Bandwidth (KB/s)** — network throughput in KB/s, receive vs transmit (`meter_win_network_receive/1024`, `meter_win_network_transmit/1024`).
 
-* CPU utilization;
-* resident physical memory;
-* percentage of host memory;
-* grouped PID count;
-* threads;
-* open handles;
-* oldest process uptime.
+- **Disk R/W (KB/s)** — disk throughput in KB/s, read vs written (`meter_win_disk_read/1024`, `meter_win_disk_written/1024`).
 
-Historical charts show CPU, resident memory, host-memory percentage, process and thread counts, open handles, and oldest-process uptime.
+- **CPU Load** — the processor queue length as 1m / 5m / 15m averages (`meter_win_cpu_load1/100`, `meter_win_cpu_load5/100`, `meter_win_cpu_load15/100`). OpenTelemetry only.
 
-The **Processes** tab is part of the bundled OS_WINDOWS layer. If the OpenTelemetry process scraper is not running, the tab has no process entities to display.
+- **Allocated Handles** — handles allocated across the whole system (`meter_win_filehandles_allocated`). OpenTelemetry only.
+
+- **Windows Pagefile (MB)** — paging-file free vs total, in MB (`meter_win_memory_pagefile_free/1024/1024`, `meter_win_memory_pagefile_total/1024/1024`). OpenTelemetry only.
+
+- **Filesystem Usage (%)** — space used, one series per volume or mount point (`meter_win_filesystem_percentage`). OpenTelemetry only.
+
+**Top processes**
+
+Shown only when process metrics reach OAP for the host. Each panel ranks the host's top 10 process groups, with a tab per ranking:
+
+- **Top Processes by CPU** — total / user / system CPU, as a share of the host's total CPU capacity (`top_n(mp_process_windows_cpu_total_percent,10,des)`, and the `_user_` / `_system_` variants).
+
+- **Top Processes by Memory** — resident memory in MB, or resident memory as a percentage of host RAM (`top_n(mp_process_windows_memory_resident_bytes,10,des)/1024/1024`, `top_n(mp_process_windows_memory_resident_percent,10,des)/100`).
+
+- **Top Processes by Resources** — threads / open handles / number of processes in the group (`top_n(mp_process_windows_num_threads,10,des)`, `top_n(mp_process_windows_open_handles,10,des)`, `top_n(mp_process_windows_num_procs,10,des)`).
+
+## Process dashboard
+
+For one selected **Process**. A process is a group: every process (PID) on the host with the same normalized process name, combined by the OpenTelemetry Collector before it reaches OAP. CPU values here are a share of the host's total CPU capacity, so one fully busy core on a 4-CPU host reads 25% here while the host's **CPU Across Cores** card reads 100%.
+
+**Status cards**
+
+- **CPU Used** — CPU in use by the group (`latest(mp_process_windows_cpu_total_percent)`).
+
+- **Resident Memory** — physical memory in use by the group, in MB (`latest(mp_process_windows_memory_resident_bytes)/1024/1024`).
+
+- **Host Memory Used** — the group's resident memory as a percentage of host RAM (`latest(mp_process_windows_memory_resident_percent)/100`).
+
+- **Processes** — the number of PIDs in the group (`latest(mp_process_windows_num_procs)`).
+
+- **Threads** — threads across the group (`latest(mp_process_windows_num_threads)`).
+
+- **Open Handles** — open handles across the group (`latest(mp_process_windows_open_handles)`).
+
+- **Oldest Process Uptime** — how long the oldest PID in the group has been running, in hours (`latest(mp_process_windows_oldest_process_uptime_seconds)/3600`).
+
+**Time series**
+
+- **CPU Usage** — total / user / system CPU (`mp_process_windows_cpu_total_percent`, `mp_process_windows_cpu_user_percent`, `mp_process_windows_cpu_system_percent`).
+
+- **Resident Memory** — resident memory in MB (`mp_process_windows_memory_resident_bytes/1024/1024`).
+
+- **Host Memory Used by Process** — resident memory as a percentage of host RAM (`mp_process_windows_memory_resident_percent/100`).
+
+- **Processes and Threads** — PID count on the right axis, thread count on the left (`mp_process_windows_num_procs`, `mp_process_windows_num_threads`).
+
+- **Open Handles** — open handles across the group (`mp_process_windows_open_handles`).
+
+- **Oldest Process Uptime** — the uptime card over time, in hours (`mp_process_windows_oldest_process_uptime_seconds/3600`). A drop means the oldest PID in the group restarted or exited.
 
 ## Requirements
 
-The Host dashboard consumes the `meter_win_*` metrics produced by the OAP Windows monitoring rules.
+The Windows dashboards are a pure consumer of what OAP reports — they invent no data. To populate them, OAP needs:
 
-For OpenTelemetry hostmetrics, configure the Collector to send Windows host metrics through the `windows-monitoring` job. OpenTelemetry-backed metrics add normalized CPU, logical processor count, filesystem data, processor-queue load, handles, and pagefile information where configured.
+- **Host (service-scope) meters** — the `meter_win_*` family, from windows_exporter (through an OpenTelemetry Collector) or from the OpenTelemetry Collector using OAP's reference Windows configuration, which sends them under the `windows-monitoring` job name. These back the Host list and the Host dashboard.
 
-Process dashboards require the OpenTelemetry process scraper and the OAP `hostmetrics-process-monitoring-windows` rules, which produce the `mp_process_windows_*` metrics used at Service Instance scope.
+- **Process (instance-scope) meters** — the `mp_process_windows_*` family, from the OpenTelemetry Collector process scraper sent under the `hostmetrics-process-monitoring-windows` job name, which the same reference configuration sets up. These back the Top Processes panels and the Process dashboard, and need an OAP release that ships the OpenTelemetry host and process monitoring rules.
 
-Without the process scraper, host monitoring continues to work, but the **Processes** tab and Top Process panels have no process data.
-
-For OAP-side setup and the supported metrics, see the [Windows monitoring documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-win-monitoring/).
+The **Processes** tab is always part of this layer. Without the process scraper it lists no processes and the Top Processes panels are hidden; host monitoring is unaffected. For the setup steps — windows_exporter, the reference Collector configuration, and which OAP rules to enable — see the [Windows monitoring documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-win-monitoring/).

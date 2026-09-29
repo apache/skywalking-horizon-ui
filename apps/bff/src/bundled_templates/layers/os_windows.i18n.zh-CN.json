@@ -8,13 +8,13 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 总计 %"
       },
       {
         "label": "内存 MB"
       },
       {
-        "label": "虚拟内存 %"
+        "label": "已提交 %"
       }
     ]
   },
@@ -41,7 +41,7 @@
       },
       {
         "id": "virtual_memory",
-        "title": "虚拟内存（MB）",
+        "title": "已提交虚拟内存（MB）",
         "expressionLabels": [
           "free",
           "total"

@@ -4,13 +4,13 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU total %"
       },
       {
         "label": "Memoria MB"
       },
       {
-        "label": "VMem %"
+        "label": "Confirmada %"
       }
     ]
   },
@@ -37,7 +37,7 @@
       },
       {
         "id": "virtual_memory",
-        "title": "Memoria virtual (MB)",
+        "title": "Memoria virtual confirmada (MB)",
         "expressionLabels": [
           "libre",
           "total"

@@ -4,13 +4,13 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU gesamt %"
       },
       {
         "label": "Speicher MB"
       },
       {
-        "label": "VSpeicher %"
+        "label": "Zugesichert %"
       }
     ]
   },
@@ -37,7 +37,7 @@
       },
       {
         "id": "virtual_memory",
-        "title": "Virtueller Speicher (MB)",
+        "title": "Zugesicherter virtueller Speicher (MB)",
         "expressionLabels": [
           "frei",
           "gesamt"

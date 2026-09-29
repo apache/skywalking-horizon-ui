@@ -4,7 +4,7 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 합계 %"
       },
       {
         "label": "메모리 MB"
