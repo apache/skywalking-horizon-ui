@@ -168,8 +168,12 @@ function topoMetricLine(metrics: Record<string, number | null>, defs: MetricLege
 
 // Compact "N nodes: name (metrics); …" line for the map builders' model text —
 // the WS2 rich read for deployment / instance / endpoint graphs.
+/** What the model is told of a service or call the user may not read: it is
+ *  drawn, its values are not read. */
+const METRICS_BLOCKED = 'metrics blocked for the current user';
+
 function summarizeMapNodes(
-  nodes: Array<{ name: string; metrics: Record<string, number | null> }>,
+  nodes: Array<{ name: string; metrics: Record<string, number | null>; metricsBlocked?: boolean }>,
   nodeDefs: MetricLegend[],
   cap: number,
 ): string {
@@ -177,6 +181,7 @@ function summarizeMapNodes(
   const head = nodes
     .slice(0, cap)
     .map((n) => {
+      if (n.metricsBlocked) return `${n.name} (${METRICS_BLOCKED})`;
       const line = topoMetricLine(n.metrics, nodeDefs);
       return line ? `${n.name} (${line})` : n.name;
     })
@@ -249,8 +254,8 @@ function summarizeTopology(snap: TopologyResponse, focusId: string, service: str
     const node = nodeById.get(peerId);
     const name = node?.name ?? peerId;
     const hasNodeVal = !!node && Object.values(node.metrics ?? {}).some((v) => v != null);
-    const health = hasNodeVal ? topoMetricLine(node!.metrics, nodeDefs) : '';
-    const edge = call ? topoMetricLine(call.serverMetrics, srvDefs) : '';
+    const health = node?.metricsBlocked ? METRICS_BLOCKED : hasNodeVal ? topoMetricLine(node!.metrics, nodeDefs) : '';
+    const edge = call?.metricsBlocked ? METRICS_BLOCKED : call ? topoMetricLine(call.serverMetrics, srvDefs) : '';
     const parts = [health && `node ${health}`, edge && `edge ${edge}`].filter(Boolean);
     return parts.length ? `${name} (${parts.join(' · ')})` : name;
   };
@@ -574,6 +579,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         // layer's own map page passes a roster selection.
         serviceArg: rows.map((r) => r!.id).join(','),
         depth: hops,
+        ...ctx.access?.graphReadable(['topology:read']),
       });
       const nodeById = new Map(snapshot.nodes.map((n) => [n.id, n]));
       const toPeer = (id: string): TopoPeer | null => {
@@ -651,6 +657,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         serviceArg: '',
         depth: 1,
         seedGroups: reach && !reach.whole ? reach.groups : undefined,
+        ...ctx.access?.graphReadable(['topology:read']),
       });
       if (!snapshot.reachable) {
         return `The ${layer.toUpperCase()} layer map is unreachable (${snapshot.error ?? 'no data'}).`;
@@ -797,6 +804,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         layerKey: layer.toUpperCase(),
         clientServiceId: client.id,
         serverServiceId: server.id,
+        ...ctx.access?.graphReadable(['topology:read']),
       });
       ctx.emitInstanceTopology({
         title: title || `Instance map — ${sourceService} → ${destService}`,
@@ -862,6 +870,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         layerKey: layer.toUpperCase(),
         service: { id: row.id, name: row.name, normal: row.normal !== false },
         endpointArg: endpoint ?? '',
+        ...ctx.access?.graphReadable(['topology:read']),
       });
       ctx.emitEndpointDependency({
         title: title || `API dependency — ${service}`,

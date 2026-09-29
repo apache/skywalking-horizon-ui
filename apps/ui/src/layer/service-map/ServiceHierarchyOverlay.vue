@@ -41,6 +41,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type {
   HierarchyPeer,
+  LayerDef,
   LayerLevel,
   ServiceHierarchyResponse,
   ServiceNamingRule,
@@ -81,7 +82,7 @@ const props = defineProps<{
 
 const { t } = useI18n({ useScope: 'global' });
 const store = useHierarchyOverlayStore();
-const { layers: allLayers, findLayer } = useLayers();
+const { layers: allLayers, findLayer, entryKeyFor } = useLayers();
 
 // Focus + open state come from props in standalone mode, else the shared store.
 const fLayer = computed<string | null>(() => (props.standalone ? props.focus?.layer : store.focusLayer) ?? null);
@@ -326,14 +327,15 @@ watch(
   },
 );
 
-/** True when the peer's layer has an active template the UI can route
- *  to. OAP can report cross-layer relations into layers the operator
- *  hasn't configured a Horizon template for (e.g. an obscure
- *  observability layer); we surface the peer hex but disable the
- *  action chip so a misleading "page not found" never happens. */
-function hasTemplate(layer: string): boolean {
-  const def = findLayer(layer.toLowerCase());
-  return Boolean(def && def.active);
+/** The menu entry a peer opens under, or null when the reader's menu has
+ *  none: OAP can report relations into a layer Horizon has no template for,
+ *  or one the reader's role cannot open — the menu leaves out both. We
+ *  surface the peer hex but disable the action chip so a dead end never
+ *  opens. On a layer split by service group the entry is the peer's
+ *  group's. */
+function peerEntry(layer: string, name: string): LayerDef | null {
+  const def = findLayer(entryKeyFor(layer, name));
+  return def && def.active ? def : null;
 }
 
 /** First click: arm the peer (show the side action chip). Second
@@ -341,12 +343,12 @@ function hasTemplate(layer: string): boolean {
  *  re-arms onto that one. Disabled peers (no layer template) skip
  *  arming and surface a notice instead — there's no useful chip to
  *  show. */
-function onPeerClick(peerKey: string, layer: string): void {
-  if (!hasTemplate(layer)) {
+function onPeerClick(peerKey: string, layer: string, name: string): void {
+  if (!peerEntry(layer, name)) {
     pushEvent(
       'hierarchy',
       'err',
-      `No layer template configured for ${labelForLayer(layer)} (${layer}). The peer service exists on OAP but Horizon has no menu / page set up for this layer.`,
+      `${labelForLayer(layer)} (${layer}) has no entry in this menu for ${name}: Horizon has no layer template for it, or this role cannot open it.`,
     );
     return;
   }
@@ -361,11 +363,13 @@ function onPeerClick(peerKey: string, layer: string): void {
  *  no extra URL flag is required — landing → serviceName → list →
  *  pick happens naturally there. */
 function confirmOpen(p: HierarchyPeer, layer: string): void {
-  const def = findLayer(layer.toLowerCase());
-  if (!def || !def.active) return;
+  const def = peerEntry(layer, p.name);
+  if (!def) return;
   const tab = firstLayerTab(def);
   const href = router.resolve({
-    path: `/layer/${def.key.toLowerCase()}/${tab}`,
+    // The entry key as the menu spells it: a group entry keeps its group's
+    // case, which the BFF compares exactly.
+    path: `/layer/${def.key}/${tab}`,
     query: { service: p.id },
   }).href;
   // `noopener` so the new tab can't reach back into window.opener.
@@ -375,23 +379,22 @@ function confirmOpen(p: HierarchyPeer, layer: string): void {
 
 /** Display name of a peer's destination layer — the template's `name`
  *  when one exists, the raw layer key otherwise. */
-function layerNameFor(layer: string): string {
-  const def = findLayer(layer.toLowerCase());
-  return def?.name ?? layer;
+function layerNameFor(layer: string, name: string): string {
+  return peerEntry(layer, name)?.name ?? layer;
 }
 
 /** Human label for the action chip — e.g. "Open in MESH_DP". The
  *  destination tab is implied (first menu of the layer). */
-function openLabelFor(layer: string): string {
-  return t('Open in {layer}', { layer: layerNameFor(layer) });
+function openLabelFor(layer: string, name: string): string {
+  return t('Open in {layer}', { layer: layerNameFor(layer, name) });
 }
 
 /** Approximate rendered width of the chip label at font-size 12 — the
  *  translated label can carry fullwidth CJK glyphs (~12px each) that the
  *  old flat 7.6px-per-char estimate under-measured, overlapping the icon. */
-function openLabelWidth(layer: string): number {
+function openLabelWidth(layer: string, name: string): number {
   let w = 0;
-  for (const ch of openLabelFor(layer)) {
+  for (const ch of openLabelFor(layer, name)) {
     w += /[ᄀ-ᇿ⺀-꓏가-힣豈-﫿︰-﹏＀-￦　-ヿ]/.test(ch) ? 12 : 7.6;
   }
   return w;
@@ -617,15 +620,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           :transform="`translate(${r.x}, ${r.y})`"
           class="sm-h-peer"
           :class="{
-            'is-disabled': !hasTemplate(r.layer),
+            'is-disabled': !peerEntry(r.layer, r.peer.name),
             'is-armed': armedPeerKey === r.key,
           }"
-          @click.stop="onPeerClick(r.key, r.layer)"
+          @click.stop="onPeerClick(r.key, r.layer, r.peer.name)"
         >
           <title>
-            {{ hasTemplate(r.layer)
-              ? t('Click to select {name}; the action chip opens it in {layer} (new tab)', { name: r.identity.display, layer: layerNameFor(r.layer) })
-              : t('No Horizon layer template configured for {layer}', { layer: labelForLayer(r.layer) }) }}
+            {{ peerEntry(r.layer, r.peer.name)
+              ? t('Click to select {name}; the action chip opens it in {layer} (new tab)', { name: r.identity.display, layer: layerNameFor(r.layer, r.peer.name) })
+              : t('{layer} has no entry in your menu for this service: Horizon has no page for it, or your role cannot open it', { layer: labelForLayer(r.layer) }) }}
           </title>
           <!-- Selection ring when armed — same vocabulary as the
                topology's selected-hex halo, scaled for the peer's
@@ -721,7 +724,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           <rect
             x="0"
             y="-14"
-            :width="openLabelWidth(r.layer) + 36"
+            :width="openLabelWidth(r.layer, r.peer.name) + 36"
             height="28"
             rx="6"
             :fill="r.color"
@@ -737,11 +740,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
             :fill="r.color"
             font-family="var(--sw-mono)"
           >
-            {{ openLabelFor(r.layer) }}
+            {{ openLabelFor(r.layer, r.peer.name) }}
           </text>
           <!-- External-link glyph: square with arrow out the top-right -->
           <g
-            :transform="`translate(${openLabelWidth(r.layer) + 18}, 0)`"
+            :transform="`translate(${openLabelWidth(r.layer, r.peer.name) + 18}, 0)`"
             :stroke="r.color"
             stroke-width="1.6"
             fill="none"

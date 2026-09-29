@@ -462,6 +462,18 @@ const isZipkinTrace = computed<boolean>(() => {
   return scopeSegment.value === 'trace' && resolveTraceStores(layer.value?.traces).join() === 'zipkin';
 });
 
+// A requested service this page cannot show — outside the reader's grant, or
+// no longer reporting in this layer — and the one shown in its place. The page
+// says so rather than presenting another service under the link. Declared
+// above the watcher below, which runs during setup.
+const replacedService = ref<{ from: string; to: string } | null>(null);
+watch(layerKey, () => {
+  replacedService.value = null;
+});
+const replacedNotice = computed<boolean>(
+  () => replacedService.value !== null && selectedId.value === replacedService.value.to,
+);
+
 // Keep the URL-backed service selection honest for every page that
 // uses the shell picker. A `?service=` outside the landing sample is
 // trusted when it exists in the full roster; only a genuinely stale id
@@ -487,6 +499,7 @@ watch(
     if (rows.some((s) => s.serviceId === id)) return; // in the sample → keep
     if (rosterIsLoading) return; // don't clobber a pin while the roster loads
     if (roster.some((s) => s.id === id)) return; // valid in the full roster → keep
+    replacedService.value = { from: id, to: first.serviceId };
     setSelected(first.serviceId); // genuinely stale → fall back
   },
   { immediate: true },
@@ -675,6 +688,9 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
             {{ t('metrics for {range} — a newer hour is still loading', { range: kpiHourLabel }) }}
           </template>
           <template v-else>{{ t('metrics for {range}', { range: kpiHourLabel }) }}</template>
+        </div>
+        <div v-if="replacedNotice" class="banner warn kpi-partial">
+          {{ t('The requested service is not in this page\'s list for your role: it is outside your access, or no longer reports here. Showing {name} instead.', { name: selectedName }) }}
         </div>
         <div v-if="landingPartial" class="banner warn kpi-partial">
           {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: landingPartial.failedChunks, total: landingPartial.totalChunks }) }}

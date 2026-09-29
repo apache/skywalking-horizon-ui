@@ -16,7 +16,7 @@
  */
 
 /**
- * Which alarm rows a reader may see, for an alarm read that names no service.
+ * Which alarm rows a reader may see.
  *
  * An alarm is the service's that owns its entity. A relation concerns both of
  * its ends, so a reader of either sees the whole of it: of its source, or of
@@ -24,15 +24,17 @@
  * a process alarm) belongs to no layer a grant can name, so only a reader
  * holding `alarms:read` without a layer sees it.
  *
- * Every service is decided through {@link RequestAccess.decide}, once per id
+ * Every service is decided through {@link RequestAccess}, once per id or name
  * per request: it answers from the catalog while the catalog is fresh and
  * asks OAP for a service the catalog misses, or holds only from before a
- * failed refresh.
+ * failed refresh. A destination is known by name alone, and a name means
+ * both its normal and its conjectural id, so each is looked up — a namesake
+ * registered since the catalog was read still counts.
  */
 
-import type { RequestAccess } from '../../rbac/request-access.js';
-import { ServiceLookupUnavailable, type Index } from '../services/service-identity.js';
-import { alarmDestinations, alarmSourceId, isRelationAlarm, type AlarmEntity } from './owners.js';
+import type { RequestAccess, ServiceRef } from '../../rbac/request-access.js';
+import { ServiceLookupUnavailable, type ResolvedService } from '../services/service-identity.js';
+import { alarmDestinationNames, alarmSourceId, isRelationAlarm, type AlarmEntity } from './owners.js';
 
 const VERBS = ['alarms:read'] as const;
 
@@ -55,10 +57,7 @@ export function readsEveryAlarm(access: RequestAccess | undefined): boolean {
 export class AlarmRowAccess {
   private readonly decided = new Map<string, Promise<'allow' | 'deny' | 'unavailable'>>();
 
-  constructor(
-    private readonly access: RequestAccess,
-    private readonly index: Index,
-  ) {}
+  constructor(private readonly access: RequestAccess) {}
 
   /** Throws {@link ServiceLookupUnavailable} when OAP could not say whose a
    *  service is: dropping the row would pass a partial answer off as whole. */
@@ -73,24 +72,48 @@ export class AlarmRowAccess {
     return answer === 'allow';
   }
 
-  /** Whether the caller sees a row from a read that named no service. */
+  /** Whether the caller sees a row. */
   async keeps(m: AlarmEntity): Promise<boolean> {
     if (readsEveryAlarm(this.access)) return true;
     const source = alarmSourceId(m);
     if (!source) return !this.access.layerLimited(VERBS);
     if (await this.readable(source)) return true;
     if (!isRelationAlarm(m)) return false;
-    const dests = alarmDestinations(m, this.index);
-    if (dests.length === 0) return false;
-    for (const d of dests) if (!(await this.readable(d.id))) return false;
-    return true;
+    const dests: ResolvedService[] = [];
+    for (const name of alarmDestinationNames(m)) {
+      const r = await this.access.resolve({ name });
+      if (r.kind === 'unavailable') throw new ServiceLookupUnavailable('OAP did not answer which service an alarm concerns');
+      if (r.kind === 'found') dests.push(...r.services);
+    }
+    return dests.length > 0 && dests.every((d) => this.access.allowsResolved(VERBS, d));
   }
 
   /** Every row with whether it is kept — decided before a page filter, which
-   *  cannot wait, runs over them. */
-  async decide<T extends AlarmEntity>(rows: readonly T[]): Promise<Array<DecidedRow<T>>> {
+   *  cannot wait, runs over them. A row the read does not list is not kept,
+   *  and whose it is is not asked. */
+  async decide<T extends AlarmEntity>(rows: readonly T[], listed: (row: T) => boolean = () => true): Promise<Array<DecidedRow<T>>> {
+    if (!readsEveryAlarm(this.access)) await this.prefetch(rows.filter(listed));
     const out: Array<DecidedRow<T>> = [];
-    for (const row of rows) out.push({ row, kept: await this.keeps(row) });
+    for (const row of rows) out.push({ row, kept: listed(row) && (await this.keeps(row)) });
     return out;
+  }
+
+  /** Asks OAP at once for what deciding `rows` needs: the sources first, then
+   *  the destinations of only the relations whose source does not already
+   *  decide them. */
+  private async prefetch(rows: readonly AlarmEntity[]): Promise<void> {
+    const sources = new Set<string>();
+    for (const m of rows) {
+      const source = alarmSourceId(m);
+      if (source) sources.add(source);
+    }
+    await this.access.prefetch([...sources].map((id): ServiceRef => ({ id })));
+    const names = new Set<string>();
+    for (const m of rows) {
+      const source = alarmSourceId(m);
+      if (!source || !isRelationAlarm(m) || (await this.readable(source))) continue;
+      for (const name of alarmDestinationNames(m)) names.add(name);
+    }
+    await this.access.prefetch([...names].map((name): ServiceRef => ({ name })));
   }
 }

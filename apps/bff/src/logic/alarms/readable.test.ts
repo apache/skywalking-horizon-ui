@@ -21,7 +21,7 @@ import { configSchema } from '../../config/schema.js';
 import type { ConfigSource } from '../../config/loader.js';
 import { SessionAccess } from '../../rbac/layer-access.js';
 import { RequestAccess } from '../../rbac/request-access.js';
-import { ServiceIdentityResolver, ServiceLookupUnavailable, catalogIndex, serviceIdOf } from '../services/service-identity.js';
+import { ServiceIdentityResolver, ServiceLookupUnavailable, serviceIdOf } from '../services/service-identity.js';
 import type { ServiceCatalog, ServiceLayerCatalog } from '../services/service-layer-catalog.js';
 import { AlarmRowAccess, readsEveryAlarm } from './readable.js';
 
@@ -59,25 +59,40 @@ const ROLES = {
   paymentsAndMeshRisk: ['alarms:read@GENERAL[payments]', 'alarms:read@MESH[risk]'],
 };
 
-/** OAP's `getService`, by id; anything else is a service OAP does not know. */
+/** OAP's `getService`, by id — one, or several aliased in one request;
+ *  anything else is a service OAP does not know. */
 function oap(known: Record<string, { group: string; layers: string[] }> = {}, down = false) {
   const asked: string[] = [];
+  const requests = { count: 0 };
   const fetch: FetchLike = async (_url, init) => {
-    const { variables } = JSON.parse(String(init?.body ?? '{}')) as { variables: { id: string } };
-    asked.push(variables.id);
+    const { variables } = JSON.parse(String(init?.body ?? '{}')) as { variables: Record<string, string> };
+    requests.count += 1;
+    const one = (id: string) => {
+      asked.push(id);
+      const hit = known[id];
+      return hit ? { id, name: 'x', normal: true, ...hit } : null;
+    };
+    const data =
+      'id' in variables
+        ? { service: one(variables.id!) }
+        : Object.fromEntries(Object.entries(variables).map(([k, id]) => [`s${k.slice(1)}`, one(id)]));
     if (down) throw new Error('connect ECONNREFUSED');
-    const hit = known[variables.id];
-    const service = hit ? { id: variables.id, name: 'x', normal: true, ...hit } : null;
-    return new Response(JSON.stringify({ data: { service } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
-  return { fetch, asked };
+  return { fetch, asked, requests };
 }
 
-function rowsFor(role: keyof typeof ROLES, fetch: FetchLike = oap().fetch): { access: RequestAccess; rows: AlarmRowAccess } {
-  const catalog = { get: async () => snapshot } as unknown as ServiceLayerCatalog;
+/** A fresh snapshot per call unless one is shared: what OAP answered beyond
+ *  a snapshot is held for that snapshot's life. */
+function rowsFor(
+  role: keyof typeof ROLES,
+  fetch: FetchLike = oap().fetch,
+  snap: ServiceCatalog = { ...snapshot },
+): { access: RequestAccess; rows: AlarmRowAccess } {
+  const catalog = { get: async () => snap } as unknown as ServiceLayerCatalog;
   const services = new ServiceIdentityResolver({ config, fetch, catalog });
   const access = new RequestAccess(new SessionAccess(ROLES[role], undefined, facts), services);
-  return { access, rows: new AlarmRowAccess(access, catalogIndex(snapshot)) };
+  return { access, rows: new AlarmRowAccess(access) };
 }
 
 const service = (s: { id: string; name: string }) => ({ scope: 'Service', id: s.id, name: s.name });
@@ -153,6 +168,63 @@ describe('alarms:read on a layer\'s group', () => {
 
   it('keeps it when every service the destination may be is readable', async () => {
     expect(await rowsFor('paymentsAndMeshRisk').rows.keeps(relation(scorer, 'reports'))).toBe(true);
+  });
+
+  // The catalog was read before a conjectured risk `ledger` registered beside
+  // the payments one: the name still means both.
+  it('drops a relation whose destination may be a namesake the catalog has not seen yet', async () => {
+    const ledger = svc('ledger', 'payments');
+    const snap: ServiceCatalog = { ...snapshot, byLayer: new Map([...snapshot.byLayer, ['GENERAL', [checkout, scorer, reports, ledger]]]) };
+    const o = oap({ [serviceIdOf('ledger', false)]: { group: 'risk', layers: ['MESH'] } });
+    expect(await rowsFor('payments', o.fetch, snap).rows.keeps(relation(scorer, 'ledger'))).toBe(false);
+    expect(await rowsFor('paymentsAndMeshRisk', o.fetch, snap).rows.keeps(relation(scorer, 'ledger'))).toBe(true);
+    expect(await rowsFor('payments', o.fetch, snap).rows.keeps(relation(checkout, 'ledger'))).toBe(true);
+  });
+
+  it('asks OAP about a namesake the catalog lacks once per catalog read', async () => {
+    const o = oap();
+    const snap: ServiceCatalog = { ...snapshot };
+    for (let i = 0; i < 3; i++) expect(await rowsFor('payments', o.fetch, snap).rows.keeps(relation(scorer, checkout.name))).toBe(true);
+    expect(o.asked).toEqual([serviceIdOf(checkout.name, false)]);
+    await rowsFor('payments', o.fetch).rows.keeps(relation(scorer, checkout.name));
+    expect(o.asked).toHaveLength(2);
+  });
+
+  it('asks OAP about every service a batch of rows needs in one request', async () => {
+    const o = oap({ [serviceIdOf('d3', false)]: { group: 'payments', layers: ['GENERAL'] } });
+    const { rows } = rowsFor('payments', o.fetch);
+    const batch = Array.from({ length: 20 }, (_, i) => relation(scorer, `d${i}`));
+    const decided = await rows.decide([...batch, relation(scorer, checkout.name)]);
+    expect(o.requests.count).toBe(1);
+    expect(new Set(o.asked).size).toBe(41);
+    expect(decided.filter((d) => d.kept).map((d) => d.row.name)).toEqual(['risk::scorer to d3', `risk::scorer to ${checkout.name}`]);
+  });
+
+  it('asks nothing about the destinations of relations its source already decides', async () => {
+    const o = oap();
+    const { rows } = rowsFor('payments', o.fetch);
+    const batch = Array.from({ length: 20 }, (_, i) => relation(checkout, `d${i}`));
+    const decided = await rows.decide(batch);
+    expect(decided.every((d) => d.kept)).toBe(true);
+    expect(o.requests.count).toBe(0);
+  });
+
+  it('asks about many services a few requests at a time', async () => {
+    const o = oap();
+    const { rows } = rowsFor('payments', o.fetch);
+    await rows.decide(Array.from({ length: 120 }, (_, i) => relation(scorer, `d${i}`)));
+    expect(new Set(o.asked).size).toBe(240);
+    expect(o.requests.count).toBe(5);
+  });
+
+  it('still says OAP could not be asked when the batched request fails', async () => {
+    const { rows } = rowsFor('payments', oap({}, true).fetch);
+    await expect(rows.decide([relation(scorer, checkout.name)])).rejects.toBeInstanceOf(ServiceLookupUnavailable);
+  });
+
+  it('throws when OAP could not say whether the destination has a namesake', async () => {
+    const { rows } = rowsFor('payments', oap({}, true).fetch);
+    await expect(rows.keeps(relation(scorer, checkout.name))).rejects.toBeInstanceOf(ServiceLookupUnavailable);
   });
 
   it('drops a relation whose destination the catalog does not know', async () => {

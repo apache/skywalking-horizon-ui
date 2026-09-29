@@ -145,10 +145,15 @@ export interface BuildServiceTopologyInput {
   /** Layer-overview only: the Service.group values the caller may read, when
    *  that is not every group. Neighbours still render as OAP returns them. */
   seedGroups?: ReadonlySet<string>;
+  /** Of the services drawn, the ones whose values the caller may see; absent
+   *  when it may see every one. The rest are drawn, but their metrics are not
+   *  read: a node keeps only its name, and a call keeps its values when the
+   *  caller reads either end. */
+  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
 }
 
 export async function buildServiceTopology(input: BuildServiceTopologyInput): Promise<TopologyResponse> {
-  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group, seedGroups } = input;
+  const { opts, perf, window, coldStage, cfg: topoCfg, layerKey, serviceArg, depth, group, seedGroups, readableOf } = input;
   const oapLayer = layerKey.toUpperCase();
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
@@ -226,10 +231,16 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
     } satisfies TopologyResponse;
   }
 
+  // Every service drawn is asked about at once, virtual ones included: a call
+  // is open when the caller reads either end, whatever that end is.
+  const readable = readableOf ? await readableOf([...nodes.keys()]) : null;
+  const withheld = (id: string): boolean => readable !== null && !readable.has(id);
+  const callOpen = (c: OapTopoCall): boolean => !withheld(c.source) || !withheld(c.target);
+
   // ── Per-node MQE. Builds fragments off the layer's
   // `topology.nodeMetrics`. Synthetic nodes (User / external) are
   // skipped since OAP has no metrics for them.
-  const realNodes = [...nodes.values()].filter((n) => n.isReal);
+  const realNodes = [...nodes.values()].filter((n) => n.isReal && !withheld(n.id));
   const nodeMetricVals = new Map<string, Record<string, number | null>>();
   const serverMetricVals = new Map<string, Record<string, number | null>>();
   const clientMetricVals = new Map<string, Record<string, number | null>>();
@@ -269,7 +280,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
   const candidateEdges = [...calls.values()].filter((c) => {
     const a = nodes.get(c.source);
     const b = nodes.get(c.target);
-    return !!a && !!b && !!a.name && !!b.name;
+    return !!a && !!b && !!a.name && !!b.name && callOpen(c);
   });
   const linkSrv = topoCfg.linkServerMetrics ?? [];
   const linkCli = topoCfg.linkClientMetrics ?? [];
@@ -370,6 +381,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       layers: n.layers ?? [],
       metrics: filled,
       ...legacyNodeView(filled),
+      ...(n.isReal && withheld(n.id) ? { metricsBlocked: true } : {}),
     });
   }
   // Re-prune edges whose endpoint(s) were dropped.
@@ -403,6 +415,7 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       serverMetricSeries: filledSrvSeries,
       clientMetricSeries: filledCliSeries,
       ...legacyEdgeView(filledSrv, filledCli),
+      ...(callOpen(c) ? {} : { metricsBlocked: true }),
     });
   }
 

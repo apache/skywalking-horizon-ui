@@ -31,6 +31,7 @@ import { useColdStageStore } from '@/controls/coldStage';
 import { accepts, fetchDrawable, GraphUnavailableError, predicateKey, predicateService, useGraphState, useTimeIdentity, useTriggeredRefetch, anchorForMount, useRoundWindow } from './graphQuery';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
+import { BffApiError } from '@/api/client';
 
 interface Resp {
   reachable?: boolean;
@@ -97,6 +98,22 @@ describe('the graph state machine', () => {
   it('turns an unreachable response into a failure the cache can survive', async () => {
     await expect(fetchDrawable(async () => failed())).rejects.toBeInstanceOf(GraphUnavailableError);
     await expect(fetchDrawable(async () => good(['a']))).resolves.toEqual(good(['a']));
+  });
+
+  // A refusal is an answer: the screen says why instead of offering a Retry
+  // that cannot succeed.
+  it('says why the BFF refused the read, and nothing for any other failure', () => {
+    const refused = new BffApiError(403, 'GET /api/layer/general/topology failed (403)', {
+      error: 'permission_denied',
+      verb: 'topology:read',
+      reason: 'service_not_granted',
+    });
+    const s = state({ error: refused });
+    expect(s.phase.value).toBe('failed');
+    expect(s.refusal.value).toBe('You do not have access to this service.');
+    expect(state({ error: new GraphUnavailableError(failed()) }).refusal.value).toBeNull();
+    expect(state({ error: new BffApiError(403, 'x', { error: 'permission_denied', verb: 'topology:read' }) }).refusal.value)
+      .toBe('Your role does not allow this read.');
   });
 
   it('keeps drawing the cached graph while the latest attempt failed', () => {

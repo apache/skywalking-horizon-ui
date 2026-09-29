@@ -94,6 +94,9 @@ const listPins = ref<string[] | null>(null);
 const drawnPins = computed<readonly string[]>(() =>
   props.pageId && listPins.value ? listPins.value : alarmPage.pinnedLayers.value,
 );
+/** A named page's pins as the pages route serves them; empty on the default
+ *  page, whose rows and choices do not depend on its pins. */
+const servedPinsKey = computed<string>(() => (props.pageId ? alarmPage.pinnedLayers.value.join('|') : ''));
 
 /* Each page's starting window is applied once, when it is first known; after
  * that the operator's picker choice wins and a refetch of the pages must not
@@ -114,7 +117,7 @@ watch(
   { immediate: true },
 );
 
-const filters = useAlarmFilters(hasQueryAlarms, toRef(props, 'pageId'));
+const filters = useAlarmFilters(hasQueryAlarms, toRef(props, 'pageId'), servedPinsKey);
 /** A named page offers only its own layers to filter by. */
 const pageLayers = computed<string[] | null>(() =>
   props.pageId ? [...new Set(drawnPins.value.map((p) => canonicalPin(p)?.layer).filter((l): l is string => !!l))] : null,
@@ -176,7 +179,7 @@ const alarmsQuery = useQuery({
   queryKey: computed(() => [
     'alarms',
     props.pageId ?? '',
-    props.pageId ? alarmPage.pinnedLayers.value.join('|') : '',
+    servedPinsKey.value,
     startTime.value,
     endTime.value,
     applied.value.layer,
@@ -363,7 +366,7 @@ watch(
 // a layer or service picked under the old pins may be one it no longer offers,
 // and would narrow the new read to nothing.
 watch(
-  [() => props.pageId, () => (props.pageId ? alarmPage.pinnedLayers.value.join('|') : '')],
+  [() => props.pageId, servedPinsKey],
   ([id, pins], [prevId, prevPins]) => {
     if (id !== prevId || pins === prevPins) return;
     filters.clearFilters();

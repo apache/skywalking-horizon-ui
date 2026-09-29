@@ -28,6 +28,7 @@ import { useI18n } from 'vue-i18n';
 import { formatValue } from './ValueFormat';
 import { rankingLayout, type RankingRow } from './ranking';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import { layerRouteKey } from '@/utils/layerRoute';
 
 const props = defineProps<{
   title: string;
@@ -45,7 +46,7 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const tileTo = computed(() => (props.layer ? `/layer/${props.layer.toLowerCase()}/service` : ''));
+const tileTo = computed(() => (props.layer ? `/layer/${layerRouteKey(props.layer)}/service` : ''));
 // The list is measured so the rows can split into as many columns as its
 // height calls for; until measured, a column is taken to hold five.
 const ROW_PITCH = 26;

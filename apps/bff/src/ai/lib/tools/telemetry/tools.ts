@@ -100,7 +100,7 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
             return 'The service catalog could not be read, so alarms cannot be told apart by the services they concern right now. This is not a permission problem; try again shortly.';
           }
           const index = catalogIndex(cat);
-          const rowAccess = ctx.access && !everything ? new AlarmRowAccess(ctx.access, index) : null;
+          const rowAccess = ctx.access && !everything ? new AlarmRowAccess(ctx.access) : null;
           const page = await readFilteredPage(
             async (rows) => {
               const fetched = await fetchFirst(rows);

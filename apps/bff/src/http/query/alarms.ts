@@ -65,9 +65,12 @@
  *     overview widget is bound to: it keeps the rows of that group's
  *     services, by `ownerKeys`. It narrows what the caller may read; it
  *     grants nothing.
- *   - A caller who does not hold `alarms:read` on every layer gets, from
- *     a read that names no service, only the rows of services they may
- *     read (logic/alarms/readable.ts), filtered here because OAP cannot.
+ *   - A caller who does not hold `alarms:read` on every layer gets only
+ *     the rows of services they may read (logic/alarms/readable.ts),
+ *     filtered here because OAP cannot — a picked service included, since
+ *     a relation naming it only as its destination may mean a namesake. A
+ *     picked instance or endpoint is OAP's exact entity, whose service the
+ *     gate has checked, so its rows are not filtered again.
  *     The count counts those rows alone.
  *   - `page` names an alarm page (logic/alarms/pages.ts): only the rows
  *     one of its pins covers are kept, the pins narrowed to the caller as
@@ -103,7 +106,7 @@ import { readsByNameOnly } from '../../rbac/request-access.js';
 import { ServiceLookupUnavailable, catalogIndex, entityServiceName, serviceIdOf, type Index } from '../../logic/services/service-identity.js';
 import { alarmConcernsService, alarmIncidentKey, alarmLayers, alarmOwnerKeys } from '../../logic/alarms/owners.js';
 import { namedPagePins, pinReachOf, readStoredAlarmPages } from '../../logic/alarms/pages.js';
-import { AlarmRowAccess, keepAll, readsEveryAlarm, type DecidedRow } from '../../logic/alarms/readable.js';
+import { AlarmRowAccess, readsEveryAlarm, type DecidedRow } from '../../logic/alarms/readable.js';
 import { canonicalLayerKey } from '../../logic/templates/identity.js';
 
 export interface AlarmsQueryRouteDeps extends AuthDeps {
@@ -467,27 +470,30 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
 
     const layerPin = q.layer && !named ? layerFilterPin(q.layer, canonicalLayerKey) : null;
     const index = catalogIndex(catalog);
-    // Every row a picked service keeps concerns that service, which the gate
-    // has checked; the legacy query cannot narrow, so its rows are decided.
-    const perRow = access && !readsEveryAlarm(access) && (!named || !caps.queryAlarms) ? new AlarmRowAccess(access, index) : null;
+    // A picked service narrows which rows are listed, not who may read them:
+    // a relation that names it only as its destination may mean a namesake.
+    // A picked instance or endpoint is matched by OAP on its exact id at
+    // either end, and the gate has checked its service, so its rows are not
+    // decided again. The legacy query ignores the entity, so its rows are.
+    const exactEntity = entity !== null && caps.queryAlarms;
+    const perRow = access && !readsEveryAlarm(access) && !exactEntity ? new AlarmRowAccess(access) : null;
     if ((layerPin || perRow || pagePins || serviceId) && catalogMissing(catalog)) return catalogUnavailable(reply);
-    const keep = (d: DecidedRow<AlarmMessage>): boolean =>
-      d.kept &&
-      (!layerPin || alarmPinMatches(layerPin, d.row)) &&
-      (!pagePins || pagePins.some((pin) => alarmPinMatches(pin, d.row))) &&
-      (!serviceId || alarmConcernsService(d.row, serviceId, index));
+    const listed = (m: AlarmMessage): boolean =>
+      (!layerPin || alarmPinMatches(layerPin, m)) &&
+      (!pagePins || pagePins.some((pin) => alarmPinMatches(pin, m))) &&
+      (!serviceId || alarmConcernsService(m, serviceId, index));
     // Every read starts at row 0 — see readPrefixPage for the OAP offset
     // this avoids.
     const fetchFirst = async (rows: number): Promise<Array<DecidedRow<AlarmMessage>>> => {
       const tagged = tagWithOwners(await fetchAlarms({ pageNum: 1, pageSize: rows }), index);
-      return perRow ? perRow.decide(tagged) : keepAll(tagged);
+      return perRow ? perRow.decide(tagged, listed) : tagged.map((row) => ({ row, kept: listed(row) }));
     };
     const paging = { pageNum: q.pageNum, pageSize: q.pageSize };
     let page: PageResult<DecidedRow<AlarmMessage>>;
     let tagged: AlarmMessage[];
     try {
       page = layerPin || perRow || pagePins || serviceId
-        ? await readFilteredPage(fetchFirst, keep, paging, ALARM_READ)
+        ? await readFilteredPage(fetchFirst, (d) => d.kept, paging, ALARM_READ)
         : await readPrefixPage(fetchFirst, paging);
       tagged = page.rows.map((d) => d.row);
     } catch (err) {
@@ -567,7 +573,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         if (!access || !catalog) {
           capped = await readPageWith(fetchCountRows, { pageNum: 1, pageSize: COUNT_FETCH_CAP });
         } else {
-          const rowAccess = new AlarmRowAccess(access, catalogIndex(catalog));
+          const rowAccess = new AlarmRowAccess(access);
           const page = await readFilteredPage(
             async (rows) => rowAccess.decide(await fetchCountRows({ pageNum: 1, pageSize: rows })),
             (d) => d.kept,

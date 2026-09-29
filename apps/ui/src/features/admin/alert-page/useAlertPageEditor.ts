@@ -192,18 +192,37 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
 
   /** After a write: every reader of the pages follows it — the sidebar and the
    *  Alarms page (`alarms/pages`), the badge and overview widget
-   *  (`alarms/config`), and this page's own sync badges (the bundle). */
-  async function afterWrite(): Promise<void> {
+   *  (`alarms/config`), and this page's own sync badges (the bundle).
+   *  `written` is the confirmed write's own answer, which already holds the
+   *  stored rows. False when what this editor shows could not be read back,
+   *  so it may still be from before the write. */
+  async function afterWrite(written?: TemplateSyncStatus): Promise<boolean> {
+    if (written) queryClient.setQueryData(ALERT_ROWS_QUERY_KEY, written);
+    let rowsRead = true;
     try {
       queryClient.setQueryData(ALERT_ROWS_QUERY_KEY, await bff.templateSync.resync());
     } catch {
-      await rowsQ.refetch();
+      rowsRead = written !== undefined || !(await rowsQ.refetch()).isError;
     }
     await refreshConfigBundle({ force: true });
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ALARMS_CONFIG_QUERY_KEY }),
+    const [config] = await Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: ALARMS_CONFIG_QUERY_KEY }, { throwOnError: true }),
       queryClient.invalidateQueries({ queryKey: ALARM_PAGES_QUERY_KEY }),
     ]);
+    return rowsRead && config.status === 'fulfilled';
+  }
+
+  /** Settles the editor on what OAP holds after a save of `d`: a new page
+   *  that shows is no longer pending, and the edits go only once the stored
+   *  page reads back as them — so a readback that failed never passes the
+   *  values from before the save off as saved. */
+  function settle(id: string, d: PageDraft, wasPending: boolean): boolean {
+    if (wasPending && named.value.some((p) => p.id === id)) pending.value = null;
+    else if (wasPending && pending.value?.id === id) pending.value = { ...pending.value, sent: namedContent(id, d) };
+    const saved = pending.value?.id === id ? null : savedDraft(id);
+    const landed = saved !== null && sameContent(contentOf(id, saved), contentOf(id, d));
+    if (landed) dropEdits(id);
+    return landed;
   }
 
   const WINDOW_LABELS = computed<Record<number, string>>(() => ({
@@ -239,13 +258,11 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
           return;
         }
       }
-      await bff.templateSync.save(alertRowName(id), contentOf(id, d));
-      // Edits go only once the fresh rows are in, so the editor never shows
-      // the pre-save values in between.
-      await afterWrite();
-      if (wasPending) pending.value = null;
-      dropEdits(id);
-      if (!defaultPage && !named.value.some((p) => p.id === id)) selectedId.value = ALERT_DEFAULT_PAGE_ID;
+      await afterWrite(await bff.templateSync.save(alertRowName(id), contentOf(id, d)));
+      if (!settle(id, d, wasPending)) {
+        setFlash(t('Saved, but the stored page could not be read back, so your edits are kept. Reload to check it before editing again.'), 'err');
+        return;
+      }
       setFlash(
         defaultPage
           ? t('saved · {pinned} pinned · {window} · limit {limit}', {
@@ -262,11 +279,7 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
         // that is stored now is no longer pending, and edits the stored page
         // already holds go.
         await afterWrite();
-        if (wasPending && named.value.some((p) => p.id === id)) pending.value = null;
-        else if (wasPending && pending.value?.id === id) pending.value = { ...pending.value, sent: namedContent(id, d) };
-        const saved = pending.value?.id === id ? null : savedDraft(id);
-        const landed = saved !== null && sameContent(contentOf(id, saved), contentOf(id, d));
-        if (landed) dropEdits(id);
+        const landed = settle(id, d, wasPending);
         setFlash(t('Refetched after timeout — the push may have completed; please verify.'), landed ? 'ok' : 'err');
       } else {
         setFlash(t('error: {msg}', { msg: pushErrorLines(err).join('; ') }), 'err');
@@ -281,10 +294,10 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
     const title = named.value.find((p) => p.id === id)?.title || id;
     deleting.value = true;
     try {
-      await bff.templateSync.disable(alertRowName(id));
+      const written = await bff.templateSync.disable(alertRowName(id));
       dropEdits(id);
       if (selectedId.value === id) selectedId.value = ALERT_DEFAULT_PAGE_ID;
-      await afterWrite();
+      await afterWrite(written);
       setFlash(t('deleted · {title}', { title }));
       return true;
     } catch (err) {
@@ -296,12 +309,14 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
   }
 
   /** The default page was reset to the bundled one (the diff modal wrote it):
-   *  every reader follows, as after a save, and its edits here go. */
-  async function afterReset(): Promise<void> {
+   *  every reader follows, as after a save, and its edits here go. False when
+   *  the reset page could not be read back. */
+  async function afterReset(): Promise<boolean> {
     resetting.value = true;
     try {
-      await afterWrite();
+      const readBack = await afterWrite();
       dropEdits(ALERT_DEFAULT_PAGE_ID);
+      return readBack;
     } finally {
       resetting.value = false;
     }

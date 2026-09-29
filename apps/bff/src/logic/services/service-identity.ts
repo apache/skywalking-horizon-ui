@@ -22,8 +22,9 @@
  * Built from the shared service catalog, indexed by exact id — never by the
  * catalog's lower-cased, last-wins name map, which is a display aid. A miss
  * (a service registered since the last refresh, or a catalog that could not
- * be read) asks OAP for that one service; a service OAP does not know is
- * `null`, and the caller refuses.
+ * be read) asks OAP for that one service, and OAP's answer is held until the
+ * catalog is next read; a service OAP does not know is `null`, and the caller
+ * refuses.
  */
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
@@ -64,6 +65,23 @@ export interface Index {
 }
 
 const indexes = new WeakMap<ServiceCatalog, Index>();
+
+/** What OAP answered for an id a trusted snapshot lacks, held for that
+ *  snapshot's life: the other id of a name, which almost never exists, costs
+ *  one OAP read per catalog refresh rather than one per request. Only answers
+ *  are held — a lookup that failed or was cancelled is not. */
+const beyondSnapshot = new WeakMap<ServiceCatalog, Map<string, ResolvedService | null>>();
+
+function heldFor(snapshot: ServiceCatalog): Map<string, ResolvedService | null> {
+  let held = beyondSnapshot.get(snapshot);
+  if (!held) beyondSnapshot.set(snapshot, (held = new Map()));
+  return held;
+}
+
+/** Ids asked of OAP per request by {@link ServiceIdentityResolver.prefetch},
+ *  and how many of those requests are in flight at once. */
+const PREFETCH_CHUNK = 50;
+const PREFETCH_PARALLEL = 4;
 
 /** How long rows kept through failed refreshes still decide access. Past it
  *  they are re-checked with OAP, so a service that has since moved into a layer
@@ -153,6 +171,23 @@ interface RawService {
   layers?: string[] | null;
 }
 
+function servicesQuery(n: number): string {
+  const vars = Array.from({ length: n }, (_, i) => `$i${i}: String!`).join(', ');
+  const fields = Array.from({ length: n }, (_, i) => `s${i}: getService(serviceId: $i${i}) { id name normal group layers }`);
+  return `query HorizonAccessServices(${vars}) {\n  ${fields.join('\n  ')}\n}`;
+}
+
+function resolvedOf(s: RawService | null | undefined, id: string): ResolvedService | null {
+  if (!s || s.id !== id) return null;
+  return {
+    id: s.id,
+    name: s.name,
+    normal: s.normal === true ? true : s.normal === false ? false : null,
+    group: s.group ?? '',
+    layers: [...new Set((s.layers ?? []).map(canonicalLayerKey))],
+  };
+}
+
 export class ServiceIdentityResolver {
   constructor(private readonly deps: ServiceIdentityDeps) {}
 
@@ -161,9 +196,11 @@ export class ServiceIdentityResolver {
    *  through failed refreshes decide access only while recent. */
   async byId(id: string, signal?: AbortSignal): Promise<ResolvedService | null> {
     const snapshot = await this.deps.catalog.get();
-    if (trusted(snapshot)) {
+    const held = trusted(snapshot) ? heldFor(snapshot) : null;
+    if (held) {
       const hit = indexOf(snapshot).byId.get(id);
       if (hit) return hit;
+      if (held.has(id)) return held.get(id)!;
     }
     const opts = buildOapOpts(this.deps.config.current, this.deps.fetch, signal);
     let got: { service: RawService | null };
@@ -172,15 +209,43 @@ export class ServiceIdentityResolver {
     } catch (err) {
       throw new ServiceLookupUnavailable(err);
     }
-    const s = got.service;
-    if (!s || s.id !== id) return null;
-    return {
-      id: s.id,
-      name: s.name,
-      normal: s.normal === true ? true : s.normal === false ? false : null,
-      group: s.group ?? '',
-      layers: [...new Set((s.layers ?? []).map(canonicalLayerKey))],
+    const s = resolvedOf(got.service, id);
+    held?.set(id, s);
+    return s;
+  }
+
+  /**
+   * Asks OAP, a chunk of ids per request, about every id a trusted snapshot
+   * neither lists nor holds an answer for, and holds the answers — so a caller
+   * about to decide many rows asks once instead of once per row. Best effort:
+   * an id it could not settle is asked again, and reported, by the lookup
+   * that needs it.
+   */
+  async prefetch(ids: readonly string[], signal?: AbortSignal): Promise<void> {
+    const snapshot = await this.deps.catalog.get();
+    if (!trusted(snapshot)) return;
+    const idx = indexOf(snapshot);
+    const held = heldFor(snapshot);
+    const missing = [...new Set(ids)].filter((id) => !idx.byId.has(id) && !held.has(id));
+    const opts = buildOapOpts(this.deps.config.current, this.deps.fetch, signal);
+    const ask = async (chunk: string[]): Promise<void> => {
+      let got: Record<string, RawService | null>;
+      try {
+        got = await graphqlPost<Record<string, RawService | null>>(
+          opts,
+          servicesQuery(chunk.length),
+          Object.fromEntries(chunk.map((id, j) => [`i${j}`, id])),
+        );
+      } catch {
+        return;
+      }
+      chunk.forEach((id, j) => {
+        if (got && `s${j}` in got) held.set(id, resolvedOf(got[`s${j}`], id));
+      });
     };
+    const chunks: string[][] = [];
+    for (let i = 0; i < missing.length; i += PREFETCH_CHUNK) chunks.push(missing.slice(i, i + PREFETCH_CHUNK));
+    for (let i = 0; i < chunks.length; i += PREFETCH_PARALLEL) await Promise.all(chunks.slice(i, i + PREFETCH_PARALLEL).map(ask));
   }
 
   /**
@@ -194,21 +259,16 @@ export class ServiceIdentityResolver {
       return one ? [one] : null;
     }
     const snapshot = await this.deps.catalog.get();
-    if (trusted(snapshot)) {
-      // Both ids the name addresses, as well as the rows carrying it: OAP lists
-      // its blank-named service with an empty name, and files it under `_blank`
-      // — the same ids a service literally named `_blank` has.
-      const idx = indexOf(snapshot);
-      const known = new Map((idx.byName.get(name) ?? []).map((s) => [s.id, s]));
-      for (const id of [serviceIdOf(name, true), serviceIdOf(name, false)]) {
-        const s = idx.byId.get(id);
-        if (s) known.set(id, s);
-      }
-      if (known.size > 0) return [...known.values()];
-    }
-    const found = (
-      await Promise.all([this.byId(serviceIdOf(name, true), signal), this.byId(serviceIdOf(name, false), signal)])
-    ).filter((s): s is ResolvedService => s !== null);
-    return found.length > 0 ? found : null;
+    // The rows carrying the name: OAP lists its blank-named service with an
+    // empty name, and files it under `_blank` — the same ids a service
+    // literally named `_blank` has.
+    const known = new Map<string, ResolvedService>();
+    if (trusted(snapshot)) for (const s of indexOf(snapshot).byName.get(name) ?? []) known.set(s.id, s);
+    // Both ids the name addresses, each from the catalog or, where it holds
+    // none, from OAP: a namesake registered since the catalog's last read is
+    // still one of the services the name can mean.
+    const ids = [serviceIdOf(name, true), serviceIdOf(name, false)].filter((id) => !known.has(id));
+    for (const s of await Promise.all(ids.map((id) => this.byId(id, signal)))) if (s) known.set(s.id, s);
+    return known.size > 0 ? [...known.values()] : null;
   }
 }

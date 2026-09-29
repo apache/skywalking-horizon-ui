@@ -321,7 +321,8 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         </div>
         <button class="sw-btn small" type="button" @click="emit('clearNode')">×</button>
       </header>
-      <div class="sp-kpis">
+      <div v-if="selectedNode.metricsBlocked" class="sp-empty">{{ t('Metrics blocked: your role cannot read this service.') }}</div>
+      <div v-else class="sp-kpis">
         <div v-for="m in cfg.nodeMetrics" :key="m.id" class="sp-kpi">
           <div class="sp-kpi-label">{{ formatRowLabel(m) }}</div>
           <div class="sp-kpi-value" :style="{ color: m.role === 'ring' ? ringColor(selectedNode) : m.role === 'center' ? 'var(--sw-accent)' : 'var(--sw-fg-0)' }">
@@ -427,7 +428,8 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
            `fluid` to fill its cell. -->
       <div class="sp-section">
         <div class="sp-section-title">{{ t('Line metrics') }}</div>
-        <div v-if="edgeRows.length > 0" class="sp-edge-rows">
+        <div v-if="selectedCall.metricsBlocked" class="sp-empty">{{ t('Metrics blocked: your role reads neither end of this call.') }}</div>
+        <div v-else-if="edgeRows.length > 0" class="sp-edge-rows">
           <div v-for="row in edgeRows" :key="row.id" class="sp-edge-row-card">
             <div class="sp-edge-row-head">
               <span class="sp-edge-row-label">{{ formatRowLabel(row) }}</span>

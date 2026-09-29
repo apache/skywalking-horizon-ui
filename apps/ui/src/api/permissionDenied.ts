@@ -28,6 +28,7 @@ export interface PermissionDenied {
   verb?: string;
   reason?: string;
   layer?: string;
+  group?: string;
 }
 
 function str(v: unknown): string | undefined {
@@ -38,7 +39,7 @@ export function permissionDeniedOf(status: number, body: unknown): PermissionDen
   if (status !== 403 || !body || typeof body !== 'object') return null;
   const o = body as Record<string, unknown>;
   if (o.error !== 'permission_denied') return null;
-  return { verb: str(o.verb), reason: str(o.reason), layer: str(o.layer) };
+  return { verb: str(o.verb), reason: str(o.reason), layer: str(o.layer), group: str(o.group) };
 }
 
 /** Null for a refusal without a reason — the plain missing-verb 403, whose
@@ -55,6 +56,11 @@ export function describeRefusal(d: PermissionDenied): string | null {
       return d.layer
         ? t('You do not have access to the {layer} layer.', { layer: d.layer.toUpperCase() })
         : t('You do not have access to this layer.');
+    case 'group_not_granted':
+      return t('You do not have access to the {group} services of the {layer} layer.', {
+        group: d.group ?? '',
+        layer: (d.layer ?? '').toUpperCase(),
+      });
     case 'id_names_no_service':
     case 'segment_ids_name_no_service':
     case 'schedule_ids_name_no_service':
@@ -86,6 +92,14 @@ export function isPermissionDenied(err: unknown): boolean {
 export function permissionDeniedText(err: unknown): string | null {
   const d = refusalOf(err);
   return d ? describeRefusal(d) : null;
+}
+
+/** The sentence for any refused BFF read — with a reason, its own; without
+ *  one, a general one — or null when `err` is anything else. A refusal is an
+ *  answer, so a screen showing it offers no Retry. */
+export function refusalText(err: unknown): string | null {
+  if (!isPermissionDenied(err)) return null;
+  return permissionDeniedText(err) ?? i18n.global.t('Your role does not allow this read.');
 }
 
 /** `String(err)` for everything but a refusal with a reason, which reads as

@@ -95,7 +95,7 @@ const { selectedId: headerSelectedId, setSelected: setSelectedService } = useSel
 const selectedId = computed<string | null>(() =>
   embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
 );
-const { layers } = useLayers();
+const { layers, entryKeyFor } = useLayers();
 const layer = computed<LayerDef | null>(
   // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
   // arrive lowercased (the AI chat block passes spec.layer.toLowerCase()).
@@ -217,6 +217,7 @@ const {
   calls: baseCalls,
   isFetching,
   phase,
+  refusal,
   data,
   refetch,
   acceptedSnapshot,
@@ -633,11 +634,17 @@ function openRouteInNewTab(to: RouteLocationRaw): void {
   window.open(href, '_blank', 'noopener');
 }
 
+/** This layer's entry for the node's service — on a layer split by service
+ *  group, a neighbour of another group opens under its own group. */
+function entryFor(sel: EndpointDependencyNode): string {
+  return entryKeyFor(layerKey.value.split('~', 1)[0]!, sel.serviceName);
+}
+
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${layerKey.value}/service`,
+    path: `/layer/${entryFor(sel)}/service`,
     query: { service: sel.serviceId },
   });
 }
@@ -651,7 +658,7 @@ function jumpToEndpointDashboard(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${layerKey.value}/endpoint`,
+    path: `/layer/${entryFor(sel)}/endpoint`,
     query: {
       service: sel.serviceId,
       endpoint: sel.name,
@@ -1092,12 +1099,14 @@ function edgeRowCrosshair(rowId: string): number | null {
               font-weight="700"
             >
               {{
-                centerDef
+                n.metricsBlocked
+                  ? t('blocked')
+                  : centerDef
                   ? (nodeVal(n, centerDef) === null
                       ? `— ${(centerDef.unit ?? '').toUpperCase()}`
                       : `${fmtMetric(nodeVal(n, centerDef))}${centerDef.unit ? ' ' + centerDef.unit.toUpperCase() : ''}`)
                   : ''
-              }}<template v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
+              }}<template v-if="!n.metricsBlocked && secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
             </text>
             <!-- One neutral expand handle (top-right corner) on the
                  SELECTED non-focus node. A single `getEndpointDependencies`
@@ -1156,6 +1165,7 @@ function edgeRowCrosshair(rowId: string): number | null {
           <div v-else-if="phase === 'failed' && blocked === 'layer-disabled'" class="loader">
             {{ t('This page is not available.') }}
           </div>
+          <div v-else-if="phase === 'failed' && refusal" class="loader">{{ refusal }}</div>
           <div v-else-if="phase === 'failed'" class="loader">
             {{ t('Could not load the dependency graph.') }}
             <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
@@ -1215,7 +1225,8 @@ function edgeRowCrosshair(rowId: string): number | null {
           </div>
           <button class="sw-btn small" type="button" @click="selectedNodeId = null">×</button>
         </header>
-        <div class="ed-kpis">
+        <p v-if="selectedNode.metricsBlocked" class="ed-blocked">{{ t('Metrics blocked: your role cannot read this service.') }}</p>
+        <div v-else class="ed-kpis">
           <div v-for="m in cfg.nodeMetrics" :key="m.id" class="ed-kpi">
             <div class="ed-kpi-label">{{ m.label }}<span v-if="m.unit"> ({{ m.unit }})</span></div>
             <div
@@ -1687,6 +1698,11 @@ function edgeRowCrosshair(rowId: string): number | null {
   font-weight: 600;
   color: var(--sw-fg-0);
   word-break: break-all;
+}
+.ed-blocked {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  color: var(--sw-fg-3);
 }
 .ed-kpis {
   display: grid;
