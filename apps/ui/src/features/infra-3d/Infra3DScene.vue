@@ -60,7 +60,7 @@ import {
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import { levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
 import { resolveServiceIdentity } from '@/utils/serviceName';
-import { useInfra3dAlarms, alarmKey } from './composables/useInfra3dAlarms';
+import { useInfra3dAlarms, cubeAlarmKey } from './composables/useInfra3dAlarms';
 import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMetrics';
 import { useSceneCamera } from './composables/useSceneCamera';
 import { useSceneEdges } from './composables/useSceneEdges';
@@ -171,7 +171,7 @@ const { alarmedKeys, alarmedNamesNoLayer } = useInfra3dAlarms();
 const alarmedNodes = computed(() =>
   visibleNodes.value.filter(
     (n) =>
-      alarmedKeys.value.has(alarmKey(n.node.layerKey, n.node.name)) ||
+      alarmedKeys.value.has(cubeAlarmKey(n.node.layerKey, n.node.name)) ||
       alarmedNamesNoLayer.value.has(n.node.name),
   ),
 );

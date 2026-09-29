@@ -69,8 +69,18 @@ export function alarmSourceId(m: AlarmEntity): string | null {
  * pin it down: an instance or endpoint name may itself contain ` of ` / ` in `,
  * so every suffix the catalog knows is a candidate, and a normal and a
  * conjectured service can share a name.
+ *
+ * For placing a row only: whether the reader may see it is decided by
+ * `readable.ts`, which also asks OAP about a namesake the catalog lacks.
  */
 export function alarmDestinations(m: AlarmEntity, index: Index): ResolvedService[] {
+  return alarmDestinationNames(m).flatMap((name) => index.byName.get(name) ?? []);
+}
+
+/** Every service NAME the destination of a relation alarm could be — each
+ *  suffix after ` of ` / ` in ` for an instance or endpoint relation. What
+ *  each name means is for the caller to look up. */
+export function alarmDestinationNames(m: AlarmEntity): string[] {
   const source = alarmSourceId(m);
   const sourceName = source ? serviceNameOfId(source) : null;
   if (!source || sourceName === null) return [];
@@ -86,11 +96,9 @@ export function alarmDestinations(m: AlarmEntity, index: Index): ResolvedService
   }
   if (!m.name.startsWith(prefix)) return [];
   const rest = m.name.slice(prefix.length);
-  if (!joiner) return index.byName.get(rest) ?? [];
-  const out: ResolvedService[] = [];
-  for (let i = rest.indexOf(joiner); i >= 0; i = rest.indexOf(joiner, i + 1)) {
-    out.push(...(index.byName.get(rest.slice(i + joiner.length)) ?? []));
-  }
+  if (!joiner) return [rest];
+  const out: string[] = [];
+  for (let i = rest.indexOf(joiner); i >= 0; i = rest.indexOf(joiner, i + 1)) out.push(rest.slice(i + joiner.length));
   return out;
 }
 

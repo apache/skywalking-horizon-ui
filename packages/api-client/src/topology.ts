@@ -237,6 +237,9 @@ export interface TopologyNode {
   respTime: number | null;
   /** @deprecated use `metrics['sla']`. */
   sla: number | null;
+  /** Drawn because it is connected, but the caller may not read it: its
+   *  metrics were not read, and the node says so rather than showing none. */
+  metricsBlocked?: boolean;
 }
 
 export interface TopologyCall {
@@ -262,6 +265,8 @@ export interface TopologyCall {
   clientCpm: number | null;
   /** @deprecated convenience read of `clientMetrics['respTime']`. */
   clientRespTime: number | null;
+  /** The caller reads neither end: the call is drawn without its values. */
+  metricsBlocked?: boolean;
 }
 
 export interface TopologyResponse {
@@ -304,6 +309,9 @@ export interface InstanceTopologyNode {
   isReal: boolean;
   /** Keyed by `InstanceTopologyConfig.nodeMetrics[].id`. */
   metrics: Record<string, number | null>;
+  /** The caller may not read this instance's service: its metrics were not
+   *  read, and the node says so. */
+  metricsBlocked?: boolean;
 }
 
 /** One instance-to-instance call. Same per-side metric shape as
@@ -360,6 +368,9 @@ export interface EndpointDependencyNode {
   respTime: number | null;
   /** @deprecated use `metrics['sla']`. */
   sla: number | null;
+  /** The caller may not read this endpoint's service: its metrics were not
+   *  read, and the node says so. */
+  metricsBlocked?: boolean;
 }
 
 export interface EndpointDependencyCall {
@@ -377,6 +388,9 @@ export interface EndpointDependencyCall {
   cpm: number | null;
   /** @deprecated convenience read. */
   respTime: number | null;
+  /** The caller reads neither end's service: the call is drawn without its
+   *  values. */
+  metricsBlocked?: boolean;
 }
 
 export interface EndpointDependencyResponse {

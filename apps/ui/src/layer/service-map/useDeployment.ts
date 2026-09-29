@@ -147,7 +147,7 @@ export function useDeployment(
   // failed round and a remount; `latestAttempt` is whatever came back last and
   // drives the banners. `phase` is derived from both so a view cannot read half
   // its picture from one and half from the other.
-  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration } =
+  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration, refusal } =
     useGraphState<DeploymentResponse>({
       data: q.data,
       error: q.error,
@@ -164,6 +164,7 @@ export function useDeployment(
     data: latestAttempt,
     latestAttempt,
     phase,
+    refusal,
     drawable: acceptedSnapshot,
     acceptedSnapshot,
     predicateGeneration,

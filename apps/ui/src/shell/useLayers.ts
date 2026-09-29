@@ -34,6 +34,7 @@ import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { layerContentToDef, overlayLayerDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
+import { serviceGroupName } from '@/utils/serviceName';
 
 /**
  * Live OAP-driven layer + menu state. Fed by `GET /api/menu`. Refetches on
@@ -126,6 +127,10 @@ export function useLayers() {
     return layers.value.find((L) => L.key === key);
   }
 
+  function entryKeyFor(layer: string, serviceName: string): string {
+    return entryKeyIn(layers.value, layer, serviceName);
+  }
+
   /**
    * `caps.serviceMap || caps.instanceTopology || caps.processTopology`.
    * Pulled out of `layers.ts` so the sidebar can stay UI-only.
@@ -145,9 +150,22 @@ export function useLayers() {
     oapReachable,
     oapError,
     findLayer,
+    entryKeyFor,
     hasTopology,
     refetch: q.refetch,
   };
+}
+
+/**
+ * The sidebar entry a service of the OAP layer `layer` opens under. On a
+ * layer split by service group that is its group's entry — OAP's group is
+ * the name before `::` — even when this reader has no such entry, so the
+ * page says why; no entry carries the bare key of a split layer.
+ */
+export function entryKeyIn(menu: readonly LayerDef[], layer: string, serviceName: string): string {
+  const key = layer.toLowerCase();
+  const split = menu.some((L) => L.key.startsWith(`${key}~`));
+  return split ? `${key}~${serviceGroupName(serviceName) ?? ''}` : key;
 }
 
 /**

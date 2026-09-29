@@ -214,7 +214,7 @@ function pick(which: 'client' | 'server', val: string): void {
 
 const enabled = computed(() => !!clientId.value && !!serverId.value);
 const replayDataRef = computed<InstanceTopologyResponse | null>(() => props.replayData ?? null);
-const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch } =
+const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch, refusal } =
   useInstanceTopology(
   layerKey,
   clientId,
@@ -547,11 +547,12 @@ const popoverStyle = computed<Record<string, string>>(() => {
   const style: Record<string, string> = { left: `${left}px`, top: `${top}px`, width: `${POP_W}px`, transform: 'translateY(-50%)' };
   return style;
 });
-// A node's service is part of THIS layer only when it's a `getAllServices`
-// entry. Conjectured / cross-layer callees (e.g. `rcmd:80`, surfaced only
-// because a layer service calls them) are NOT — they have no instance
-// dashboard in this layer, so we don't offer to open one. The check is
-// per-node, so it gates both the client and the server side.
+// A node's service has an instance dashboard on this page only when it is on
+// the page's roster. Conjectured / cross-layer callees (e.g. `rcmd:80`,
+// surfaced only because a layer service calls them) are not, and neither is a
+// service of another group of a layer split by group, or one outside the
+// reader's grant. The check is per-node, so it gates both the client and the
+// server side.
 const layerServiceIds = computed<Set<string>>(
   () => new Set(roster.services.value.map((s) => s.id)),
 );
@@ -711,6 +712,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
         <div v-else-if="blocked === 'layer-disabled'" class="imv-state">
           {{ t('This page is not available.') }}
         </div>
+        <div v-else-if="showFailed && refusal" class="imv-state">{{ refusal }}</div>
         <div v-else-if="showFailed" class="imv-state">
           {{ t('Could not load the instance relationship.') }}
           <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>
@@ -753,8 +755,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
                 @click.stop="selectNode(n.id)"
               >
                 <circle :r="NODE_R" class="node-bg" :stroke="ringColor(n)" :stroke-width="popoverNodeId === n.id ? 4 : 3" />
-                <text class="node-center" text-anchor="middle" :dy="centerDef?.unit ? '-1' : '0.36em'">{{ fmtVal(nodeVal(n, centerDef), undefined, centerDef?.format, true) }}</text>
-                <text v-if="centerDef?.unit" class="node-unit" text-anchor="middle" dy="12">{{ centerDef.unit }}</text>
+                <text class="node-center" text-anchor="middle" :dy="n.metricsBlocked || !centerDef?.unit ? '0.36em' : '-1'">{{ n.metricsBlocked ? t('blocked') : fmtVal(nodeVal(n, centerDef), undefined, centerDef?.format, true) }}</text>
+                <text v-if="centerDef?.unit && !n.metricsBlocked" class="node-unit" text-anchor="middle" dy="12">{{ centerDef.unit }}</text>
                 <text class="node-label mono" text-anchor="middle" :y="NODE_R + 15">{{ n.name }}</text>
               </g>
             </g>
@@ -766,7 +768,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
               <button class="sw-btn small ghost" type="button" @click="popoverNodeId = null">×</button>
             </header>
             <div class="np-svc mono dim">{{ displayName(popoverNode.serviceName) }}</div>
-            <dl class="np-kv">
+            <p v-if="popoverNode.metricsBlocked" class="np-note">{{ t('Metrics blocked: your role cannot read this service.') }}</p>
+            <dl v-else class="np-kv">
               <template v-for="def in cfg.nodeMetrics" :key="def.id">
                 <dt>{{ def.label }}</dt>
                 <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit, def.format) }}</dd>
@@ -780,7 +783,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
             >
               {{ t('Open instance dashboard') }} ↗
             </button>
-            <p v-else class="np-note">{{ t('Callee outside this layer — no instance dashboard here.') }}</p>
+            <p v-else class="np-note">{{ t('Not in this page\'s service list (another layer or group, or outside your access) — no instance dashboard here.') }}</p>
           </div>
 
           <div class="imv-zoom">

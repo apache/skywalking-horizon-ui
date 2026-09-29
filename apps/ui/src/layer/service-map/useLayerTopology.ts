@@ -98,7 +98,7 @@ export function useLayerTopology(
   const predicate = computed<GraphPredicate>(() => ({
     layer: layerKey.value,
     focus: services.value.map((s) => predicateService(s)).filter((s): s is NonNullable<typeof s> => s !== null),
-    depth: depth.value,
+    depth: services.value.length > 0 ? depth.value : 1,
     time: timeIdentity.value,
     preview: previewCfg.value ?? null,
   }));
@@ -168,7 +168,7 @@ export function useLayerTopology(
   // failed round and a remount; `latestAttempt` is whatever came back last and
   // drives the banners. `phase` is derived from both so a view cannot read half
   // its picture from one and half from the other.
-  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration } =
+  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration, refusal } =
     useGraphState<TopologyResponse>({
       data: q.data,
       error: q.error,
@@ -185,6 +185,7 @@ export function useLayerTopology(
     data: latestAttempt,
     latestAttempt,
     phase,
+    refusal,
     drawable: acceptedSnapshot,
     acceptedSnapshot,
     predicateGeneration,

@@ -194,6 +194,41 @@ export class RequestAccess {
     return found && found.length > 0 ? { kind: 'found', services: found } : { kind: 'unknown' };
   }
 
+  /** Asks OAP at once about every service `refs` name that the catalog does
+   *  not list, before many rows are decided one by one. Best effort: what it
+   *  could not settle is asked, and reported, by the decision that needs it. */
+  async prefetch(refs: readonly ServiceRef[]): Promise<void> {
+    const ids: string[] = [];
+    for (const ref of refs) {
+      if ('id' in ref) {
+        if (!isBlankToOap(ref.id)) ids.push(ref.id);
+      } else if ('name' in ref) {
+        if (ref.normal !== undefined) ids.push(serviceIdOf(ref.name, ref.normal));
+        else ids.push(serviceIdOf(ref.name, true), serviceIdOf(ref.name, false));
+      } else if ('childId' in ref) {
+        const owner = isBlankToOap(ref.childId) ? null : serviceIdOfChild(ref.childId);
+        if (owner) ids.push(owner);
+      }
+    }
+    await this.services.prefetch(ids, this.signal);
+  }
+
+  /** Of `ids`, the services the caller may read with any of `verbs`, OAP asked
+   *  at once about those the catalog lacks. One OAP could not answer about is
+   *  left out: a graph then draws it without its values. */
+  async readableIds(verbs: readonly Verb[], ids: readonly string[]): Promise<Set<string>> {
+    await this.prefetch(ids.map((id): ServiceRef => ({ id })));
+    const out = new Set<string>();
+    for (const id of ids) if ((await this.decide(verbs, { id })) === 'allow') out.add(id);
+    return out;
+  }
+
+  /** For a graph builder: the check that tells which drawn services the
+   *  caller may see the values of — none to pass when it may see every one. */
+  graphReadable(verbs: readonly Verb[]): { readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>> } {
+    return this.readsEveryLayer(verbs) ? {} : { readableOf: (ids) => this.readableIds(verbs, ids) };
+  }
+
   /** May the caller read this service with any of `verbs`? A name that can
    *  mean several services must be allowed for every one of them. */
   async allows(verbs: readonly Verb[], ref: ServiceRef): Promise<boolean> {

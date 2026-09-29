@@ -41,15 +41,38 @@ function viewer(snapshot: ServiceCatalog, fetch: FetchLike): RequestAccess {
   return new RequestAccess(new SessionAccess(['metrics:read'], undefined, facts), services);
 }
 
-const empty: ServiceCatalog = { layers: [], byLayer: new Map(), byName: new Map() };
+/** A fresh catalog per call: what OAP answered beyond a catalog is held for
+ *  that catalog's life. */
+const empty = (): ServiceCatalog => ({ layers: [], byLayer: new Map(), byName: new Map() });
 
 describe('a service lookup that could not be answered', () => {
   it('refuses rather than taking "unavailable" as "unknown"', async () => {
-    expect(await viewer(empty, oap('down')).allows(['metrics:read'], { id: BDB.id })).toBe(false);
+    expect(await viewer(empty(), oap('down')).allows(['metrics:read'], { id: BDB.id })).toBe(false);
   });
 
   it('still lets a plain verb name a service OAP answers it does not know', async () => {
-    expect(await viewer(empty, oap('none')).allows(['metrics:read'], { id: BDB.id })).toBe(true);
+    expect(await viewer(empty(), oap('none')).allows(['metrics:read'], { id: BDB.id })).toBe(true);
+  });
+});
+
+describe('a name the catalog knows only one service by', () => {
+  // A fresh catalog lists the normal `showcase-banyandb` in GENERAL; the
+  // conjectured namesake OAP registered since is in BANYANDB.
+  const fresh = (): ServiceCatalog => ({ layers: ['GENERAL'], byLayer: new Map([['GENERAL', [BDB]]]), byName: new Map() });
+  const namesake: FetchLike = async (_url, init) => {
+    const { variables } = JSON.parse(String(init?.body ?? '{}')) as { variables: { id: string } };
+    const service = variables.id === serviceIdOf(BDB.name, false) ? { ...BDB, id: variables.id, normal: false, layers: ['BANYANDB'] } : null;
+    return new Response(JSON.stringify({ data: { service } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  it('asks OAP for the other id, and refuses the name when the namesake is out of reach', async () => {
+    expect(await viewer(fresh(), namesake).allows(['metrics:read'], { name: BDB.name })).toBe(false);
+    expect(await viewer(fresh(), oap('none')).allows(['metrics:read'], { name: BDB.name })).toBe(true);
+    expect(await viewer(fresh(), oap('down')).decide(['metrics:read'], { name: BDB.name })).toBe('unavailable');
+  });
+
+  it('does not ask when the name comes with its normal flag', async () => {
+    expect(await viewer(fresh(), oap('down')).allows(['metrics:read'], { name: BDB.name, normal: true })).toBe(true);
   });
 });
 
@@ -83,8 +106,8 @@ describe('a catalog kept through a failed refresh', () => {
 
 describe('an empty identity', () => {
   it('reads every service for a plain verb, as before, and nothing for a layer-limited one', async () => {
-    expect(await viewer(empty, oap('down')).allows(['metrics:read'], { id: '' })).toBe(true);
-    const catalog = { get: async () => empty } as unknown as ServiceLayerCatalog;
+    expect(await viewer(empty(), oap('down')).allows(['metrics:read'], { id: '' })).toBe(true);
+    const catalog = { get: async () => empty() } as unknown as ServiceLayerCatalog;
     const services = new ServiceIdentityResolver({ config, fetch: oap('down'), catalog });
     const limited = new RequestAccess(new SessionAccess(['metrics:read@GENERAL'], undefined, facts), services);
     expect(await limited.allows(['metrics:read'], { id: '' })).toBe(false);
@@ -103,14 +126,14 @@ describe('an identity OAP reads exactly as written', () => {
 describe('filtering the rows of a read that named no service', () => {
   it('reports an ownership lookup OAP could not answer instead of dropping the row', async () => {
     const rows = [{ serviceId: BDB.id }];
-    await expect(viewer(empty, oap('down')).keepReadable(['metrics:read'], rows, (r) => ({ id: r.serviceId }))).rejects.toBeInstanceOf(
+    await expect(viewer(empty(), oap('down')).keepReadable(['metrics:read'], rows, (r) => ({ id: r.serviceId }))).rejects.toBeInstanceOf(
       ServiceLookupUnavailable,
     );
-    expect(await viewer(empty, oap('none')).keepReadable(['metrics:read'], rows, (r) => ({ id: r.serviceId }))).toEqual(rows);
+    expect(await viewer(empty(), oap('none')).keepReadable(['metrics:read'], rows, (r) => ({ id: r.serviceId }))).toEqual(rows);
   });
 
   it('asks nothing for a caller who reads every layer', async () => {
-    const catalog = { get: async () => empty } as unknown as ServiceLayerCatalog;
+    const catalog = { get: async () => empty() } as unknown as ServiceLayerCatalog;
     const services = new ServiceIdentityResolver({ config, fetch: oap('down'), catalog });
     const everyLayer = new RequestAccess(new SessionAccess(['metrics:read', 'cluster:read'], undefined, facts), services);
     const rows = [{ serviceId: BDB.id }];

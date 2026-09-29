@@ -141,6 +141,7 @@ export function registerInstanceTopologyRoute(
         layerKey,
         clientServiceId,
         serverServiceId,
+        ...req.access?.graphReadable(['topology:read']),
       });
       return reply.send(response);
     },

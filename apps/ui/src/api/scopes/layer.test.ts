@@ -239,10 +239,10 @@ describe('LayerApi.endpoints / instances — entity query params', () => {
 });
 
 describe('LayerApi.topology / endpointDependency', () => {
-  it('topology defaults depth=1, omits service param when undefined', async () => {
+  it('asks for the layer-wide map with no service and no depth: it holds every service already', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).topology('mesh');
-    expect(calls[0][1]).toBe('/api/layer/mesh/topology?depth=1');
+    await new LayerApi(bff).topology('mesh', [], 3);
+    expect(calls[0][1]).toBe('/api/layer/mesh/topology?');
   });
 
   // Multi-seed: the map sends every picked row's id AND name, so the BFS seeds

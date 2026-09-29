@@ -31,6 +31,8 @@ describe('a refused data read', () => {
     expect(errorText(err)).toMatch(/^Pick a service/);
     expect(permissionDeniedText(refused({ error: 'permission_denied', verb: 'metrics:read', reason: 'layer_not_granted', layer: 'banyandb' })))
       .toBe('You do not have access to the BANYANDB layer.');
+    expect(permissionDeniedText(refused({ error: 'permission_denied', reason: 'group_not_granted', layer: 'general', group: 'risk' })))
+      .toBe('You do not have access to the risk services of the GENERAL layer.');
   });
 
   it('keeps today\'s wording for a refusal without a reason, and for any other failure', () => {

@@ -50,11 +50,11 @@ type Filters = ReturnType<typeof useAlarmFilters>;
 
 /** Mount the composable inside a throwaway component so vue-query has a
  *  provider + an owning scope, and hand the state machine back. */
-function mountFilters(hasQueryAlarms: Ref<boolean> = ref(true)): Filters {
+function mountFilters(hasQueryAlarms: Ref<boolean> = ref(true), pageId?: Ref<string | undefined>, pagePins?: Ref<string>): Filters {
   let filters!: Filters;
   const Host = defineComponent({
     setup() {
-      filters = useAlarmFilters(hasQueryAlarms);
+      filters = useAlarmFilters(hasQueryAlarms, pageId, pagePins);
       return () => h('div');
     },
   });
@@ -91,6 +91,18 @@ describe('normalFor — roster lookup', () => {
   it('defaults to normal for a name the roster does not hold', () => {
     expect(normalFor([{ id: 'c29uZ3M=.1', name: 'songs', normal: true }], 'gone')).toBe(true);
     expect(normalFor([], '')).toBe(true);
+  });
+});
+
+describe('useAlarmFilters — a named page', () => {
+  it('reads the service choices again when the page is re-pinned', async () => {
+    const pins = ref('GENERAL[payments]');
+    const f = mountFilters(ref(true), ref('payments'), pins);
+    const before = services.mock.calls.length;
+    await pickLayer(f, 'GENERAL');
+    expect(services.mock.calls.length).toBe(before + 1);
+    pins.value = 'GENERAL[payments, risk]';
+    await vi.waitFor(() => expect(services.mock.calls.length).toBe(before + 2));
   });
 });
 
