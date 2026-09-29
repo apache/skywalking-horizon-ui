@@ -22,7 +22,7 @@ The scopes are not organised by screen, and several screens legitimately share o
 | `log`, `browserErrors` | the Logs, Pod logs and Browser errors tabs |
 | `events` | the Events page |
 | `profile`, `ebpf`, `networkProfile`, `asyncProfile`, `pprof`, `continuousProfiling` | the profiling tabs, and the AI chat's proposal blocks |
-| `alarms` | the Alarms page, the dashboard alarms widget, the 3D map, the sidebar count |
+| `alarms` | the Alarms pages, the dashboard alarms widget, the 3D map, the sidebar count and the sidebar's named alarm pages, the Alert pages admin's group picker |
 | `dsl`, `liveDebug`, `inspect`, `explore`, `oapOps` | the Operate sub-features |
 | `infra3d` | the 3D infrastructure map |
 | `layerTemplates`, `templateSync`, `configs` | the admin editors, plus the layer shell and the app-level config bundle |

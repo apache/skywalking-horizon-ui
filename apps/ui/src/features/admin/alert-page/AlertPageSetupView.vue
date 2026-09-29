@@ -15,103 +15,42 @@
   limitations under the License.
 -->
 <!--
-  Admin view for the Alarms page setup. The operator pins a small set
-  of OAP layers — those layers get a dedicated KPI tile at the top of
-  the Alarms page (TOTAL · pinned-1 · pinned-2 · …); every other
-  layer with at least one firing alarm appears in the overflow chip
-  row underneath. Order here is render order on the page.
-
-  Defaults seed `GENERAL` (agent) + `MESH` (mesh) — the two most
-  common drivers of alarm volume on every install.
+  Alarm pages admin. The default page (`horizon.alert.default`, the /alarms
+  page) and any number of named pages (`horizon.alert.<id>`, each at
+  /alarms/<id> and in the sidebar), every one a set of pinned tiles over the
+  alarms the reader may read. A page arranges tiles; it never grants access.
+  Saves go straight to OAP, as they always have on this page.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { ALERT_DEFAULT_PAGE_ID } from '@skywalking-horizon-ui/api-client';
+import { ALARMS_WINDOW_OPTIONS } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
-import {
-  ALARMS_WINDOW_OPTIONS,
-  OVERVIEW_ALARMS_LIMIT_DEFAULT,
-  OVERVIEW_ALARMS_LIMIT_MAX,
-  OVERVIEW_ALARMS_LIMIT_MIN,
-  bff,
-  type AlarmsConfig,
-} from '@/api/client';
+import { canonicalLayerKey } from '@/state/verbGrammar';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
-import { refreshConfigBundle } from '@/controls/configBundle';
+import AlertPageList from './AlertPageList.vue';
+import AlertPageEditor from './AlertPageEditor.vue';
+import NewAlertPageModal from './NewAlertPageModal.vue';
+import DeleteAlertPageModal from './DeleteAlertPageModal.vue';
+import { alertRowName, pageNotServed, type AlertPageListItem, type NamedAlertPage } from './alertPages';
+import { useAlertPageEditor } from './useAlertPageEditor';
 
 const { t } = useI18n({ useScope: 'global' });
-const queryClient = useQueryClient();
 
-// OAP UI-template sync status for the alert page-setup template
-// (`horizon.alert.page-setup`). Drives the read-only banner + Save
-// gating + the diff-and-reset modal (defined later, after the local
-// fns it references are in scope).
 const sync = useTemplateSync({ kind: 'alert' });
+const ed = useAlertPageEditor(sync.readOnly);
 
-/* Cap matches the BFF's `configSaveSchema.max(8)` — keeps the header
- * row from wrapping into a second line at typical widths. */
-const MAX_PINNED = 8;
-
-const WINDOW_LABELS = computed<Record<number, string>>(() => ({
-  [20 * 60_000]: t('20 minutes'),
-  [2 * 60 * 60_000]: t('2 hours'),
-  [4 * 60 * 60_000]: t('4 hours'),
-}));
-
+// Every layer the menu knows, whether or not it has services now: a pin is
+// configuration, and a layer that is quiet today still gets alarms tomorrow.
+// A layer split by service group is offered under its base key, where the
+// group is chosen instead.
 const layersList = useLayers();
 const knownLayerKeys = computed<string[]>(() =>
-  (layersList.availableLayers.value ?? []).map((l) => l.key.toUpperCase()),
+  [...new Set(layersList.layers.value.map((l) => canonicalLayerKey(l.key.split('~', 1)[0]!)))].sort(),
 );
-
-const q = useQuery({
-  queryKey: ['alarms/config'],
-  queryFn: (): Promise<AlarmsConfig> => bff.alarms.config(),
-  staleTime: Infinity,
-});
-
-const draft = ref<string[]>([]);
-const draftWindowMs = ref<number>(ALARMS_WINDOW_OPTIONS[0]);
-const draftLimit = ref<number>(OVERVIEW_ALARMS_LIMIT_DEFAULT);
-const limitError = ref<string | null>(null);
-
-watch(
-  () => q.data.value,
-  (cfg) => {
-    if (cfg) {
-      draft.value = [...cfg.pinnedLayers];
-      draftWindowMs.value = cfg.defaultWindowMs;
-      draftLimit.value = cfg.overviewAlarmsLimit;
-    }
-  },
-  { immediate: true },
-);
-
-function validateLimit(): boolean {
-  const v = Number(draftLimit.value);
-  if (!Number.isInteger(v)) {
-    limitError.value = t('must be an integer');
-    return false;
-  }
-  if (v < OVERVIEW_ALARMS_LIMIT_MIN || v > OVERVIEW_ALARMS_LIMIT_MAX) {
-    limitError.value = t('must be between {min} and {max}', { min: OVERVIEW_ALARMS_LIMIT_MIN, max: OVERVIEW_ALARMS_LIMIT_MAX });
-    return false;
-  }
-  limitError.value = null;
-  return true;
-}
-
-const flash = ref<string | null>(null);
-const saving = ref(false);
-
-function setFlash(msg: string): void {
-  flash.value = msg;
-  setTimeout(() => {
-    if (flash.value === msg) flash.value = null;
-  }, 4000);
-}
 
 // Read-only has two causes, and "OAP unreachable" is the wrong answer for
 // the permission one — it sends the operator to check a server that is fine.
@@ -121,294 +60,204 @@ const readOnlyReason = computed<string>(() =>
     : t('OAP unreachable — page is read-only'),
 );
 
-// Diff & reset modal — alert page-setup is a singleton, so the
-// trigger lives near the Save button instead of per-row.
-const alertStatus = computed(() => sync.badgeFor('horizon.alert.page-setup'));
-const alertDiverged = computed(() => alertStatus.value === 'diverged');
+const unreadable = computed<Set<string>>(
+  () => new Set((sync.status.value?.unreadable ?? []).filter((u) => u.kind === 'alert').map((u) => u.name)),
+);
+function notServed(p: NamedAlertPage): boolean {
+  return pageNotServed(p) || unreadable.value.has(alertRowName(p.id));
+}
+
+const listItems = computed<AlertPageListItem[]>(() => {
+  const items: AlertPageListItem[] = [
+    {
+      id: ALERT_DEFAULT_PAGE_ID,
+      label: t('Alarms (default)'),
+      path: '/alarms',
+      tag: null,
+      dirty: ed.isDirty(ALERT_DEFAULT_PAGE_ID),
+    },
+  ];
+  for (const p of ed.named.value) {
+    items.push({
+      id: p.id,
+      label: p.title.trim() || p.id,
+      path: `/alarms/${p.id}`,
+      tag: notServed(p) ? t('not served') : null,
+      dirty: ed.isDirty(p.id),
+    });
+  }
+  if (ed.pending.value) {
+    items.push({ id: ed.pending.value.id, label: ed.pending.value.title, path: null, tag: t('not saved'), dirty: false });
+  }
+  return items;
+});
+
+const listNote = computed<string | null>(() => {
+  if (ed.rowsQ.isError.value) {
+    const err = ed.rowsQ.error.value;
+    return t('Could not read the named pages: {msg}', { msg: err instanceof Error ? err.message : String(err) });
+  }
+  if (ed.rowsQ.data.value?.unreachable) return t('OAP is unreachable, so the named pages cannot be listed.');
+  return null;
+});
+
+const createBlocked = computed<string | null>(() => {
+  if (sync.readOnly.value) return readOnlyReason.value;
+  if (ed.pending.value) return t('Save or discard the new page first.');
+  return null;
+});
+
+const inheritedWindowMs = computed<number>(() => ed.configQ.data.value?.defaultWindowMs ?? ALARMS_WINDOW_OPTIONS[0]);
+
+const loading = computed<boolean>(() =>
+  ed.isDefault.value ? ed.configQ.isPending.value : ed.rowsQ.isPending.value && !ed.isPending.value,
+);
+
+const conflictBanner = computed(() => sync.conflictBannerFor(alertRowName(ed.selectedId.value)));
+
+const newOpen = ref(false);
+function onCreate(page: { id: string; title: string }): void {
+  ed.create(page);
+  newOpen.value = false;
+}
+
+// The page the dialog was opened for. The selection moves to the default
+// page while a delete finishes, and the dialog must not follow it.
+const deleteTarget = ref<{ id: string; title: string } | null>(null);
+function openDelete(): void {
+  deleteTarget.value = { id: ed.selectedId.value, title: ed.selectedNamed.value?.title || ed.selectedId.value };
+}
+async function onConfirmDelete(): Promise<void> {
+  if (deleteTarget.value && (await ed.remove(deleteTarget.value.id))) deleteTarget.value = null;
+}
+
+// Diff & reset compares the stored default page with the one this build
+// ships; named pages ship nothing to compare with.
+const defaultDiverged = computed<boolean>(
+  () => ed.isDefault.value && sync.badgeFor(alertRowName(ALERT_DEFAULT_PAGE_ID)) === 'diverged',
+);
 const diffModalOpen = ref(false);
-function openDiffModal(): void { diffModalOpen.value = true; }
-function onDiffReset(): void {
-  setFlash(t('OAP reset to bundled · reload to see header changes'));
-  void q.refetch();
+async function onDiffReset(): Promise<void> {
+  await ed.afterReset();
+  ed.setFlash(t('OAP reset to bundled · reload to see header changes'));
 }
 
-/* Layers the operator can still add — known to OAP AND not already
- * pinned. Pinned-but-unknown layers (e.g. an older install removed a
- * layer that's still in the saved config) stay rendered as pinned
- * chips so the operator can remove them; they just don't appear in
- * the "add" palette. */
-const addableLayers = computed<string[]>(() => {
-  const used = new Set(draft.value);
-  return knownLayerKeys.value.filter((k) => !used.has(k)).sort();
+const statusText = computed<{ text: string; cls: string }>(() => {
+  const f = ed.flash.value;
+  if (f) return { text: f.text, cls: f.kind === 'err' ? 'aps__flash aps__flash--err' : 'aps__flash' };
+  if (ed.isPending.value) return { text: t('not saved'), cls: 'aps__dirty' };
+  if (ed.isDirty(ed.selectedId.value)) return { text: t('unsaved changes'), cls: 'aps__dirty' };
+  const page = ed.selectedNamed.value;
+  if (page && notServed(page)) return { text: t('not served'), cls: 'aps__dirty' };
+  return { text: t('saved'), cls: 'aps__clean' };
 });
-
-function addLayer(key: string): void {
-  if (sync.readOnly.value) return;
-  if (draft.value.includes(key)) return;
-  if (draft.value.length >= MAX_PINNED) return;
-  draft.value = [...draft.value, key];
-}
-
-function removeLayer(i: number): void {
-  if (sync.readOnly.value) return;
-  draft.value = draft.value.filter((_, j) => j !== i);
-}
-
-function moveLayer(i: number, dir: -1 | 1): void {
-  if (sync.readOnly.value) return;
-  const next = [...draft.value];
-  const j = i + dir;
-  if (j < 0 || j >= next.length) return;
-  [next[i], next[j]] = [next[j], next[i]];
-  draft.value = next;
-}
-
-async function onSave(): Promise<void> {
-  if (!validateLimit()) return;
-  if (sync.readOnly.value) {
-    setFlash(readOnlyReason.value);
-    return;
-  }
-  saving.value = true;
-  try {
-    const next: AlarmsConfig = {
-      pinnedLayers: draft.value,
-      defaultWindowMs: draftWindowMs.value,
-      overviewAlarmsLimit: Number(draftLimit.value),
-    };
-    // Save to OAP via the template-sync proxy (canonical envelope wrapped
-    // server-side) — the alert page-setup is the `horizon.alert.page-setup`
-    // singleton, stored only on OAP like every other template.
-    await bff.templateSync.save('horizon.alert.page-setup', next);
-    // Wait for the write to land, then refresh so BOTH the page's sync-status
-    // badge and every reader reflect it: resync drops the BFF's 30s sync cache,
-    // then re-pull the config bundle (which drives the "Synced / Diverged"
-    // badge) and invalidate the shared ['alarms/config'] query (alarms page +
-    // topbar badge + overview widget). Mirrors the singleton editor's push.
-    await bff.templateSync.resync();
-    await refreshConfigBundle({ force: true });
-    await queryClient.invalidateQueries({ queryKey: ['alarms/config'] });
-    draft.value = [...next.pinnedLayers];
-    draftWindowMs.value = next.defaultWindowMs;
-    draftLimit.value = next.overviewAlarmsLimit;
-    setFlash(
-      t('saved · {pinned} pinned · {window} · limit {limit}', {
-        pinned: next.pinnedLayers.length,
-        window: WINDOW_LABELS.value[next.defaultWindowMs] ?? '—',
-        limit: next.overviewAlarmsLimit,
-      }),
-    );
-  } catch (err) {
-    setFlash(err instanceof Error ? t('error: {msg}', { msg: err.message }) : t('save failed'));
-  } finally {
-    saving.value = false;
-  }
-}
-
-function onReset(): void {
-  if (sync.readOnly.value) return;
-  if (q.data.value) {
-    draft.value = [...q.data.value.pinnedLayers];
-    draftWindowMs.value = q.data.value.defaultWindowMs;
-    draftLimit.value = q.data.value.overviewAlarmsLimit;
-    limitError.value = null;
-  }
-}
-
-const isDirty = computed<boolean>(() => {
-  const saved = q.data.value?.pinnedLayers ?? [];
-  if (saved.length !== draft.value.length) return true;
-  for (let i = 0; i < saved.length; i++) {
-    if (saved[i] !== draft.value[i]) return true;
-  }
-  if (q.data.value) {
-    if (draftWindowMs.value !== q.data.value.defaultWindowMs) return true;
-    if (Number(draftLimit.value) !== q.data.value.overviewAlarmsLimit) return true;
-  }
-  return false;
-});
-
-function prettyLayer(k: string): string {
-  return k
-    .toLowerCase()
-    .split('_')
-    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : ''))
-    .join(' ');
-}
 </script>
 
 <template>
   <div class="aps">
     <header class="aps__head">
-      <div>
-        <div class="aps__kicker">{{ t('Dashboard setup · Alert page') }}</div>
-        <h1>{{ t('Alert page setup') }}</h1>
-        <p class="aps__lede">
-          <!-- Single translation unit so non-English locales see one coherent
-               sentence; the agent's earlier split-into-three-t-calls left
-               operators on zh-CN/de seeing English prose with one Chinese
-               word in the middle. -->
-          <i18n-t keypath="Pin the OAP layers that get their own KPI tile at the top of {alarms}." tag="span" scope="global">
-            <template #alarms><RouterLink to="/alarms">{{ t('Alarms') }}</RouterLink></template>
-          </i18n-t>
-          {{ ' ' }}
-          {{ t('Every other layer with at least one firing alarm appears in the overflow chip row underneath. Reorder with the arrows — left-to-right matches the page header. Up to {n} layers.', { n: MAX_PINNED }) }}
-        </p>
-      </div>
+      <div class="aps__kicker">{{ t('Dashboard setup · Alarm pages') }}</div>
+      <h1>{{ t('Alarm pages') }}</h1>
+      <p class="aps__lede">
+        <i18n-t keypath="The default page is {alarms}. Each named page is an extra sidebar entry that lists only the alarms its pins cover." tag="span" scope="global">
+          <template #alarms><RouterLink to="/alarms">{{ t('Alarms') }}</RouterLink></template>
+        </i18n-t>
+        {{ ' ' }}
+        {{ t('Which alarms a reader may see is decided by their alarms:read grant alone. The default page shows all of them; a named page shows only those its pins cover, and is listed only for readers who reach at least one of its pins.') }}
+      </p>
     </header>
 
     <SyncStatusBanner :banner="sync.banner.value" />
 
-    <div v-if="q.isPending.value" class="aps__empty">{{ t('loading…') }}</div>
+    <div class="aps__body">
+      <AlertPageList
+        :items="listItems"
+        :selected="ed.selectedId.value"
+        :create-blocked="createBlocked"
+        :note="listNote"
+        @select="ed.select"
+        @create="newOpen = true"
+      />
 
-    <template v-else>
-      <section class="aps__panel">
-        <header class="aps__panel-head">
-          <h3>{{ t('Pinned ({n} / {max})', { n: draft.length, max: MAX_PINNED }) }}</h3>
-        </header>
-        <div v-if="draft.length === 0" class="aps__empty-row">
-          {{ t('No pinned layers. Add one from the palette below.') }}
-        </div>
-        <ol v-else class="aps__pinned">
-          <li v-for="(key, i) in draft" :key="key" class="aps__pin">
-            <button
-              type="button"
-              class="aps__pin-arrow"
-              :disabled="sync.readOnly.value || i === 0"
-              :title="t('Move left')"
-              @click="moveLayer(i, -1)"
-            >‹</button>
-            <span class="aps__pin-pos mono">{{ i + 1 }}</span>
-            <span class="aps__pin-label">{{ prettyLayer(key) }}</span>
-            <code class="aps__pin-key">{{ key }}</code>
-            <button
-              type="button"
-              class="aps__pin-arrow"
-              :disabled="sync.readOnly.value || i === draft.length - 1"
-              :title="t('Move right')"
-              @click="moveLayer(i, 1)"
-            >›</button>
-            <button
-              type="button"
-              class="aps__pin-del"
-              :disabled="sync.readOnly.value"
-              :title="t('Unpin')"
-              @click="removeLayer(i)"
-            >×</button>
-          </li>
-        </ol>
-      </section>
+      <div class="aps__main">
+        <SyncStatusBanner v-if="conflictBanner" :banner="conflictBanner" />
+        <div v-if="loading" class="aps__empty">{{ t('loading…') }}</div>
+        <div v-else-if="!ed.draft.value" class="aps__empty">{{ t('This page is no longer stored on OAP.') }}</div>
+        <AlertPageEditor
+          v-else
+          :key="ed.selectedId.value"
+          :page-id="ed.selectedId.value"
+          :is-default="ed.isDefault.value"
+          :is-new="ed.isPending.value"
+          :draft="ed.draft.value"
+          :problems="ed.problems.value"
+          :known-layers="knownLayerKeys"
+          :read-only="sync.readOnly.value || ed.busy.value"
+          :inherited-window-ms="inheritedWindowMs"
+          @update="ed.update"
+        />
 
-      <section class="aps__panel">
-        <header class="aps__panel-head">
-          <h3>{{ t('Default time window') }}</h3>
-        </header>
-        <div class="aps__win">
-          <p class="aps__win-lede">
-            {{ t('Time window applied to all three alarm surfaces — the topbar alarm badge, the alarms page\'s first load, and the overview "Active alarms" widget. Unified here so the counts reconcile across pages.') }}
-          </p>
-          <div class="aps__win-options">
-            <label
-              v-for="opt in ALARMS_WINDOW_OPTIONS"
-              :key="opt"
-              class="aps__win-opt"
-              :class="{ active: draftWindowMs === opt, disabled: sync.readOnly.value }"
-            >
-              <input
-                type="radio"
-                name="defaultWindow"
-                :value="opt"
-                :disabled="sync.readOnly.value"
-                v-model="draftWindowMs"
-              />
-              <span>{{ WINDOW_LABELS[opt] }}</span>
-            </label>
-          </div>
-        </div>
-      </section>
-
-      <section class="aps__panel">
-        <header class="aps__panel-head">
-          <h3>{{ t('Overview alarms widget') }}</h3>
-        </header>
-        <div class="aps__win">
-          <p class="aps__win-lede">
-            {{ t('Per-poll fetch cap for the "Active alarms" widget on overview dashboards. The widget merges the fetched events into incidents client-side and surfaces the top N by recency. Higher caps catch more variety in noisy installs; smaller caps cut the per-poll payload. Range') }}
-            <code>{{ OVERVIEW_ALARMS_LIMIT_MIN }}</code>–<code>{{ OVERVIEW_ALARMS_LIMIT_MAX }}</code>,
-            {{ t('default') }} <code>{{ OVERVIEW_ALARMS_LIMIT_DEFAULT }}</code>.
-          </p>
-          <div class="aps__limit">
-            <label>
-              <span>{{ t('Fetch cap') }}</span>
-              <input
-                v-model.number="draftLimit"
-                type="number"
-                :min="OVERVIEW_ALARMS_LIMIT_MIN"
-                :max="OVERVIEW_ALARMS_LIMIT_MAX"
-                step="10"
-                :disabled="sync.readOnly.value"
-                class="aps__in aps__in--num"
-                @blur="validateLimit"
-              />
-            </label>
-            <span v-if="limitError" class="aps__limit-err">{{ limitError }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="aps__panel">
-        <header class="aps__panel-head">
-          <h3>{{ t('Add layer') }}</h3>
-        </header>
-        <div v-if="addableLayers.length === 0" class="aps__empty-row">
-          {{ t('Every OAP-known layer is already pinned.') }}
-        </div>
-        <div v-else class="aps__add">
+        <div class="aps__actions">
+          <span :class="statusText.cls">{{ statusText.text }}</span>
           <button
-            v-for="key in addableLayers"
-            :key="key"
+            v-if="ed.isPending.value"
             type="button"
-            class="aps__add-chip"
-            :disabled="sync.readOnly.value || draft.length >= MAX_PINNED"
-            @click="addLayer(key)"
-          >
-            <span>+ {{ prettyLayer(key) }}</span>
-            <code>{{ key }}</code>
-          </button>
+            class="aps__btn"
+            :disabled="ed.busy.value"
+            @click="ed.discardPending"
+          >{{ t('discard') }}</button>
+          <button
+            v-else-if="!ed.isDefault.value"
+            type="button"
+            class="aps__btn aps__btn--danger"
+            :disabled="sync.readOnly.value || ed.busy.value"
+            :title="sync.readOnly.value ? readOnlyReason : ''"
+            @click="openDelete"
+          >{{ t('delete') }}</button>
+          <button
+            type="button"
+            class="aps__btn"
+            :disabled="!ed.isDirty(ed.selectedId.value) || ed.busy.value || sync.readOnly.value"
+            @click="ed.reset"
+          >{{ t('reset') }}</button>
+          <button
+            v-if="defaultDiverged"
+            type="button"
+            class="aps__btn"
+            :title="t('Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation).')"
+            @click="diffModalOpen = true"
+          >{{ t('show diff & reset') }}</button>
+          <button
+            type="button"
+            class="aps__btn aps__btn--primary"
+            :disabled="!ed.canSave.value"
+            :title="sync.readOnly.value ? readOnlyReason : ''"
+            @click="ed.save"
+          >{{ ed.saving.value ? t('saving…') : sync.readOnly.value ? t('read-only') : t('save to OAP') }}</button>
         </div>
-      </section>
-    </template>
-
-    <div class="aps__actions">
-      <span v-if="flash" class="aps__flash">{{ flash }}</span>
-      <span v-else-if="isDirty" class="aps__dirty">{{ t('unsaved changes') }}</span>
-      <span v-else class="aps__clean">{{ t('saved') }}</span>
-      <button
-        type="button"
-        class="aps__btn"
-        :disabled="!isDirty || saving || sync.readOnly.value"
-        @click="onReset"
-      >{{ t('reset') }}</button>
-      <button
-        v-if="alertDiverged"
-        type="button"
-        class="aps__btn"
-        :title="t('Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation).')"
-        @click="openDiffModal"
-      >{{ t('show diff & reset') }}</button>
-      <button
-        type="button"
-        class="aps__btn aps__btn--primary"
-        :disabled="!isDirty || saving || sync.readOnly.value"
-        :title="sync.readOnly.value ? readOnlyReason : ''"
-        @click="onSave"
-      >{{ saving ? t('saving…') : sync.readOnly.value ? t('read-only') : t('save to OAP') }}</button>
+      </div>
     </div>
 
+    <NewAlertPageModal
+      :open="newOpen"
+      :taken="ed.taken.value"
+      :read-only="sync.readOnly.value"
+      @close="newOpen = false"
+      @create="onCreate"
+    />
+    <DeleteAlertPageModal
+      :open="deleteTarget !== null"
+      :page-id="deleteTarget?.id ?? ''"
+      :title="deleteTarget?.title ?? ''"
+      :busy="ed.deleting.value"
+      :read-only="sync.readOnly.value"
+      @close="deleteTarget = null"
+      @confirm="onConfirmDelete"
+    />
     <TemplateDiffModal
       :open="diffModalOpen"
-      name="horizon.alert.page-setup"
-      confirm-key="page-setup"
+      :name="alertRowName(ALERT_DEFAULT_PAGE_ID)"
+      :confirm-key="ALERT_DEFAULT_PAGE_ID"
       :read-only="sync.readOnly.value"
       @close="diffModalOpen = false"
       @reset="onDiffReset"
@@ -419,17 +268,14 @@ function prettyLayer(k: string): string {
 <style scoped>
 .aps {
   padding: 20px 20px 60px;
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 .aps__head {
   margin-bottom: 18px;
 }
-/* Page-title kicker. Same uppercase typography as `.sw-uplabel`, but
- * accent-coloured so the kicker reads as a branded crumb above the
- * page title (matches the Layer Dashboards + Overview Templates admin
- * pages). The standardised uppercase-label colour `--sw-fg-3` is too
- * muted for a top-of-page kicker. */
+/* Accent-coloured, unlike `.sw-uplabel`: a branded crumb above the page
+ * title, matching the other Dashboard setup pages. */
 .aps__kicker {
   font-size: var(--sw-fs-xs);
   font-weight: var(--sw-fw-semibold);
@@ -450,7 +296,7 @@ function prettyLayer(k: string): string {
   color: var(--sw-fg-1);
   line-height: 1.5;
   margin: 0;
-  max-width: 760px;
+  max-width: 820px;
 }
 .aps__lede a {
   color: var(--sw-accent);
@@ -459,13 +305,17 @@ function prettyLayer(k: string): string {
 .aps__lede a:hover {
   text-decoration: underline;
 }
-.aps__lede code {
-  font-family: var(--sw-mono);
-  font-size: var(--sw-fs-sm);
-  color: var(--sw-fg-0);
-  background: var(--sw-bg-2);
-  padding: 1px 5px;
-  border-radius: 3px;
+.aps__body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 760px) {
+  .aps__body { grid-template-columns: minmax(0, 1fr); }
+}
+.aps__main {
+  min-width: 0;
 }
 .aps__empty {
   padding: 24px;
@@ -473,204 +323,6 @@ function prettyLayer(k: string): string {
   color: var(--sw-fg-3);
   font-size: var(--sw-fs-base);
 }
-
-.aps__panel {
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 8px;
-  margin-bottom: 14px;
-  overflow: hidden;
-}
-.aps__panel-head {
-  padding: 8px 14px;
-  background: var(--sw-bg-2);
-  border-bottom: 1px solid var(--sw-line);
-}
-.aps__panel-head h3 {
-  font-size: var(--sw-fs-xs);
-  font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
-  color: var(--sw-fg-3);
-  margin: 0;
-}
-.aps__empty-row {
-  padding: 20px 14px;
-  text-align: center;
-  color: var(--sw-fg-3);
-  font-size: var(--sw-fs-base);
-}
-
-.aps__pinned {
-  list-style: none;
-  margin: 0;
-  padding: 10px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.aps__pin {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 8px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 6px;
-}
-.aps__pin-pos {
-  font-size: var(--sw-fs-xs);
-  color: var(--sw-accent);
-  font-weight: var(--sw-fw-semibold);
-}
-.aps__pin-label {
-  font-size: var(--sw-fs-base);
-  font-weight: var(--sw-fw-medium);
-  color: var(--sw-fg-0);
-}
-.aps__pin-key {
-  font-family: var(--sw-mono);
-  font-size: var(--sw-fs-xs);
-  color: var(--sw-fg-2);
-  background: var(--sw-bg-1);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.aps__pin-arrow,
-.aps__pin-del {
-  background: transparent;
-  border: 0;
-  color: var(--sw-fg-2);
-  font: inherit;
-  font-size: var(--sw-fs-lg);
-  line-height: 1;
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  cursor: pointer;
-}
-.aps__pin-arrow:not(:disabled):hover {
-  background: var(--sw-bg-3);
-  color: var(--sw-fg-0);
-}
-.aps__pin-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.aps__pin-del:not(:disabled):hover {
-  background: var(--sw-err-soft);
-  color: var(--sw-err);
-}
-.aps__pin-del:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.aps__win { padding: 10px 14px 12px; }
-.aps__win-lede {
-  margin: 0 0 8px;
-  font-size: var(--sw-fs-sm);
-  color: var(--sw-fg-2);
-  line-height: 1.5;
-}
-.aps__win-options {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.aps__win-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  border-radius: 5px;
-  font-size: var(--sw-fs-base);
-  color: var(--sw-fg-1);
-  cursor: pointer;
-}
-.aps__win-opt input { margin: 0; cursor: pointer; }
-.aps__win-opt input:disabled { cursor: not-allowed; }
-.aps__win-opt:not(.disabled):hover { border-color: var(--sw-line-2); color: var(--sw-fg-0); }
-.aps__win-opt.active {
-  border-color: var(--sw-accent);
-  color: var(--sw-fg-0);
-  background: var(--sw-bg-3);
-}
-.aps__win-opt.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.aps__limit {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.aps__limit label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--sw-fs-xs);
-  font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
-  color: var(--sw-fg-3);
-}
-.aps__in--num {
-  width: 100px;
-  font-variant-numeric: tabular-nums;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: var(--sw-fs-base);
-  padding: 5px 8px;
-  border-radius: 4px;
-}
-.aps__in--num:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.aps__limit-err {
-  color: var(--sw-err);
-  font-size: var(--sw-fs-sm);
-}
-
-.aps__add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 12px;
-}
-.aps__add-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  color: var(--sw-fg-1);
-  font: inherit;
-  font-size: var(--sw-fs-sm);
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.aps__add-chip:not(:disabled):hover {
-  background: var(--sw-bg-3);
-  color: var(--sw-fg-0);
-  border-color: var(--sw-line-2);
-}
-.aps__add-chip:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.aps__add-chip code {
-  font-family: var(--sw-mono);
-  font-size: var(--sw-fs-xs);
-  color: var(--sw-fg-3);
-}
-
 .aps__actions {
   display: flex;
   align-items: center;
@@ -680,6 +332,9 @@ function prettyLayer(k: string): string {
   font-size: var(--sw-fs-sm);
   color: var(--sw-ok);
   margin-right: auto;
+}
+.aps__flash--err {
+  color: var(--sw-err);
 }
 .aps__dirty {
   font-size: var(--sw-fs-sm);
@@ -708,6 +363,12 @@ function prettyLayer(k: string): string {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.aps__btn--danger {
+  color: var(--sw-err);
+}
+.aps__btn--danger:not(:disabled):hover {
+  background: var(--sw-err-soft);
+}
 .aps__btn--primary {
   background: var(--sw-accent);
   border-color: var(--sw-accent);
@@ -715,6 +376,6 @@ function prettyLayer(k: string): string {
   font-weight: var(--sw-fw-semibold);
 }
 .aps__btn--primary:not(:disabled):hover {
-  background: var(--sw-accent-2, #fb923c);
+  background: var(--sw-accent-2);
 }
 </style>

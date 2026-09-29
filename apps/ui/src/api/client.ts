@@ -615,7 +615,14 @@ export interface AlarmMessage {
    *  land later. */
   events?: Array<Record<string, unknown>>;
   snapshot: AlarmSnapshot;
-  /** Null when the entity name isn't a known service. */
+  /** Every layer of the services the alarm belongs to — its entity's owner,
+   *  and for a relation both ends. Empty when none is a known service. */
+  layerKeys: string[];
+  /** Every `LAYER~group` pair of those same services (`alarmOwnerKey`), the
+   *  group `''` for a service with none. A page pin with groups matches on
+   *  these; a whole-layer pin on `layerKeys`. */
+  ownerKeys: string[];
+  /** The first of `layerKeys`. */
   layerKey: string | null;
 }
 export interface AlarmsResponse {
@@ -628,6 +635,8 @@ export interface AlarmsResponse {
   truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
+  /** On a named page, the pins these rows were read by. */
+  pinnedLayers?: string[];
 }
 export interface AlarmsQuery {
   startTime: number;
@@ -650,6 +659,11 @@ export interface AlarmsQuery {
   normal?: boolean;
   instance?: string;
   endpoint?: string;
+  /** A named alarm page's id: the BFF keeps only the alarms that page's pins
+   *  cover, as the page is served to this reader, and answers 404
+   *  `alarm_page_not_found` for a page it does not serve them. Absent on the
+   *  default page, which lists every alarm the reader may read. */
+  page?: string;
 }
 export interface AlarmsCountResponse {
   /** Total individual events returned (capped). */
@@ -749,8 +763,8 @@ export interface AlertingRuleContextResponse {
   error?: string;
   nodes: Array<{ address: string; ok: boolean; error?: string; context: AlarmRunningContext | null }>;
 }
-// Alarms page-setup config + parse/validate helper live in a leaf module (no
-// cycle with the alarms scope, which reads it from OAP). Re-exported here so
+// The default alarm page's config + parse/validate helper live in a leaf module
+// (no cycle with the alarms scope, which reads it from OAP). Re-exported here so
 // `@/api/client` stays the single import site for consumers.
 export {
   ALARMS_WINDOW_OPTIONS,

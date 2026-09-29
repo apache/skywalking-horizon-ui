@@ -15,12 +15,15 @@
   limitations under the License.
 -->
 <!--
-  Alarms triage page. Layout:
+  Alarms triage page — the default page at /alarms, and every named page at
+  /alarms/<id>. The default page lists every alarm the reader's alarms:read
+  reaches; a named page lists only those its pins cover, filtered by the BFF,
+  and has no Other and no tab for an unpinned layer. Layout:
 
    ┌── header ─────────────────────────────────────────────────────┐
    │ Alarms                       [20m] [2h] [4h] [custom] [↻]    │
    ├── KPI strip ──────────────────────────────────────────────────┤
-   │  TOTAL · GENERAL · MESH · …pinned…  · k8s 4  vm 2  …overflow │
+   │  ACTIVE · …one tile per pin… · OTHER (default page only)     │
    ├── filter row (conditional on capabilities.queryAlarms) ──────┤
    │  layer · service · instance · endpoint · keyword · [apply]   │
    ├── timeline (alarm flags per layer lane) ─────────────────────┤
@@ -33,21 +36,23 @@
    - New: filter row shows layer + cascade + keyword. Filters apply
           server-side via queryAlarms `entities` / `layers`.
    - Legacy: filter row shows keyword only. Server-side filters
-          gracefully no-op; chips in the header still filter the
+          gracefully no-op; the tiles and tabs still filter the
           fetched response client-side.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { useQuery } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import {
   bff,
+  BffApiError,
+  describeApiError,
   type AlarmMessage,
-  type AlarmsConfig,
   type AlarmsResponse,
 } from '@/api/client';
 import { useOapInfo } from '@/shell/useOapInfo';
+import { ALARM_PAGES_QUERY_KEY } from '@/shell/useAlarmPages';
 import { useAuthStore } from '@/state/auth';
 import AlarmsTimeline from '@/components/charts/AlarmsTimeline.vue';
 import AlarmDetailPanel from './AlarmDetailPanel.vue';
@@ -55,64 +60,90 @@ import AlarmWindowPicker from './AlarmWindowPicker.vue';
 import AlarmFilterRow from './AlarmFilterRow.vue';
 import { useAlarmWindow, presetFromMs } from './useAlarmWindow';
 import { useAlarmFilters } from './useAlarmFilters';
+import { useAlarmPage, type AlarmPageState } from './useAlarmPage';
+import { OTHER_CHIP, canonicalPin, chipKeyOf, prettyLayer, useAlarmPins } from './useAlarmPins';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
-import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
+import {
+  alarmIncidentKey,
+  alarmLayerKeys,
+  alarmOwnerKeys,
+  mergeIncidents,
+  type AlarmIncident,
+} from '@/utils/alarmIncidents';
+
+/** Absent on the default page, `/alarms`; a named page's id otherwise. */
+const props = defineProps<{ pageId?: string }>();
 
 const { t } = useI18n();
+const auth = useAuthStore();
 
 const timeWindow = useAlarmWindow();
-const { windowMode, startTime, endTime, formatWindowLabel } = timeWindow;
+const { startTime, endTime, formatWindowLabel } = timeWindow;
 
 const { capabilities } = useOapInfo();
 const hasQueryAlarms = computed<boolean>(() => capabilities.value.queryAlarms);
 
-const pageConfig = useQuery({
-  queryKey: ['alarms/config'],
-  queryFn: (): Promise<AlarmsConfig> => bff.alarms.config(),
-  staleTime: Infinity,
-});
-const pinnedLayers = computed<string[]>(() => pageConfig.data.value?.pinnedLayers ?? []);
+const alarmPage = useAlarmPage(toRef(props, 'pageId'));
+const pageReady = computed<boolean>(() => alarmPage.state.value === 'ready');
+const pinsOnly = computed<boolean>(() => !alarmPage.isDefault.value);
+/** The pins a named page's rows were read by, from the read itself. */
+const listPins = ref<string[] | null>(null);
+/** A named page draws the pins its rows were chosen by, so its tiles, tabs
+ *  and filter choices cannot disagree with its list; before the first read,
+ *  the pins the pages route served. */
+const drawnPins = computed<readonly string[]>(() =>
+  props.pageId && listPins.value ? listPins.value : alarmPage.pinnedLayers.value,
+);
 
-/* Apply the admin-configured default window once; after that the
- * operator's manual picker choice wins and must not snap back on a
- * pageConfig refetch (flag lives outside the `data` reactive). */
-let didApplyDefault = false;
+/* Each page's starting window is applied once, when it is first known; after
+ * that the operator's picker choice wins and a refetch of the pages must not
+ * snap it back. Arriving on another page applies that page's. A window that
+ * is already the page's is left alone, so it is not read a second time.
+ *
+ * Declared before the alarms read, so on a page change it runs before the
+ * read's key is looked at; the read is not fired for the old window first. */
+let windowAppliedFor: string | null = null;
 watch(
-  () => pageConfig.data.value?.defaultWindowMs,
-  (ms) => {
-    if (didApplyDefault || ms === undefined) return;
-    windowMode.value = presetFromMs(ms);
-    didApplyDefault = true;
+  [() => props.pageId ?? '', alarmPage.windowMs],
+  ([key, ms]) => {
+    if (ms === undefined || windowAppliedFor === key) return;
+    const preset = presetFromMs(ms);
+    if (timeWindow.windowMode.value !== preset) timeWindow.pickPreset(preset);
+    windowAppliedFor = key;
   },
   { immediate: true },
 );
 
-const filters = useAlarmFilters(hasQueryAlarms);
+const filters = useAlarmFilters(hasQueryAlarms, toRef(props, 'pageId'));
+/** A named page offers only its own layers to filter by. */
+const pageLayers = computed<string[] | null>(() =>
+  props.pageId ? [...new Set(drawnPins.value.map((p) => canonicalPin(p)?.layer).filter((l): l is string => !!l))] : null,
+);
 const { applied } = filters;
 
-/* The header layer chips narrow the rendered list to that layer
- * (client-side filter on top of the fetched response). The selection
- * lives in the URL `?layer=GENERAL` so refresh / share preserves it
- * AND so the chip state survives a navigation. Empty / 'all' means
- * no chip filter active. */
+/* The tiles and tabs narrow the rendered list (client-side, on top of
+ * the fetched response). The selection lives in the URL `?layer=` so refresh
+ * / share preserves it; a named page's sidebar link carries none, so moving
+ * between pages starts unnarrowed. */
 const route = useRoute();
 const router = useRouter();
 const chipLayer = computed<string>({
   get: () => {
-    const raw = route.query.layer;
-    if (typeof raw === 'string') return raw.toUpperCase();
-    return '';
+    const key = chipKeyOf(route.query.layer);
+    // A named page offers its pins alone; `?layer=` naming anything else selects nothing.
+    if (!pinsOnly.value || key === '') return key;
+    return drawnPins.value.some((p) => chipKeyOf(p) === key) ? key : '';
   },
   set: (v: string) => {
     router.replace({ query: { ...route.query, layer: v ? v : undefined } });
   },
 });
-function selectChip(layerKey: string): void {
-  chipLayer.value = layerKey === chipLayer.value ? '' : layerKey;
+function selectChip(key: string): void {
+  chipLayer.value = key === chipLayer.value ? '' : key;
 }
 
 function keyFor(a: AlarmMessage): string {
-  return `${a.id}::${a.startTime}`;
+  return `${alarmIncidentKey(a)}::${a.startTime}`;
 }
 const selectedAlarmKey = ref<string | null>(null);
 const selectedRange = ref<{ startTime: number; endTime: number } | null>(null);
@@ -137,14 +168,15 @@ function clearSelection(): void {
   selectedRange.value = null;
 }
 
-// A reader whose alarms:read is limited to some layers is answered only for a
-// named service, so nothing is read until one is applied.
-const auth = useAuthStore();
-const serviceNeeded = computed(() => auth.layerLimited('alarms:read') && !applied.value.service);
 const alarmsQuery = useQuery({
-  enabled: computed(() => !serviceNeeded.value),
+  enabled: pageReady,
+  // A named page's rows are the ones its pins cover, chosen on the BFF: when
+  // the served pins change (edited elsewhere, or the reader's grant moved),
+  // those rows are another read, not a re-arrangement of these.
   queryKey: computed(() => [
     'alarms',
+    props.pageId ?? '',
+    props.pageId ? alarmPage.pinnedLayers.value.join('|') : '',
     startTime.value,
     endTime.value,
     applied.value.layer,
@@ -158,6 +190,7 @@ const alarmsQuery = useQuery({
     bff.alarms.list({
       startTime: startTime.value,
       endTime: endTime.value,
+      page: props.pageId,
       layer: applied.value.layer || undefined,
       service: applied.value.service || undefined,
       normal: applied.value.service ? applied.value.serviceNormal : undefined,
@@ -169,13 +202,47 @@ const alarmsQuery = useQuery({
   refetchOnWindowFocus: false,
 });
 
-const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []);
-const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);
+/* The BFF no longer serves this named page to the reader: it was deleted, or
+ * their grant changed, since the pages were read. The page is not available,
+ * and the pages are read again so the sidebar stops offering it. */
+const pageGone = computed<boolean>(() => {
+  const err = alarmsQuery.error.value;
+  if (!(err instanceof BffApiError) || err.status !== 404) return false;
+  const body = err.body;
+  return typeof body === 'object' && body !== null && (body as { error?: unknown }).error === 'alarm_page_not_found';
+});
+const queryClient = useQueryClient();
+// Rows read by pins the pages route has not served yet: another admin
+// re-pinned the page. The pages are read again, so its title, window and
+// sidebar entry follow too.
+watch(
+  () => alarmsQuery.data.value,
+  (d) => {
+    listPins.value = props.pageId && d?.pinnedLayers ? d.pinnedLayers : null;
+    if (listPins.value && listPins.value.join('|') !== alarmPage.pinnedLayers.value.join('|')) {
+      void queryClient.invalidateQueries({ queryKey: ALARM_PAGES_QUERY_KEY });
+    }
+  },
+  { immediate: true },
+);
+watch(pageGone, (gone) => {
+  if (gone) void queryClient.invalidateQueries({ queryKey: ALARM_PAGES_QUERY_KEY });
+});
+const pageState = computed<AlarmPageState>(() => (pageGone.value ? 'missing' : alarmPage.state.value));
+
+// A failed read shows as failed, not as a window with no alarms: the rows of
+// the read before it are dropped and the tiles show no count. A read still in
+// flight (a new window, another page) shows no count either, not a zero.
+const readFailed = computed(() => alarmsQuery.isError.value);
+const countsUnknown = computed(() => readFailed.value || alarmsQuery.isPending.value);
+const alarms = computed<AlarmMessage[]>(() => (readFailed.value ? [] : alarmsQuery.data.value?.msgs ?? []));
+const truncated = computed<boolean>(() => !readFailed.value && (alarmsQuery.data.value?.truncated ?? false));
+const kpi = (n: number): number | string => (countsUnknown.value ? '—' : n);
 
 /** Events narrowed by the brushed time range. Drives the KPI + tab
- *  counts after incident merging. The chip / tab layer filter is
- *  applied LATER (on incidents), not here — otherwise every chip
- *  except the active one would zero out. */
+ *  counts after incident merging. The tile / tab filter is applied
+ *  LATER (on incidents), not here — otherwise every tile except the
+ *  active one would zero out. */
 const rangeScopedAlarms = computed<AlarmMessage[]>(() => {
   if (!selectedRange.value) return alarms.value;
   const { startTime: s, endTime: e } = selectedRange.value;
@@ -188,62 +255,16 @@ const rangeScopedAlarms = computed<AlarmMessage[]>(() => {
  * fire-then-recovered pattern stays visible).
  *
  * Per spec: an incident whose LATEST event has recoveryTime !== null
- * is "recovered" and does NOT count in totals / tabs / badges. Only
- * `state === 'firing'` incidents are counted. */
+ * is "recovered" and does NOT count in totals / tabs / badges. */
 const rangeIncidents = computed<AlarmIncident[]>(() =>
   mergeIncidents(rangeScopedAlarms.value),
 );
 
-const countsByLayer = computed<Map<string, number>>(() => {
-  const m = new Map<string, number>();
-  for (const inc of rangeIncidents.value) {
-    if (inc.state === 'recovered') continue;  // unstable is still actively firing
-    const k = inc.layerKey ?? 'OTHER';
-    m.set(k, (m.get(k) ?? 0) + 1);
-  }
-  return m;
-});
-const totalCount = computed<number>(
-  () => rangeIncidents.value.filter((i) => i.state !== 'recovered').length,
-);
-/** Pinned layers always render in the header even when count = 0. */
-const pinnedKpis = computed<Array<{ key: string; label: string; count: number }>>(() => {
-  return pinnedLayers.value.map((k) => ({
-    key: k,
-    label: prettyLayer(k),
-    count: countsByLayer.value.get(k) ?? 0,
-  }));
-});
-/** "Other" KPI tile — the residual between `totalCount` and the
- *  pinned-layer counts. Surfaces alarms in layers the operator didn't
- *  pin AND alarms the BFF couldn't attribute to a known layer (bucket
- *  key === 'OTHER'). Without this tile the math `totalCount === sum
- *  of visible KPI tiles` reads as broken because the overflow pills
- *  below are smaller and easy to miss. The tile becomes a passthrough
- *  filter when clicked — same selectChip dispatch as a pinned layer. */
-const otherKpiCount = computed<number>(() => {
-  const pinned = new Set(pinnedLayers.value);
-  let n = 0;
-  for (const [k, v] of countsByLayer.value.entries()) {
-    if (!pinned.has(k)) n += v;
-  }
-  return n;
-});
-/** Non-pinned layers with at least one active incident, descending
- *  by count. Recovered-only layers drop out — "no alarm as number".
- *  These render as small pills BELOW the KPI tiles; the "Other" KPI
- *  tile above already surfaces the aggregate count, so these are the
- *  detailed breakdown for triage filtering. */
-const overflowChips = computed<Array<{ key: string; label: string; count: number }>>(() => {
-  const pinned = new Set(pinnedLayers.value);
-  const out: Array<{ key: string; label: string; count: number }> = [];
-  for (const [k, n] of countsByLayer.value.entries()) {
-    if (pinned.has(k)) continue;
-    if (n === 0) continue;
-    out.push({ key: k, label: prettyLayer(k), count: n });
-  }
-  out.sort((a, b) => b.count - a.count);
-  return out;
+const { totalCount, pinnedTiles, otherCount, tabs: listTabs, inChip } = useAlarmPins({
+  pinnedLayers: drawnPins,
+  incidents: rangeIncidents,
+  chip: chipLayer,
+  pinsOnly,
 });
 
 /** Row list uses the SAME incident merge as the counts: one row per
@@ -251,15 +272,10 @@ const overflowChips = computed<Array<{ key: string; label: string; count: number
  *  collapse into a single row tagged "triggered N×"; the row's state
  *  reflects the latest firing (still firing or recovered). Recovered
  *  incidents stay visible in the list as recent history but already
- *  drop out of `totalCount` / `countsByLayer` above. */
-const listEntries = computed<AlarmIncident[]>(() => rangeIncidents.value);
-const filteredIncidents = computed<AlarmIncident[]>(() => {
-  let rows = listEntries.value;
-  if (chipLayer.value) {
-    rows = rows.filter((i) => (i.layerKey ?? 'OTHER') === chipLayer.value);
-  }
-  return rows;
-});
+ *  drop out of the counts. */
+const filteredIncidents = computed<AlarmIncident[]>(() =>
+  chipLayer.value ? rangeIncidents.value.filter((i) => inChip(i)) : rangeIncidents.value,
+);
 
 /* Expandable per-incident history — operators click the chevron to see
  * every individual firing/recovery on this (entity, rule) in time
@@ -294,7 +310,7 @@ function stateBadgeClass(inc: AlarmIncident): string {
   return 'is-err';
 }
 
-/** Data feed for the timeline chart — chip-aware, range-IGNORANT.
+/** Data feed for the timeline chart — selection-aware, range-IGNORANT.
  *  Brushing must not hide data outside the brush, otherwise the
  *  operator can't see other peaks to rebrush onto. The brush
  *  rectangle is the only visual marker for the selection. The
@@ -302,34 +318,13 @@ function stateBadgeClass(inc: AlarmIncident): string {
  *  recovered pattern is fully visible. */
 const timelineAlarms = computed<AlarmMessage[]>(() => {
   if (!chipLayer.value) return alarms.value;
-  return alarms.value.filter((a) => (a.layerKey ?? 'OTHER') === chipLayer.value);
+  return alarms.value.filter((a) => inChip({ layerKeys: alarmLayerKeys(a), ownerKeys: alarmOwnerKeys(a) }));
 });
 
 const selectedAlarm = computed<AlarmMessage | null>(() => {
   const k = selectedAlarmKey.value;
   if (!k) return null;
   return alarms.value.find((a) => keyFor(a) === k) ?? null;
-});
-
-/* "All" maps to no layer filter; every other tab maps to its layer key
- * via `chipLayer` — the same state the header KPIs + overflow chips
- * write, so the two surfaces stay consistent. */
-interface ListTab {
-  key: string;
-  label: string;
-  count: number;
-}
-const listTabs = computed<ListTab[]>(() => {
-  /* "All" uses `totalCount` (range-scoped), not `alarms.value.length`,
-   * so it stays in sync with the per-layer counts after a brush. */
-  const tabs: ListTab[] = [{ key: '', label: t('All'), count: totalCount.value }];
-  for (const k of pinnedLayers.value) {
-    tabs.push({ key: k, label: prettyLayer(k), count: countsByLayer.value.get(k) ?? 0 });
-  }
-  for (const c of overflowChips.value) {
-    tabs.push({ key: c.key, label: c.label, count: c.count });
-  }
-  return tabs;
 });
 
 const PAGE_SIZE = 10;
@@ -346,14 +341,38 @@ watch([filteredIncidents, chipLayer, startTime, endTime], () => {
   page.value = 1;
 });
 
-function prettyLayer(k: string): string {
-  if (k === 'OTHER') return t('Other');
-  return k
-    .toLowerCase()
-    .split('_')
-    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : ''))
-    .join(' ');
-}
+// Moving to another page starts it afresh; its window is re-applied above and
+// ends now, so a page visited before is read again rather than served from the
+// earlier read. The filter goes too: one left applied would narrow the next
+// page's read, and its tiles would count only what that filter let through.
+// `sync` because the read keys on the page id: declared after the read, a
+// pre-flush watcher would run once the read had already fired for the new page
+// with the old filter, and OAP would be asked twice.
+watch(
+  () => props.pageId,
+  () => {
+    timeWindow.resetEndToNow();
+    filters.clearFilters();
+    clearSelection();
+    expandedIncidents.value = new Set();
+    page.value = 1;
+  },
+  { flush: 'sync' },
+);
+// A named page whose pins change while it is open is another page to filter:
+// a layer or service picked under the old pins may be one it no longer offers,
+// and would narrow the new read to nothing.
+watch(
+  [() => props.pageId, () => (props.pageId ? alarmPage.pinnedLayers.value.join('|') : '')],
+  ([id, pins], [prevId, prevPins]) => {
+    if (id !== prevId || pins === prevPins) return;
+    filters.clearFilters();
+    clearSelection();
+    expandedIncidents.value = new Set();
+    page.value = 1;
+  },
+  { flush: 'sync' },
+);
 
 function formatRelative(ts: number): string {
   const delta = Date.now() - ts;
@@ -372,6 +391,15 @@ watch([startTime, endTime], () => {
   selectedRange.value = null;
 });
 
+const pageNote = computed<string | null>(() => {
+  if (alarmPage.setupUnread.value) return t('The default alarm page could not be read, so no layers are pinned.');
+  const n = alarmPage.hiddenPins.value;
+  if (n === 0) return null;
+  return n === 1
+    ? t('{n} pinned layer is outside your access.', { n })
+    : t('{n} pinned layers are outside your access.', { n });
+});
+
 const refreshing = ref(false);
 async function onRefresh(): Promise<void> {
   if (refreshing.value) return;
@@ -386,18 +414,29 @@ async function onRefresh(): Promise<void> {
 </script>
 
 <template>
-  <div class="ax">
+  <div v-if="pageState !== 'ready'" class="ax">
+    <header class="ax__head">
+      <div><div class="ax__kicker">{{ t('Alarms') }}</div></div>
+    </header>
+    <div v-if="pageState === 'loading'" class="ax__empty">{{ t('loading…') }}</div>
+    <div v-else class="ax__empty" :class="{ 'ax__empty--err': pageState === 'failed' }">
+      {{ pageState === 'failed' ? alarmPage.failure.value : t('This alarm page does not exist or is not available to you.') }}
+      <RouterLink to="/alarms">{{ t('Alarms') }}</RouterLink>
+    </div>
+  </div>
+  <div v-else class="ax">
     <header class="ax__head">
       <div>
         <div class="ax__kicker">{{ t('Alarms') }}</div>
-        <h1 class="ax__h1">{{ t('Active alarms') }}</h1>
+        <h1 class="ax__h1">{{ alarmPage.title.value ?? t('Active alarms') }}</h1>
         <p class="ax__lede">
-          <i18n-t keypath="{window}. Pinned layers come from {setupLink}. Click a layer chip to narrow the list; click a flag on the timeline to inspect one alarm; brush a region to slice the list to that window." tag="span" scope="global">
+          <i18n-t v-if="auth.hasVerb('alarm-setup:read')" keypath="{window}. Pinned layers come from {setupLink}. Click a tile or a tab to narrow the list; click a flag on the timeline to inspect one alarm; brush a region to slice the list to that window." tag="span" scope="global">
             <template #window>{{ formatWindowLabel() }}</template>
             <template #setupLink>
-              <RouterLink to="/admin/alert-page-setup">{{ t('Alert page setup') }}</RouterLink>
+              <RouterLink to="/admin/alert-page-setup">{{ t('Alarm pages') }}</RouterLink>
             </template>
           </i18n-t>
+          <span v-else>{{ t('{window}. Click a tile or a tab to narrow the list; click a flag on the timeline to inspect one alarm; brush a region to slice the list to that window.', { window: formatWindowLabel() }) }}</span>
         </p>
       </div>
       <div class="ax__header-actions">
@@ -421,54 +460,41 @@ async function onRefresh(): Promise<void> {
         @click="chipLayer = ''"
       >
         <div class="ax__kpi-label">{{ t('Active') }}</div>
-        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': totalCount > 0 }">{{ totalCount }}</div>
-        <div class="ax__kpi-sub">{{ rangeIncidents.length === 1 ? t('{n} incident', { n: rangeIncidents.length }) : t('{n} incidents', { n: rangeIncidents.length }) }}</div>
+        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': totalCount > 0 }">{{ kpi(totalCount) }}</div>
+        <div v-if="!countsUnknown" class="ax__kpi-sub">{{ rangeIncidents.length === 1 ? t('{n} incident', { n: rangeIncidents.length }) : t('{n} incidents', { n: rangeIncidents.length }) }}</div>
       </button>
       <button
-        v-for="k in pinnedKpis"
+        v-for="k in pinnedTiles"
         :key="k.key"
         type="button"
         class="ax__kpi"
         :class="{ active: chipLayer === k.key }"
         @click="selectChip(k.key)"
       >
-        <div class="ax__kpi-label">{{ k.label }}</div>
-        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': k.count > 0 }">{{ k.count }}</div>
+        <!-- OAP service groups are case-sensitive, so the group part is not upper-cased. -->
+        <div class="ax__kpi-label">
+          <template v-if="k.groupsLabel"><span class="ax__kpi-group">{{ k.groupsLabel }}</span> · </template>{{ k.layerLabel }}
+        </div>
+        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': k.count > 0 }">{{ kpi(k.count) }}</div>
       </button>
-      <!-- "Other" KPI tile — sum of all non-pinned-layer alarms (and
-           unmapped / 'OTHER' bucket). Always rendered (even at zero)
-           so operators can mentally verify
-           `Active = General + Mesh + Other` at a glance. Read-only
-           aggregate; clicking it doesn't filter. The smaller pills
-           below remain the per-layer filters. Rendered as a
-           `<button disabled>` (not a `<div>`) so the flex row's
-           box-metrics match the neighbour KPI buttons exactly —
-           same padding / border / line-height resolution. -->
+      <!-- "Other": the active incidents no pin matches. Rendered even at
+           zero on the default page; a named page lists nothing else. -->
       <button
+        v-if="!pinsOnly"
         type="button"
-        disabled
-        class="ax__kpi ax__kpi--passive"
-        :title="t('Sum of alarms in non-pinned layers (and unmapped). Use the chips below to filter by a specific other layer.')"
+        class="ax__kpi"
+        :class="{ active: chipLayer === OTHER_CHIP }"
+        :title="t('Alarms in no pinned layer, including those no known service owns. An alarm counts under every layer its services are in, so the layer tiles can add up to more than Active.')"
+        @click="selectChip(OTHER_CHIP)"
       >
         <div class="ax__kpi-label">{{ t('Other') }}</div>
-        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': otherKpiCount > 0 }">{{ otherKpiCount }}</div>
+        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': otherCount > 0 }">{{ kpi(otherCount) }}</div>
       </button>
-      <div v-if="overflowChips.length > 0" class="ax__chips">
-        <button
-          v-for="c in overflowChips"
-          :key="c.key"
-          type="button"
-          class="ax__chip"
-          :class="{ active: chipLayer === c.key }"
-          @click="selectChip(c.key)"
-        >
-          <span class="ax__chip-label">{{ c.label }}</span>
-          <span class="ax__chip-count mono">{{ c.count }}</span>
-        </button>
-      </div>
     </div>
 
-    <AlarmFilterRow :filters="filters" :has-query-alarms="hasQueryAlarms" />
+    <p v-if="pageNote" class="ax__note">{{ pageNote }}</p>
+
+    <AlarmFilterRow :filters="filters" :has-query-alarms="hasQueryAlarms" :page-layers="pageLayers" />
 
     <section class="ax__panel">
       <header class="ax__panel-head">
@@ -500,24 +526,27 @@ async function onRefresh(): Promise<void> {
       <div class="ax__list">
         <div v-if="listTabs.length > 1" class="ax__tabs" role="tablist">
           <button
-            v-for="t in listTabs"
-            :key="t.key || '_all'"
+            v-for="tab in listTabs"
+            :key="tab.key || '_all'"
             type="button"
             role="tab"
             class="ax__tab"
-            :class="{ active: chipLayer === t.key }"
-            :aria-selected="chipLayer === t.key"
-            @click="chipLayer = t.key"
+            :class="{ active: chipLayer === tab.key }"
+            :aria-selected="chipLayer === tab.key"
+            @click="chipLayer = tab.key"
           >
-            <span class="ax__tab-label">{{ t.label }}</span>
-            <span class="ax__tab-count mono">{{ t.count }}</span>
+            <span class="ax__tab-label">{{ tab.label }}</span>
+            <span class="ax__tab-count mono">{{ kpi(tab.count) }}</span>
           </button>
         </div>
 
-        <div v-if="serviceNeeded" class="ax__empty">{{ t('Pick a layer and a service to see their alarms.') }}</div>
-        <div v-else-if="alarmsQuery.isPending.value" class="ax__empty">{{ t('loading…') }}</div>
+        <div v-if="alarmsQuery.isPending.value" class="ax__empty">{{ t('loading…') }}</div>
+        <div v-else-if="readFailed" class="ax__empty ax__empty--err">
+          {{ t('The alarms could not be read: {err}', { err: describeApiError(alarmsQuery.error.value) }) }}
+        </div>
+        <!-- An empty list from a read that stopped early proves nothing. -->
         <div v-else-if="filteredIncidents.length === 0" class="ax__empty">
-          {{ t('No alarms in the current window.') }}
+          {{ truncated ? t('more alarms in this window than were fetched — tighten the range') : t('No alarms in the current window.') }}
         </div>
 
         <!-- One row per (entity, rule) incident. Click selects the
@@ -550,7 +579,7 @@ async function onRefresh(): Promise<void> {
                 </div>
                 <div class="ax__row-msg">{{ inc.latest.message }}</div>
                 <div class="ax__row-meta">
-                  <span v-if="inc.latest.layerKey" class="ax__row-tag">{{ prettyLayer(inc.latest.layerKey) }}</span>
+                  <span v-if="inc.layerKeys.length" class="ax__row-tag">{{ inc.layerKeys.map(prettyLayer).join(' · ') }}</span>
                   <span v-else class="ax__row-tag ax__row-tag--other">{{ t('Other') }}</span>
                   <span class="ax__row-time">{{ formatRelative(inc.latest.startTime) }}</span>
                 </div>
@@ -708,18 +737,6 @@ async function onRefresh(): Promise<void> {
 }
 /* opacity:1 overrides the browser-default disabled-button fade (~0.5)
  * so this read-only aggregate stays legible. */
-.ax__kpi--passive {
-  cursor: default;
-  border-style: dashed;
-  opacity: 1;
-}
-.ax__kpi--passive:hover {
-  border-color: var(--sw-line);
-}
-.ax__kpi--passive .ax__kpi-label,
-.ax__kpi--passive .ax__kpi-val {
-  color: var(--sw-fg-2);
-}
 .ax__kpi-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -737,53 +754,17 @@ async function onRefresh(): Promise<void> {
   line-height: 1.1;
 }
 .ax__kpi-val--err { color: var(--sw-err); }
+.ax__kpi-group { text-transform: none; letter-spacing: 0; }
+.ax__note {
+  margin: -6px 0 12px;
+  font-size: 11.5px;
+  color: var(--sw-fg-3);
+}
 .ax__kpi-sub {
   font-size: 10.5px;
   color: var(--sw-fg-3);
   margin-top: 2px;
 }
-.ax__chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 4px;
-  margin-left: auto;
-  max-width: 600px;
-}
-.ax__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  color: var(--sw-fg-1);
-  font: inherit;
-  font-size: 11.5px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.ax__chip:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
-.ax__chip.active {
-  background: var(--sw-accent-soft);
-  border-color: var(--sw-accent);
-  color: var(--sw-accent-2);
-}
-.ax__chip-label { font-weight: 500; }
-.ax__chip-count {
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-2);
-  padding: 0 5px;
-  border-radius: 8px;
-  font-variant-numeric: tabular-nums;
-}
-.ax__chip.active .ax__chip-count {
-  background: var(--sw-bg-1);
-  color: var(--sw-accent-2);
-}
-
 .ax__panel {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
@@ -830,14 +811,16 @@ async function onRefresh(): Promise<void> {
 
 .ax__split {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  /* minmax(0, …): a long nowrap message must not widen the list past its
+     share and push the detail panel off the page. */
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
 }
 /* Narrow viewports: the fixed 360px detail rail + squeezed list overflow,
    so stack the detail below the list at full width instead. */
 @media (max-width: 1080px) {
   .ax__split {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .ax__list { display: flex; flex-direction: column; gap: 12px; }
@@ -850,6 +833,9 @@ async function onRefresh(): Promise<void> {
   border: 1px dashed var(--sw-line);
   border-radius: 8px;
 }
+.ax__empty--err { color: var(--sw-err); border-color: var(--sw-err); }
+.ax__empty a { color: var(--sw-accent); text-decoration: none; margin-left: 6px; }
+.ax__empty a:hover { text-decoration: underline; }
 .ax__tabs {
   display: flex;
   flex-wrap: wrap;
@@ -953,7 +939,7 @@ async function onRefresh(): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ax__row-entity-name { display: inline-flex; align-items: baseline; gap: 0; }
+.ax__row-entity-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ax__row-entity-group {
   display: inline-block;
   font-family: var(--sw-mono);

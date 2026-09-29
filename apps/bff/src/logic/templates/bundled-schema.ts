@@ -44,8 +44,11 @@
  *     blanks the layer's entire service list.
  */
 
-import { z } from 'zod';
+import { z, type ZodType } from 'zod';
 import {
+  alarmPinKey,
+  parseAlarmPin,
+  type AlarmPin,
   isBuiltInLayerRow,
   menuOrderIssues,
   resolveLayerMenuRows,
@@ -71,6 +74,8 @@ import {
   type LayerComponentFlags,
 } from '../layers/loader.js';
 import { componentsToCaps } from '../layers/caps.js';
+import { canonicalLayerKey } from './identity.js';
+import { ALERT_DEFAULT_KEY, ALERT_RETIRED_KEY } from './names.js';
 
 /** Cross-side rollup of per-service values into one layer KPI. Mirrors
  *  `AggregationKind` — the landing route rejects anything else. */
@@ -1140,10 +1145,10 @@ export const overviewTemplateSchema = buildOverviewSchemas(true);
 export const overviewTemplatePushSchema = buildOverviewSchemas(false);
 
 /**
- * The three singleton settings templates. Unlike dashboards, each is written
- * whole by exactly one admin page — the alarms page setup, and the two halves
- * of Global Defaults — so completeness IS the contract here and a partial
- * object is a malformed one, not work in progress.
+ * The settings templates: the alarm pages, and the two halves of Global
+ * Defaults. Unlike dashboards, each is written whole by one admin page, so
+ * completeness IS the contract here and a partial object is a malformed one,
+ * not work in progress.
  *
  * `.strict()` is the load-bearing part: without it these rows are an
  * unvalidated JSON store that every signed-in user reads back.
@@ -1155,7 +1160,7 @@ export const overviewTemplatePushSchema = buildOverviewSchemas(false);
  *  through the UI — and `pinnedLayers` is the one with no read-side backstop:
  *  each entry renders a KPI tile and a list tab, so blanks and overflow reach
  *  the page. */
-const ALARMS_WINDOW_CHOICES_MS = [20 * 60_000, 2 * 60 * 60_000, 4 * 60 * 60_000] as const;
+export const ALARMS_WINDOW_CHOICES_MS = [20 * 60_000, 2 * 60 * 60_000, 4 * 60 * 60_000] as const;
 const MAX_PINNED_LAYERS = 8;
 const OVERVIEW_ALARMS_LIMIT_MIN = 10;
 const OVERVIEW_ALARMS_LIMIT_MAX = 500;
@@ -1166,15 +1171,49 @@ const OVERVIEW_ALARMS_LIMIT_MAX = 500;
  *  bless a value that is not the one persisted. */
 const nonBlank = z.string().refine((v) => v.trim().length > 0, { message: 'must not be blank' });
 
-export const alertTemplateSchema = z
+const alarmsWindowSchema = z
+  .number()
+  .int()
+  .refine((v) => (ALARMS_WINDOW_CHOICES_MS as readonly number[]).includes(v), {
+    message: `must be one of the alarm-page windows: ${ALARMS_WINDOW_CHOICES_MS.join(', ')} ms`,
+  });
+
+/** One pin, as a grant qualifies a verb. A malformed one is refused rather
+ *  than read as its layer alone: that would widen the tile to the whole layer. */
+const alarmPinSchema = z.string().refine((v) => parseAlarmPin(v) !== null, {
+  message: 'must be a layer key, optionally with service groups: GENERAL, or GENERAL[payments, -]',
+});
+
+/** A pin with its layer as Horizon addresses it. Two spellings of one layer
+ *  (`general`, `CACHE` for `VIRTUAL_CACHE`) are the same pin. */
+export function parseCanonicalAlarmPin(text: string): AlarmPin | null {
+  const pin = parseAlarmPin(text);
+  return pin ? { ...pin, layer: canonicalLayerKey(pin.layer) } : null;
+}
+
+function alarmPinsSchema(min: number) {
+  return z
+    .array(alarmPinSchema)
+    .min(min, 'must pin at least one layer')
+    .max(MAX_PINNED_LAYERS)
+    .superRefine((pins, ctx) => {
+      const seen = new Set<string>();
+      pins.forEach((p, i) => {
+        const pin = parseCanonicalAlarmPin(p);
+        if (pin === null) return;
+        const key = alarmPinKey(pin);
+        if (seen.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i], message: `"${p}" is pinned twice` });
+        seen.add(key);
+      });
+    });
+}
+
+/** `horizon.alert.default` — the default alarm page, which also sizes the
+ *  sidebar badge's window and the overview alarms widget. */
+export const alertDefaultTemplateSchema = z
   .object({
-    pinnedLayers: z.array(nonBlank).max(MAX_PINNED_LAYERS),
-    defaultWindowMs: z
-      .number()
-      .int()
-      .refine((v) => (ALARMS_WINDOW_CHOICES_MS as readonly number[]).includes(v), {
-        message: `must be one of the alarm-page windows: ${ALARMS_WINDOW_CHOICES_MS.join(', ')} ms`,
-      }),
+    pinnedLayers: alarmPinsSchema(0),
+    defaultWindowMs: alarmsWindowSchema,
     overviewAlarmsLimit: z
       .number()
       .int()
@@ -1182,6 +1221,33 @@ export const alertTemplateSchema = z
       .max(OVERVIEW_ALARMS_LIMIT_MAX),
   })
   .strict();
+
+const ALERT_PAGE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+/** The default page's key, and the key it had before named pages existed. */
+const RESERVED_ALERT_PAGE_IDS: readonly string[] = [ALERT_DEFAULT_KEY, ALERT_RETIRED_KEY];
+export const ALERT_PAGE_DEFAULT_ORDER = 1000;
+
+/** `horizon.alert.<id>` — a named alarm page. Its `id` is the row's key. */
+export const alertPageTemplateSchema = z
+  .object({
+    id: z
+      .string()
+      .regex(ALERT_PAGE_ID_RE, 'must be 1–64 characters of a-z, 0-9, "_" and "-", starting with a letter or digit')
+      .refine((v) => !RESERVED_ALERT_PAGE_IDS.includes(v), { message: 'is reserved for the default alarm page' }),
+    title: z
+      .string()
+      .max(64)
+      .refine((v) => v.trim().length > 0, { message: 'must not be blank' }),
+    order: z.number().int().min(0).max(1_000_000).optional(),
+    pinnedLayers: alarmPinsSchema(1),
+    defaultWindowMs: alarmsWindowSchema.optional(),
+  })
+  .strict();
+
+/** The schema an `alert` row is held to, by its key. */
+export function alertTemplateSchemaFor(key: string): ZodType {
+  return key === ALERT_DEFAULT_KEY ? alertDefaultTemplateSchema : alertPageTemplateSchema;
+}
 
 /** The theme id set lives in the UI (`AVAILABLE_THEMES`), which resolves an
  *  unknown id to the default — so the BFF pins the shape and leaves the value

@@ -40,6 +40,7 @@
 import type { Logger } from 'pino';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import {
+  ALERT_RETIRED_KEY,
   buildEnvelope,
   buildOverlayEnvelope,
   isOverlayName,
@@ -53,7 +54,7 @@ import { templateIdentityIssue } from './identity.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
-  /** The key portion of the name (e.g. `services`, `GENERAL`, `page-setup`). */
+  /** The key portion of the name (e.g. `services`, `GENERAL`, `default`). */
   key: string;
   /** Inner content. The orchestrator wraps this in the standard envelope. */
   content: unknown;
@@ -759,6 +760,13 @@ function parseRemoteRows(
     const key = env.locale === undefined
       ? env.name.split('.').slice(2).join('.')
       : env.name.split('.').slice(2, -2).join('.');
+    // The default alarm page's record from before it was `horizon.alert.default`:
+    // read by nothing and deliberately not reported either — it is no fault in
+    // the store, and there is nothing in Horizon for an operator to do about it.
+    if (env.kind === 'alert' && key === ALERT_RETIRED_KEY) {
+      skipped++;
+      continue;
+    }
     // A disabled row is already served to nobody, and an overlay carries its
     // parent's identity rather than one of its own — only a LIVE source row
     // that no reader can resolve is both reportable and renderable-by-mistake.

@@ -33,26 +33,44 @@ import { canonicalLayerKey } from '@/state/verbGrammar';
 import type { AlarmFilters } from './useAlarmFilters';
 
 const { t } = useI18n();
-const props = defineProps<{ filters: AlarmFilters; hasQueryAlarms: boolean }>();
+const props = defineProps<{
+  filters: AlarmFilters;
+  hasQueryAlarms: boolean;
+  /** On a named page, the layers its pins name: the only ones offered. */
+  pageLayers?: readonly string[] | null;
+}>();
 const f = props.filters;
 const draft = f.draft;
 const applied = f.applied;
 
 const { availableLayers, alarmLayers } = useLayers();
 const auth = useAuthStore();
-// A reader whose alarms:read is limited to some layers picks one of those, and
-// a service in it: the BFF answers such a reader only for a named service.
 const limitedLayers = computed(() => auth.layersFor('alarms:read'));
-const layerOptions = computed(() => {
+/** One option per OAP layer. A layer split by service group is several menu
+ *  entries keyed `<layer>~<group>`, and the filter takes the layer alone. */
+const baseLayers = computed(() => {
+  const out = new Map<string, string>();
+  for (const L of availableLayers.value) {
+    const key = canonicalLayerKey(L.key.split('~', 1)[0]!);
+    // A split entry's name leads with its group.
+    const name = L.serviceGroup ? L.name.replace(`${L.serviceGroup} · `, '') : L.name;
+    if (!out.has(key) || !L.serviceGroup) out.set(key, name);
+  }
+  return out;
+});
+const readableLayers = computed(() => {
   // With layer grants the sidebar follows page permissions, not alarms:read,
   // so the BFF lists the alarm layers on their own.
   if (alarmLayers.value) return alarmLayers.value;
   const limited = limitedLayers.value;
-  if (!limited) return availableLayers.value.map((L) => ({ key: L.key.toUpperCase(), name: L.name }));
-  return limited.map((key) => ({
-    key,
-    name: availableLayers.value.find((L) => canonicalLayerKey(L.key.split('~', 1)[0]!) === key)?.name ?? key,
-  }));
+  if (!limited) return [...baseLayers.value].map(([key, name]) => ({ key, name }));
+  return limited.map((key) => ({ key, name: baseLayers.value.get(key) ?? key }));
+});
+const layerOptions = computed(() => {
+  const only = props.pageLayers;
+  if (!only) return readableLayers.value;
+  // The page's pins are already narrowed to what the reader reaches.
+  return only.map((key) => readableLayers.value.find((L) => L.key === key) ?? { key, name: baseLayers.value.get(key) ?? key });
 });
 </script>
 
@@ -61,7 +79,7 @@ const layerOptions = computed(() => {
     <label class="ax__filter">
       <span>{{ t('Layer') }}</span>
       <select v-model="draft.layer" @change="f.onLayerChange()">
-        <option value="">{{ limitedLayers ? t('pick a layer first') : t('any layer') }}</option>
+        <option value="">{{ t('any layer') }}</option>
         <option v-for="L in layerOptions" :key="L.key" :value="L.key">{{ L.name }}</option>
       </select>
     </label>
@@ -69,7 +87,7 @@ const layerOptions = computed(() => {
       <span>{{ t('Service') }}</span>
       <select v-model="draft.service" :disabled="!draft.layer" @change="f.onServiceChange()">
         <option value="">
-          {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : limitedLayers ? t('Pick a service') : t('any service') }}
+          {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : t('any service') }}
         </option>
         <option v-for="s in f.serviceOptions.value" :key="`${s.name}/${s.normal}`" :value="s.name">{{ s.name }}</option>
       </select>

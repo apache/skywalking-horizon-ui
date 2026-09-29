@@ -20,7 +20,7 @@ Known verbs are grouped into areas:
 | Verb | Gates |
 |---|---|
 | `metrics:read` | Layer dashboards, overview widgets that fetch MQE values. |
-| `alarms:read` | Alarms page, alarm widgets on overviews. |
+| `alarms:read` | Alarms page and named alarm pages, alarm widgets on overviews. |
 | `events:read` | Events popout on a service banner: that service's lifecycle events. |
 | `traces:read` | Traces tab on any layer, trace detail page. |
 | `logs:read` | Logs tab on any layer, log detail page. |
@@ -43,7 +43,7 @@ Each page in the sidebar's **Dashboard setup** section has its own read/write pa
 | `overview-template:read` / `overview-template:write` | Overview templates (`/admin/overview-templates`). |
 | `layer-template:read` / `layer-template:write` | Layer dashboards (`/admin/layer-dashboards`). |
 | `translation:read` / `translation:write` | Translations (`/admin/translations`) — the per-locale overlays for any template, whatever kind it translates. `translation:read` also reads the source templates being translated, since the page shows each translation beside the English it replaces; it does not let you change one. A translation may only replace the template's text fields — a title, an alias, a label — never a metric expression, a widget type or a layer key. |
-| `alarm-setup:read` / `alarm-setup:write` | Alert page setup (`/admin/alert-page-setup`). |
+| `alarm-setup:read` / `alarm-setup:write` | Alarm pages setup (`/admin/alert-page-setup`): the default and named alarm pages. |
 | `infra-3d-setup:read` / `infra-3d-setup:write` | 3D Infra Map setup (`/admin/3d-map`). Distinct from `infra-3d:read`, which is the map itself. |
 | `setup:read` / `setup:write` | Global defaults (`/admin/global-defaults`) — default theme and time window. |
 
@@ -136,20 +136,22 @@ Only verbs whose data belongs to a service can carry a layer: `metrics:read`, `t
 
 **What the role still sees of other services.** Links between services are navigation, not access: the page a link opens is checked like any other. The views that draw relationships still show what OAP returns for the role's own service — the topology map shows its neighbours in other layers or groups with their names and headline metrics, the hierarchy view names the same workload's services in other layers, and an instance map or a network-profiling edge between two services opens when the role reads either one. An MQE expression is read through its entity's service: a relation metric is readable from the service that makes the call. `baseline(...)` is looked up by service name alone, so it needs every service of that name to be readable. Pod logs are read per pod, the way Kubernetes grants them: an instance the role may read opens every container of its pod, sidecars included.
 
-**Traces cross layers.** A trace follows a request through services of any layer, so Horizon does not narrow traces by layer. A role with `traces:read` on a layer reads that layer's trace tabs — the SkyWalking trace list for the service picked on the page, and the Zipkin and TraceQL stores the layer lists — and opens any trace by its id, every span included.
+**Traces cross layers.** A trace follows a request through services of any layer, so Horizon does not narrow traces by layer. A role with `traces:read` on a layer reads that layer's trace tabs — the SkyWalking trace list for the service picked on the page, and the Zipkin and TraceQL stores the layer lists — and opens any trace by its id, every span included. Traces are not narrowed by group either: the Zipkin and TraceQL searches reach every service in those stores.
 
-**Alarms.** With `alarms:read` limited to layers, the Alarms page lists the granted layers; pick one and a service in it, and the page shows that service's alarms. The alarm count in the top bar and the page's all-services view need `alarms:read` without a layer.
+**Alarms.** With `alarms:read` limited to layers, every alarm page, the alarm count in the sidebar and the top bar, the overview **Alarms** widget and the 3D map show the alarms of the services the grant covers: an alarm on a service, on one of its instances or endpoints, or on a relation whose source or destination is one of those services. Which named alarm pages a role sees follows from the same grant — see [Alarm Pages](../customization/alarm-pages.md). A page arranges the alarms a role may read; it never grants any.
 
-**Evaluation records.** They belong to a call from an application service to a GenAI provider and are read on the VIRTUAL_GENAI layer, so the role needs that layer granted: add `logs:read@VIRTUAL_GENAI`. With it, a record is readable when the role reads either the provider or the calling service.
+**Evaluation records.** They belong to a call from an application service to a GenAI provider and are read on the VIRTUAL_GENAI layer, so the role needs that layer granted: add `logs:read@VIRTUAL_GENAI`. Its services are the providers (`openai`, `anthropic`, …), which carry no group, so grant the whole layer. With it, a record is readable when the role reads either the provider or the calling service — so the role also reads other teams' calls to the same providers.
 
-**What needs the verb without a layer.** A query that would read every service cannot be narrowed, so a layer-limited role cannot use it:
+**What needs the verb without a layer.** A query that would read every service cannot be narrowed, so a role whose grant carries `@` cannot use it — even a grant on a whole layer, such as `metrics:read@GENERAL`:
 
 - the SkyWalking trace list, the Logs tab and the Browser Logs tab need a service picked (there is no "all services" choice);
 - totals across a whole layer — the overview KPI tiles computed across a layer;
-- log tag autocomplete, source maps, the alarm counts and the unfiltered alarm list, and any alarm list from an OAP older than the `queryAlarms` API, which cannot filter alarms by service;
+- log tag autocomplete, source maps, and any alarm list from an OAP older than the `queryAlarms` API;
 - profiling results looked up by segment or schedule id, and keeping a network-profiling task alive.
 
-**Combining roles.** Grants from all of a user's roles are pooled, and a verb without a layer in ANY role lifts the limit for that verb: a user who also holds the built-in `viewer` role reads every layer. An OAuth scope narrows by verb and keeps the layer: `horizon:read` over `metrics:*@GENERAL` leaves `metrics:read@GENERAL`.
+**Combining roles.** Grants from all of a user's roles are pooled, and a verb without a layer in ANY role lifts the limit for that verb: a user who also holds the built-in `viewer` role reads every layer a plain grant reaches. An OAuth scope narrows by verb and keeps the layer: `horizon:read` over `metrics:*@GENERAL` leaves `metrics:read@GENERAL`.
+
+**Keep a team's role narrow.** Anything else a user holds adds to the team role, so check where else roles come from: the stock `viewer` role, an LDAP `{ group: "*", role: viewer }` mapping (the sample configuration has one), or single sign-on's `defaultRoles`, which is `viewer` unless you change it. And two read verbs cannot carry a layer and query any service: `inspect:read` (Metrics, Trace and Log Inspect) and `infra-3d:read` (the 3D map). Leave them out of a team's role.
 
 A role with no `@` grant is unaffected by any of this: it sees the menu and the data it always has.
 
@@ -270,11 +272,13 @@ roles:
     - "logs:read@GENERAL[payments]"
     - "topology:read@GENERAL[payments]"
     - "alarms:read@GENERAL[payments]"
-    - "metrics:read@K8S_SERVICE"   # the team's Kubernetes services, if K8S_SERVICE holds only theirs
+    - "metrics:read@K8S_SERVICE[payments-prod]"   # the team's own Kubernetes cluster
     - ai:read                      # the assistant reads what the grants above allow, no more
+landingByRole:
+  payments-viewer: /alarms/payments   # a named alarm page pinning GENERAL[payments]
 ```
 
-Service groups come from the service name (`payments::checkout`), so this works when every service the team runs carries the prefix. Kubernetes service names carry a namespace rather than a group; grant the whole `K8S_SERVICE` layer only when it holds the team's services alone.
+Service groups come from the service name (`payments::checkout`), so this works when every service the team runs carries the prefix. On the Kubernetes layers OAP builds the name from the cluster — `<cluster>::<service>.<namespace>` on `K8S_SERVICE` — so there the group is the cluster: `metrics:read@K8S_SERVICE[payments-prod]` reaches every service of the `payments-prod` cluster, which fits a cluster per team, and a namespace cannot be granted on its own.
 
 ### Lockdown for an external auditor
 
@@ -310,9 +314,9 @@ roles:
     - traces:read
     - logs:read
     - alarm-rule:read      # the rule behind a firing alarm
-    - alarm-setup:read     # which layers the alarm overview covers
+    - alarm-setup:read     # how the alarm pages are composed
 landingByRole:
   alarm-triage: /alarms
 ```
 
-Reads operational data plus the alarm rule behind each firing alarm, and can open the Alert page setup to see how the alarm overview is composed. It cannot change any of it: publishing an Alert page edit needs `alarm-setup:write`, and alarm rules are read-only for every role.
+Reads operational data plus the alarm rule behind each firing alarm, and can open the Alarm pages setup to see how the alarm pages are composed. It cannot change any of it: saving an alarm page needs `alarm-setup:write`, and alarm rules are read-only for every role.

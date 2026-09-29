@@ -62,6 +62,13 @@ describe('the global retry policy', () => {
     expect(shouldRetry(cancelled)).toBe(false);
   });
 
+  it('never retries an alarm page the caller is not served, but still retries another 404', () => {
+    const unserved = new BffApiError(404, 'GET /api/alarms failed (404)', { error: 'alarm_page_not_found' }, 'GET', '/api/alarms');
+    expect(shouldRetry(unserved)).toBe(false);
+    const other = new BffApiError(404, 'GET /api/x failed (404)', { error: 'not_found' }, 'GET', '/api/x');
+    expect(shouldRetry(other, 0)).toBe(true);
+  });
+
   it('still retries a real BffApiError that we did not cancel', () => {
     const failed = new BffApiError(500, 'POST /api/x failed (500)', null, 'POST', '/api/x');
     expect(shouldRetry(failed, 0)).toBe(true);

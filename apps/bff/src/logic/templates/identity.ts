@@ -22,10 +22,11 @@
  *
  * No reader searches for a near miss. The layer resolver and the sidebar menu
  * each build ONE name from the canonical layer key ({@link canonicalLayerKey}),
- * the overview resolver builds one from the dashboard `id`, and the singleton
- * kinds have exactly one key each. So a row stored under any other spelling —
- * a lower-case layer key, an OAP legacy alias (`CACHE` where the runtime reads
- * `VIRTUAL_CACHE`), an overview whose content `id` is not the row's — is
+ * the overview and alarm-page resolvers build one from the content `id`, and
+ * the singleton kinds have exactly one key each. So a row stored under any
+ * other spelling — a lower-case layer key, an OAP legacy alias (`CACHE` where
+ * the runtime reads `VIRTUAL_CACHE`), an overview whose content `id` is not
+ * the row's, the default alarm page under its retired `page-setup` key — is
  * reachable by nobody, however successful the push looked; and a row whose
  * content declares a different identity would otherwise render as some OTHER
  * template, which is the worse half: not an orphan, a dashboard served under a
@@ -39,7 +40,8 @@
  */
 
 import {
-  ALERT_PAGE_SETUP_KEY,
+  ALERT_DEFAULT_KEY,
+  ALERT_RETIRED_KEY,
   INFRA3D_CONFIG_KEY,
   THEME_ACTIVE_KEY,
   TIME_DEFAULTS_KEY,
@@ -67,16 +69,19 @@ export function canonicalLayerKey(key: string): string {
 
 /** Kinds whose store holds exactly one row, under a fixed key. */
 const SINGLETON_KEY: Partial<Record<TemplateKind, string>> = {
-  alert: ALERT_PAGE_SETUP_KEY,
   theme: THEME_ACTIVE_KEY,
   'time-defaults': TIME_DEFAULTS_KEY,
   'infra-3d': INFRA3D_CONFIG_KEY,
 };
 
-/** The key `kind` is read under. Overview ids are matched verbatim by their
- *  readers, so they are their own canonical form. */
+/** The key `kind` is read under. Overview and alarm-page ids are matched
+ *  verbatim by their readers, so they are their own canonical form. The
+ *  default alarm page's retired key folds to the one it is read under now, so
+ *  a row left there is reported as misnamed; its content is never read or
+ *  moved. */
 export function canonicalTemplateKey(kind: TemplateKind, key: string): string {
   if (kind === 'layer') return canonicalLayerKey(key);
+  if (kind === 'alert') return key === ALERT_RETIRED_KEY ? ALERT_DEFAULT_KEY : key;
   return SINGLETON_KEY[kind] ?? key;
 }
 
@@ -89,13 +94,20 @@ export interface TemplateIdentityIssue {
   message: string;
 }
 
-/** What the content says it is: a layer's `key`, an overview's `id`. The
- *  singleton kinds carry no identity field. `null` when absent or not a
- *  string — that is the per-kind schema's finding to report, not this one's. */
-function declaredIdentity(kind: TemplateKind, content: unknown): string | null {
-  if (!content || typeof content !== 'object') return null;
-  const field = kind === 'layer' ? 'key' : kind === 'overview' ? 'id' : null;
-  if (!field) return null;
+/** The content field that declares what a row of `kind` under `key` is: a
+ *  layer's `key`, an overview's or a named alarm page's `id`. The default alarm
+ *  page and the singleton kinds carry none. */
+function identityField(kind: TemplateKind, key: string): 'key' | 'id' | null {
+  if (kind === 'layer') return 'key';
+  if (kind === 'overview') return 'id';
+  if (kind === 'alert') return key === ALERT_DEFAULT_KEY ? null : 'id';
+  return null;
+}
+
+/** What the content says it is. `null` when absent or not a string — that is
+ *  the per-kind schema's finding to report, not this one's. */
+function declaredIdentity(field: 'key' | 'id' | null, content: unknown): string | null {
+  if (!field || !content || typeof content !== 'object') return null;
   const value = (content as Record<string, unknown>)[field];
   return typeof value === 'string' && value !== '' ? value : null;
 }
@@ -123,11 +135,12 @@ export function templateIdentityIssue(
   // files a layer's widget sets under the key its content reports, the overview
   // list carries each dashboard's own `id` — so an alias here is filed under a
   // key no page asks for, even in a correctly-named row.
-  const declared = declaredIdentity(kind, content);
+  const field = identityField(kind, key);
+  const declared = declaredIdentity(field, content);
   if (declared !== null && declared !== canonical) {
     return {
-      path: kind === 'layer' ? 'key' : 'id',
-      message: `"${declared}" is not the ${kind} this is published as (${canonicalName})`,
+      path: field ?? 'id',
+      message: `"${declared}" is not the ${kind === 'alert' ? 'alarm page' : kind} this is published as (${canonicalName})`,
     };
   }
   return null;

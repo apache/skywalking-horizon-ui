@@ -26,7 +26,8 @@
  * Source rows:
  *   - `horizon.overview.<id>`        — overview dashboards (e.g. `services`, `mesh`)
  *   - `horizon.layer.<KEY>`          — layer dashboards (e.g. `GENERAL`, `K8S`)
- *   - `horizon.alert.page-setup`     — alert page setup (singleton)
+ *   - `horizon.alert.default`        — the default alarm page (`/alarms`)
+ *   - `horizon.alert.<id>`           — a named alarm page (`/alarms/<id>`)
  *   - `horizon.theme.active`         — org-default theme selection (singleton)
  *   - `horizon.time-defaults.global` — global time-picker default window (singleton)
  *
@@ -47,6 +48,8 @@
  * key order is stable.
  */
 
+import { ALERT_DEFAULT_PAGE_ID } from '@skywalking-horizon-ui/api-client';
+
 export type TemplateKind =
   | 'overview'
   | 'layer'
@@ -64,8 +67,11 @@ export const TEMPLATE_KINDS: readonly TemplateKind[] = [
   'infra-3d',
 ] as const;
 
-/** Single alert template key — alert page-setup is a singleton. */
-export const ALERT_PAGE_SETUP_KEY = 'page-setup' as const;
+/** The default alarm page's key; every other `alert` key is a named page. */
+export const ALERT_DEFAULT_KEY = ALERT_DEFAULT_PAGE_ID;
+/** The default page's key before there were named pages. Nothing reads a row
+ *  stored under it, and no page may take it as its id. */
+export const ALERT_RETIRED_KEY = 'page-setup' as const;
 /** Singleton key for the active theme selection. */
 export const THEME_ACTIVE_KEY = 'active' as const;
 /** Singleton key for the global time-defaults setup. */

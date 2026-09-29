@@ -18,7 +18,7 @@
 /**
  * OAP admin's `/ui-management/templates*` REST surface.
  *
- * OAP stores each dashboard / page-setup blob keyed by a server-allocated
+ * OAP stores each dashboard / alarm-page blob keyed by a server-allocated
  * UUID; the *meaning* of the blob is opaque to OAP. Horizon names its
  * templates with a reserved prefix (`horizon.overview.*`, `horizon.layer.*`,
  * `horizon.alert.*`) inside the `configuration` JSON so multiple UIs can

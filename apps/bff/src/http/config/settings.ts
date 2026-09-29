@@ -17,10 +17,10 @@
 
 /**
  * `GET /api/configs/settings` — the EFFECTIVE content of the three org-wide
- * singleton templates every signed-in user needs at boot: the org-default
+ * settings templates every signed-in user needs at boot: the org-default
  * theme (`horizon.theme.active`), the global time-picker default window
- * (`horizon.time-defaults.global`) and the alert page setup
- * (`horizon.alert.page-setup`, which also sizes the sidebar alarm badge's
+ * (`horizon.time-defaults.global`) and the default alarm page
+ * (`horizon.alert.default`, which also sizes the sidebar alarm badge's
  * window and the overview alarms widget).
  *
  * Resolved server-side, for two reasons:
@@ -46,7 +46,7 @@ import { requireAuth } from '../../user/middleware.js';
 import { getSyncStatus, type SyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import {
-  ALERT_PAGE_SETUP_KEY,
+  ALERT_DEFAULT_KEY,
   THEME_ACTIVE_KEY,
   TIME_DEFAULTS_KEY,
   formatName,
@@ -58,7 +58,7 @@ export interface SettingsRouteDeps extends AuthDeps {
   uiTemplateClient: () => UITemplateClient;
 }
 
-/** Effective content per singleton, or `null` when the runtime has no source
+/** Effective content per setting, or `null` when the runtime has no source
  *  for it — the caller then falls back to its own in-code default. */
 export interface EffectiveSettings {
   theme: unknown;
@@ -77,7 +77,7 @@ export function registerSettingsRoute(app: FastifyInstance, deps: SettingsRouteD
       const body: EffectiveSettings = {
         theme: effectiveContent(sync, formatName('theme', THEME_ACTIVE_KEY)),
         timeDefaults: effectiveContent(sync, formatName('time-defaults', TIME_DEFAULTS_KEY)),
-        alert: effectiveContent(sync, formatName('alert', ALERT_PAGE_SETUP_KEY)),
+        alert: effectiveContent(sync, formatName('alert', ALERT_DEFAULT_KEY)),
       };
       // Caching is governed centrally for every /api/ path (no-store), so
       // an operator's publish always lands on the next read.

@@ -57,7 +57,7 @@ export interface ServiceIdentityDeps {
   catalog: ServiceLayerCatalog;
 }
 
-interface Index {
+export interface Index {
   byId: Map<string, ResolvedService>;
   /** Exact name → every service carrying it (normal and conjectural). */
   byName: Map<string, ResolvedService[]>;
@@ -73,6 +73,12 @@ const RETAINED_TRUST_MS = 5 * 60_000;
 function trusted(snapshot: ServiceCatalog): boolean {
   if (!snapshot.stale && !snapshot.unreachable) return true;
   return snapshot.readAt !== undefined && Date.now() - snapshot.readAt < RETAINED_TRUST_MS;
+}
+
+/** The catalog indexed by exact service id and exact name, each service
+ *  carrying every layer it reports into. */
+export function catalogIndex(snapshot: ServiceCatalog): Index {
+  return indexOf(snapshot);
 }
 
 function indexOf(snapshot: ServiceCatalog): Index {

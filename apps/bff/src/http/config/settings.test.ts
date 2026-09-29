@@ -62,9 +62,9 @@ const themeCfg = (themeId: string): string =>
   serializeEnvelope(buildEnvelope('theme', 'active', { themeId }));
 const timeCfg = (defaultWindowMinutes: number): string =>
   serializeEnvelope(buildEnvelope('time-defaults', 'global', { defaultWindowMinutes }));
-const alertCfg = (pinnedLayers: string[]): string =>
+const alertCfg = (pinnedLayers: string[], key = 'default'): string =>
   serializeEnvelope(
-    buildEnvelope('alert', 'page-setup', {
+    buildEnvelope('alert', key, {
       pinnedLayers,
       defaultWindowMs: 7_200_000,
       overviewAlarmsLimit: 300,
@@ -130,6 +130,19 @@ describe('org settings — live mode serves the OAP row, never the disk bundle',
     expect(body.theme).toEqual({ themeId: 'obsidian' });
     expect(body.timeDefaults).toEqual({ defaultWindowMinutes: 15 });
     expect(body.alert).toMatchObject({ pinnedLayers: ['K8S_SERVICE'], overviewAlarmsLimit: 300 });
+  });
+
+  it('reads the default alarm page from horizon.alert.default, never from its retired row', async () => {
+    // Nothing migrates `horizon.alert.page-setup`: an upgraded store that holds
+    // only that row serves no alert setting, and the UI falls back to its own
+    // default until the page is saved again.
+    expect((await settings([row('old', alertCfg(['K8S_SERVICE'], 'page-setup'))])).alert).toBeNull();
+    invalidateSyncCache();
+    const both = await settings([
+      row('old', alertCfg(['K8S_SERVICE'], 'page-setup')),
+      row('new', alertCfg(['MESH'])),
+    ]);
+    expect(both.alert).toMatchObject({ pinnedLayers: ['MESH'] });
   });
 
   it('serves no value when OAP holds no row for the singleton', async () => {

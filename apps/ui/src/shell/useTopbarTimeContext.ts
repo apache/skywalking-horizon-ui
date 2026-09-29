@@ -51,7 +51,7 @@ const TIME_RANGE_OPT_OUT = [
   // Alarms is a triage view — auto-refresh shifts the window out from under
   // any selection/brush, and the traffic backfill is chunked with its own
   // explicit delta refresh.
-  /^\/alarms$/,
+  /^\/alarms(\/[^/]+)?$/,
   // Profiling tabs bind to a *task*; auto-refresh would yank the task list,
   // re-pick the first task, and blow away the analyze pane mid-investigation.
   // The pages expose their own "refresh tasks" affordance instead.
