@@ -51,6 +51,7 @@
 import { onMounted, onUnmounted, readonly, ref, shallowRef } from 'vue';
 import { bff } from '../../../api/client';
 import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
+import { alarmLayerKeys } from '@/utils/alarmIncidents';
 
 const TWENTY_MIN_MS = 20 * 60_000;
 const POLL_INTERVAL_MS = 60_000;
@@ -113,8 +114,9 @@ async function refresh(): Promise<void> {
         // Firing only — recovered-within-window alarms must not redden a
         // cube, or the map shows more red than the page's ACTIVE count.
         if (m.recoveryTime !== null) continue;
-        if (m.layerKey) keys.add(alarmKey(m.layerKey, m.name));
-        else namesNoLayer.add(m.name);
+        const layers = alarmLayerKeys(m);
+        for (const k of layers) keys.add(alarmKey(k, m.name));
+        if (layers.length === 0) namesNoLayer.add(m.name);
       }
       if (!isCurrentEpoch(epoch)) return;
       alarmedKeys.value = keys;

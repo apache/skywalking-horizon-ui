@@ -97,7 +97,7 @@ import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
 import { linkDomainIssue } from '../../util/link-policy.js';
 import {
-  alertTemplateSchema,
+  alertTemplateSchemaFor,
   layerCrossRefIssues,
   layerTemplatePushSchema,
   overviewTemplatePushSchema,
@@ -774,8 +774,9 @@ export function registerTemplateSyncAdminRoutes(
  *      would point at the wrong repair.
  *   2. The kind's structural bar — {@link layerTemplatePushSchema} (plus
  *      {@link layerCrossRefIssues}, the rules that span two parts of one file),
- *      {@link overviewTemplatePushSchema}, or the 3D-map validator. Each rejects
- *      MALFORMED content, never merely incomplete content.
+ *      {@link overviewTemplatePushSchema}, the 3D-map validator, or for an
+ *      alarm page the default page's or a named page's schema, by key. Each
+ *      rejects MALFORMED content, never merely incomplete content.
  */
 function publishIssues(
   kind: TemplateKind,
@@ -809,6 +810,10 @@ function publishIssues(
     const v = validateInfra3dConfig(content);
     return v.ok ? null : v.issues;
   }
+  if (kind === 'alert') {
+    const v = alertTemplateSchemaFor(key).safeParse(content);
+    return v.success ? null : zodIssues(v.error);
+  }
   const singleton = SINGLETON_SCHEMAS[kind];
   if (singleton) {
     const v = singleton.safeParse(content);
@@ -822,9 +827,8 @@ function publishIssues(
  *  validator is supplied — an unvalidated kind means storing arbitrary JSON
  *  that `GET /api/configs/settings` then serves to every signed-in user, and
  *  that must not be reachable by simply forgetting. */
-const SINGLETON_SCHEMAS: Record<Exclude<TemplateKind, 'layer' | 'overview' | 'infra-3d'>, ZodType> =
+const SINGLETON_SCHEMAS: Record<Exclude<TemplateKind, 'layer' | 'overview' | 'infra-3d' | 'alert'>, ZodType> =
   {
-    alert: alertTemplateSchema,
     theme: themeTemplateSchema,
     'time-defaults': timeDefaultsTemplateSchema,
   };

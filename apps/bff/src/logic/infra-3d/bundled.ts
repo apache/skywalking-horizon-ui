@@ -52,7 +52,7 @@ export function invalidateInfra3dBundleCache(): void {
 }
 
 function locateBundle(): string {
-  // Path probe mirrors `loadBundledAlertPageSetup` — dist-bundled BFF
+  // Path probe mirrors `loadBundledAlertDefaultPage` — dist-bundled BFF
   // first (HERE = .../dist; bundled_templates is a sibling), then dev
   // (HERE = .../src/logic/infra-3d/, two ups), then a relocated dist
   // where HORIZON's cwd is the only stable anchor.

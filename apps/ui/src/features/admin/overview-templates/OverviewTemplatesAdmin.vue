@@ -59,6 +59,7 @@ import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import OverviewEditCanvas from './OverviewEditCanvas.vue';
 import OverviewWidgetDrawer from './OverviewWidgetDrawer.vue';
 import NewOverviewDashboardModal from './NewOverviewDashboardModal.vue';
+import { overviewLayerOptions } from './layerOptions';
 
 // OAP UI-template sync status for the Overview kind. Drives the
 // page-level banner + read-only mode + per-row badge lookup.
@@ -364,17 +365,13 @@ const detailQuery = useQuery({
   staleTime: 60_000,
 });
 
-const { availableLayers } = useLayers();
-/** Union of live layers + any layer already referenced by the draft
- *  so a "configured but quiet" layer (VIRTUAL_GENAI on a deployment
- *  with no AI traffic, etc.) stays selectable. */
-const layerOptions = computed<string[]>(() => {
-  const live = new Set((availableLayers.value ?? []).map((l) => l.key.toUpperCase()));
-  for (const w of draft.value?.widgets ?? []) {
-    if (w.layer) live.add(w.layer.toUpperCase());
-  }
-  return Array.from(live).sort();
-});
+const { layers: menuLayers } = useLayers();
+const layerOptions = computed<string[]>(() =>
+  overviewLayerOptions(
+    menuLayers.value.map((l) => l.key),
+    (draft.value?.widgets ?? []).map((w) => w.layer),
+  ),
+);
 
 /* ── Editor sources ───────────────────────────────────────────────
  * Load from LOCAL (browser draft), BUNDLED (shipped), or REMOTE (OAP).

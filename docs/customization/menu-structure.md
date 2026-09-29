@@ -17,11 +17,11 @@ The result is intentionally reactive: when OAP starts reporting data for a layer
 | Area | What appears there |
 |---|---|
 | Overviews | Public overview dashboards, when the user has `overview:read`. |
-| Alarms | The active alarm board, when the user has `alarms:read`. |
+| Alarms | The active alarm board, when the user has `alarms:read`, followed by one row per named [alarm page](alarm-pages.md) the user's role reaches. |
 | Layers | Active public OAP layers with at least one service. |
 | Platform monitoring | Cluster Status, Data Retention, and OAP Configuration. |
 | Operate | Alerting rules, DSL Management, Live Debugger, Capture History, and Metrics Inspect. |
-| Dashboard setup | Overview templates, Layer dashboards, Alert page setup, and Global defaults. |
+| Dashboard setup | Overview templates, Layer dashboards, Alarm pages, and Global defaults. |
 | Admin | Users, Auth status, and Roles & permissions. |
 
 Only rows the current user can open are shown.

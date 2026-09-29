@@ -29,8 +29,8 @@
 
 import { z } from 'zod';
 
-/** `pageSize` cap for the list route, so the header KPIs + frontend pager can
- *  work from a single fetch. */
+/** `pageSize` cap for the list route: one fetch holds every row the page's
+ *  header KPIs and list draw. */
 const LIST_PAGE_SIZE_CAP = 500;
 
 export const alarmsQuerySchema = z
@@ -43,12 +43,15 @@ export const alarmsQuerySchema = z
     keyword: z.string().optional(),
     pageNum: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(LIST_PAGE_SIZE_CAP).default(LIST_PAGE_SIZE_CAP),
-    /** New-mode only. Maps to `condition.layer` (a single String on the
-     *  OAP side — an alarm record is persisted with one layer). */
+    /** Applied only without a service, and never sent to OAP, which stores
+     *  one layer per alarm: a row is kept when a service it concerns is in
+     *  this layer (`layerKeys`). A split menu entry's `<LAYER>~<group>` keeps
+     *  the rows of that group's services (`ownerKeys`), the group as written. */
     layer: z.string().optional(),
     /** New-mode only. The picked service's NAME, which is the half OAP's alarm
      *  entity filter takes — `alarm.graphqls` has no id form. Combined with
-     *  `instance` / `endpoint`; absent ⇒ no entity narrowing. */
+     *  `instance` / `endpoint` it is sent to OAP; alone it keeps the rows that
+     *  concern the service. Absent ⇒ no service narrowing. */
     service: z.string().optional(),
     /** True for an agent-reporting service, false for a conjectural (virtual)
      *  one. Part of the OAP entity id, so it is required WITH the service and
@@ -60,6 +63,9 @@ export const alarmsQuerySchema = z
       .optional(),
     instance: z.string().optional(),
     endpoint: z.string().optional(),
+    /** A named alarm page's id: only the rows its pins, as served to the
+     *  caller, cover. `default` is the default page, which filters nothing. */
+    page: z.string().min(1).optional(),
   })
   .superRefine((q, ctx) => {
     if (q.service && q.normal === undefined) {

@@ -92,6 +92,16 @@ describe('AlarmsApi.list — query param assembly', () => {
     expect(calls[0][1]).toContain('scope=Service');
     expect(calls[0][1]).toContain('keyword=slow+query');
   });
+
+  it('names a named alarm page, and no page on the default one', async () => {
+    const named = makeStub();
+    await new AlarmsApi(named.bff).list({ startTime: 1, endTime: 2, page: 'payments' });
+    expect(named.calls[0][1]).toBe('/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&page=payments');
+
+    const byDefault = makeStub();
+    await new AlarmsApi(byDefault.bff).list({ startTime: 1, endTime: 2 });
+    expect(byDefault.calls[0][1]).not.toContain('page=');
+  });
 });
 
 /* The other half of the contract: the requests this client actually issues,
@@ -132,6 +142,14 @@ describe('AlarmsApi.list — the BFF route parses what this client sends', () =>
     });
   });
 
+  it('accepts the query a named alarm page sends', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, page: 'payments', keyword: 'slow' });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data).toEqual({ startTime: 1, endTime: 2, pageNum: 1, pageSize: 500, page: 'payments', keyword: 'slow' });
+  });
+
   it('accepts the unfiltered query the overview widget and the 3D map send', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, pageSize: 200 });
@@ -162,6 +180,13 @@ describe('AlarmsApi.services + config + count', () => {
     expect(calls[0][1]).toBe('/api/alarms/services?layer=MESH');
   });
 
+  it('pages GETs /api/alarms/pages and forwards the signal', async () => {
+    const { bff } = makeStub();
+    const ctl = new AbortController();
+    await new AlarmsApi(bff).pages(ctl.signal);
+    expect(bff.request).toHaveBeenCalledWith('GET', '/api/alarms/pages', undefined, undefined, ctl.signal);
+  });
+
   /** A client whose org-settings read returns `alert`, and whose admin
    *  sync-status still holds a bundled-only row — the shape live mode must
    *  refuse to render. */
@@ -172,12 +197,12 @@ describe('AlarmsApi.services + config + count', () => {
     const syncStatus = vi.fn(async () => ({
       rows: [
         {
-          name: 'horizon.alert.page-setup',
+          name: 'horizon.alert.default',
           effective: 'bundled',
           remote: null,
           bundled: {
             configuration: JSON.stringify({
-              name: 'horizon.alert.page-setup',
+              name: 'horizon.alert.default',
               kind: 'alert',
               version: 1,
               content: { pinnedLayers: ['ON_DISK_ONLY'], defaultWindowMs: 14400000 },
@@ -192,7 +217,7 @@ describe('AlarmsApi.services + config + count', () => {
     return { bff, settings, syncStatus };
   }
 
-  it('config normalizes the alert page-setup the BFF resolved', async () => {
+  it('config normalizes the default alarm page the BFF resolved', async () => {
     const { bff, settings, syncStatus } = stubSettings({
       pinnedLayers: ['MESH'],
       defaultWindowMs: 7200000,

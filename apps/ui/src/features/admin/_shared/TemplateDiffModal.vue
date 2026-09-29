@@ -22,7 +22,7 @@
        (right, modified). JSON syntax. Read-only.
     2. Reset-to-bundled affordance with destructive confirmation —
        the operator must type the template KEY (e.g. `GENERAL`,
-       `services`, `page-setup`) to arm the Reset button. Reset POSTs
+       `services`, `default`) to arm the Reset button. Reset POSTs
        the bundled JSON to OAP, overwriting whatever the operator (or
        another UI) wrote there.
 
@@ -45,7 +45,7 @@ const props = defineProps<{
   /** Full OAP UI-template name, e.g. `horizon.layer.GENERAL`. */
   name: string;
   /** Short key the operator types to confirm. Just the trailing
-   *  segment, e.g. `GENERAL`, `services`, `page-setup`. */
+   *  segment, e.g. `GENERAL`, `services`, `default`. */
   confirmKey: string;
   open: boolean;
   /** Hide the reset action. The diff itself stays readable — seeing how the

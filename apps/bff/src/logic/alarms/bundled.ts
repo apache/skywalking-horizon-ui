@@ -16,10 +16,10 @@
  */
 
 /**
- * Bundled defaults for the Alert page-setup template. Lives next to the
- * layer and overview bundled JSON so the sync orchestrator can treat all
- * three families uniformly — there's exactly one alert template
- * (`horizon.alert.page-setup`) and it ships with the BFF.
+ * Bundled defaults for the default alarm page (`horizon.alert.default`). Lives
+ * next to the layer and overview bundled JSON so the sync orchestrator can
+ * treat every family uniformly. It is the only alert template that ships with
+ * the BFF: named alarm pages are the operator's own, and none is bundled.
  *
  * Resolved via the same path-search as the layer loader: dev source tree
  * first, then the packaged dist layout. Keeps the file readable and
@@ -30,10 +30,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The Alert page-setup config — the whole of the `horizon.alert.page-setup`
- *  template. Authored in the Alert-page admin, persisted to OAP like every other
- *  template; the UI reads the resolved copy from the effective-settings route.
- *  `pinnedLayers` get a header KPI tile on the Alarms page;
+/** The default alarm page — the whole of the `horizon.alert.default`
+ *  template. Authored in the Alarm pages admin, persisted to OAP like every
+ *  other template; the UI reads the resolved copy from the effective-settings
+ *  route. `pinnedLayers` get a header KPI tile on the Alarms page;
  *  `defaultWindowMs` is the shared default window for the badge + page + widget;
  *  `overviewAlarmsLimit` caps the overview "Active alarms" widget's per-poll fetch. */
 export interface AlarmsConfig {
@@ -46,7 +46,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 let cached: AlarmsConfig | null = null;
 
-export function loadBundledAlertPageSetup(): AlarmsConfig {
+export function loadBundledAlertDefaultPage(): AlarmsConfig {
   if (cached) return cached;
   const file = locateAlertBundle();
   const raw = readFileSync(file, 'utf8');
@@ -69,14 +69,14 @@ function locateAlertBundle(): string {
   //   2. <HERE>/../../bundled_templates/... — dev source tree (tsx).
   //   3. <cwd>/bundled_templates/...        — relocated dist/.
   const candidates = [
-    resolve(HERE, 'bundled_templates/alert/page-setup.json'),
-    resolve(HERE, '../../bundled_templates/alert/page-setup.json'),
-    resolve(process.cwd(), 'bundled_templates/alert/page-setup.json'),
+    resolve(HERE, 'bundled_templates/alert/default.json'),
+    resolve(HERE, '../../bundled_templates/alert/default.json'),
+    resolve(process.cwd(), 'bundled_templates/alert/default.json'),
   ];
   for (const c of candidates) {
     if (existsSync(c)) return c;
   }
   throw new Error(
-    `bundled alert page-setup not found in: ${candidates.join(', ')}`,
+    `bundled default alarm page not found in: ${candidates.join(', ')}`,
   );
 }

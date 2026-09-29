@@ -389,7 +389,7 @@ async function onDiffReset(): Promise<void> {
 }
 .gd__head { margin-bottom: 14px; }
 /* Page-title kicker. Accent-coloured to match the rest of the admin
- * surface (Overview templates, Layer dashboards, Alert page setup);
+ * surface (Overview templates, Layer dashboards, Alarm pages);
  * the standardised uppercase-label grey `--sw-fg-3` is for in-page
  * labels (table headers, kpi captions), not the top-of-page kicker. */
 .gd__kicker {

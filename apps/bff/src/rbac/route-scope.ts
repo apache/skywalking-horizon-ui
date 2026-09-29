@@ -177,11 +177,18 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
 
   // ── Events, alarms ──
   'POST /api/events': { ids: [{ serviceName: b('service') }], requireService: true },
-  'GET /api/alarms': { ids: [{ serviceName: q('service'), normal: q('normal') }], requireService: true },
-  'GET /api/alarms/count': {
-    limitedDenied: () => 'alarm_counts_are_deployment_wide',
+  // OAP cannot narrow an alarm read to a set of services, so a read that
+  // names none reads every alarm and the handler keeps the caller's rows. A
+  // service named alone is read the same way, the handler keeping its rows.
+  'GET /api/alarms': {
+    ids: [{ serviceName: q('service'), normal: q('normal') }],
+    handler:
+      'with no service, keeps the alarms of services the caller may read; with a service alone, the alarms that concern it; ' +
+      'with a page, only those its pins, as served to the caller, cover',
   },
+  'GET /api/alarms/count': { handler: 'counts only the alarms of services the caller may read' },
   'GET /api/alarms/services': { handler: 'keeps the services of the layer the caller may read' },
+  'GET /api/alarms/pages': { handler: 'lists the alarm pages whose pins the caller reaches, each narrowed to them' },
 
   // ── AI agent conversations ──
   'POST /api/layer/:key/ai-conversations': { layer: true, ids: [{ serviceName: b('service') }], requireService: true },

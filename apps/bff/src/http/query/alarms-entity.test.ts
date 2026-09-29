@@ -26,6 +26,8 @@
  * instance / endpoint id is built on top of that. Filtering a virtual service
  * as normal therefore asks for an id nothing was ever stored under, and OAP
  * answers with an empty page that reads as "this service has no alarms".
+ * A service picked alone is not sent to OAP; the rows are kept by that same
+ * id, so the flag decides them just the same.
  *
  * The URLs below are the ones the UI's alarms client emits (see
  * `apps/ui/src/api/scopes/alarms.test.ts`, which parses its own output against
@@ -99,7 +101,8 @@ function fakeOap(
           queryAlarms: {
             msgs: [
               {
-                id: 'alarm-1',
+                // A Service alarm's id is the service's own: base64(name).<0|1>.
+                id: 'bXlzcWwtYQ==.0',
                 startTime: NOW - 60_000,
                 recoveryTime: null,
                 scope: 'Service',
@@ -133,6 +136,9 @@ async function build(fetchImpl: FetchLike): Promise<{ app: FastifyInstance; sid:
     config,
     sessions,
     serviceLayer: new ServiceLayerCatalog({ config, fetch: fetchImpl }),
+    uiTemplateClient: () => {
+      throw new Error('no alarm page is read here');
+    },
     fetch: fetchImpl,
   });
   await app.ready();
@@ -161,16 +167,44 @@ function entitiesOf(oap: { asked: (f: string) => Captured[] }): unknown {
   return condition?.entities;
 }
 
+function conditionOf(oap: ReturnType<typeof fakeOap>): Record<string, unknown> | undefined {
+  return oap.asked('queryAlarms').at(-1)?.variables.condition as Record<string, unknown> | undefined;
+}
+
+function alarmRow(id: string, name: string, i: number) {
+  return { id, startTime: NOW - 60_000 - i, recoveryTime: null, scope: 'Service', name, message: 'm', tags: [], snapshot: { expression: `r${i}`, metrics: [] } };
+}
+
+/** `queryAlarms` answered the way OAP 11.0.0 does on BanyanDB without an
+ *  entity filter: `from` offsets the storage read AND the page cut from it,
+ *  so any page after the first comes back empty. */
+function banyandbAlarms(base: ReturnType<typeof fakeOap>, all: unknown[]) {
+  const pagesAsked: Array<{ pageNum: number; pageSize: number }> = [];
+  const fetch: FetchLike = async (url, init) => {
+    const body = JSON.parse(String(init?.body ?? '{}')) as Captured;
+    if (!body.query.includes('queryAlarms')) return base.fetch(url, init);
+    const paging = (body.variables.condition as { paging: { pageNum: number; pageSize: number } }).paging;
+    pagesAsked.push(paging);
+    const from = (paging.pageNum - 1) * paging.pageSize;
+    const stored = all.slice(from, from + paging.pageSize);
+    return json({ data: { queryAlarms: { msgs: stored.slice(Math.min(from, stored.length), from + paging.pageSize) } } });
+  };
+  return { fetch, pagesAsked };
+}
+
 beforeEach(() => _resetCapabilitiesCache());
 
+const returned = (body: Record<string, unknown>) => (body.msgs as unknown[]).length;
+
 describe('/api/alarms filters on the identity the request carried', () => {
-  it('sends the name and flag of a virtual service so the entity id resolves', async () => {
+  it('keeps a virtual service\'s alarms by the id its name and flag make, sending OAP no entity', async () => {
     const oap = fakeOap();
-    const { status } = await listAlarms(oap.fetch, `&layer=VIRTUAL_DATABASE&${MYSQL}`);
+    const { status, body } = await listAlarms(oap.fetch, `&layer=VIRTUAL_DATABASE&${MYSQL}`);
     expect(status).toBe(200);
-    expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
+    expect(entitiesOf(oap)).toBeUndefined();
+    expect(returned(body)).toBe(1);
+    const asNormal = await listAlarms(fakeOap().fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=true');
+    expect(returned(asNormal.body)).toBe(0);
   });
 
   it('carries the flag into the instance-scoped entity', async () => {
@@ -205,6 +239,71 @@ describe('/api/alarms filters on the identity the request carried', () => {
     expect(entitiesOf(oap)).toBeUndefined();
   });
 
+  // OAP stores one layer per alarm — the entity's first, or none when it had
+  // not resolved it — so a layer is applied by the layers the page counts.
+  // Other layers' alarms can fill OAP's first page; the filter reads on.
+  it('fills a layer\'s page from past the rows another layer filled', async () => {
+    const mesh = { id: 'bWVzaC1h.1', name: 'mesh-a', normal: true };
+    const base = fakeOap({ MESH: [mesh], VIRTUAL_DATABASE: [{ id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false }] });
+    const all = [...Array.from({ length: 500 }, (_, i) => alarmRow(mesh.id, mesh.name, i)), alarmRow('bXlzcWwtYQ==.0', 'mysql-a', 999)];
+    const oap = banyandbAlarms(base, all);
+    const { body } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&pageSize=200');
+    expect((body.msgs as Array<{ name: string }>).map((m) => m.name)).toEqual(['mysql-a']);
+    expect(body.truncated).toBe(false);
+    expect(oap.pagesAsked.every((p) => p.pageNum === 1)).toBe(true);
+  });
+
+  it('serves a later page from the window\'s first rows', async () => {
+    const all = Array.from({ length: 8 }, (_, i) => alarmRow('bXlzcWwtYQ==.0', 'mysql-a', i));
+    const oap = banyandbAlarms(fakeOap(), all);
+    const { status, body } = await listAlarms(oap.fetch, '&pageNum=2&pageSize=3');
+    expect(status).toBe(200);
+    expect((body.msgs as Array<{ snapshot: { expression: string } }>).map((m) => m.snapshot.expression)).toEqual(['r3', 'r4', 'r5']);
+    expect(body.truncated).toBe(true);
+    expect(oap.pagesAsked).toEqual([{ pageNum: 1, pageSize: 7 }]);
+  });
+
+  it('refuses a page past the rows a window may be read to', async () => {
+    const { status } = await listAlarms(fakeOap().fetch, '&pageNum=11&pageSize=500');
+    expect(status).toBe(400);
+  });
+
+  it('refuses a layer filter when the service catalog cannot be read', async () => {
+    const base = fakeOap();
+    const fetchImpl: FetchLike = async (url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Captured;
+      if (body.query.includes('listLayers')) throw new Error('connect ECONNREFUSED');
+      return base.fetch(url, init);
+    };
+    const { status, body } = await listAlarms(fetchImpl, '&layer=GENERAL');
+    expect(status).toBe(503);
+    expect(body.error).toBe('catalog_unavailable');
+  });
+
+  it('keeps the alarms of the layer\'s services, without asking OAP for its stored layer', async () => {
+    const roster = { VIRTUAL_DATABASE: [{ id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false }] };
+    const inLayer = await listAlarms(fakeOap(roster).fetch, '&layer=virtual_database');
+    expect((inLayer.body.msgs as unknown[]).length).toBe(1);
+    const oap = fakeOap(roster);
+    const elsewhere = await listAlarms(oap.fetch, '&layer=GENERAL');
+    expect((elsewhere.body.msgs as unknown[]).length).toBe(0);
+    expect(conditionOf(oap)?.layer).toBeUndefined();
+  });
+
+  // OAP stores one layer per alarm — the entity's first, or none when it had
+  // not resolved it — so beside a service it can only drop that service's rows.
+  it('sends no layer beside a picked service', async () => {
+    const oap = fakeOap();
+    await listAlarms(oap.fetch, `&layer=VIRTUAL_DATABASE&${MYSQL}`);
+    expect(conditionOf(oap)?.layer).toBeUndefined();
+  });
+
+  it('tags a row with the layers of the service that owns it', async () => {
+    const oap = fakeOap({ VIRTUAL_DATABASE: [{ id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false }] });
+    const { body } = await listAlarms(oap.fetch, '');
+    expect((body.msgs as Array<Record<string, unknown>>)[0]).toMatchObject({ layerKeys: ['VIRTUAL_DATABASE'], layerKey: 'VIRTUAL_DATABASE' });
+  });
+
   it('rejects a flag that is neither true nor false instead of assuming normal', async () => {
     const oap = fakeOap();
     const { status, body } = await listAlarms(oap.fetch, '&service=songs&normal=0');
@@ -213,16 +312,15 @@ describe('/api/alarms filters on the identity the request carried', () => {
     expect(oap.asked('queryAlarms')).toHaveLength(0);
   });
 
-  it('ignores a service id rather than refusing it — there is no id form to use it in', async () => {
+  it('ignores a service id rather than refusing it — the name and flag decide', async () => {
     const oap = fakeOap();
-    const { status } = await listAlarms(
+    const { status, body } = await listAlarms(
       oap.fetch,
-      `&serviceId=${encodeURIComponent('bXlzcWwtYQ==.0')}&${MYSQL}`,
+      `&serviceId=${encodeURIComponent('c29uZ3M=.1')}&${MYSQL}`,
     );
     expect(status).toBe(200);
-    expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
+    expect(entitiesOf(oap)).toBeUndefined();
+    expect(returned(body)).toBe(1);
   });
 });
 
@@ -256,12 +354,10 @@ const ROSTER: Record<string, RosterRow[]> = {
 };
 
 describe('/api/alarms takes the flag from the request, not from a layer roster', () => {
-  it('sends the caller\'s flag even when the layer\'s roster says otherwise', async () => {
+  it('filters by the caller\'s flag even when the layer\'s roster says otherwise', async () => {
     const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=true');
-    expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: true },
-    ]);
+    const { body } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=true');
+    expect(returned(body)).toBe(0);
   });
 
   it('filters a service the roster snapshot has never seen', async () => {
@@ -282,9 +378,9 @@ describe('/api/alarms takes the flag from the request, not from a layer roster',
 
   it('needs no layer at all to filter — the identity is self-contained', async () => {
     const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, `&${MYSQL}`);
-    expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
+    const { body } = await listAlarms(oap.fetch, `&${MYSQL}`);
+    expect(returned(body)).toBe(1);
+    const other = await listAlarms(fakeOap(ROSTER).fetch, '&service=songs&normal=true');
+    expect(returned(other.body)).toBe(0);
   });
 });

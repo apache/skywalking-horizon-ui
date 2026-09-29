@@ -64,7 +64,7 @@ export interface OapClients {
    *  aggregates cluster-wide; one fire is enough. */
   alarmStatus(): AlarmStatusClient;
   /** UI-template REST client — `/ui-management/templates*` on the admin
-   *  port. Read + write for dashboard / page-setup blobs that Horizon
+   *  port. Read + write for dashboard / alarm-page blobs that Horizon
    *  syncs to OAP under the `horizon.*` name prefix. */
   uiTemplate(): UITemplateClient;
   /** The configured admin URL (single). DNS-resolved on demand by

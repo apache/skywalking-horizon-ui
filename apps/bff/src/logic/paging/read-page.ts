@@ -120,6 +120,57 @@ export async function readPageWith<Row>(
   return { rows: [...rows], pageNum, pageSize, hasNext: probe.length > 0 };
 }
 
+/**
+ * Read one page as a slice of the backend's first rows: every call asks for
+ * page 1, at a size that reaches past the page by one. For a query whose
+ * offset a backend applies wrongly — OAP's `queryAlarms` on BanyanDB, from
+ * 11.0.0, offsets both the storage read and its in-memory page, so without
+ * an entity filter every page after the first comes back empty — row 0 is the
+ * only starting point every backend answers alike.
+ */
+export async function readPrefixPage<Row>(
+  fetchFirst: (rows: number) => Promise<readonly Row[]>,
+  page: OapPaging,
+): Promise<PageResult<Row>> {
+  const { pageNum, pageSize } = sanePage(page);
+  const start = pageOffset(pageNum, pageSize);
+  const fetched = await fetchFirst(start + overFetchSize(pageSize));
+  return {
+    rows: fetched.slice(start, start + pageSize),
+    pageNum,
+    pageSize,
+    hasNext: fetched.length > start + pageSize,
+  };
+}
+
+/**
+ * A page of the rows a filter keeps, for a filter only the BFF can apply. Like
+ * {@link readPrefixPage} it reads the backend's first rows, starting at
+ * `first` — or at the page and one row past it, when that is more — and
+ * widening fourfold until the filtered page and one row past it are in hand,
+ * or the backend runs out, or `maxRows` have been read — then `hasNext` is
+ * true, since rows past the budget were never looked at.
+ */
+export async function readFilteredPage<Row>(
+  fetchFirst: (rows: number) => Promise<readonly Row[]>,
+  keep: (row: Row) => boolean,
+  page: OapPaging,
+  budget: { first: number; maxRows: number },
+): Promise<PageResult<Row>> {
+  const { pageNum, pageSize } = sanePage(page);
+  const start = pageOffset(pageNum, pageSize);
+  const want = start + pageSize + 1;
+  for (let limit = Math.min(budget.maxRows, Math.max(budget.first, want)); ; limit = Math.min(budget.maxRows, limit * 4)) {
+    const rows = await fetchFirst(limit);
+    const kept = rows.filter(keep);
+    const exhausted = rows.length < limit;
+    if (kept.length >= want || exhausted || limit >= budget.maxRows) {
+      const hasNext = kept.length > start + pageSize || (!exhausted && kept.length < want);
+      return { rows: kept.slice(start, start + pageSize), pageNum, pageSize, hasNext };
+    }
+  }
+}
+
 /** A condition-shaped OAP list query — one root field taking one input object
  *  that carries `paging`. Every field here is static GraphQL text; nothing
  *  about the caller's domain leaks into this module. */

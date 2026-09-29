@@ -541,7 +541,7 @@ describe('a verb reaches its own page and no other', () => {
     bundle.rows = [
       { kind: 'layer', key: 'GENERAL', content: validLayer('GENERAL') },
       { kind: 'overview', key: 'services', content: validOverview('services') },
-      { kind: 'alert', key: 'page-setup', content: { pinnedLayers: ['GENERAL'] } },
+      { kind: 'alert', key: 'default', content: { pinnedLayers: ['GENERAL'] } },
       { kind: 'theme', key: 'active', content: { themeId: 'horizon' } },
     ];
     const { app, cookie: c } = await buildAppAs(makeStore().fetchImpl, ['translation:read']);
@@ -1019,7 +1019,7 @@ describe('push-bar calibration', () => {
 describe('POST /api/admin/templates/save — singleton settings reaching OAP', () => {
   const cases: { name: string; good: object; bad: object; badPath: string }[] = [
     {
-      name: 'horizon.alert.page-setup',
+      name: 'horizon.alert.default',
       good: { pinnedLayers: ['GENERAL'], defaultWindowMs: 1_200_000, overviewAlarmsLimit: 200 },
       bad: { pinnedLayers: 'GENERAL', defaultWindowMs: 1_200_000, overviewAlarmsLimit: 200 },
       badPath: 'pinnedLayers:',
@@ -1064,6 +1064,135 @@ describe('POST /api/admin/templates/save — singleton settings reaching OAP', (
       await app.close();
     });
   }
+});
+
+// The alarm pages share one kind: `horizon.alert.default` is the default page,
+// any other key a named page whose content `id` is that key. The key picks the
+// schema, and a pin is held to the grant grammar, because a malformed one read
+// as its bare layer would widen a tile to the whole layer.
+describe('POST /api/admin/templates/save — alarm pages', () => {
+  const page = (over: Json = {}): Json => ({
+    id: 'payments',
+    title: 'Payments',
+    pinnedLayers: ['GENERAL[payments, -]', 'MESH'],
+    ...over,
+  });
+  const defaultPage = (over: Json = {}): Json => ({
+    pinnedLayers: ['GENERAL', 'MESH'],
+    defaultWindowMs: 1_200_000,
+    overviewAlarmsLimit: 200,
+    ...over,
+  });
+
+  async function save(name: string, content: Json) {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/save', c, { name, content });
+    await app.close();
+    return { res, store, issues: (res.json() as { issues?: string[] }).issues ?? [] };
+  }
+
+  it.each([
+    ['the three-field default page as it was stored before named pages', 'horizon.alert.default', defaultPage()],
+    ['a default page with group pins and none at all', 'horizon.alert.default', defaultPage({ pinnedLayers: [] })],
+    ['a default page pinning groups', 'horizon.alert.default', defaultPage({ pinnedLayers: ['GENERAL[payments]', 'K8S[-]'] })],
+    ['a named page', 'horizon.alert.payments', page()],
+    ['a named page with its own order and window', 'horizon.alert.payments', page({ order: 0, defaultWindowMs: 14_400_000 })],
+  ])('publishes %s', async (_label, name, content) => {
+    const { res, store } = await save(name, content);
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: name }]);
+  });
+
+  it.each([
+    ['an empty group list', 'GENERAL[]'],
+    ['an empty group between two', 'GENERAL[a,,b]'],
+    ['text after the groups', 'GENERAL[a]x'],
+    ['a split-layer menu key', 'GENERAL~payments'],
+    ['a blank pin', '  '],
+  ])('refuses %s as a pin, on either kind of page', async (_label, pin) => {
+    for (const [name, content] of [
+      ['horizon.alert.default', defaultPage({ pinnedLayers: ['MESH', pin] })],
+      ['horizon.alert.payments', page({ pinnedLayers: ['MESH', pin] })],
+    ] as const) {
+      const { res, store, issues } = await save(name, content);
+      expect(res.statusCode).toBe(400);
+      expect(issues.some((i) => i.startsWith('pinnedLayers.1: must be a layer key'))).toBe(true);
+      expect(store.writes).toEqual([]);
+    }
+  });
+
+  it('refuses a pin written twice, however it is spelled', async () => {
+    const { res, issues } = await save('horizon.alert.payments', page({ pinnedLayers: ['CACHE', 'virtual_cache'] }));
+    expect(res.statusCode).toBe(400);
+    expect(issues).toContain('pinnedLayers.1: "virtual_cache" is pinned twice');
+    // The same groups in another order select the same services.
+    const reordered = await save('horizon.alert.payments', page({ pinnedLayers: ['GENERAL[payments, risk]', 'GENERAL[risk, payments]'] }));
+    expect(reordered.res.statusCode).toBe(400);
+    expect(reordered.issues).toContain('pinnedLayers.1: "GENERAL[risk, payments]" is pinned twice');
+  });
+
+  it('refuses a named page with no pin, or more than eight', async () => {
+    expect((await save('horizon.alert.payments', page({ pinnedLayers: [] }))).res.statusCode).toBe(400);
+    const nine = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+    expect((await save('horizon.alert.payments', page({ pinnedLayers: nine }))).res.statusCode).toBe(400);
+  });
+
+  it.each([
+    ['a blank title', page({ title: '   ' }), 'title:'],
+    ['a title over 64 characters', page({ title: 'x'.repeat(65) }), 'title:'],
+    ['an order out of range', page({ order: 1_000_001 }), 'order:'],
+    ['a window the page does not offer', page({ defaultWindowMs: 60_000 }), 'defaultWindowMs:'],
+    ['a field no page has', page({ overviewAlarmsLimit: 200 }), '(root):'],
+    ['no id', page({ id: undefined }), 'id:'],
+  ])('refuses a named page with %s', async (_label, content, path) => {
+    const { res, issues } = await save('horizon.alert.payments', content);
+    expect(res.statusCode).toBe(400);
+    expect(issues.some((i) => i.startsWith(path))).toBe(true);
+  });
+
+  it('refuses a page whose id is not the key it is published under', async () => {
+    const { res, store, issues } = await save('horizon.alert.payments', page({ id: 'risk' }));
+    expect(res.statusCode).toBe(400);
+    expect(issues).toEqual(['id: "risk" is not the alarm page this is published as (horizon.alert.payments)']);
+    expect(store.writes).toEqual([]);
+  });
+
+  it('refuses the reserved ids', async () => {
+    // `page-setup` was the default page's key: saving there would create a row
+    // nothing reads, so the name is refused before the content is looked at.
+    const retired = await save('horizon.alert.page-setup', page({ id: 'page-setup' }));
+    expect(retired.issues).toEqual([
+      'name: "horizon.alert.page-setup" is not a name Horizon reads — publish it as "horizon.alert.default"',
+    ]);
+    // The default page's own key takes the default page's shape, which has no id.
+    const asDefault = await save('horizon.alert.default', page({ id: 'default' }));
+    expect(asDefault.res.statusCode).toBe(400);
+    expect(asDefault.issues.join(' ')).toMatch(/Unrecognized key/);
+    // And no named page may claim either id under a key of its own spelling.
+    for (const id of ['default', 'page-setup']) {
+      const { res, issues } = await save(`horizon.alert.${id}x`, page({ id }));
+      expect(res.statusCode).toBe(400);
+      expect(issues.some((i) => i.startsWith('id:'))).toBe(true);
+    }
+  });
+
+  it.each(['Payments', '-payments', 'a'.repeat(65)])('refuses the page id %s', async (id) => {
+    const { res, issues } = await save(`horizon.alert.${id}`, page({ id }));
+    expect(res.statusCode).toBe(400);
+    expect(issues.some((i) => i.startsWith('id: must be'))).toBe(true);
+  });
+
+  it('deletes a named page by disabling its row, under alarm-setup:write', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildAppAs(store.fetchImpl, ['alarm-setup:read', 'alarm-setup:write']);
+    expect((await post(app, '/api/admin/templates/save', c, { name: 'horizon.alert.payments', content: page() })).statusCode).toBe(200);
+    const res = await post(app, '/api/admin/templates/disable', c, { name: 'horizon.alert.payments' });
+    expect(res.statusCode).toBe(200);
+    expect(store.writes.map((w) => w.op)).toEqual(['create', 'disable']);
+    expect(store.rows[0]?.disabled).toBe(true);
+    await app.close();
+  });
 });
 
 // The publish boundary is where an operator gets a REASON. Without it a link

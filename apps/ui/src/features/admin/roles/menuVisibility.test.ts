@@ -79,7 +79,7 @@ const GATES: ReadonlyArray<{ verb: string; rows: string[]; paths: string[] }> = 
   { verb: 'translation:read', rows: ['Translations'], paths: ['/admin/translations'] },
   { verb: 'infra-3d-setup:read', rows: ['3D Infra Map setup'], paths: ['/admin/3d-map'] },
   { verb: 'layer-template:read', rows: ['Layer dashboards'], paths: ['/admin/layer-dashboards'] },
-  { verb: 'alarm-setup:read', rows: ['Alert page'], paths: ['/admin/alert-page-setup'] },
+  { verb: 'alarm-setup:read', rows: ['Alarm pages'], paths: ['/admin/alert-page-setup'] },
   { verb: 'setup:read', rows: ['Global defaults'], paths: ['/admin/global-defaults'] },
   { verb: 'user:read', rows: ['Users'], paths: ['/admin/users'] },
   { verb: 'auth:read', rows: ['Auth status'], paths: ['/admin/auth-status'] },

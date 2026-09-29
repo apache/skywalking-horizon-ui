@@ -21,7 +21,8 @@ import Icon from '@/components/icons/Icon.vue';
 import { useAlarmCount } from '@/shell/useAlarmCount';
 
 // Independent 60s timer, rolling 20m window (see useAlarmCount). Clicking
-// jumps to /alarms regardless of which page the operator is on.
+// jumps to /alarms regardless of which page the operator is on. Not drawn for
+// a session that cannot read alarms: it would only ever say "unavailable".
 const alarmCount = useAlarmCount();
 const alarmBadgeTooltip = computed<string>(() => {
   if (alarmCount.hasError.value) {
@@ -47,6 +48,7 @@ const alarmBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
 
 <template>
   <RouterLink
+    v-if="alarmCount.enabled.value"
     class="sw-btn alarm-badge"
     :class="`is-${alarmBadgeState}`"
     :title="alarmBadgeTooltip"

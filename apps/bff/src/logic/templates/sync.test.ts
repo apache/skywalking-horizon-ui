@@ -91,7 +91,7 @@ describe('sync — readonly mode renders from the disk bundle', () => {
 
 const LAYER: BundledTemplate = { kind: 'layer', key: 'GENERAL', content: { key: 'GENERAL', tabs: [] } };
 const OVERVIEW: BundledTemplate = { kind: 'overview', key: 'services', content: { id: 'services', widgets: [] } };
-const ALERT: BundledTemplate = { kind: 'alert', key: 'page-setup', content: { columns: [] } };
+const ALERT: BundledTemplate = { kind: 'alert', key: 'default', content: { columns: [] } };
 const BUNDLED: BundledTemplate[] = [LAYER, OVERVIEW, ALERT];
 
 const ZH_OVERLAY: BundledOverlay = { kind: 'layer', key: 'GENERAL', locale: 'zh-CN', content: { title: '通用' } };
@@ -784,7 +784,7 @@ describe('duplicate / conflict reconciliation', () => {
         remoteRow('general-b', cfgOf(LAYER)),
         remoteRow('services-a', cfgOf(OVERVIEW)),
         remoteRow('services-b', cfgOf(OVERVIEW)),
-        remoteRow('oap-page-setup', cfgOf(ALERT)),
+        remoteRow('oap-alert-default', cfgOf(ALERT)),
       ],
     });
     const status = await bootSeed(depsFor(oap.client));
@@ -841,6 +841,27 @@ describe('unreadable rows — not readable as the template they are stored as', 
       ['misfiled', '"services" is not the overview this is published as (horizon.overview.ops)'],
     ]);
     expect(warnings().join(' ')).toMatch(/render for nobody/);
+  });
+
+  it('passes over the default alarm page under its retired key, and reports a named page filed under another id', async () => {
+    const oap = fakeOap({
+      rows: [
+        ...alreadySeeded(),
+        remoteRow('retired-key', rawEnvelope('horizon.alert.page-setup', 'alert', { pinnedLayers: ['GENERAL'] })),
+        remoteRow('misfiled-page', rawEnvelope('horizon.alert.payments', 'alert', { id: 'risk', title: 'Risk' })),
+        remoteRow('page', rawEnvelope('horizon.alert.risk', 'alert', { id: 'risk', title: 'Risk' })),
+      ],
+    });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    // Nothing moves the retired row's content, and nothing reports it: it is read by nobody.
+    expect(status.unreadable.map((u) => [u.id, u.reason])).toEqual([
+      ['misfiled-page', '"risk" is not the alarm page this is published as (horizon.alert.payments)'],
+    ]);
+    expect(status.rows.some((r) => r.name === 'horizon.alert.page-setup')).toBe(false);
+    expect(rowOf(status, 'horizon.alert.risk').effective).toBe('remote');
+    expect(writes(oap.calls)).toEqual([]);
   });
 
   it('leaves a clean store — and every bundled template — unreported', async () => {

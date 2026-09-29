@@ -18,6 +18,7 @@
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bff, type AlarmsConfig } from '@/api/client';
+import { useAuthStore } from '@/state/auth';
 
 /**
  * Topbar alarm-badge data source. Polls `/api/alarms/count` on its own
@@ -37,6 +38,9 @@ import { bff, type AlarmsConfig } from '@/api/client';
  * `endTime` is captured once per refetch (read via `Date.now()` inside
  * `queryFn`), so the window slides forward on every poll without
  * needing the composable to own any reactive time state.
+ *
+ * A session without `alarms:read` on any layer does not poll: the count
+ * route would answer 403 every minute. `enabled` says which it is.
  */
 
 /** Fallback window when the admin config isn't loaded yet — matches
@@ -45,12 +49,15 @@ const FALLBACK_WINDOW_MS = 20 * 60_000;
 const POLL_MS = 60_000;
 
 export function useAlarmCount() {
+  const auth = useAuthStore();
+  const enabled = computed<boolean>(() => auth.hasVerbOnSomeLayer('alarms:read'));
   /* Shares the queryKey `['alarms/config']` with the page + admin
    * view; Vue Query dedupes the network call so the topbar badge
    * doesn't issue an extra roundtrip just to learn the window size. */
   const cfgQuery = useQuery({
     queryKey: ['alarms/config'],
     queryFn: (): Promise<AlarmsConfig> => bff.alarms.config(),
+    enabled,
     staleTime: Infinity,
   });
   const windowMs = computed<number>(
@@ -61,6 +68,7 @@ export function useAlarmCount() {
     /* Re-key on `windowMs` so an admin who changes the config sees
      * the badge re-fetch with the new window on the next poll. */
     queryKey: computed(() => ['alarms-count', windowMs.value]),
+    enabled,
     queryFn: () => {
       const end = Date.now();
       const start = end - windowMs.value;
@@ -96,6 +104,7 @@ export function useAlarmCount() {
   });
 
   return {
+    enabled,
     total,
     firing,
     incidents,

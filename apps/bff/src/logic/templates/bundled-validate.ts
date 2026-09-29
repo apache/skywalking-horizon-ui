@@ -46,7 +46,7 @@ import { widgetSchema } from '../dashboard/schema.js';
 import { expressionForServiceMetric } from '../../util/mqe-catalog.js';
 import { validateInfra3dConfig } from '../infra-3d/validate.js';
 import {
-  alertTemplateSchema,
+  alertDefaultTemplateSchema,
   layerCrossRefIssues,
   layerTemplateSchema,
   overviewTemplateSchema,
@@ -286,9 +286,10 @@ function validateOverview(
 
 /** The non-dashboard bundle directories, each holding one singleton whose
  *  shape a schema fully describes. They are validated with the SAME schemas
- *  the admin push boundary uses, so CI and runtime cannot drift apart. */
+ *  the admin push boundary uses, so CI and runtime cannot drift apart. `alert`
+ *  ships only the default alarm page; named pages are never bundled. */
 const SINGLETON_DIRS: { dir: string; schema: ZodType }[] = [
-  { dir: 'alert', schema: alertTemplateSchema },
+  { dir: 'alert', schema: alertDefaultTemplateSchema },
   { dir: 'theme', schema: themeTemplateSchema },
   { dir: 'time-defaults', schema: timeDefaultsTemplateSchema },
 ];
@@ -328,7 +329,7 @@ function validateSingletons(root: string, findings: TemplateFinding[]): void {
  * ignored at runtime — which is why the set is exact rather than a minimum.
  */
 const REQUIRED_SINGLETONS = [
-  'alert/page-setup.json',
+  'alert/default.json',
   'theme/active.json',
   'time-defaults/global.json',
   'infra-3d/config.json',

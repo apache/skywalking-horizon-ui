@@ -25,7 +25,8 @@
  *   GET  /api/alarms/count            — total + firing tally for the
  *                                       topbar badge.
  *   GET  /api/alarms/services?layer=  — service roster for the alarms
- *                                       filter cascade.
+ *                                       filter cascade; with `page`, only
+ *                                       the services that page's pins cover.
  *
  * Wire-time notes:
  *   - `startTime` / `endTime` are ms epoch. OAP's `Duration` expects
@@ -36,8 +37,8 @@
  *     windows pulls thousands of rows and starves the page on slow
  *     storage backends. The UI's picker enforces the same cap; this
  *     server-side guard is defence-in-depth.
- *   - `pageSize` is capped at 500 so the header KPIs + frontend pager
- *     can work from a single fetch. The COUNT route uses a 200 cap
+ *   - `pageSize` is capped at 500 so one fetch holds every row the
+ *     page's header KPIs and list draw. The COUNT route uses a 200 cap
  *     since it skips the snapshot payload.
  *   - The entity filter is name-scoped: `alarm.graphqls` has no id
  *     form, so a service id has nowhere to go on this route. What the
@@ -49,14 +50,41 @@
  *     was stored under, so OAP answers with an empty page. Name and
  *     flag both arrive with the request — the roster row the operator
  *     picked — so nothing is looked up or guessed here.
- *   - Layer tagging on each row uses the cached service-name → layer
- *     index. Entries the index can't resolve (e.g. instance-scope
- *     alarms whose name doesn't carry a service prefix) get
- *     `layerKey: null` and the UI groups them under "Other".
+ *   - A service picked WITHOUT an instance or endpoint is not sent to
+ *     OAP: a Service entity matches only the service's own id, which
+ *     drops its instances', endpoints' and their relations' alarms. The
+ *     window is read whole and the rows that concern the service are
+ *     kept (`alarmConcernsService`). An instance or endpoint is sent as
+ *     the exact entity.
+ *   - Each row is tagged with the layers of the services it belongs to
+ *     (`layerKeys`, see logic/alarms/owners.ts): the owner service read
+ *     from the entity id, and for a relation both ends. A row no known
+ *     service owns gets none, and the UI counts it under "Other".
+ *     `ownerKeys` carries the same services as `LAYER~group` pairs.
+ *   - `layer` may be a split menu entry's `<LAYER>~<group>` key, which an
+ *     overview widget is bound to: it keeps the rows of that group's
+ *     services, by `ownerKeys`. It narrows what the caller may read; it
+ *     grants nothing.
+ *   - A caller who does not hold `alarms:read` on every layer gets, from
+ *     a read that names no service, only the rows of services they may
+ *     read (logic/alarms/readable.ts), filtered here because OAP cannot.
+ *     The count counts those rows alone.
+ *   - `page` names an alarm page (logic/alarms/pages.ts): only the rows
+ *     one of its pins covers are kept, the pins narrowed to the caller as
+ *     `/api/alarms/pages` serves them. A page not served to the caller is
+ *     404; an unreachable template store is 503, never the bundle.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { FetchLike } from '@skywalking-horizon-ui/api-client';
+import {
+  ALERT_DEFAULT_PAGE_ID,
+  alarmPinMatches,
+  formatAlarmPin,
+  layerFilterPin,
+  type AlarmPin,
+  type FetchLike,
+  type UITemplateClient,
+} from '@skywalking-horizon-ui/api-client';
 import { z } from 'zod';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
@@ -64,7 +92,7 @@ import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { clientGone } from '../client-gone.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
-import { readPageWith, type OapPaging } from '../../logic/paging/read-page.js';
+import { pageOffset, readFilteredPage, readPageWith, readPrefixPage, type OapPaging, type PageResult } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { alarmsQuerySchema } from './alarms-request.js';
 import type {
@@ -72,13 +100,19 @@ import type {
   ServiceLayerCatalog,
 } from '../../logic/services/service-layer-catalog.js';
 import { readsByNameOnly } from '../../rbac/request-access.js';
-import { entityServiceName } from '../../logic/services/service-identity.js';
+import { ServiceLookupUnavailable, catalogIndex, entityServiceName, serviceIdOf, type Index } from '../../logic/services/service-identity.js';
+import { alarmConcernsService, alarmIncidentKey, alarmLayers, alarmOwnerKeys } from '../../logic/alarms/owners.js';
+import { namedPagePins, pinReachOf, readStoredAlarmPages } from '../../logic/alarms/pages.js';
+import { AlarmRowAccess, keepAll, readsEveryAlarm, type DecidedRow } from '../../logic/alarms/readable.js';
+import { canonicalLayerKey } from '../../logic/templates/identity.js';
 
 export interface AlarmsQueryRouteDeps extends AuthDeps {
   /** Server-global service-by-layer index (shared with config/alarms.ts +
    *  the sidebar menu). A config save invalidates it so the next list call
    *  picks up newly-pinned layers. */
   serviceLayer: ServiceLayerCatalog;
+  /** The template store `page` is resolved from, as `/api/alarms/pages` reads it. */
+  uiTemplateClient: () => UITemplateClient;
   fetch?: FetchLike;
 }
 
@@ -134,15 +168,21 @@ export interface AlarmMessage {
   tags: MqeKeyValue[];
   events?: Array<Record<string, unknown>>;
   snapshot: AlarmSnapshot;
-  /** Best-effort layer tag derived from the service-layer catalog. Null when
-   *  the entity isn't a known service (instance / endpoint / etc.
-   *  fall through if their service prefix doesn't match). */
+  /** Every layer of the services the alarm belongs to — its entity's owner
+   *  service, and for a relation both ends. Empty when none is a service the
+   *  catalog knows. */
+  layerKeys: string[];
+  /** The first of `layerKeys`, for readers that take one. */
   layerKey: string | null;
+  /** The same services as `LAYER~group` pairs (`alarmOwnerKey`), a
+   *  destination the name fits to several services adding only the pairs
+   *  all of them share. */
+  ownerKeys: string[];
 }
 
 export interface AlarmsResponse {
   /** Rows returned for this page. NOT a cross-page total — `Alarms` carries
-   *  exactly one field (`msgs`) and no count. The UI pages this client-side. */
+   *  exactly one field (`msgs`) and no count. */
   returned: number;
   pageNum: number;
   pageSize: number;
@@ -152,15 +192,19 @@ export interface AlarmsResponse {
   truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
+  /** With `page`: the pins these rows were read by, as served to the caller,
+   *  so the page draws the tiles its rows were chosen by. */
+  pinnedLayers?: string[];
 }
 
 export interface AlarmsCountResponse {
-  /** Individual events counted — capped at COUNT_FETCH_CAP. */
+  /** Individual events counted — capped at COUNT_FETCH_CAP. Only the
+   *  events of services the caller may read. */
   total: number;
   /** Events with `recoveryTime === null`. */
   firing: number;
-  /** Distinct (entity, rule) groups across `total` — one per OAP id.
-   *  This is the "real" incident count regardless of re-firings. */
+  /** Distinct (entity, rule) groups across `total` — the "real" incident
+   *  count regardless of re-firings. */
   incidents: number;
   /** Subset of `incidents` whose LATEST event is still firing. The
    *  topbar badge displays this — a fully-recovered incident counts
@@ -223,19 +267,21 @@ const QUERY_ALARMS_QUERY = /* GraphQL */ `
     }
   }
 `;
-/* Lightweight selection for the topbar badge — count primitives + a
- * startTime so the incident merger can pick the latest event per
- * (entity, rule) group. Snapshot / tags / message stay omitted to
- * keep the payload cheap (target: < 5kB per poll at the 200-row
- * cap). */
+/* Lightweight selection for the topbar badge — what the incident key needs
+ * (entity, name, rule expression) plus the state. Metric values, tags and
+ * message stay omitted to keep the payload cheap. */
 const COUNT_GET_ALARM_QUERY = /* GraphQL */ `
   query HorizonCountGetAlarm($duration: Duration!, $paging: Pagination!) {
-    getAlarm(duration: $duration, paging: $paging) { msgs { id startTime recoveryTime } }
+    getAlarm(duration: $duration, paging: $paging) {
+      msgs { id scope name startTime recoveryTime snapshot { expression } }
+    }
   }
 `;
 const COUNT_QUERY_ALARMS_QUERY = /* GraphQL */ `
   query HorizonCountQueryAlarms($condition: AlarmQueryCondition!) {
-    queryAlarms(condition: $condition) { msgs { id startTime recoveryTime } }
+    queryAlarms(condition: $condition) {
+      msgs { id scope name startTime recoveryTime snapshot { expression } }
+    }
   }
 `;
 const LIST_SERVICES_QUERY = /* GraphQL */ `
@@ -250,6 +296,11 @@ interface GetAlarmRaw {
 interface QueryAlarmsRaw {
   queryAlarms?: { msgs?: AlarmMessage[] } | null;
 }
+/** One row of the count selection. */
+type CountRow = Pick<AlarmMessage, 'id' | 'scope' | 'name' | 'startTime' | 'recoveryTime'> & {
+  snapshot?: { expression?: string; metrics?: unknown[] } | null;
+};
+type CountRaw<F extends 'queryAlarms' | 'getAlarm'> = { [K in F]?: { msgs?: CountRow[] } | null };
 interface ListServicesRaw {
   listServices: Array<{ id: string; name: string; normal: boolean | null; group?: string | null }>;
 }
@@ -259,27 +310,30 @@ interface ListServicesRaw {
  *  URL shouldn't pull a 24h fan-out from OAP. */
 const WINDOW_CAP_MS = 4 * 60 * 60_000;
 const COUNT_FETCH_CAP = 200;
+/** A list page is read as a slice of the window's first rows (see
+ *  `readPrefixPage`), so no read goes past `maxRows`; a layer filter starts
+ *  at `first` rows and widens until its page is full. */
+const ALARM_READ = { first: 500, maxRows: 5_000 };
 
 const countQuerySchema = z.object({
   startTime: z.coerce.number().int().positive(),
   endTime: z.coerce.number().int().positive(),
 });
 
-/* Translate the picked service (name + flag) and the cascade fields
- * (`instance`, `endpoint`) into the smallest precise `Entity` that the
- * queryAlarms `condition.entities` filter accepts. Scope is inferred
- * from which name fields are populated — same convention OAP itself
- * uses (see alarm.graphqls comment on `entities`). `normal` rides on
- * every scope: instance and endpoint ids are built on top of the
- * service id, which encodes the flag.
+/* Translate the picked service (name + flag) and a picked instance or
+ * endpoint into the `Entity` the queryAlarms `condition.entities` filter
+ * accepts. Scope is inferred from which name field is populated — same
+ * convention OAP itself uses (see alarm.graphqls comment on `entities`).
+ * `normal` rides on both: instance and endpoint ids are built on top of
+ * the service id, which encodes the flag.
  *
- * Only ever a non-relation scope: the cascade picks ONE service, and a
- * non-relation entity matches `id0 = X OR id1 = X`, so relation alarms
- * with the picked service on either side are included. Naming a
- * `destServiceName` would instead pin one exact ordered pair.
+ * A non-relation entity matches `id0 = X OR id1 = X` — the instance's or
+ * endpoint's own alarms and the relations it is either end of. A service
+ * alone is never sent: its instances' and endpoints' alarms carry their
+ * own ids, so a Service entity would drop them.
  */
 interface EntityFilter {
-  scope: string;
+  scope: 'ServiceInstance' | 'Endpoint';
   serviceName: string;
   normal: boolean;
   serviceInstanceName?: string;
@@ -288,34 +342,46 @@ interface EntityFilter {
 function buildEntity(
   q: { instance?: string; endpoint?: string },
   service: { name: string; normal: boolean },
-): EntityFilter {
-  const base: EntityFilter = { scope: 'Service', serviceName: service.name, normal: service.normal };
-  if (q.endpoint && !q.instance) {
-    return { ...base, scope: 'Endpoint', endpointName: q.endpoint };
-  }
-  if (q.instance) {
-    return { ...base, scope: 'ServiceInstance', serviceInstanceName: q.instance };
-  }
-  return base;
+): EntityFilter | null {
+  const base = { serviceName: service.name, normal: service.normal };
+  if (q.instance) return { ...base, scope: 'ServiceInstance', serviceInstanceName: q.instance };
+  if (q.endpoint) return { ...base, scope: 'Endpoint', endpointName: q.endpoint };
+  return null;
 }
 
-function tagWithLayer(msgsRaw: AlarmMessage[], layerIdx: ServiceCatalog): AlarmMessage[] {
+function tagWithOwners(msgsRaw: AlarmMessage[], index: Index): AlarmMessage[] {
   return msgsRaw.map((m) => {
-    /* Entity name on Service scope is the service name directly; on
-     * ServiceInstance / Endpoint the wire packs the service name as
-     * a prefix before a separator. Try the literal first, then strip
-     * after common separators. */
-    const candidates = [m.name, m.name.split('::')[0], m.name.split(' ')[0]];
-    let layerKey: string | null = null;
-    for (const cand of candidates) {
-      const hit = layerIdx.byName.get(cand.toLowerCase());
-      if (hit) {
-        layerKey = hit;
-        break;
-      }
-    }
-    return { ...m, layerKey };
+    const layerKeys = alarmLayers(m, index);
+    return { ...m, layerKeys, layerKey: layerKeys[0] ?? null, ownerKeys: alarmOwnerKeys(m, index) };
   });
+}
+
+/** Without the catalog every row looks like it belongs to no layer and no
+ *  destination service, so a filter by either would answer for a read it
+ *  never made. */
+function catalogMissing(catalog: ServiceCatalog): boolean {
+  return !!catalog.unreachable && catalog.byLayer.size === 0;
+}
+
+function catalogUnavailable(reply: FastifyReply): FastifyReply {
+  return reply.code(503).send({
+    error: 'catalog_unavailable',
+    message: 'The service catalog could not be read, so alarms cannot be told apart by the services they concern',
+  });
+}
+
+function templateStoreUnreachable(reply: FastifyReply): FastifyReply {
+  return reply.code(503).send({
+    error: 'template_store_unreachable',
+    message: "OAP's ui_template store is unreachable, so the alarm page's pins cannot be read",
+  });
+}
+
+/** A failed read: OAP could not say whose a service is (503, as the scope
+ *  gate answers it), or the alarm query itself failed (502). */
+function readFailed(reply: FastifyReply, err: unknown): FastifyReply {
+  const message = err instanceof Error ? err.message : String(err);
+  return reply.code(err instanceof ServiceLookupUnavailable ? 503 : 502).send({ error: 'oap_unreachable', message });
 }
 
 export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQueryRouteDeps): void {
@@ -332,48 +398,56 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     if (q.endTime - q.startTime > WINDOW_CAP_MS) {
       return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
     }
-    /* Name AND flag, or no entity filter at all — the schema refuses the half
+    if (pageOffset(q.pageNum, q.pageSize) + q.pageSize > ALARM_READ.maxRows) {
+      return badRequest(`only the first ${ALARM_READ.maxRows} alarms of a window can be paged; narrow the window or the filter`);
+    }
+    /* Name AND flag, or no service filter at all — the schema refuses the half
      * pair, so a guessed flag can never narrow the query to an id nothing was
      * stored under. */
-    const entity =
-      q.service && q.normal !== undefined
-        ? buildEntity(q, { name: q.service, normal: q.normal })
-        : null;
+    const named = q.service && q.normal !== undefined ? { name: q.service, normal: q.normal } : null;
+    const entity = named ? buildEntity(q, named) : null;
+    const pageId = q.page && q.page !== ALERT_DEFAULT_PAGE_ID ? q.page : null;
 
     const signal = clientGone(reply);
     const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
-    const [offset, caps, catalog] = await Promise.all([
+    const [offset, caps, catalog, stored] = await Promise.all([
       getServerOffsetMinutes(deps.config, deps.fetch, signal),
       getOapCapabilities(deps.config.current, deps.fetch, signal),
       serviceLayer.get(),
+      pageId ? readStoredAlarmPages(deps.uiTemplateClient) : null,
     ]);
     const start = fmtSecond(q.startTime, offset);
     const end = fmtSecond(q.endTime, offset);
 
     const duration = { start, end, step: 'SECOND' as const };
-    /* One page of raw alarm rows for a given paging pair. Handed to the shared
-     * over-fetch seam, which asks for one row more than the page displays so
-     * `truncated` is exact instead of a `length >= pageSize` guess. */
-    // The legacy query takes no service, so it cannot keep a layer-limited
-    // caller to their own services: it would answer with every alarm.
-    if (!caps.queryAlarms && req.access?.layerLimited(['alarms:read'])) {
+    const access = req.access;
+    // The legacy query takes no entity filter: a layer-limited caller is
+    // refused on it rather than served from a read of every alarm.
+    if (!caps.queryAlarms && access?.layerLimited(['alarms:read'])) {
       return reply.code(403).send({ error: 'permission_denied', verb: 'alarms:read', reason: 'alarm_filter_unsupported' });
     }
+    let pagePins: AlarmPin[] | null = null;
+    if (pageId && stored) {
+      if (stored.unreachable) return templateStoreUnreachable(reply);
+      pagePins = namedPagePins(stored, pageId, pinReachOf(access));
+      if (!pagePins) {
+        return reply.code(404).send({ error: 'alarm_page_not_found', message: `No alarm page "${pageId}" is served to this user` });
+      }
+    }
+    // The legacy query ignores a picked service, as it ignores the rest of
+    // the cascade.
+    const serviceId = named && !entity && caps.queryAlarms ? serviceIdOf(named.name, named.normal) : null;
     const fetchAlarms = async (paging: OapPaging): Promise<AlarmMessage[]> => {
       if (caps.queryAlarms) {
-        /* New-mode condition. `entities` + `layer` ride server-side;
-         * `scope` is intentionally ignored here because it's a
-         * legacy-only coarse filter and `entities` + `layer` cover
-         * its use-cases more precisely. NOTE: the OAP field is
-         * `layer: String` (singular scalar), NOT `layers: [String]`.
-         * An alarm record is persisted with exactly one layer, so the
-         * filter is a single value. Sending `layers` silently no-ops —
-         * OAP ignores the unknown field and returns every layer's
-         * alarms, which looked like "the per-layer filter doesn't
-         * work". */
+        /* New-mode condition. `scope` is a legacy-only coarse filter
+         * that `entities` covers more precisely. OAP's `layer` is one
+         * String because an alarm record is persisted with exactly one
+         * layer — its entity's first, or none when OAP had not resolved
+         * it yet — so it is never sent: beside an entity the service
+         * decides, and on its own it is applied below, by the layers the
+         * page counts an alarm under. */
         const condition: Record<string, unknown> = { duration, paging };
         if (q.keyword) condition.keyword = q.keyword;
-        if (q.layer) condition.layer = q.layer;
         if (entity) condition.entities = [entity];
         const raw = await graphqlPost<QueryAlarmsRaw>(opts, QUERY_ALARMS_QUERY, { condition });
         return raw.queryAlarms?.msgs ?? [];
@@ -391,23 +465,40 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       return raw.getAlarm?.msgs ?? [];
     };
 
-    let page: { rows: AlarmMessage[]; hasNext: boolean };
+    const layerPin = q.layer && !named ? layerFilterPin(q.layer, canonicalLayerKey) : null;
+    const index = catalogIndex(catalog);
+    // Every row a picked service keeps concerns that service, which the gate
+    // has checked; the legacy query cannot narrow, so its rows are decided.
+    const perRow = access && !readsEveryAlarm(access) && (!named || !caps.queryAlarms) ? new AlarmRowAccess(access, index) : null;
+    if ((layerPin || perRow || pagePins || serviceId) && catalogMissing(catalog)) return catalogUnavailable(reply);
+    const keep = (d: DecidedRow<AlarmMessage>): boolean =>
+      d.kept &&
+      (!layerPin || alarmPinMatches(layerPin, d.row)) &&
+      (!pagePins || pagePins.some((pin) => alarmPinMatches(pin, d.row))) &&
+      (!serviceId || alarmConcernsService(d.row, serviceId, index));
+    // Every read starts at row 0 — see readPrefixPage for the OAP offset
+    // this avoids.
+    const fetchFirst = async (rows: number): Promise<Array<DecidedRow<AlarmMessage>>> => {
+      const tagged = tagWithOwners(await fetchAlarms({ pageNum: 1, pageSize: rows }), index);
+      return perRow ? perRow.decide(tagged) : keepAll(tagged);
+    };
+    const paging = { pageNum: q.pageNum, pageSize: q.pageSize };
+    let page: PageResult<DecidedRow<AlarmMessage>>;
+    let tagged: AlarmMessage[];
     try {
-      page = await readPageWith(fetchAlarms, { pageNum: q.pageNum, pageSize: q.pageSize });
+      page = layerPin || perRow || pagePins || serviceId
+        ? await readFilteredPage(fetchFirst, keep, paging, ALARM_READ)
+        : await readPrefixPage(fetchFirst, paging);
+      tagged = page.rows.map((d) => d.row);
     } catch (err) {
-      return reply.code(502).send({
-        error: 'oap_unreachable',
-        message: err instanceof Error ? err.message : String(err),
-      });
+      return readFailed(reply, err);
     }
 
-    let tagged = tagWithLayer(page.rows, catalog);
     // A `baseline` in the rule was looked up by the alarm entity's NAME alone,
     // and its values ride in the snapshot: a caller limited to some groups
     // sees them only when every service of that name is readable. Only a
     // Service alarm's name is a service's; the others are composite.
     const byName = (m: AlarmMessage) => readsByNameOnly([m.snapshot?.expression ?? '']);
-    const access = req.access;
     if (access?.layerLimited(['alarms:read']) && tagged.some(byName)) {
       const readable = new Map<string, boolean>();
       const keeps = async (m: AlarmMessage): Promise<boolean> => {
@@ -428,6 +519,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       truncated: page.hasNext,
       generatedAt: Date.now(),
       msgs: tagged,
+      ...(pagePins ? { pinnedLayers: pagePins.map(formatAlarmPin) } : {}),
     };
     return reply.send(body);
   });
@@ -448,52 +540,59 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
 
       const signal = clientGone(reply);
       const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
-      const [offset, caps] = await Promise.all([
+      const access = req.access;
+      const everything = readsEveryAlarm(access);
+      const [offset, caps, catalog] = await Promise.all([
         getServerOffsetMinutes(deps.config, deps.fetch, signal),
         getOapCapabilities(deps.config.current, deps.fetch, signal),
+        everything ? null : serviceLayer.get(),
       ]);
+      if (catalog && catalogMissing(catalog)) return catalogUnavailable(reply);
       const start = fmtSecond(q.startTime, offset);
       const end = fmtSecond(q.endTime, offset);
 
       const duration = { start, end, step: 'SECOND' as const };
-      const fetchCountRows = async (
-        paging: OapPaging,
-      ): Promise<Array<{ id: string; startTime: number; recoveryTime: number | null }>> => {
+      const fetchCountRows = async (paging: OapPaging): Promise<CountRow[]> => {
         const msgs = caps.queryAlarms
-          ? (await graphqlPost<QueryAlarmsRaw>(opts, COUNT_QUERY_ALARMS_QUERY, {
+          ? (await graphqlPost<CountRaw<'queryAlarms'>>(opts, COUNT_QUERY_ALARMS_QUERY, {
               condition: { duration, paging },
             })).queryAlarms?.msgs
-          : (await graphqlPost<GetAlarmRaw>(opts, COUNT_GET_ALARM_QUERY, { duration, paging }))
+          : (await graphqlPost<CountRaw<'getAlarm'>>(opts, COUNT_GET_ALARM_QUERY, { duration, paging }))
               .getAlarm?.msgs;
-        return (msgs ?? []).map((m) => ({
-          id: m.id,
-          startTime: m.startTime,
-          recoveryTime: m.recoveryTime,
-        }));
+        return msgs ?? [];
       };
 
-      let capped: { rows: Array<{ id: string; startTime: number; recoveryTime: number | null }>; hasNext: boolean };
+      let capped: { rows: CountRow[]; hasNext: boolean };
       try {
-        capped = await readPageWith(fetchCountRows, { pageNum: 1, pageSize: COUNT_FETCH_CAP });
+        if (!access || !catalog) {
+          capped = await readPageWith(fetchCountRows, { pageNum: 1, pageSize: COUNT_FETCH_CAP });
+        } else {
+          const rowAccess = new AlarmRowAccess(access, catalogIndex(catalog));
+          const page = await readFilteredPage(
+            async (rows) => rowAccess.decide(await fetchCountRows({ pageNum: 1, pageSize: rows })),
+            (d) => d.kept,
+            { pageNum: 1, pageSize: COUNT_FETCH_CAP },
+            ALARM_READ,
+          );
+          capped = { rows: page.rows.map((d) => d.row), hasNext: page.hasNext };
+        }
       } catch (err) {
-        return reply.code(502).send({
-          error: 'oap_unreachable',
-          message: err instanceof Error ? err.message : String(err),
-        });
+        return readFailed(reply, err);
       }
 
       const rows = capped.rows;
       const total = rows.length;
       const firing = rows.reduce((n, r) => n + (r.recoveryTime === null ? 1 : 0), 0);
 
-      /* Group by OAP id (= entity.rule key); the incident's state is
-       * the LATEST event's state. Matches the UI's `mergeIncidents`
-       * semantics — keep both implementations in lock-step. */
+      /* Group by (entity, rule); the incident's state is the LATEST
+       * event's state. Matches the UI's `mergeIncidents` — keep both on
+       * the same key. */
       const latestByGroup = new Map<string, { startTime: number; recoveryTime: number | null }>();
       for (const r of rows) {
-        const cur = latestByGroup.get(r.id);
+        const key = alarmIncidentKey(r);
+        const cur = latestByGroup.get(key);
         if (!cur || r.startTime > cur.startTime) {
-          latestByGroup.set(r.id, { startTime: r.startTime, recoveryTime: r.recoveryTime });
+          latestByGroup.set(key, { startTime: r.startTime, recoveryTime: r.recoveryTime });
         }
       }
       const incidents = latestByGroup.size;
@@ -525,9 +624,21 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     '/api/alarms/services',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const layer = (req.query as { layer?: string } | undefined)?.layer;
+      const query = req.query as { layer?: unknown; page?: unknown } | undefined;
+      const layer = query?.layer;
       if (!layer || typeof layer !== 'string') {
         return reply.code(400).send({ error: 'missing_layer' });
+      }
+      const pageId = typeof query?.page === 'string' && query.page !== '' && query.page !== ALERT_DEFAULT_PAGE_ID ? query.page : null;
+      // A named page's filter offers only what its pins cover, as its list holds only that.
+      let pagePins: AlarmPin[] | null = null;
+      if (pageId) {
+        const stored = await readStoredAlarmPages(deps.uiTemplateClient);
+        if (stored.unreachable) return templateStoreUnreachable(reply);
+        pagePins = namedPagePins(stored, pageId, pinReachOf(req.access));
+        if (!pagePins) {
+          return reply.code(404).send({ error: 'alarm_page_not_found', message: `No alarm page "${pageId}" is served to this user` });
+        }
       }
       const signal = clientGone(reply);
       const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
@@ -537,7 +648,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
           .filter((s) => typeof s?.name === 'string' && s.name.length > 0)
           .sort((a, b) => a.name.localeCompare(b.name));
         const access = req.access;
-        const services = access ? access.filterRoster(['alarms:read'], layer, listed) : listed;
+        const readable = access ? access.filterRoster(['alarms:read'], layer, listed) : listed;
+        const onLayer = canonicalLayerKey(layer);
+        const services = pagePins
+          ? readable.filter((s) => pagePins.some((p) => p.layer === onLayer && (!p.groups || p.groups.includes(s.group ?? ''))))
+          : readable;
         return reply.send({ layer, services });
       } catch (err) {
         return reply.code(502).send({

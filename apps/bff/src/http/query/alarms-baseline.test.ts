@@ -53,7 +53,8 @@ const fetch: FetchLike = async (_url, init) => {
         queryAlarms: {
           msgs: [
             {
-              id: 'a-1', startTime: NOW - 60_000, recoveryTime: null, scope, name: scope === 'Service' ? NAME : `pod-1 of ${NAME}`,
+              id: scope === 'Service' ? real.id : `${real.id}_${Buffer.from('pod-1').toString('base64')}`,
+              startTime: NOW - 60_000, recoveryTime: null, scope, name: scope === 'Service' ? NAME : `pod-1 of ${NAME}`,
               message: 'above the predicted range', tags: [],
               snapshot: { expression: 'service_resp_time > baseline(service_resp_time,upper)', metrics: [metric] },
             },
@@ -87,7 +88,10 @@ async function alarmsFor(withNamesake: boolean) {
   const app = Fastify();
   await app.register(cookie);
   app.addHook('onRoute', makeRouteAuthHook({ config, sessions, access }));
-  registerAlarmsQueryRoutes(app, { config, sessions, serviceLayer: catalog, fetch });
+  const uiTemplateClient = () => {
+    throw new Error('no alarm page is read here');
+  };
+  registerAlarmsQueryRoutes(app, { config, sessions, serviceLayer: catalog, uiTemplateClient, fetch });
   await app.ready();
   const sid = sessions.create('pay', ['payments']).sid;
   const res = await app.inject({

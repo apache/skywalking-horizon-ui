@@ -470,7 +470,7 @@ describe('validateBundledTemplates — overview dashboards', () => {
 // fires rather than only that today's tree happens to pass.
 describe('singletonPresenceIssues — the four files the runtime loads by exact path', () => {
   const REQUIRED = [
-    'alert/page-setup.json',
+    'alert/default.json',
     'theme/active.json',
     'time-defaults/global.json',
     'infra-3d/config.json',
@@ -505,6 +505,15 @@ describe('singletonPresenceIssues — the four files the runtime loads by exact 
     const files = singletonPresenceIssues(rootWith(renamed)).map((f) => f.file);
     expect(files).toContain('theme/active.json');
     expect(files).toContain('theme/actives.json');
+  });
+
+  // A readonly deployment that mounts its own bundle may still carry the
+  // default alarm page under its old filename, or a named page it expects to be
+  // served. Neither is read, so both are reported rather than passed.
+  it.each(['alert/page-setup.json', 'alert/payments.json'])('reports %s — only the default alarm page is bundled', (extra) => {
+    const findings = singletonPresenceIssues(rootWith([...REQUIRED, extra]));
+    expect(findings.map((f) => f.file)).toEqual([extra]);
+    expect(findings[0]?.message).toMatch(/never reads/);
   });
 
   it('ignores a per-locale overlay sitting beside a singleton', () => {
