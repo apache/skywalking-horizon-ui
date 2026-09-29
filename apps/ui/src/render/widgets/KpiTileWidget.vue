@@ -21,6 +21,7 @@ import { useI18n } from 'vue-i18n';
 import type { OverviewKpi } from '@skywalking-horizon-ui/api-client';
 import { formatValue } from './ValueFormat';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import { layerRouteKey } from '@/utils/layerRoute';
 
 const props = defineProps<{
   title: string;
@@ -40,9 +41,7 @@ const { t } = useI18n();
 // and per-layer routes all use. The overview JSON authors uppercase
 // (matching OAP's enum), so normalise here so the click-through URL
 // matches the rest of the app.
-const tileTo = computed(() =>
-  props.layer ? `/layer/${props.layer.toLowerCase()}/service` : '',
-);
+const tileTo = computed(() => (props.layer ? `/layer/${layerRouteKey(props.layer)}/service` : ''));
 
 /** Clamp value/max into a 0..100 percentage for the progress-bar
  *  width. `null` / non-finite / max=0 collapse to 0. */

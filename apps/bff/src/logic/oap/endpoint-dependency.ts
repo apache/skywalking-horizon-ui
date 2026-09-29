@@ -188,10 +188,15 @@ export interface BuildEndpointDependencyInput {
   service: { id: string; name: string; normal: boolean };
   /** Endpoint NAME or id — resolved to an endpointId that PINS the chain. */
   endpointArg: string;
+  /** Of the services the graph's endpoints belong to, the ones whose values
+   *  the caller may see; absent when it may see every one. The others'
+   *  endpoints are drawn without metrics, and a call keeps its values when
+   *  the caller reads either end. */
+  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
 }
 
 export async function buildEndpointDependency(input: BuildEndpointDependencyInput): Promise<EndpointDependencyResponse> {
-  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg } = input;
+  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg, readableOf } = input;
   const serviceId = service.id;
   const serviceArg = service.name;
   // The id carries the flag (`.1` real, `.0` conjectured) and is what was
@@ -237,8 +242,12 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
     return emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, endpointId, epCfg, false, err instanceof Error ? err.message : String(err));
   }
 
+  const readable = readableOf ? await readableOf([...new Set(graph.nodes.map((n) => n.serviceId))]) : null;
+  const withheld = (n: { serviceId: string } | undefined): boolean => readable !== null && (!n || !readable.has(n.serviceId));
+  const blocked = (n: { isReal: boolean; name: string; serviceId: string }): boolean =>
+    n.isReal && n.name !== 'User' && withheld(n);
   const realNodes = graph.nodes.filter(
-    (n) => n.isReal && n.serviceName && n.name && n.name !== 'User',
+    (n) => n.isReal && n.serviceName && n.name && n.name !== 'User' && !withheld(n),
   );
   // Per-node + per-edge MQE. Build both fragment families, then fan them
   // out concurrently (disjoint OAP entities + result maps); each chunks
@@ -275,9 +284,11 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
   const linkMetrics = epCfg.linkMetrics ?? [];
   const realEndpointMap = new Map(realNodes.map((n) => [n.id, n]));
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const callOpen = (c: { source: string; target: string }): boolean =>
+    !withheld(nodeById.get(c.source)) || !withheld(nodeById.get(c.target));
   const candidateEdges = graph.calls.filter((c) => {
     const dst = nodeById.get(c.target);
-    return !!dst && dst.isReal && !!dst.name && !!dst.serviceName;
+    return !!dst && dst.isReal && !!dst.name && !!dst.serviceName && callOpen(c);
   });
   const edgeAliasMap = new Map<string, { callId: string; metric: TopologyMetricDef }>();
   const edgeFragments: string[] = [];
@@ -352,7 +363,9 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
     const m = nodeMetricVals.get(n.id) ?? {};
     const filled: Record<string, number | null> = {};
     for (const def of epCfg.nodeMetrics) filled[def.id] = m[def.id] ?? null;
-    if (n.isReal && n.name !== 'User' && !hasAnyValue(filled)) continue;
+    // A blocked endpoint has no values because none were read, not because it
+    // carried no traffic: it stays, and says so.
+    if (n.isReal && n.name !== 'User' && !hasAnyValue(filled) && !blocked(n)) continue;
     liveNodes.push({
       id: n.id,
       name: n.name,
@@ -362,6 +375,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       isReal: n.isReal,
       metrics: filled,
       ...legacyNodeView(filled),
+      ...(blocked(n) ? { metricsBlocked: true } : {}),
     });
   }
   const liveIds = new Set(liveNodes.map((n) => n.id));
@@ -384,6 +398,7 @@ export async function buildEndpointDependency(input: BuildEndpointDependencyInpu
       metrics: filled,
       metricSeries: filledSeries,
       ...legacyEdgeView(filled),
+      ...(callOpen(c) ? {} : { metricsBlocked: true }),
     });
   }
 

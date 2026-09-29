@@ -71,6 +71,8 @@ let resyncs = 0;
  *  the write (`landed`) or before it showed it (`unseen`). */
 let saveReply: 'ok' | 'timeout-landed' | 'timeout-unseen' = 'ok';
 let disableStatus = 200;
+/** Every read of the stored pages fails — set once a test has mounted. */
+let readsFail = false;
 /** Requests to hold until the test lets them go. */
 let hold: { save?: Promise<void>; resync?: Promise<void> } = {};
 let roster: Array<{ id: string; name: string; normal: boolean; group: string | null }> = [];
@@ -92,6 +94,7 @@ beforeEach(() => {
   resyncs = 0;
   saveReply = 'ok';
   disableStatus = 200;
+  readsFail = false;
   hold = {};
   roster = [
     { id: 'a', name: 'payments::api', normal: true, group: 'payments' },
@@ -121,7 +124,12 @@ beforeEach(() => {
       if (path === '/api/menu') {
         return json({ layers: menuLayers, oap: { reachable: true } });
       }
-      if (path === '/api/configs/settings') return json({ alert: DEFAULT_CONTENT });
+      const readBack = ['/api/configs/settings', '/api/admin/templates/sync-status', '/api/admin/templates/resync'];
+      if (readsFail && readBack.includes(path)) return json({ error: 'oap_unreachable' }, 503);
+      if (path === '/api/configs/settings') {
+        const stored = rows.find((r) => r.key === 'default' && !r.remote.disabled);
+        return json({ alert: stored ? contentOf(stored) : DEFAULT_CONTENT });
+      }
       if (path === '/api/admin/templates/sync-status') return json(status());
       if (path === '/api/admin/templates/resync') {
         resyncs++;
@@ -400,6 +408,52 @@ describe('Alarm pages admin — save', () => {
     await clickRow(w, 'Audit');
     expect((w.find('.ape__field--grow input').element as HTMLInputElement).value).toBe('Audit trail');
     expect(w.find('.aps__dirty').text()).toBe('unsaved changes');
+  });
+});
+
+describe('Alarm pages admin — a save that cannot be read back', () => {
+  it('keeps the default page\'s edits, and says so, when its stored settings cannot be read again', async () => {
+    const w = await mountView();
+    await chooseLayer(w, 'MESH');
+    await clickButton(w, '.apin__btn', 'Add pin');
+    readsFail = true;
+    await saveButton(w).trigger('click');
+    await flushPromises();
+    expect(saves).toHaveLength(1);
+    expect(pinnedCodes(w)).toEqual(['GENERAL', 'MESH']);
+    expect(statusLine(w)).toMatch(/^Saved, but the stored page could not be read back/);
+  });
+
+  it('reads a named page back from the save\'s own answer', async () => {
+    const w = await mountView();
+    await clickRow(w, 'On-call');
+    await w.find('.ape__field--grow input').setValue('Payments on-call');
+    readsFail = true;
+    await saveButton(w).trigger('click');
+    await flushPromises();
+    expect((w.find('.ape__field--grow input').element as HTMLInputElement).value).toBe('Payments on-call');
+    expect(listLabels(w)).toContain('Payments on-call');
+    expect(statusLine(w)).toBe('saved · Payments on-call · 1 pinned');
+  });
+
+  it('drops a deleted page from the list by the delete\'s own answer', async () => {
+    const w = await mountView();
+    await clickRow(w, 'On-call');
+    await w.find('.aps__btn--danger').trigger('click');
+    await flushPromises();
+    readsFail = true;
+    await w.find('.dap__in').setValue('oncall');
+    await w.find('.dap__danger').trigger('click');
+    await flushPromises();
+    expect(listLabels(w)).not.toContain('On-call');
+  });
+
+  it('says a reset could not be read back, rather than that it took', async () => {
+    const w = await mountView();
+    readsFail = true;
+    w.findComponent(TemplateDiffModal).vm.$emit('reset');
+    await flushPromises();
+    expect(statusLine(w)).toMatch(/^Reset, but the stored page could not be read back/);
   });
 });
 

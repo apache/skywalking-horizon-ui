@@ -127,7 +127,11 @@ interface AlarmRead {
 interface Oap {
   fetch: FetchLike;
   alarmReads: AlarmRead[];
+  /** The ids `getService` was asked about. */
+  serviceAsks: string[];
 }
+/** A service OAP holds beyond the catalog's read. */
+type Beyond = { name: string; normal: boolean; group: string; layers: string[] };
 
 interface EntityWire {
   scope: string;
@@ -144,16 +148,20 @@ function entityId(e: EntityWire): string {
   return service;
 }
 
-function fakeOap(rows: Stored[], opts: { legacy?: boolean; down?: boolean } = {}): Oap {
+function fakeOap(rows: Stored[], opts: { legacy?: boolean; down?: boolean; services?: Record<string, Beyond> } = {}): Oap {
   const alarmReads: AlarmRead[] = [];
+  const serviceAsks: string[] = [];
   const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   const fetch: FetchLike = async (_url, init) => {
     const { query = '', variables = {} } = JSON.parse(String(init?.body ?? '{}')) as { query?: string; variables?: Record<string, unknown> };
     if (query.includes('__type')) return json({ data: { __type: { fields: opts.legacy ? [] : [{ name: 'queryAlarms' }] } } });
     if (query.includes('getTimeInfo')) return json({ data: { time: { timezone: '+0000' } } });
     if (query.includes('HorizonAccessService')) {
+      const id = String(variables.id);
+      serviceAsks.push(id);
       if (opts.down) throw new Error('connect ECONNREFUSED');
-      return json({ data: { service: null } });
+      const hit = opts.services?.[id];
+      return json({ data: { service: hit ? { id, ...hit } : null } });
     }
     if (query.includes('HorizonAlarmServices')) {
       const layer = String(variables.layer);
@@ -172,7 +180,7 @@ function fakeOap(rows: Stored[], opts: { legacy?: boolean; down?: boolean } = {}
     }
     return json({ data: {} });
   };
-  return { fetch, alarmReads };
+  return { fetch, alarmReads, serviceAsks };
 }
 
 let app: FastifyInstance | null = null;
@@ -200,7 +208,7 @@ async function call(role: keyof typeof ROLES, query: string, oap: Oap, setup: Se
   const config: ConfigSource = { current: cfg, current_: () => cfg, path: '', onChange: () => () => {}, close: async () => {} };
   const snapshot: ServiceCatalog = setup.catalogUnreachable
     ? { layers: [], byLayer: new Map(), byName: new Map(), unreachable: true }
-    : CATALOG;
+    : { ...CATALOG };
   const catalog = { get: async () => snapshot } as unknown as ServiceLayerCatalog;
   const store = setup.store ?? STORE;
   let storeReads = 0;
@@ -347,12 +355,31 @@ describe('a service picked alone', () => {
     expect(names(byService.body)).toEqual(names(byGroup.body));
   });
 
-  it('serves a group grant its service without asking whose the other services are', async () => {
-    // With OAP unable to say whose `User` is, deciding every row of the window
-    // would refuse the read; each row kept concerns the checked service.
-    const res = await call('payments', SERVICE, fakeOap(ROWS, { down: true }));
+  it('serves a group grant its service, asking only about the rows it lists', async () => {
+    const elsewhere = svc('elsewhere::ghost');
+    const oap = fakeOap([...ROWS, row('Service', elsewhere.id, elsewhere.name)]);
+    const res = await call('payments', SERVICE, oap);
     expect(res.status).toBe(200);
     expect(names(res.body)).toEqual(namesOf(CHECKOUTS));
+    expect(oap.serviceAsks).not.toContain(elsewhere.id);
+  });
+
+  // The catalog was read before a conjectured risk `payments::checkout`
+  // registered: a relation that names it only as its destination may mean
+  // either, so it is the payments reader's only when both are.
+  it('drops a relation into the picked service that may mean an unreadable namesake', async () => {
+    const namesake = { name: checkout.name, normal: false, group: 'risk', layers: ['GENERAL'] };
+    const oap = fakeOap(ROWS, { services: { [serviceIdOf(checkout.name, false)]: namesake } });
+    const res = await call('payments', SERVICE, oap);
+    expect(res.status).toBe(200);
+    expect(names(res.body)).toEqual(namesOf([CHECKOUT, CHECKOUT_1, CHECKOUT_EP, TO_SCORER]));
+    expect(names((await call('ops', SERVICE, fakeOap(ROWS, { services: { [serviceIdOf(checkout.name, false)]: namesake } }))).body)).toEqual(
+      namesOf(CHECKOUTS),
+    );
+  });
+
+  it('says OAP could not be asked, rather than listing a relation it could not decide', async () => {
+    expect((await call('payments', SERVICE, fakeOap(ROWS, { down: true }))).status).toBe(503);
   });
 
   it('is still refused a service the grant does not read', async () => {
@@ -394,5 +421,22 @@ describe('a picked instance or endpoint', () => {
     const byEndpoint = await call('ops', `${SERVICE}&endpoint=POST%3A%2Fpay`, endpoint);
     expect(endpoint.alarmReads[0]!.entities).toEqual([{ scope: 'Endpoint', serviceName: checkout.name, normal: true, endpointName: 'POST:/pay' }]);
     expect(names(byEndpoint.body)).toEqual([CHECKOUT_EP.name]);
+  });
+
+  // OAP matched the relation on the picked instance's exact id, so a
+  // conjectured namesake of its service cannot be what the relation meant.
+  it('keeps a relation into it for a group grant, whatever namesake its service has', async () => {
+    const namesake = { name: checkout.name, normal: false, group: 'risk', layers: ['GENERAL'] };
+    const oap = fakeOap(ROWS, { services: { [serviceIdOf(checkout.name, false)]: namesake } });
+    const res = await call('payments', `${SERVICE}&instance=checkout-1`, oap);
+    expect(res.status).toBe(200);
+    expect(names(res.body)).toEqual(namesOf([CHECKOUT_1, INSTANCE_FROM_SCORER]));
+  });
+
+  it('asks OAP nothing about the rows it returns', async () => {
+    const oap = fakeOap(ROWS, { down: true });
+    const res = await call('payments', `${SERVICE}&instance=checkout-1`, oap);
+    expect(res.status).toBe(200);
+    expect(names(res.body)).toEqual(namesOf([CHECKOUT_1, INSTANCE_FROM_SCORER]));
   });
 });

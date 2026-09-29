@@ -234,11 +234,13 @@ export class LayerApi {
     signal?: AbortSignal,
   ): Promise<TopologyResponse> {
     const qs = new URLSearchParams();
+    // Hops widen a focused map only: the layer-wide one holds every service
+    // of the layer already, and the BFF reads it one hop out.
     if (services && services.length > 0) {
       qs.set('serviceId', services.map((s) => s.id).join(','));
       qs.set('service', services.map((s) => s.name).join(','));
+      qs.set('depth', String(depth));
     }
-    qs.set('depth', String(depth));
     if (range) {
       qs.set('step', range.step);
       qs.set('startMs', String(range.startMs));

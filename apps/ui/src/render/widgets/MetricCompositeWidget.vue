@@ -39,6 +39,7 @@ import { RouterLink } from 'vue-router';
 import type { OverviewKpi } from '@skywalking-horizon-ui/api-client';
 import { formatValue } from './ValueFormat';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import { layerRouteKey } from '@/utils/layerRoute';
 
 const props = defineProps<{
   title: string;
@@ -63,9 +64,7 @@ function isBar(k: OverviewKpi): boolean {
 const counts = computed(() => rows.value.filter((k) => !isBar(k)));
 const bars = computed(() => rows.value.filter(isBar));
 
-const tileTo = computed(() =>
-  props.layer ? `/layer/${props.layer.toLowerCase()}/service` : '',
-);
+const tileTo = computed(() => (props.layer ? `/layer/${layerRouteKey(props.layer)}/service` : ''));
 
 /* Bar fill: when `max` is set the bar plots `value / max`; otherwise
  * the value is assumed to already be a 0..100 percentage (matches

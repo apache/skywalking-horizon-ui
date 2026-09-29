@@ -63,6 +63,15 @@ export function registerLayerServicesRoute(
       // Optional `?group=` (from a split-by-service-group menu entry) —
       // narrow the roster to that OAP Service.group. Absent ⇒ all groups.
       const group = (req.query as { group?: string }).group;
+      // A group the caller's grant does not reach is refused, as a layer it
+      // does not reach is, so its menu entry opened by URL says "no access"
+      // rather than listing nothing.
+      const reach = group !== undefined ? req.access?.onLayer(LAYER_PAGE_VERBS, layerKey) : undefined;
+      if (reach && !reach.whole && !reach.groups.has(group!)) {
+        return reply
+          .code(403)
+          .send({ error: 'permission_denied', verb: LAYER_PAGE_VERBS.join(' or '), reason: 'group_not_granted', layer: layerKey, group });
+      }
       try {
         const snap = await catalog.get();
         const layerRows = snap.byLayer.get(layerUpper) ?? [];

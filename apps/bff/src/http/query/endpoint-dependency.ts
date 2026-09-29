@@ -147,6 +147,7 @@ export function registerEndpointDependencyRoute(
         layerKey,
         service,
         endpointArg,
+        ...req.access?.graphReadable(['topology:read']),
       });
       return reply.send(response);
     },

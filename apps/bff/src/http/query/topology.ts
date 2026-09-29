@@ -94,7 +94,9 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
       }
       const serviceArg = scope.kind === 'service' ? scope.service.id : '';
-      const depth = Math.max(1, Math.min(3, Number(q.depth) || 1));
+      // The layer-wide map is seeded with every service of the layer already,
+      // so hops add nothing but its neighbours' neighbours.
+      const depth = serviceArg ? Math.max(1, Math.min(3, Number(q.depth) || 1)) : 1;
 
       // Admin "Preview" mode: the page forwards the operator's unpublished
       // draft `topology` block so we render it against live OAP without
@@ -162,6 +164,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         depth,
         group: q.group,
         seedGroups: seedGroupsFor(req, layerKey),
+        ...req.access?.graphReadable(['topology:read']),
       });
       return reply.send(response);
     },

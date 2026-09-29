@@ -147,10 +147,13 @@ export interface BuildInstanceTopologyInput {
   layerKey: string;
   clientServiceId: string;
   serverServiceId: string;
+  /** Of the two services, the ones whose values the caller may see; absent
+   *  when it may see both. The other's instances are drawn without metrics. */
+  readableOf?: (ids: readonly string[]) => Promise<ReadonlySet<string>>;
 }
 
 export async function buildInstanceTopology(input: BuildInstanceTopologyInput): Promise<InstanceTopologyResponse> {
-  const { opts, perf, window, coldStage, cfg: instCfg, layerKey, clientServiceId, serverServiceId } = input;
+  const { opts, perf, window, coldStage, cfg: instCfg, layerKey, clientServiceId, serverServiceId, readableOf } = input;
   const oapLayer = layerKey.toUpperCase();
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
@@ -206,7 +209,9 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
   const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
   const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
 
-  const realNodes = nodes.filter((n) => n.isReal);
+  const readable = readableOf ? await readableOf([clientServiceId, serverServiceId]) : null;
+  const withheld = (n: OapInstNode): boolean => readable !== null && !readable.has(n.serviceId);
+  const realNodes = nodes.filter((n) => n.isReal && !withheld(n));
   const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
   const nodeFragments: string[] = [];
   if (realNodes.length > 0 && instCfg.nodeMetrics.length > 0) {
@@ -309,6 +314,7 @@ export async function buildInstanceTopology(input: BuildInstanceTopologyInput): 
       serviceName: n.serviceName,
       isReal: n.isReal,
       metrics: filled,
+      ...(n.isReal && withheld(n) ? { metricsBlocked: true } : {}),
     });
   }
   const liveNodeIds = new Set(liveNodes.map((n) => n.id));

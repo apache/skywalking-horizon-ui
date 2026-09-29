@@ -138,8 +138,8 @@ const defaultDiverged = computed<boolean>(
 );
 const diffModalOpen = ref(false);
 async function onDiffReset(): Promise<void> {
-  await ed.afterReset();
-  ed.setFlash(t('OAP reset to bundled · reload to see header changes'));
+  if (await ed.afterReset()) ed.setFlash(t('OAP reset to bundled · reload to see header changes'));
+  else ed.setFlash(t('Reset, but the stored page could not be read back, so this page may still show the old values. Reload before editing again.'), 'err');
 }
 
 const statusText = computed<{ text: string; cls: string }>(() => {

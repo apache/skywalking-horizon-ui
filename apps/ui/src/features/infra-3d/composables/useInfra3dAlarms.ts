@@ -76,6 +76,13 @@ const lastUpdatedAt = ref<number | null>(null);
 export function alarmKey(layerKey: string, serviceName: string): string {
   return `${layerKey.toUpperCase()}\u0000${serviceName}`;
 }
+
+/** The key a cube is looked up by. A cube in a layer split by service group
+ *  sits under its entry's key (`general~payments`); an alarm is keyed by the
+ *  layer alone. */
+export function cubeAlarmKey(layerKey: string, serviceName: string): string {
+  return alarmKey(layerKey.split('~', 1)[0]!, serviceName);
+}
 const error = ref<string | null>(null);
 let timer: ReturnType<typeof setInterval> | null = null;
 let inflight: Promise<void> | null = null;

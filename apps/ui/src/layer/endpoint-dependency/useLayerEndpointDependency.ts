@@ -174,7 +174,7 @@ export function useLayerEndpointDependency(
   // failed round and a remount; `latestAttempt` is whatever came back last and
   // drives the banners. `phase` is derived from both so a view cannot read half
   // its picture from one and half from the other.
-  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration } =
+  const { acceptedSnapshot, latestAttempt, phase, predicateGeneration, refusal } =
     useGraphState<EndpointDependencyResponse>({
       data: computed(() => q.data.value?.response),
       error: q.error,
@@ -210,6 +210,7 @@ export function useLayerEndpointDependency(
     data: latestAttempt,
     latestAttempt,
     phase,
+    refusal,
     drawable: acceptedSnapshot,
     previewConfig: previewCfg,
     // The window the graph ON SCREEN was read with — not the live one.

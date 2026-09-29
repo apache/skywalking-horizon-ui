@@ -17,7 +17,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
-import { firstLayerTab } from './useLayers';
+import { entryKeyIn, firstLayerTab } from './useLayers';
 
 /**
  * Helper to build a partial-but-typed LayerDef. Real layers carry
@@ -122,5 +122,24 @@ describe('firstLayerTab — routing decision per layer caps', () => {
       firstLayerTab({ ...L({ traces: true, logs: true }), traces: { sources: ['native' as const] } }),
     ).toBe('trace');
     expect(firstLayerTab(L({ logs: true, traceProfiling: true }))).toBe('logs');
+  });
+});
+
+describe('entryKeyIn — the sidebar entry a service opens under', () => {
+  const menu = ['general~payments', 'general~risk', 'mesh'].map((key) => ({ ...L(), key }));
+
+  it('takes the service\'s group entry on a layer split by service group', () => {
+    expect(entryKeyIn(menu, 'GENERAL', 'risk::scorer')).toBe('general~risk');
+    expect(entryKeyIn(menu, 'GENERAL', 'payments::ledger')).toBe('general~payments');
+  });
+
+  it('names a group entry the reader lacks, so the page says why', () => {
+    expect(entryKeyIn(menu, 'GENERAL', 'audit::log')).toBe('general~audit');
+    expect(entryKeyIn(menu, 'GENERAL', 'ungrouped')).toBe('general~');
+  });
+
+  it('keeps the layer key on a layer not split, or not in the menu', () => {
+    expect(entryKeyIn(menu, 'MESH', 'mesh-svr::reviews')).toBe('mesh');
+    expect(entryKeyIn(menu, 'SO11Y_JAVA_AGENT', 'payments::ledger')).toBe('so11y_java_agent');
   });
 });

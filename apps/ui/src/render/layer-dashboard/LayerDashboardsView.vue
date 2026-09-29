@@ -54,6 +54,7 @@ import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type CompareScope, compoundKey, splitCompound } from '@/state/layerSelection';
 import { tracesInclude } from '@skywalking-horizon-ui/api-client';
+import { refusalText } from '@/api/permissionDenied';
 
 const { t } = useI18n({ useScope: 'global' });
 const auth = useAuthStore();
@@ -499,6 +500,9 @@ const reachable = computed(() => {
   // still rendering pinned-entity data (or still arriving).
   return compareLoading.value || compareEntities.value.some((e) => resultByEntity.value.get(e) !== undefined);
 });
+/** A refused read is an answer, not a wait: without this the grid stays on
+ *  "Reading data" for good, since no fresh result ever arrives. */
+const refusal = computed<string | null>(() => refusalText(error.value));
 const errorText = computed(() => {
   const failed = error.value instanceof GraphUnavailableError ? (error.value.response as { error?: string }) : null;
   return failed?.error ?? data.value?.error ?? (error.value ? String(error.value) : null);
@@ -830,8 +834,9 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
          sequence (which read as a slow, jumpy entry). The "no widgets"
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
+    <div v-if="refusal" class="empty">{{ refusal }}</div>
     <div
-      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0 && widgetsForQuery.length > 0))"
+      v-else-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0 && widgetsForQuery.length > 0))"
       class="empty reading"
     >
       <span class="reading-dot" />

@@ -132,7 +132,7 @@ const layerKey = computed(() =>
 );
 const embedded = computed(() => Boolean(props.embedded));
 
-const { layers } = useLayers();
+const { layers, entryKeyFor } = useLayers();
 const auto = useAutoRefreshStore();
 const layer = computed<LayerDef | null>(
   // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
@@ -201,7 +201,7 @@ function truncateLabel(s: string, n: number): string {
 const depth = ref<number>(props.focusDepth ?? 2);
 const focusWindowMinutes = computed<number | null>(() => props.focusWindowMinutes ?? null);
 const replayDataRef = computed<TopologyResponse | null>(() => props.replayData ?? null);
-const { nodes, calls, isFetching, data, acceptedSnapshot, refetch, phase, predicateKey } =
+const { nodes, calls, isFetching, data, acceptedSnapshot, refetch, phase, predicateKey, refusal } =
   useLayerTopology(
   layerKey,
   focusServices,
@@ -763,13 +763,14 @@ function isCallFocused(id: string): boolean {
  * Resolve the layer key we should jump into for the selected node. A
  * service may belong to multiple OAP layers; OAP returns the complete
  * list on `node.layers`. Stay in the current layer when it's in that
- * list, else fall back to the first one.
+ * list, else fall back to the first one. The current key of a layer split
+ * by service group carries `~<group>`, which no OAP layer does.
  */
 function targetLayerFor(n: TopologyNode): string {
-  const current = layerKey.value.toUpperCase();
+  const current = layerKey.value.split('~', 1)[0]!.toUpperCase();
   const ls = n.layers ?? [];
   const pick = ls.includes(current) ? current : (ls[0] ?? current);
-  return pick.toLowerCase();
+  return entryKeyFor(pick, n.name);
 }
 function jumpToService(): void {
   const sel = selectedNode.value;
@@ -1102,6 +1103,16 @@ onBeforeUnmount(() => {
                   </text>
                 </g>
               </template>
+              <g
+                v-else-if="c.metricsBlocked && edgeMidpoint(c)"
+                :transform="`translate(${edgeMidpoint(c)!.x - 44}, ${edgeMidpoint(c)!.y - 13})`"
+                style="pointer-events: none"
+              >
+                <rect x="0" y="0" width="88" height="24" rx="12" fill="var(--sw-bg-1)" stroke="var(--sw-line-2)" stroke-width="1" />
+                <text x="44" y="17" text-anchor="middle" fill="var(--sw-fg-3)" font-size="12" font-family="var(--sw-mono)" font-weight="600">
+                  {{ t('blocked') }}
+                </text>
+              </g>
             </g>
 
             <!-- Polished linear-chain node — pure SVG, no PNGs. Three
@@ -1256,8 +1267,21 @@ onBeforeUnmount(() => {
                    it from the latency line beneath the name. Hidden
                    when the node reports no RPM so silent nodes don't
                    carry an empty placeholder. -->
+              <!-- Drawn because it is connected; the role may not read it,
+                   so its metrics were not read — say so, not "no value". -->
               <text
-                v-if="centerDef && nodeVal(n, centerDef) !== null"
+                v-if="n.metricsBlocked"
+                text-anchor="middle"
+                y="-50"
+                fill="var(--sw-fg-3)"
+                font-size="13"
+                font-family="var(--sw-mono)"
+                font-weight="600"
+              >
+                {{ t('blocked') }}
+              </text>
+              <text
+                v-else-if="centerDef && nodeVal(n, centerDef) !== null"
                 text-anchor="middle"
                 y="-50"
                 :fill="ringColor(n)"
@@ -1313,6 +1337,7 @@ onBeforeUnmount(() => {
         <div v-else-if="phase === 'failed' && blocked === 'layer-disabled'" class="loader">
           {{ t('This page is not available.') }}
         </div>
+        <div v-else-if="phase === 'failed' && refusal" class="loader">{{ refusal }}</div>
         <div v-else-if="phase === 'failed'" class="loader">
           {{ t('Could not load the topology.') }}
           <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>

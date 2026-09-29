@@ -127,7 +127,7 @@ const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
 const replayDataRef = computed<DeploymentResponse | null>(() => props.replayData ?? null);
-const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch } =
+const { data, acceptedSnapshot, nodes, calls, isFetching, phase, predicateKey, refetch, refusal } =
   useDeployment(layerKey, service, enabled, focusWindowMinutes, replayDataRef);
 // The drawn graph's service, not the failed attempt's — a failed round emptied
 // the heading above a map that was still showing that service's pods.
@@ -860,6 +860,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
         <div v-else-if="blocked === 'layer-disabled'" class="sit-state">
           {{ t('This page is not available.') }}
         </div>
+        <div v-else-if="showFailed && refusal" class="sit-state">{{ refusal }}</div>
         <div v-else-if="showFailed" class="sit-state">
           {{ t('Could not load the deployment topology.') }}
           <button class="sw-btn small" type="button" @click="refetch()">{{ t('Retry') }}</button>

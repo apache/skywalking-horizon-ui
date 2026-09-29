@@ -30,6 +30,7 @@ import { computed, ref, watch } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
+import { refusalText } from '@/api/permissionDenied';
 
 /** Anything the graph routes return. They all carry this flag; see `accepts`. */
 export interface GraphResponse {
@@ -127,6 +128,8 @@ export interface GraphState<T extends GraphResponse> {
    *  anything else built on a snapshot can compare against this to know
    *  whether it still belongs to the question on screen. */
   predicateGeneration: ComputedRef<number>;
+  /** Why the BFF refused the read, when it did — shown without a Retry. */
+  refusal: ComputedRef<string | null>;
 }
 
 /**
@@ -212,6 +215,7 @@ export function useGraphState<T extends GraphResponse>(opts: {
     latestAttempt,
     phase,
     predicateGeneration: computed(() => generation.value),
+    refusal: computed(() => refusalText(opts.error.value)),
   };
 }
 
