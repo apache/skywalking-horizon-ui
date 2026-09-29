@@ -2,12 +2,13 @@
   "alias": "Linux",
   "group": "OS",
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Processos"
   },
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU total %"
       },
       {
         "label": "Memória MB"
@@ -22,9 +23,13 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "CPU média em uso (%)"
+        "title": "CPU por estado"
       },
       {
         "id": "cpu_load",
@@ -35,6 +40,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "FDs de arquivo alocados"
@@ -79,14 +85,20 @@
       },
       {
         "id": "network_status",
-        "title": "Status da rede",
+        "title": "Conexões TCP",
         "expressionLabels": [
           "tcp establecidas",
-          "tcp time-wait",
-          "tcp alloc",
-          "sockets em uso",
-          "udp em uso"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processos"
       }
     ]
   }

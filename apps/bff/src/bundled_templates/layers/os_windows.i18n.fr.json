@@ -4,22 +4,28 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU totale %"
       },
       {
         "label": "Mémoire Mo"
       },
       {
-        "label": "Mémoire virtuelle %"
+        "label": "Validée %"
       }
     ]
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "Utilisation CPU moyenne (%)"
+        "title": "CPU par état (somme sur tous les cœurs)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "Mémoire RAM (Mo)",
@@ -31,12 +37,13 @@
       },
       {
         "id": "virtual_memory",
-        "title": "Mémoire virtuelle (Mo)",
+        "title": "Mémoire virtuelle validée (Mo)",
         "expressionLabels": [
           "libre",
           "total"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "Bande passante réseau (Ko/s)",
@@ -53,9 +60,19 @@
           "écrits"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processes"
+      }
     ]
   },
   "slots": {
-    "services": "Hôtes"
+    "services": "Hôtes",
+    "instances": "Processes"
   }
 }

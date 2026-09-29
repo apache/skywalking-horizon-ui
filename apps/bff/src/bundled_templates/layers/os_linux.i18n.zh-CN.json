@@ -2,12 +2,13 @@
   "alias": "Linux",
   "group": "OS",
   "slots": {
-    "services": "主机"
+    "services": "主机",
+    "instances": "进程"
   },
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 总计 %"
       },
       {
         "label": "内存 MB"
@@ -22,9 +23,13 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "CPU 平均使用率（%）"
+        "title": "按状态划分的 CPU"
       },
       {
         "id": "cpu_load",
@@ -35,6 +40,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "已分配文件 FD"
@@ -79,14 +85,20 @@
       },
       {
         "id": "network_status",
-        "title": "网络状态",
+        "title": "TCP 连接",
         "expressionLabels": [
           "tcp estab",
-          "tcp time-wait",
-          "tcp alloc",
-          "sockets used",
-          "udp in-use"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "进程"
       }
     ]
   }

@@ -4,22 +4,28 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU total %"
       },
       {
         "label": "Memoria MB"
       },
       {
-        "label": "VMem %"
+        "label": "Confirmada %"
       }
     ]
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "CPU medio en uso (%)"
+        "title": "CPU por estado (suma de todos los núcleos)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "Memoria RAM (MB)",
@@ -31,12 +37,13 @@
       },
       {
         "id": "virtual_memory",
-        "title": "Memoria virtual (MB)",
+        "title": "Memoria virtual confirmada (MB)",
         "expressionLabels": [
           "libre",
           "total"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "Ancho de banda de red (KB/s)",
@@ -53,9 +60,19 @@
           "escritos"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Procesos"
+      }
     ]
   },
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Procesos"
   }
 }

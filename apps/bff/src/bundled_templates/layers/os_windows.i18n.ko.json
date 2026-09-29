@@ -4,22 +4,28 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU 합계 %"
       },
       {
         "label": "메모리 MB"
       },
       {
-        "label": "VMem %"
+        "label": "커밋됨 %"
       }
     ]
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "평균 CPU 사용률 (%)"
+        "title": "상태별 CPU(모든 코어 합계)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "RAM 메모리 (MB)",
@@ -31,12 +37,13 @@
       },
       {
         "id": "virtual_memory",
-        "title": "가상 메모리 (MB)",
+        "title": "커밋된 가상 메모리 (MB)",
         "expressionLabels": [
           "여유",
           "전체"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "네트워크 대역폭 (KB/s)",
@@ -53,9 +60,19 @@
           "written"
         ]
       }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "프로세스"
+      }
     ]
   },
   "slots": {
-    "services": "호스트"
+    "services": "호스트",
+    "instances": "프로세스"
   }
 }

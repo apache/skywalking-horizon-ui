@@ -4,7 +4,7 @@
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU totale %"
       },
       {
         "label": "Mémoire Mo"
@@ -19,9 +19,13 @@
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "Utilisation CPU moyenne (%)"
+        "title": "CPU par état"
       },
       {
         "id": "cpu_load",
@@ -32,6 +36,7 @@
           "15m"
         ]
       },
+      null,
       {
         "id": "filefd",
         "title": "FD de fichier alloués"
@@ -76,18 +81,25 @@
       },
       {
         "id": "network_status",
-        "title": "Statut réseau",
+        "title": "Connexions TCP",
         "expressionLabels": [
           "tcp établies",
-          "tcp time-wait",
-          "tcp allouées",
-          "sockets utilisés",
-          "udp en cours"
+          "tcp time-wait"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processes"
       }
     ]
   },
   "slots": {
-    "services": "Hôtes"
+    "services": "Hôtes",
+    "instances": "Processes"
   }
 }

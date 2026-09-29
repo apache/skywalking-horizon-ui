@@ -2,27 +2,34 @@
   "alias": "Windows",
   "group": "OS",
   "slots": {
-    "services": "Hosts"
+    "services": "Hosts",
+    "instances": "Processos"
   },
   "layer-header": {
     "columns": [
       {
-        "label": "CPU %"
+        "label": "CPU total %"
       },
       {
         "label": "Memória MB"
       },
       {
-        "label": "VMem %"
+        "label": "Confirmada %"
       }
     ]
   },
   "dashboards": {
     "service": [
+      null,
+      null,
+      null,
+      null,
       {
         "id": "cpu",
-        "title": "CPU média em uso (%)"
+        "title": "CPU por estado (soma de todos os núcleos)"
       },
+      null,
+      null,
       {
         "id": "memory",
         "title": "Memória RAM (MB)",
@@ -34,12 +41,13 @@
       },
       {
         "id": "virtual_memory",
-        "title": "Memória virtual (MB)",
+        "title": "Memória virtual confirmada (MB)",
         "expressionLabels": [
           "livre",
           "total"
         ]
       },
+      null,
       {
         "id": "network_bandwidth",
         "title": "Largura de banda de rede (KB/s)",
@@ -55,6 +63,15 @@
           "leitura",
           "escrita"
         ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      {
+        "id": "process_count_card",
+        "title": "Processos"
       }
     ]
   }
