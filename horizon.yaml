@@ -47,9 +47,9 @@ server:
   # Believe X-Forwarded-For for the client address? `false` records the direct
   # peer, which behind a proxy is the proxy — every audit row would name the
   # ingress. `true` is REFUSED at boot: it trusts the whole header, so any
-  # caller could choose the address recorded. Name the ingress address/CIDR
-  # instead (comma-separated for several). A hop count is refused too: it cannot
-  # tell the proxy from a direct caller, so Fastify ignores it. Restart-only.
+  # caller could choose the address recorded. Use a hop count (1 = one proxy in
+  # front) or the ingress address/CIDR, which cannot be over-counted.
+  # Restart-only.
   trustProxy: ${HORIZON_TRUST_PROXY:false}
 
 

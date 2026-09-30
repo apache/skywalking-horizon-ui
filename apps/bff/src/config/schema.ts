@@ -63,29 +63,28 @@ const serverSchema = z
      * `true` is REFUSED. It means "trust the whole header", so any caller can
      * choose the address Horizon records by sending one; the refinement below
      * rejects it rather than accepting a setting that quietly makes the column
-     * meaningless. Name the ingress addresses instead: Horizon trusts those and
-     * takes the first entry that is not one of them. A comma-separated list of
-     * addresses and CIDRs is accepted.
+     * meaningless. Use a hop count or the ingress addresses instead:
      *
-     * A hop count is REFUSED too. It cannot tell the proxy from a caller that
-     * reaches Horizon directly, so Fastify (≥ 5.12.1, GHSA-3m5p-2c4r-xxw2)
-     * treats any number as "trust nothing" — accepting it would record the
-     * ingress while the setting reads as though it did not.
+     *   number       the client is the Nth entry from the RIGHT of the header.
+     *                `@fastify/forwarded` builds the list as
+     *                `[socket peer, …X-Forwarded-For reversed]`, so the peer
+     *                counts as one of the N — with one proxy in front, `1`.
+     *                Too high is dangerous: once there is nothing left to
+     *                skip it falls back to the LEFTMOST entry, whatever the
+     *                caller sent.
+     *   addr/CIDR    trust these addresses and take the first entry that is
+     *                not one of them. A comma-separated list is accepted.
+     *                Cannot make the too-high mistake, so prefer it.
      *
      * Restart-only: Fastify is constructed once with this value.
      */
     trustProxy: z
-      .union([z.boolean(), z.number(), z.string()])
+      .union([z.boolean(), z.number().int().positive(), z.string()])
       .default(false)
-      .refine((v): v is boolean | string => typeof v !== 'number', {
-        message:
-          'A hop count cannot tell the proxy from a caller that reaches Horizon ' +
-          'directly, so Fastify ignores it. Name the ingress address or CIDR instead.',
-      })
       .refine((v) => v !== true, {
         message:
-          '`true` trusts the whole X-Forwarded-For header, so any caller can choose ' +
-          'the address Horizon records. Name the ingress address or CIDR instead.',
+          'server.trustProxy: true trusts the whole X-Forwarded-For header, so any caller can choose ' +
+          'the address Horizon records. Use a hop count (e.g. 1) or the ingress address/CIDR instead.',
       })
       // Fastify parses a string value as addresses and THROWS on anything that
       // is not one — `proxy.internal` takes the process down at construction,
@@ -97,7 +96,7 @@ const serverSchema = z
         (v) => typeof v !== 'string' || v.split(',').every((part) => isIpOrCidr(part.trim())),
         {
           message:
-            'Must be addresses/CIDRs — not a hostname. Fastify ' +
+            'server.trustProxy must be a hop count, or addresses/CIDRs — not a hostname. Fastify ' +
             'matches it against the peer address and refuses to start on anything it cannot parse.',
         },
       )
@@ -108,7 +107,7 @@ const serverSchema = z
         (v) => typeof v !== 'string' || !v.split(',').some((part) => matchesEveryAddress(part.trim())),
         {
           message:
-            'A /0 block trusts every address, which is what `true` does. Name ' +
+            'server.trustProxy: a /0 block trusts every address, which is what `true` does. Name ' +
             'the ingress address or its real prefix instead.',
         },
       ),

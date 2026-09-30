@@ -169,14 +169,8 @@ describe('server.trustProxy', () => {
     expect(() => server(true)).toThrow();
   });
 
-  /** Fastify ≥ 5.12.1 treats any number as "trust nothing", since a hop count
-   *  cannot tell the proxy from a direct caller — accepted, it would record the
-   *  ingress while reading as though it did not. */
-  it.each([1, 2])('refuses the hop count %s, which Fastify ignores', (value) => {
-    expect(() => server(value)).toThrow(/hop count/);
-  });
-
-  it('accepts an address list', () => {
+  it('accepts a hop count and an address list', () => {
+    expect(server(1)).toBe(1);
     expect(server('10.0.0.0/8')).toBe('10.0.0.0/8');
     expect(server('10.0.0.1,10.0.0.2')).toBe('10.0.0.1,10.0.0.2');
   });

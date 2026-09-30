@@ -221,17 +221,15 @@ There is no write permission and no delete: **the log is append and query.** Row
 
 By default Horizon records the address it is actually talking to, which behind an ingress or a load balancer is the proxy — so every row would name the same host.
 
-To record the real client, tell Horizon which addresses are your proxies, so it knows which `X-Forwarded-For` entries to trust:
+To record the real client, tell Horizon how far to trust `X-Forwarded-For`:
 
 ```yaml
 server:
-  trustProxy: "10.0.0.0/8"             # the addresses your ingress connects from
-  # trustProxy: "10.0.0.5,10.0.0.6"    # or: a comma-separated list
+  trustProxy: 1              # one proxy in front of Horizon
+  # trustProxy: "10.0.0.0/8" # or: the addresses you own
 ```
 
-Horizon walks the header from the right, skips every address you listed, and records the first one that is not yours. Give addresses or CIDR blocks; a hostname is refused, because the match runs against the address that actually connected.
-
-**A hop count is refused.** A number such as `1` cannot tell your proxy from a caller that reaches Horizon directly and sends a forged header, so the HTTP server ignores it — Horizon rejects it at startup rather than record the proxy while the setting says otherwise.
+A **number** counts hops from the right of the header, and Horizon's own peer counts as one — so a single ingress is `1`. Setting it too high is dangerous: once there is nothing left to skip, the leftmost value wins, and that one is whatever the caller sent. An **address or CIDR** cannot make that mistake, because it stops at the first address you do not own; prefer it when you know your ingress range.
 
 **`true` is refused.** It means "trust the whole header", so any caller could choose the address Horizon writes down — and an address column that looks authoritative while being attacker-chosen is worse than no column at all.
 
