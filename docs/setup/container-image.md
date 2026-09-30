@@ -14,8 +14,10 @@ Registry: **GitHub Container Registry (GHCR)** at `ghcr.io/apache/skywalking-hor
 | `latest` | The newest released version. Moves. | Demos / dev only — do not pin production to `latest`. |
 | `main` | Head of `main`. Moves on every merge. | Smoke-test the development branch. |
 
+In the examples on this page, replace `<version>` with the release you run.
+
 ```sh
-docker pull ghcr.io/apache/skywalking-horizon-ui:1.0.0
+docker pull ghcr.io/apache/skywalking-horizon-ui:<version>
 docker pull ghcr.io/apache/skywalking-horizon-ui:<sha>
 ```
 
@@ -129,7 +131,7 @@ docker run -d --name horizon \
   -p 8081:8081 \
   -e NODE_OPTIONS=--max-old-space-size=1536 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
-  ghcr.io/apache/skywalking-horizon-ui:1.0.0
+  ghcr.io/apache/skywalking-horizon-ui:<version>
 ```
 
 ## How to load `horizon.yaml` into the container
@@ -145,7 +147,7 @@ docker run -d \
   --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
-  ghcr.io/apache/skywalking-horizon-ui:1.0.0
+  ghcr.io/apache/skywalking-horizon-ui:<version>
 ```
 
 Notes:
@@ -158,7 +160,7 @@ Notes:
 For immutable single-tenant deployments, build a child image that includes your config:
 
 ```dockerfile
-FROM ghcr.io/apache/skywalking-horizon-ui:1.0.0
+FROM ghcr.io/apache/skywalking-horizon-ui:<version>
 COPY horizon.yaml /app/horizon.yaml
 ```
 
@@ -226,7 +228,7 @@ spec:
         fsGroup: 101
       containers:
         - name: horizon
-          image: ghcr.io/apache/skywalking-horizon-ui:1.0.0
+          image: ghcr.io/apache/skywalking-horizon-ui:<version>
           ports:
             - containerPort: 8081
           envFrom:
@@ -272,7 +274,7 @@ docker run -d --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
   -v horizon-state:/data \
-  ghcr.io/apache/skywalking-horizon-ui:1.0.0
+  ghcr.io/apache/skywalking-horizon-ui:<version>
 ```
 
 Without a mounted volume the writes still land in the container's writable layer at `/data/` (ephemeral, but at least non-failing). Mounting a volume is what makes them durable.
