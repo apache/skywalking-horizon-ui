@@ -63,6 +63,35 @@ file_has() {
     grep -F -q -- "$2" "$1"
 }
 
+# pack_tar <parent-dir> <tarball> <entry>
+# macOS tar stores each file's extended attributes (com.apple.provenance is on
+# anything git or cp wrote) as a `._` AppleDouble entry beside the file, plus
+# pax xattr headers. GNU tar unpacks those entries as real files, and on Linux
+# node-gyp-build then loads `._argon2.glibc.node` as argon2's native module, so
+# the binary tarball does not boot. COPYFILE_DISABLE drops the `._` entries,
+# --no-xattrs the headers; GNU tar accepts both.
+pack_tar() {
+    COPYFILE_DISABLE=1 tar --no-xattrs -C "$1" -czf "$2" "$3"
+}
+
+# Fails when a tarball carries a `._` entry. macOS tar folds those entries into
+# the file they describe when it LISTS an archive, so a plain `tar -t` on the
+# release machine shows none; `tar:!mac-ext` lists them as stored.
+assert_no_mac_metadata() {
+    local listing
+    if tar --version 2>/dev/null | grep -q bsdtar; then
+        listing=$(tar --options 'tar:!mac-ext' -tzf "$1")
+    else
+        listing=$(tar -tzf "$1")
+    fi
+    # A here-string, not a pipe: `grep -q` exits on the first match, and under
+    # pipefail the writer's SIGPIPE would turn that match into a failed test.
+    if grep -qE '(^|/)\._' <<< "${listing}"; then
+        err "$(basename "$1") carries macOS metadata (._ entries) — it would not boot on Linux."
+        exit 1
+    fi
+}
+
 # ========================== Step 1: GPG signer ==========================
 note "Step 1 — GPG signer check"
 
@@ -150,12 +179,13 @@ if [ "${CURRENT_VERSION}" = "${RELEASE_VERSION}" ]; then
     err "main should carry the dev-suffixed version between releases — bump it before running this script."
     exit 1
 fi
-# Proposed next version: the next minor. Computed in a pipeline on purpose —
-# nothing derived from the version may survive as a variable across the prompt
-# below, where the operator can replace RELEASE_VERSION. Anything split out up
-# here (MAJOR / MINOR / …) would still describe the rejected version and be
-# read as current further down.
-NEXT_RELEASE_VERSION=$(echo "$RELEASE_VERSION" | awk -F. '{ printf "%d.%d.0", $1, $2 + 1 }')
+# Proposed next version: the next minor — or, for a patch release (X.Y.Z with
+# Z > 0, cut from its own X.Y.x branch), the next patch on that line. Computed
+# in a pipeline on purpose — nothing derived from the version may survive as a
+# variable across the prompt below, where the operator can replace
+# RELEASE_VERSION. Anything split out up here (MAJOR / MINOR / …) would still
+# describe the rejected version and be read as current further down.
+NEXT_RELEASE_VERSION=$(echo "$RELEASE_VERSION" | awk -F. '{ if ($3 > 0) printf "%d.%d.%d", $1, $2, $3 + 1; else printf "%d.%d.0", $1, $2 + 1 }')
 
 echo "Current (in package.json): ${CURRENT_VERSION}"
 echo "Release:                   ${RELEASE_VERSION}"
@@ -368,7 +398,7 @@ SRC_STAGE_NAME="${PRODUCT_NAME}-${RELEASE_VERSION}-src"
 # files at the release tag — no .git, no node_modules, no dist, no editor
 # leftovers (git archive emits only tracked files, which excludes all of
 # those by .gitignore). We stage via `git archive` (portable — git does the
-# archiving) then repackage with plain `tar`, so this works the same on
+# archiving) then repackage with `pack_tar`, so this works the same on
 # macOS (bsdtar) and Linux (GNU tar). GNU-only `--transform` is avoided;
 # the tarball's top-level dir comes from `--prefix`.
 rm -rf "${WORK_DIR}/${SRC_STAGE_NAME}"
@@ -382,7 +412,7 @@ rm -f "${WORK_DIR}/${SRC_STAGE_NAME}/.github/workflows/publish-image.yaml"
 # artifact only; it is never committed to git.
 cp "${WORK_DIR}/${SRC_STAGE_NAME}/docs/changelog/${RELEASE_VERSION}.md" \
    "${WORK_DIR}/${SRC_STAGE_NAME}/CHANGELOG.md"
-tar -C "${WORK_DIR}" -czf "${SRC_TAR}" "${SRC_STAGE_NAME}"
+pack_tar "${WORK_DIR}" "${SRC_TAR}" "${SRC_STAGE_NAME}"
 
 echo "Source tarball: ${SRC_TAR}"
 
@@ -417,12 +447,16 @@ cp "${CLONE_DIR}/README.md"    "${BIN_STAGE}/README.md"
 # Do NOT overwrite.
 
 BIN_TAR="${WORK_DIR}/${PRODUCT_NAME}-${RELEASE_VERSION}-bin.tar.gz"
-tar -C "${WORK_DIR}" -czf "${BIN_TAR}" "${PRODUCT_NAME}-${RELEASE_VERSION}-bin"
+pack_tar "${WORK_DIR}" "${BIN_TAR}" "${PRODUCT_NAME}-${RELEASE_VERSION}-bin"
 
 echo "Binary tarball: ${BIN_TAR}"
 
-# ========================== Step 11: Compare LICENSE/NOTICE in tarballs ==========================
-note "Step 11 — Verify LICENSE/NOTICE in src + bin tarballs"
+# ========================== Step 11: Verify src + bin tarballs ==========================
+note "Step 11 — Verify src + bin tarballs (macOS metadata, LICENSE/NOTICE)"
+
+assert_no_mac_metadata "${SRC_TAR}"
+assert_no_mac_metadata "${BIN_TAR}"
+echo "No macOS metadata in either tarball."
 
 # Both tarballs must carry a LICENSE and NOTICE at their root, and the
 # binary version must be the expanded one (contains the "Subcomponents"
