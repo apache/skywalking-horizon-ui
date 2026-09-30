@@ -211,9 +211,7 @@ There is **no raw-JSON editor on these pages.** Never tell the reader to "edit t
 
 ### 3. Don't hardcode the Horizon version
 
-The website serves these docs **pinned per release**, so a version string in the body is redundant and silently goes stale on the next release. By default, write version-neutral: use a `<version>` placeholder in install commands, or phrase around it. State a concrete version only when the content is genuinely version-specific (a compatibility note, or a "new in X" call-out you deliberately want pinned).
-
-The **one maintained exception** is `docs/setup/container-image.md`: its image tags track the current release and are advanced automatically by the release tooling — leave them as concrete versions.
+The website serves these docs **pinned per release**, so a version string in the body is redundant and silently goes stale on the next release. By default, write version-neutral: use a `<version>` placeholder in install commands, or phrase around it. State a concrete version only when the content is genuinely version-specific (a compatibility note, or a "new in X" call-out you deliberately want pinned). Image tags are no exception — `ghcr.io/apache/skywalking-horizon-ui:<version>` — and the release tooling does not rewrite any doc.
 
 ### 4. Other house rules
 

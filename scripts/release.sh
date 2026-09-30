@@ -241,25 +241,11 @@ for pj in package.json packages/api-client/package.json packages/design-tokens/p
 done
 check_file_has_version "apps/bff/src/server.ts" "'${CURRENT_VERSION}'"
 
-# Docs normally reference the last released image tag on main, then the
-# release commit advances them to the new tag. If the docs were already
-# prepared for the release version, accept that too.
-PRIOR_RELEASE=$(cd "${PROJECT_DIR}" && git tag --list 'v*' --sort=-version:refname | head -1 | sed 's/^v//')
-if [ -z "${PRIOR_RELEASE}" ]; then
-    err "No prior release tag (vX.Y.Z) found. Tag the first release manually before using this script."
-    exit 1
-fi
-if ! file_has "${PROJECT_DIR}/docs/setup/container-image.md" "ghcr.io/apache/skywalking-horizon-ui:${PRIOR_RELEASE}" &&
-   ! file_has "${PROJECT_DIR}/docs/setup/container-image.md" "ghcr.io/apache/skywalking-horizon-ui:${RELEASE_VERSION}"; then
-    err "docs/setup/container-image.md must reference either prior image tag ${PRIOR_RELEASE} or release tag ${RELEASE_VERSION}."
-    CONSISTENT=false
-fi
-
 if ! $CONSISTENT; then
     err "Version drift across files. Fix before continuing."
     exit 1
 fi
-echo "Code markers all at ${CURRENT_VERSION}; container docs are release-check compatible."
+echo "Code markers all at ${CURRENT_VERSION}."
 
 # ========================== Step 5: Release-file check ==========================
 note "Step 5 — Release-file check"
@@ -294,7 +280,7 @@ if [ "${CLONE_VERSION}" != "${CURRENT_VERSION}" ]; then
     exit 1
 fi
 
-# ========================== Step 8: Strip -dev, advance docs, commit, tag ==========================
+# ========================== Step 8: Strip -dev, commit, tag ==========================
 note "Step 8 — Prepare release commit + tag ${TAG}"
 
 cd "${CLONE_DIR}"
@@ -333,12 +319,7 @@ for (const f of files) {
 sed -i.bak "s/'${CURRENT_VERSION}'/'${RELEASE_VERSION}'/g" apps/bff/src/server.ts
 rm apps/bff/src/server.ts.bak
 
-# Advance docs from the prior release tag to the new one so the image
-# tag references in the release tarball match the release being cut.
-sed -i.bak "s|ghcr.io/apache/skywalking-horizon-ui:${PRIOR_RELEASE}|ghcr.io/apache/skywalking-horizon-ui:${RELEASE_VERSION}|g" docs/setup/container-image.md
-rm docs/setup/container-image.md.bak
-
-git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts docs/setup/container-image.md
+git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts
 git commit -m "Prepare release ${RELEASE_VERSION}"
 
 if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
@@ -666,10 +647,6 @@ for (const f of files) {
 sed -i.bak "s/'${RELEASE_VERSION}'/'${NEXT_DEV_VERSION}'/g" apps/bff/src/server.ts
 rm apps/bff/src/server.ts.bak
 
-# Container-image docs already point at ${RELEASE_VERSION} (the release
-# commit just bumped them). They stay there — docs always reference the
-# last released tag, not the in-flight dev version.
-
 # Open the next cycle: an empty docs/changelog/${NEXT_RELEASE_VERSION}.md plus
 # its docs/menu.yml entry. The released version's file is not touched.
 node "${CLONE_DIR}/scripts/changelog-version.mjs" seed "${NEXT_RELEASE_VERSION}" --repo-root "${CLONE_DIR}"
@@ -683,9 +660,8 @@ gh pr create --title "Release ${RELEASE_VERSION}, bump to ${NEXT_DEV_VERSION}" \
 Release branch for ${RELEASE_VERSION}. Two commits:
 
 1. \`Prepare release ${RELEASE_VERSION}\` — strips \`-dev\` from every package
-   marker + \`apps/bff/src/server.ts\`; advances container-image docs to
-   \`${RELEASE_VERSION}\`. Tagged \`${TAG}\` (the release-candidate commit the
-   vote runs against).
+   marker + \`apps/bff/src/server.ts\`. Tagged \`${TAG}\` (the
+   release-candidate commit the vote runs against).
 2. \`Prepare next release ${NEXT_DEV_VERSION}\` — bumps every marker to
    \`${NEXT_DEV_VERSION}\` and seeds \`docs/changelog/${NEXT_RELEASE_VERSION}.md\`
    (with its \`docs/menu.yml\` entry) for the next cycle.
