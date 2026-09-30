@@ -110,6 +110,7 @@ import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
 import { SECURITY_HEADERS, API_CACHE_CONTROL, isApiPath } from './util/security-headers.js';
+import { toFastifyTrustProxy } from './util/trust-proxy.js';
 import { createAuditService } from './store/audit/index.js';
 import { registerAuditRoutes } from './http/admin/audit.js';
 
@@ -210,7 +211,7 @@ source.onChange((cfg) => {
 // documented restart-required list beside the listener.
 const app = Fastify({
   logger: loggerOptions,
-  trustProxy: source.current.server.trustProxy,
+  trustProxy: toFastifyTrustProxy(source.current.server.trustProxy),
 });
 
 app.setErrorHandler((err, req, reply) => {
