@@ -55,3 +55,14 @@ github:
         # Drop stale approvals when a PR gets new commits, so a reviewer's
         # LGTM doesn't carry over to code they haven't seen.
         dismiss_stale_reviews: true
+    # Patch line for 1.0.x releases, gated like main. Branch names are exact —
+    # .asf.yaml takes no patterns, so each release line is listed on its own.
+    1.0.x:
+      required_status_checks:
+        strict: true
+        contexts:
+          - Required
+          - E2E Required
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
