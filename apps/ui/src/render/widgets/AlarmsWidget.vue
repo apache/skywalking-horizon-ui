@@ -46,7 +46,7 @@ import {
 import { useOapInfo } from '@/shell/useOapInfo';
 import { canonicalLayerKey } from '@/state/verbGrammar';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
-import { alarmLayerKeys, alarmOwnerKeys, mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
+import { alarmLayerKeys, alarmOwners, mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -57,8 +57,8 @@ const props = withDefaults(
     /** Top-N cap; defaults to 10. The BFF still fetches up to 500 so
      *  the "total" count is meaningful even when only N rows render. */
     limit?: number;
-    /** Overview's layer (`GENERAL`, `MESH`, …), or a split menu entry's
-     *  `GENERAL~payments` for one service group. The BFF filters by it in
+    /** Overview's layer (`GENERAL`, `MESH`, …), or one service group of it,
+     *  `GENERAL[payments]`. The BFF filters by it in
      *  new-API mode; legacy mode filters the fetched rows here. */
     layer?: string;
   }>(),
@@ -162,8 +162,8 @@ const alarms = computed<AlarmMessage[]>(() => (readFailed.value ? [] : alarmsQue
 const truncated = computed<boolean>(() => !readFailed.value && (alarmsQuery.data.value?.truncated ?? false));
 
 /* In legacy mode the BFF can't server-side-filter by layer, but every
- * row already carries `layerKeys` and `ownerKeys` (its services' layers
- * and `LAYER~group` pairs, from the server-global service-layer catalog).
+ * row already carries `layerKeys` and `owners` (its services' layers
+ * and layer-and-group pairs, from the server-global service-layer catalog).
  * Filter client-side, by the same rule as the BFF, so the widget shows
  * only the layer or group the dashboard is scoped to. A row no known
  * service owns drops out silently; it can't be confidently attributed to
@@ -172,8 +172,10 @@ const truncated = computed<boolean>(() => !readFailed.value && (alarmsQuery.data
 const layerPin = computed<AlarmPin | null>(() => (props.layer ? layerFilterPin(props.layer, canonicalLayerKey) : null));
 const layerScoped = computed<AlarmMessage[]>(() => {
   const pin = layerPin.value;
+  // A layer that names no pin shows nothing, never every layer's alarms.
+  if (props.layer && !pin) return [];
   if (hasQueryAlarms.value || !pin) return alarms.value;
-  return alarms.value.filter((a) => alarmPinMatches(pin, { layerKeys: alarmLayerKeys(a), ownerKeys: alarmOwnerKeys(a) }));
+  return alarms.value.filter((a) => alarmPinMatches(pin, { layerKeys: alarmLayerKeys(a), owners: alarmOwners(a) }));
 });
 
 /* Counts use `mergeIncidents` (group by (entity, rule); active iff

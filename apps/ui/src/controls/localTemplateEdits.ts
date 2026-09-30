@@ -34,6 +34,7 @@
  */
 
 import { ref, computed, type ComputedRef } from 'vue';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 const STORAGE_KEY = 'horizon:localTemplateEdits:v1';
 
@@ -60,9 +61,10 @@ function persist(): void {
   }
 }
 
-/** Canonical name builders — match the sync layer's `horizon.<kind>.<key>`. */
+/** Canonical name builders — match the sync layer's `horizon.<kind>.<key>`.
+ *  A template is its layer's, whichever of a split layer's entries asks. */
 export function layerEditName(key: string): string {
-  return `horizon.layer.${key.toUpperCase()}`;
+  return `horizon.layer.${parseEntryKey(key).layer.toUpperCase()}`;
 }
 /** The inverse of {@link layerEditName} — `null` for a name of another
  *  kind, so a caller iterating every stored row can filter by it. */

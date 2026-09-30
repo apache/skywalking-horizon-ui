@@ -49,6 +49,7 @@ import {
 } from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
 
 export interface EventsRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -273,8 +274,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
         events = await req.access.keepReadable(['events:read'], res.events, (e) => ({ name: e.source?.service ?? '' }));
       } catch (err) {
         if (!(err instanceof ServiceLookupUnavailable)) throw err;
-        const empty = { generatedAt: Date.now(), query: body, pageNum, pageSize, hasNext: false, events: [] };
-        return reply.send({ ...empty, reachable: false, error: err.message } satisfies EventsResponse);
+        return ownershipUnavailable(reply);
       }
     }
     return reply.send({

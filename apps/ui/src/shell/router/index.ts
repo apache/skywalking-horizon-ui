@@ -14,21 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { createRouter, createWebHistory, type RouteComponent, type RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '@/state/auth';
 import { pushEvent } from '@/controls/eventLog';
 import { setPreviewMode, usePreviewMode, getPreviewSource } from '@/controls/previewMode';
+import { entryKey, groupOfSegment } from '@/utils/layerRoute';
 
 const placeholder = () => import('@/shell/PlaceholderView.vue');
 
-// Layer sub-routes nest under a single LayerShell route so every tab
-// shares the header KPI strip + cap-driven tab navigation. The shell
-// reads `:layerKey` from the URL and pulls layer config / live data.
-// Sub-route components fill the tab body via a nested router-view; the
-// canonical landing is `/service`.
+// Layer sub-routes nest under LayerShell so every tab shares the header KPI
+// strip. A group entry of a layer split by service group adds a `:group`
+// segment, `/layer/general/payments/topology`; the layer's own URLs are the
+// services with no group (see utils/layerRoute.ts). Each tab route names its
+// menu row in `meta.layerRow`, which is what code asks instead of reading the
+// path: the path's segments are a group, a tab, `page` or a page id only by
+// position.
+
 /**
- * The default grid for an entity component plus its extension pages —
- * `/layer/:layerKey/service` and `/layer/:layerKey/service/:pageId`.
+ * The default grid for an entity component plus its sub pages —
+ * `…/service` and `…/service/page/:pageId`.
  *
  * Both records point at the same view and carry the scope in `meta`, so
  * the view reads which component it renders instead of deriving it from
@@ -37,124 +41,97 @@ const placeholder = () => import('@/shell/PlaceholderView.vue');
  */
 function entityDashboardRoutes(scope: 'service' | 'instance' | 'endpoint'): RouteRecordRaw[] {
   const component = () => import('@/render/layer-dashboard/LayerDashboardsView.vue');
+  const meta = { dashboardScope: scope, layerRow: scope };
   return [
-    { path: scope, component, meta: { dashboardScope: scope } },
-    { path: `${scope}/:pageId`, component, meta: { dashboardScope: scope } },
+    { path: scope, component, meta },
+    { path: `${scope}/page/:pageId`, component, meta },
   ];
 }
 
-function layerRoute(): RouteRecordRaw {
-  return {
-    path: 'layer/:layerKey',
-    component: () => import('@/layer/LayerShell.vue'),
-    children: [
-      // No redirect here: which sub-page a layer lands on depends on the
-      // layer's resolved rows, which the router cannot see. `LayerShell`
-      // owns it — see the bare-path branch of its route watcher.
-      { path: '', component: () => import('@/layer/LayerLanding.vue') },
-      // Same view component, scope inferred from the URL — widget set
-      // differs per scope via the JSON template's `dashboards.<scope>` array.
-      // Scope travels in `meta`, not in the URL shape. The view used to
-      // infer it by testing whether the path ENDED WITH a known segment,
-      // which a second segment breaks: `/layer/K/instance/runtime` matches
-      // nothing and would fall through to `service`, querying Service
-      // metrics on an Instance page and rendering a plausible wrong grid.
-      ...entityDashboardRoutes('service'),
-      ...entityDashboardRoutes('instance'),
-      ...entityDashboardRoutes('endpoint'),
-      {
-        path: 'topology',
-        component: () => import('@/layer/service-map/LayerTopologyTab.vue'),
-        // The page owns its own in-box service-focus selector, so
-        // `ownsServiceSelector` keeps the LayerShell header picker hidden
-        // for this route — no route-string sniffing in the shell.
-        meta: { ownsServiceSelector: true },
-      },
-      { path: 'dependency', component: () => import('@/layer/endpoint-dependency/LayerEndpointDependencyView.vue') },
-      // Service-scoped, so it deliberately does NOT set
-      // `ownsServiceSelector`: the shell's Service header picker stays
-      // visible and the view reads `useSelectedService`.
-      { path: 'deployment', component: () => import('@/layer/service-map/LayerDeploymentView.vue') },
-      // `LayerTracesEntry` is a runtime dispatcher: it inspects the
-      // layer template's `traces.source` and renders either the native
-      // trace view or the Zipkin one. Both views read the shell-level
-      // service selection via `useSelectedService`, so `ownsServiceSelector`
-      // stays OFF and the LayerShell Switch picker stays visible.
-      { path: 'trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
-      // Second trace tab — only surfaced when the layer's `traces.source`
-      // is `both`. Native + Zipkin spans differ in format and query
-      // conditions, so they get separate tabs rather than an in-tab toggle.
-      // The entry component renders the Zipkin view for this path regardless.
-      { path: 'zipkin-trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
-      // One row per trace store, so the route names the store outright rather
-      // than a dispatcher inferring it from the layer's configuration.
-      { path: 'traceql-native-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
-      { path: 'traceql-zipkin-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
-      { path: 'traceql-otlp-trace', component: () => import('@/layer/traceql/LayerTraceQLView.vue') },
-      { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
-      // Owns its provider picker: the view draws it from the `logs:read`
-      // evaluation catalog so a logs-only role can pick a provider, where the
-      // shell's picker needs the metrics roster.
-      { path: 'evaluation-record', component: () => import('@/layer/evaluation-record/LayerEvaluationRecordView.vue'), meta: { verb: 'logs:read', ownsServiceSelector: true } },
-      // BROWSER-layer JS error logs + source-map de-obfuscation (#6784).
-      { path: 'browser-errors', component: () => import('@/layer/browser-errors/LayerBrowserErrorsView.vue') },
-      // On-demand pod logs (live tail). Instance-pinned; only K8s-
-      // deployed layers (caps.podLogs) surface the tab in the sidebar.
-      { path: 'pod-logs', component: () => import('@/layer/pod-logs/LayerPodLogsView.vue') },
-      // AI agent conversations (AI_AGENT layer). The runtime is the shell's
-      // service picker, like every other record tab; the tab owns its time
-      // range and its sender filter.
-      { path: 'conversations', component: () => import('@/layer/ai-conversation/LayerConversationsView.vue') },
-      { path: 'trace-profiling', component: () => import('@/layer/profiling/LayerTraceProfilingView.vue') },
-      { path: 'ebpf-profiling', component: () => import('@/layer/profiling/LayerEBPFProfilingView.vue') },
-      { path: 'async-profiling', component: () => import('@/layer/profiling/LayerAsyncProfilingView.vue') },
-      { path: 'network-profiling', component: () => import('@/layer/profiling/LayerNetworkProfilingView.vue') },
-      { path: 'pprof', component: () => import('@/layer/profiling/LayerPprofProfilingView.vue') },
-      // Continuous-profiling POLICIES — the auto-trigger rules behind the eBPF
-      // and Network tabs above. Same agent, same three targets; gated by the
-      // layer template's `continuousProfiling` component flag.
-      {
-        path: 'continuous-profiling',
-        component: () => import('@/layer/continuous-profiling/LayerContinuousProfilingView.vue'),
-        // The page carries its own Target service picker — the policy is defined
-        // against a service, so the choice belongs where the rules are.
-        meta: { ownsServiceSelector: true },
-      },
-      // Old single-profiling URL → redirect to the trace-profiling page
-      // for back-compat with bookmarks taken before the split.
-      {
-        path: 'profiling',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/trace-profiling`, query: to.query }),
-      },
-      // Legacy routes redirect to /service.
-      {
-        path: 'services',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
-      },
-      {
-        // Service id is no longer URL-pinned (picked on landing), so the
-        // legacy /services/<id> form forwards to the bare service tab.
-        path: 'services/:serviceId',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }),
-      },
-      {
-        path: 'dashboards',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
-      },
-      {
-        path: 'instances',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/instance`, query: to.query }),
-      },
-      {
-        path: 'endpoints',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/endpoint`, query: to.query }),
-      },
-      {
-        path: 'traces',
-        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/trace`, query: to.query }),
-      },
-    ],
-  };
+function tab(path: string, component: RouteComponent, meta: Record<string, unknown> = {}): RouteRecordRaw {
+  return { path, component, meta: { ...meta, layerRow: path } };
+}
+
+function layerChildren(): RouteRecordRaw[] {
+  const traceql = () => import('@/layer/traceql/LayerTraceQLView.vue');
+  const traces = () => import('@/layer/traces/LayerTracesEntry.vue');
+  return [
+    // No redirect here: which sub-page a layer lands on depends on the
+    // layer's resolved rows, which the router cannot see. `LayerShell`
+    // owns it, through `entryRedirect` in `layer/entryRoute.ts`.
+    { path: '', component: () => import('@/layer/LayerLanding.vue') },
+    ...entityDashboardRoutes('service'),
+    ...entityDashboardRoutes('instance'),
+    ...entityDashboardRoutes('endpoint'),
+    // The page owns its own in-box service-focus selector, so
+    // `ownsServiceSelector` keeps the LayerShell header picker hidden
+    // for this route — no route-string sniffing in the shell.
+    tab('topology', () => import('@/layer/service-map/LayerTopologyTab.vue'), { ownsServiceSelector: true }),
+    tab('dependency', () => import('@/layer/endpoint-dependency/LayerEndpointDependencyView.vue')),
+    // Service-scoped, so it deliberately does NOT set
+    // `ownsServiceSelector`: the shell's Service header picker stays
+    // visible and the view reads `useSelectedService`.
+    tab('deployment', () => import('@/layer/service-map/LayerDeploymentView.vue')),
+    // `LayerTracesEntry` is a runtime dispatcher: it inspects the
+    // layer template's `traces.source` and renders either the native
+    // trace view or the Zipkin one. Both views read the shell-level
+    // service selection via `useSelectedService`, so `ownsServiceSelector`
+    // stays OFF and the LayerShell Switch picker stays visible.
+    tab('trace', traces),
+    // Second trace tab — only surfaced when the layer's `traces.source`
+    // is `both`. Native + Zipkin spans differ in format and query
+    // conditions, so they get separate tabs rather than an in-tab toggle.
+    // The entry component renders the Zipkin view for this path regardless.
+    tab('zipkin-trace', traces),
+    // One row per trace store, so the route names the store outright rather
+    // than a dispatcher inferring it from the layer's configuration.
+    tab('traceql-native-trace', traceql),
+    tab('traceql-zipkin-trace', traceql),
+    tab('traceql-otlp-trace', traceql),
+    tab('logs', () => import('@/layer/logs/LayerLogsView.vue')),
+    // Owns its provider picker: the view draws it from the `logs:read`
+    // evaluation catalog so a logs-only role can pick a provider, where the
+    // shell's picker needs the metrics roster.
+    tab('evaluation-record', () => import('@/layer/evaluation-record/LayerEvaluationRecordView.vue'), {
+      verb: 'logs:read',
+      ownsServiceSelector: true,
+    }),
+    // BROWSER-layer JS error logs + source-map de-obfuscation (#6784).
+    tab('browser-errors', () => import('@/layer/browser-errors/LayerBrowserErrorsView.vue')),
+    // On-demand pod logs (live tail). Instance-pinned; only K8s-
+    // deployed layers (caps.podLogs) surface the tab in the sidebar.
+    tab('pod-logs', () => import('@/layer/pod-logs/LayerPodLogsView.vue')),
+    // AI agent conversations (AI_AGENT layer). The runtime is the shell's
+    // service picker, like every other record tab; the tab owns its time
+    // range and its sender filter.
+    tab('conversations', () => import('@/layer/ai-conversation/LayerConversationsView.vue')),
+    tab('trace-profiling', () => import('@/layer/profiling/LayerTraceProfilingView.vue')),
+    tab('ebpf-profiling', () => import('@/layer/profiling/LayerEBPFProfilingView.vue')),
+    tab('async-profiling', () => import('@/layer/profiling/LayerAsyncProfilingView.vue')),
+    tab('network-profiling', () => import('@/layer/profiling/LayerNetworkProfilingView.vue')),
+    tab('pprof', () => import('@/layer/profiling/LayerPprofProfilingView.vue')),
+    // Continuous-profiling POLICIES — the auto-trigger rules behind the eBPF
+    // and Network tabs above. Same agent, same three targets; gated by the
+    // layer template's `continuousProfiling` component flag. The page
+    // carries its own Target service picker — the policy is defined against
+    // a service, so the choice belongs where the rules are.
+    tab('continuous-profiling', () => import('@/layer/continuous-profiling/LayerContinuousProfilingView.vue'), {
+      ownsServiceSelector: true,
+    }),
+  ];
+}
+
+export function layerRoutes(): RouteRecordRaw[] {
+  const shell = () => import('@/layer/LayerShell.vue');
+  return [
+    {
+      path: 'layer/:layerKey',
+      component: shell,
+      children: layerChildren(),
+    },
+    // Any path neither route knows falls through to the app's not-found page.
+    { path: 'layer/:layerKey/:group', component: shell, children: layerChildren() },
+  ];
 }
 
 const shellRoutes: RouteRecordRaw[] = [
@@ -171,12 +148,7 @@ const shellRoutes: RouteRecordRaw[] = [
    * configured dashboards. Same component as `/`, distinguished by
    * route name. */
   { path: 'landing-empty', name: 'landing-empty', component: () => import('@/render/overview/OverviewLanding.vue') },
-  /* Legacy `/setup` route — the read-only "Overview dashboards"
-   * browser was replaced by `/admin/overview-templates` which both
-   * lists AND edits. Redirect rather than 404 so old bookmarks /
-   * stale links land somewhere useful. */
-  { path: 'setup', redirect: '/admin/overview-templates' },
-  layerRoute(),
+  ...layerRoutes(),
   // Alarms — independent page (not a layer template / overview).
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
@@ -448,8 +420,15 @@ router.beforeEach(async (to) => {
   // the BFF can't gate per-page).
   const requiredVerb = to.meta.verb as string | undefined;
   // A layer sub-page asks on its own layer, so a `verb@LAYER` grant opens it.
-  const layerKey = typeof to.params.layerKey === 'string' ? to.params.layerKey : null;
-  const allowed = !requiredVerb || (layerKey ? auth.hasVerbOnLayer(requiredVerb, layerKey) : auth.hasVerb(requiredVerb));
+  // Without a group segment the URL may still be a split layer's ungrouped
+  // entry, which only the menu can tell; the BFF checks the group either way.
+  const layer = typeof to.params.layerKey === 'string' ? to.params.layerKey : null;
+  const group = typeof to.params.group === 'string' ? to.params.group : undefined;
+  const allowed =
+    !requiredVerb ||
+    (layer
+      ? auth.hasVerbOnLayer(requiredVerb, entryKey({ layer, group: group === undefined ? undefined : groupOfSegment(group) }))
+      : auth.hasVerb(requiredVerb));
   if (auth.isAuthenticated && !allowed) {
     return { path: '/' };
   }

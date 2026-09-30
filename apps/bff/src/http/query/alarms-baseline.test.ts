@@ -17,8 +17,9 @@
 
 /**
  * OAP evaluates an alarm rule's `baseline(...)` by the service NAME alone and
- * keeps the values in the alarm's snapshot. A caller limited to some groups
- * sees those values only when every service of that name is one it may read.
+ * keeps the values in the alarm's snapshot. The snapshot is part of the alarm,
+ * not a metric read: a caller who may see the alarm gets it whole, whatever
+ * else carries that name.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -110,20 +111,20 @@ describe('an alarm whose rule reads a baseline', () => {
     expect(body.msgs[0]!.snapshot.metrics).toHaveLength(1);
   });
 
-  it('withholds them from an instance alarm, whose lookup name is not a service\'s', async () => {
+  it('keeps them on an instance alarm the caller may see', async () => {
     scope = 'ServiceInstance';
     try {
       const { body } = await alarmsFor(false);
-      expect(body.msgs[0]!.snapshot.metrics).toEqual([]);
+      expect(body.msgs[0]!.snapshot.metrics).toHaveLength(1);
     } finally {
       scope = 'Service';
     }
   });
 
-  it('withholds them when a namesake is outside the grant, and keeps the alarm', async () => {
+  it('keeps them when a namesake is outside the grant: the alarm decides, not the name', async () => {
     const { status, body } = await alarmsFor(true);
     expect(status).toBe(200);
     expect(body.msgs).toHaveLength(1);
-    expect(body.msgs[0]!.snapshot.metrics).toEqual([]);
+    expect(body.msgs[0]!.snapshot.metrics).toHaveLength(1);
   });
 });

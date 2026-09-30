@@ -24,6 +24,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
 import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 /** `bff.continuousProfiling` — the auto-trigger policies behind
  *  continuous profiling (as opposed to the on-demand profiling tasks). */
@@ -55,18 +56,20 @@ export class ContinuousProfilingApi {
    *
    *  `targets: null` means OAP would not answer for that service. It is NOT the
    *  same as `[]` ("armed nothing"), and callers must not filter or label the
-   *  two the same way. */
-  policySummary(layer: string): Promise<{
+   *  two the same way.
+   *
+   *  `layerKey` may be a split layer's entry key; its group narrows the
+   *  services to that group's. */
+  policySummary(layerKey: string): Promise<{
     services: Array<{ id: string; name: string; targets: ContinuousProfilingTargetType[] | null }>;
     checked: number;
     total: number;
     reachable: boolean;
     error?: string;
   }> {
-    return this.bff.request(
-      'GET',
-      `/api/continuous-profiling/policy-summary?layer=${encodeURIComponent(layer)}`,
-    );
+    const { layer, group } = parseEntryKey(layerKey);
+    const qs = new URLSearchParams({ layer, ...(group !== undefined ? { group } : {}) });
+    return this.bff.request('GET', `/api/continuous-profiling/policy-summary?${qs.toString()}`);
   }
 
   /** ONE roster for all requested targets. The instance/process list is

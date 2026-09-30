@@ -31,11 +31,14 @@ import { useLayers } from '@/shell/useLayers';
 import LayerTracesView from './LayerTracesView.vue';
 import LayerZipkinTracesView from './LayerZipkinTracesView.vue';
 import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, routeRow } from '@/utils/layerRoute';
 
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 
 
 
@@ -48,7 +51,7 @@ const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key ===
  *   - the `/trace` route renders Zipkin only for a layer that names the Zipkin
  *     store and no native one.
  */
-const isZipkinRoute = computed(() => /\/zipkin-trace(\/|$|\?)/.test(route.path));
+const isZipkinRoute = computed(() => routeRow(route) === 'zipkin-trace');
 const showZipkin = computed(
   () => isZipkinRoute.value || traceRowIsZipkin(layer.value?.traces),
 );

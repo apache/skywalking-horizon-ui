@@ -71,9 +71,13 @@ export class ProfileApi {
     );
   }
 
-  analyze(queries: ProfileAnalyzeQuery[]): Promise<ProfileAnalyzationResponse> {
-    return this.bff.request<ProfileAnalyzationResponse>('POST', '/api/profile/analyze', {
-      queries,
-    });
+  /** Analyze segments of one task, on the page's layer: the task's service is
+   *  what is checked, and the segments must be the task's. */
+  analyze(layerKey: string, taskId: string, queries: ProfileAnalyzeQuery[]): Promise<ProfileAnalyzationResponse> {
+    return this.bff.request<ProfileAnalyzationResponse>(
+      'POST',
+      `/api/layer/${encodeURIComponent(layerKey)}/profile/tasks/${encodeURIComponent(taskId)}/analyze`,
+      { queries },
+    );
   }
 }

@@ -22,7 +22,7 @@
  *        — list tasks + queryPrepareCreateEBPFProfilingTaskData metadata.
  *   POST /api/layer/:key/ebpf/tasks
  *        — create a fixed-time eBPF task.
- *   GET  /api/ebpf/tasks/:taskId/schedules
+ *   GET  /api/layer/:key/ebpf/tasks/:taskId/schedules?serviceId=
  *        — list per-process schedules captured by a task.
  *   POST /api/ebpf/analyze
  *        — resolve schedule + time-range data into stack trees.
@@ -60,7 +60,8 @@ import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
 import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
-import { entityServiceName, serviceIdOf } from '../../logic/services/service-identity.js';
+import { ServiceLookupUnavailable, childOf, entityServiceName, serviceIdOf } from '../../logic/services/service-identity.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
 
 export interface EBPFRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -406,14 +407,6 @@ async function queryEbpfTasksBothTriggers(
 
 /** A schedule id names no service; its process does. Keep the schedules
  *  whose process belongs to a service the caller may read. */
-async function readableSchedules<T extends { process?: { serviceId?: string | null } | null }>(
-  req: FastifyRequest,
-  schedules: T[],
-): Promise<T[]> {
-  const access = req.access;
-  if (!access) return schedules;
-  return access.keepReadable(['profile:read'], schedules, (s) => ({ id: s.process?.serviceId ?? '' }));
-}
 
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
   const auth = requireAuth(deps);
@@ -507,10 +500,16 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
   );
 
   app.get(
-    '/api/ebpf/tasks/:taskId/schedules',
+    '/api/layer/:key/ebpf/tasks/:taskId/schedules',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = req.params as { taskId: string };
+      const serviceId = (req.query as { serviceId?: string }).serviceId;
+      // A task id names no service, so only a role reading every layer may
+      // list a task's schedules of every service.
+      if (!serviceId && req.access && !req.access.readsEveryLayer(['profile:read'])) {
+        return reply.code(403).send({ error: 'permission_denied', verb: 'profile:read', reason: 'service_required' });
+      }
       const payload: EBPFSchedulesResponse = { schedules: [], reachable: true };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
@@ -519,7 +518,10 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
           QUERY_EBPF_SCHEDULES,
           { taskId: params.taskId },
         );
-        payload.schedules = await readableSchedules(req, data.eBPFSchedules ?? []);
+        // The named service's own processes: a task id names no service, so
+        // one the caller holds of another service shows nothing here.
+        const all = data.eBPFSchedules ?? [];
+        payload.schedules = serviceId ? all.filter((s) => s.process?.serviceId === serviceId) : all;
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));
@@ -709,16 +711,36 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
   );
 
   app.post(
-    '/api/ebpf/analyze',
+    '/api/layer/:key/ebpf/tasks/:taskId/analyze',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as EBPFAnalyzeRequest | undefined;
+      const params = req.params as { taskId: string };
+      const body = req.body as (EBPFAnalyzeRequest & { serviceId?: string }) | undefined;
       const payload: EBPFAnalyzeResponse = { tip: null, trees: [], reachable: true };
       if (!body || !body.scheduleIdList?.length || !body.timeRanges?.length) {
         return reply.send(payload);
       }
+      if (!body.serviceId && req.access && !req.access.readsEveryLayer(['profile:read'])) {
+        return reply.code(403).send({ error: 'permission_denied', verb: 'profile:read', reason: 'service_required' });
+      }
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
+        // A schedule id names no service: it is analyzed only as one of the
+        // task's, on a process of the service the gate checked (any of the
+        // task's when no service is named).
+        const listed = await graphqlPost<{ eBPFSchedules: EBPFSchedulesResponse['schedules'] | null }>(
+          opts,
+          QUERY_EBPF_SCHEDULES,
+          { taskId: params.taskId },
+        );
+        const ofService = new Set(
+          (listed.eBPFSchedules ?? [])
+            .filter((s) => !body.serviceId || s.process?.serviceId === body.serviceId)
+            .map((s) => s.scheduleId),
+        );
+        if (body.scheduleIdList.some((id) => !ofService.has(id))) {
+          return reply.code(403).send({ error: 'permission_denied', verb: 'profile:read', reason: 'schedule_not_in_task' });
+        }
         const data = await graphqlPost<{
           analysisEBPFResult: { tip: string | null; trees: EBPFAnalyzeResponse['trees'] };
         }>(opts, ANALYSIS_EBPF_RESULT, {
@@ -758,6 +780,8 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
             windowMinutes?: number;
             /** Admin preview: the operator's draft `processTopology` block. */
             previewConfig?: string;
+            /** The profiled instance the processes were drawn for. */
+            serviceInstanceId?: string;
           }
         | undefined;
       const payload: ProcessRelationMetricsResponse = { client: [], server: [], shared: [], reachable: true };
@@ -766,6 +790,16 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       if (!src?.processName || !dst?.processName) {
         payload.error = 'missing source/dest process';
         return reply.send(payload);
+      }
+      // The pair must be one of the profiled instance's calls: the instance
+      // was checked, and no end is checked on its own.
+      const owner = typeof body?.serviceInstanceId === 'string' ? childOf(body.serviceInstanceId) : null;
+      const isOwner = (e: ProcessRelationEndpointRef): boolean =>
+        !!owner && serviceIdOf(e.serviceName, e.normal !== false) === owner.serviceId && e.serviceInstanceName === owner.name;
+      if ((owner || (req.access && !req.access.readsEveryLayer(['profile:read']))) && !isOwner(src) && !isOwner(dst)) {
+        return reply
+          .code(403)
+          .send({ error: 'permission_denied', verb: 'profile:read', reason: 'not_the_profiled_instance' });
       }
 
       // Admin Preview: render the draft `processTopology` block (bypasses
@@ -794,10 +828,17 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         endMs = Date.now();
         startMs = endMs - minutes * 60_000;
       }
-      const focus = [src, dst]
-        .filter((e) => typeof e.serviceName === 'string')
-        .map((e) => serviceIdOf(e.serviceName, e.normal !== false));
-      const edgeMetrics = resolveEdgeMetrics(req.access ? await req.access.graphConfig(['profile:read'], focus, cfg) : cfg);
+      // The call is read as the profiled instance's; a `baseline` among its
+      // metrics is read by the SOURCE's service name, so that name decides it.
+      const sourceIds = typeof src.serviceName === 'string' ? [serviceIdOf(src.serviceName, src.normal !== false)] : [];
+      let granted = cfg;
+      try {
+        if (req.access) granted = await req.access.graphConfig(['profile:read'], sourceIds, cfg);
+      } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return ownershipUnavailable(reply);
+        throw err;
+      }
+      const edgeMetrics = resolveEdgeMetrics(granted);
       // Match the network-topology route's OAP-local formatting so the
       // edge metrics window lines up with the rendered graph window.
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);

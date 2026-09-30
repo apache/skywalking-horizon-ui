@@ -152,13 +152,12 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
             defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
-      const focus = serviceArg.split(',').map((s) => s.trim()).filter(Boolean);
       const response = await buildServiceTopology({
         opts,
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg: req.access ? await req.access.graphConfig(['topology:read'], focus, topoCfg) : topoCfg,
+        cfg: topoCfg,
         layerKey,
         serviceArg,
         depth,

@@ -171,10 +171,15 @@ describe('telemetry list_alarms', () => {
     expect(await listed(mockCtx().ctx)).toMatch(/nothing is firing/);
   });
 
-  it('narrows to one service group of a layer, written as the sidebar keys it', async () => {
+  it('narrows to one service group of a layer, written as a grant qualifies it', async () => {
     answer(ALARMS);
-    const out = await listed(mockCtx().ctx, { layer: 'general~payments' });
+    const out = await listed(mockCtx().ctx, { layer: 'general[payments]' });
     expect(namesOf(out)).toEqual([checkout.name, `${scorer.name} to ${checkout.name}`]);
+  });
+
+  it('says a layer filter that names no layer is not one, rather than listing every layer', async () => {
+    answer(ALARMS);
+    expect(await listed(mockCtx().ctx, { layer: 'general~payments' })).toMatch(/is not a layer/);
   });
 
   // The filtered read stops at its budget; an empty answer is then no proof.

@@ -52,6 +52,8 @@ import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -72,17 +74,18 @@ const props = defineProps<{
   replayData?: LogsResponse | null;
 }>();
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const embedded = computed(() => Boolean(props.embedded));
 const replay = computed(() => Boolean(props.replay));
 const replayDataRef = computed<LogsResponse | null>(() => props.replayData ?? null);
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 const { openTrace } = useTracePopout();
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
   key: layerKey.value, name: layerKey.value, color: 'var(--sw-fg-2)',

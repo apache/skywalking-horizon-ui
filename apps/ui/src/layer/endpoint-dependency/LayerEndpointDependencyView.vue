@@ -32,7 +32,7 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
-import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
+import { useRouter, type RouteLocationRaw } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
@@ -61,6 +61,8 @@ import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceNam
 import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { watch } from 'vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, type LayerEntryRef, layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 // The AI chat mounts this view embedded (read-only, focused on one service — it
 // auto-picks that service's top endpoint and draws its dependency chain). The
@@ -83,23 +85,23 @@ const props = defineProps<{
   replayData?: EndpointDependencyResponse;
 }>();
 
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 const embedded = computed(() => Boolean(props.embedded));
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 
 const { selectedId: headerSelectedId, setSelected: setSelectedService } = useSelectedService();
 const selectedId = computed<string | null>(() =>
   embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
 );
-const { layers, entryKeyFor } = useLayers();
+const { layers, entryFor } = useLayers();
 const layer = computed<LayerDef | null>(
   // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
   // arrive lowercased (the AI chat block passes spec.layer.toLowerCase()).
-  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
+  () => findEntry(layers.value, layerKey.value) ?? null,
 );
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -636,15 +638,15 @@ function openRouteInNewTab(to: RouteLocationRaw): void {
 
 /** This layer's entry for the node's service — on a layer split by service
  *  group, a neighbour of another group opens under its own group. */
-function entryFor(sel: EndpointDependencyNode): string {
-  return entryKeyFor(layerKey.value.split('~', 1)[0]!, sel.serviceName);
+function entryOfNode(sel: EndpointDependencyNode): LayerEntryRef {
+  return entryFor(parseEntryKey(layerKey.value).layer, sel.serviceName);
 }
 
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${entryFor(sel)}/service`,
+    path: layerPath(entryOfNode(sel), 'service'),
     query: { service: sel.serviceId },
   });
 }
@@ -658,7 +660,7 @@ function jumpToEndpointDashboard(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${entryFor(sel)}/endpoint`,
+    path: layerPath(entryOfNode(sel), 'endpoint'),
     query: {
       service: sel.serviceId,
       endpoint: sel.name,
@@ -935,7 +937,7 @@ function edgeRowCrosshair(rowId: string): number | null {
               stroke-linecap="round"
               style="pointer-events: none"
             >
-              <title v-if="lineDef">{{ lineDef.label }}: {{ fmtMetric(edgeVal(c, lineDef)) }} {{ lineDef.unit ?? '' }}</title>
+              <title v-if="lineDef">{{ lineDef.label }}: {{ c.metricsBlocked ? t('blocked') : c.metricsUnavailable ? t('unavailable') : `${fmtMetric(edgeVal(c, lineDef))} ${lineDef.unit ?? ''}` }}</title>
             </path>
             <!-- Animated traffic dots on EVERY edge — they advertise call
                  direction (source→target) in place of arrowheads, so an
@@ -985,6 +987,16 @@ function edgeRowCrosshair(rowId: string): number | null {
                 </text>
               </g>
             </template>
+            <g
+              v-else-if="(c.metricsBlocked || c.metricsUnavailable) && callMidpoint(c)"
+              :transform="`translate(${callMidpoint(c)!.x - 36}, ${callMidpoint(c)!.y - 9})`"
+              style="pointer-events: none"
+            >
+              <rect x="0" y="0" width="72" height="16" rx="8" fill="var(--sw-bg-1)" stroke="var(--sw-line-2)" stroke-width="1" />
+              <text x="36" y="11" text-anchor="middle" fill="var(--sw-fg-3)" font-size="9" font-family="var(--sw-mono)" font-weight="600">
+                {{ c.metricsBlocked ? t('blocked') : t('unavailable') }}
+              </text>
+            </g>
           </g>
 
           <g
@@ -1101,12 +1113,14 @@ function edgeRowCrosshair(rowId: string): number | null {
               {{
                 n.metricsBlocked
                   ? t('blocked')
+                  : n.metricsUnavailable
+                  ? t('unavailable')
                   : centerDef
                   ? (nodeVal(n, centerDef) === null
                       ? `— ${(centerDef.unit ?? '').toUpperCase()}`
                       : `${fmtMetric(nodeVal(n, centerDef))}${centerDef.unit ? ' ' + centerDef.unit.toUpperCase() : ''}`)
                   : ''
-              }}<template v-if="!n.metricsBlocked && secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
+              }}<template v-if="!n.metricsBlocked && !n.metricsUnavailable && secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
             </text>
             <!-- One neutral expand handle (top-right corner) on the
                  SELECTED non-focus node. A single `getEndpointDependencies`
@@ -1226,6 +1240,7 @@ function edgeRowCrosshair(rowId: string): number | null {
           <button class="sw-btn small" type="button" @click="selectedNodeId = null">×</button>
         </header>
         <p v-if="selectedNode.metricsBlocked" class="ed-blocked">{{ t('Metrics blocked: your role cannot read this service.') }}</p>
+        <p v-else-if="selectedNode.metricsUnavailable" class="ed-blocked">{{ t('Metrics not read: OAP did not say who owns this service. Try again shortly.') }}</p>
         <div v-else class="ed-kpis">
           <div v-for="m in cfg.nodeMetrics" :key="m.id" class="ed-kpi">
             <div class="ed-kpi-label">{{ m.label }}<span v-if="m.unit"> ({{ m.unit }})</span></div>
@@ -1286,7 +1301,9 @@ function edgeRowCrosshair(rowId: string): number | null {
         </header>
         <div class="ed-section">
           <div class="ed-section-title">{{ t('Line metrics (server-side)') }}</div>
-          <div v-if="(cfg.linkMetrics ?? []).length > 0" class="ed-edge-rows">
+          <p v-if="selectedCall.metricsBlocked" class="ed-blocked">{{ t('Metrics blocked: your role reads neither end of this call.') }}</p>
+          <p v-else-if="selectedCall.metricsUnavailable" class="ed-blocked">{{ t('Metrics not read: OAP did not answer a lookup this call needs. Try again shortly.') }}</p>
+          <div v-else-if="(cfg.linkMetrics ?? []).length > 0" class="ed-edge-rows">
             <div
               v-for="m in (cfg.linkMetrics ?? [])"
               :key="m.id"

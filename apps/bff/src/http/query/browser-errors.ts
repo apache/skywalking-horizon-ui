@@ -271,7 +271,10 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
       // BROWSER services — filed under a name OAP may have shortened, which the
       // row does not carry. A list across every service is therefore that
       // layer's, read whole or not at all.
-      if (!serviceId && req.access && !req.access.onLayer(['browser-errors:read'], 'BROWSER')?.whole) {
+      // A version or page-path id is one service's — the gate checked its owner
+      // — and OAP ANDs it into the read, so it narrows the list as a service does.
+      const narrowed = !!serviceId || !!body.serviceVersionId || !!body.pagePathId;
+      if (!narrowed && req.access && !req.access.onLayer(['browser-errors:read'], 'BROWSER')?.whole) {
         return reply
           .code(403)
           .send({ error: 'permission_denied', verb: 'browser-errors:read', reason: 'layer_not_granted', layer: 'BROWSER' });

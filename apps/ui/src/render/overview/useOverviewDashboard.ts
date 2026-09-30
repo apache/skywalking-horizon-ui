@@ -25,6 +25,7 @@ import { overviewEditName } from '@/controls/localTemplateEdits';
 import { fetchDrawable, useTimeIdentity, useRoundWindow } from '@/layer/graphQuery';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useRefreshErrorReport } from '@/controls/errorCenter';
+import { widgetEntryKey, widgetLayerEntry } from '@/utils/layerRoute';
 
 /**
  * Resolved value for one overview widget. The renderer reads
@@ -114,7 +115,8 @@ function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
   const pageGroups: LayerGroup[] = [];
   for (const w of widgets) {
     const layer = w.layer;
-    if (!layer) continue;
+    // A layer that names none is said on the widget, not read.
+    if (!layer || !widgetLayerEntry(layer)) continue;
     if (w.type === 'section-break' || w.type === 'alarms' || w.type === 'topology' || w.type === 'calendar-heatmap') {
       continue;
     }
@@ -270,7 +272,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           // FAILURE, not a page of zeroes. Without this a failed read rendered
           // every KPI as 0 and every service count as none — indistinguishable
           // on screen from a system that genuinely had nothing.
-          return fetchDrawable(() => bffClient.layer.landing(g.layer, cfg, range, signal)).then((res) => ({
+          return fetchDrawable(() => bffClient.layer.landing(widgetEntryKey(g.layer), cfg, range, signal)).then((res) => ({
             layer: g.layer,
             reqs: g.reqs,
             mqeReqs,

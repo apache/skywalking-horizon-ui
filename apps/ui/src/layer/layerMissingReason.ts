@@ -46,9 +46,7 @@ export function layerMissingReason(
   layerKey: string,
 ): LayerMissingReason {
   if (!conflicts || !layerKey) return 'unknown';
-  // Sidebar entries for a split-by-service-group layer carry `<key>~<group>`;
-  // the template name is the layer key alone.
-  const name = `horizon.layer.${layerKey.split('~', 1)[0].toUpperCase()}`;
+  const name = `horizon.layer.${layerKey.toUpperCase()}`;
   const hit = conflicts.some(
     (c) => c.kind === 'layer' && c.name === name && c.identical !== true,
   );

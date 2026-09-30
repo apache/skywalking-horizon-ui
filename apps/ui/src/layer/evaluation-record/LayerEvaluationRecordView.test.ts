@@ -72,6 +72,7 @@ afterEach(() => {
 async function openPage(query = '', address = '/layer/virtual_genai/evaluation-records?providerId=provider'): Promise<void> {
   router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/layer/:layerKey/evaluation-records', component: LayerEvaluationRecordView },
+    { path: '/layer/:layerKey/:group/evaluation-records', component: LayerEvaluationRecordView },
   ] });
   await router.push(`${address}${query}`);
   await router.isReady();
@@ -143,6 +144,22 @@ describe('evaluation provider identity', () => {
     expect(await optionLabels('Provider')).toEqual(['OpenAI', 'Anthropic']);
   });
 
+  // A layer split by service group: a group entry's providers are its group's.
+  it('offers only the entry\'s own group of providers on a split layer', async () => {
+    api.callerServices.mockResolvedValue({ services: [
+      { id: 'pay-openai', name: 'payments::OpenAI', normal: false, layer: 'VIRTUAL_GENAI', group: 'payments' },
+      { id: 'risk-openai', name: 'risk::OpenAI', normal: false, layer: 'VIRTUAL_GENAI', group: 'risk' },
+      { id: 'bare', name: 'Anthropic', normal: false, layer: 'VIRTUAL_GENAI', group: '' },
+    ] });
+    await openPage('', '/layer/virtual_genai/risk/evaluation-records');
+    expect(await optionLabels('Provider')).toEqual(['risk::OpenAI']);
+    wrapper.unmount();
+    client.clear();
+    document.body.innerHTML = '';
+    await openPage('', '/layer/virtual_genai/evaluation-records');
+    expect(await optionLabels('Provider')).toEqual(['payments::OpenAI', 'risk::OpenAI', 'Anthropic']);
+  });
+
   it('writes provider and model to the address together', async () => {
     await openPage('&modelId=old-model');
     await runQuery();
@@ -200,6 +217,17 @@ describe('manual-fire gate', () => {
     await chip.trigger('click');
     await flushPromises();
     expect(api.list.mock.lastCall?.[1].evaluationLevel).toBeUndefined();
+  });
+
+  it('offers no "All services" to a role that reads only some callers, and runs once one is picked', async () => {
+    authState.layerLimited = new Set(['logs:read']);
+    await openPage();
+    expect(await optionLabels('Service')).toEqual(['e2e-app', 'OpenAI', 'Anthropic']);
+    expect(wrapper.get('.lg-run-btn').attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Pick a calling service');
+    await pickOption('Service', 'e2e-app');
+    await runQuery();
+    expect(api.list).toHaveBeenCalled();
   });
 
   it('offers a caller seen only in the records once a query has run, and filters by its id', async () => {

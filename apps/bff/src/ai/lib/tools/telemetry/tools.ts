@@ -26,14 +26,14 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { StructuredToolInterface } from '@langchain/core/tools';
-import { alarmPinMatches, layerFilterPin } from '@skywalking-horizon-ui/api-client';
+import { alarmPinMatches, formatAlarmPin, layerFilterPin } from '@skywalking-horizon-ui/api-client';
 import type { ToolContext } from '../../tool-context.js';
 import { graphqlPost } from '../../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../../util/window.js';
 import { readFilteredPage } from '../../../../logic/paging/read-page.js';
 import { serviceLayerCatalog } from '../../../../logic/services/service-layer-catalog.js';
 import { ServiceLookupUnavailable, catalogIndex } from '../../../../logic/services/service-identity.js';
-import { alarmLayers, alarmOwnerKeys } from '../../../../logic/alarms/owners.js';
+import { alarmLayers, alarmOwners } from '../../../../logic/alarms/owners.js';
 import { AlarmRowAccess, keepAll, readsEveryAlarm } from '../../../../logic/alarms/readable.js';
 import { canonicalLayerKey } from '../../../../logic/templates/identity.js';
 import { toolPrompt } from '../../skills/loader.js';
@@ -83,9 +83,10 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
         const raw = await graphqlPost<{ queryAlarms?: { msgs?: AlarmMsg[] } }>(ctx.opts, QUERY_ALARMS, { condition });
         return raw.queryAlarms?.msgs ?? [];
       };
-      // A layer, or one service group of it as `GENERAL~payments`.
+      // A layer, or service groups of it as `GENERAL[payments]`.
       const wantedPin = layer ? layerFilterPin(layer, canonicalLayerKey) : null;
-      const wanted = wantedPin ? (wantedPin.groups ? `${wantedPin.layer}~${wantedPin.groups[0]}` : wantedPin.layer) : null;
+      if (layer && !wantedPin) return `"${layer}" is not a layer. Name a layer key such as GENERAL, or its service groups as GENERAL[payments].`;
+      const wanted = wantedPin ? formatAlarmPin(wantedPin) : null;
       const everything = readsEveryAlarm(ctx.access);
       let msgs: AlarmMsg[];
       // The filtered read stops at its budget: an empty answer from it then
@@ -106,7 +107,7 @@ export function telemetryTools(ctx: ToolContext): StructuredToolInterface[] {
               const fetched = await fetchFirst(rows);
               return rowAccess ? rowAccess.decide(fetched) : keepAll(fetched);
             },
-            (d) => d.kept && (!wantedPin || alarmPinMatches(wantedPin, { layerKeys: alarmLayers(d.row, index), ownerKeys: alarmOwnerKeys(d.row, index) })),
+            (d) => d.kept && (!wantedPin || alarmPinMatches(wantedPin, { layerKeys: alarmLayers(d.row, index), owners: alarmOwners(d.row, index) })),
             { pageNum: 1, pageSize: ALARM_ROWS },
             FILTERED_READ,
           );

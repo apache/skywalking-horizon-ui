@@ -105,8 +105,8 @@ function preview(src: EditorSource): void {
         <TemplateStatusBadge :status="badge" />
       </div>
       <!-- Disable / Reactivate. Sits by the title, away from the
-           save/push cluster. A disabled layer offers Reactivate
-           (re-enable on OAP); otherwise Disable/Delete. -->
+           save/push cluster. OAP deletes no template: a disabled layer
+           offers Reactivate, and a draft never published is discarded. -->
       <div class="identity-delete">
         <button
           v-if="isLayerDisabled"
@@ -120,8 +120,9 @@ function preview(src: EditorSource): void {
         >
           {{ t('Reactivate') }}
         </button>
+        <!-- A layer with no template anywhere yet has nothing to discard. -->
         <button
-          v-else
+          v-else-if="bundledExists || remoteAvailable || hasLocalDraft"
           class="sw-btn danger"
           type="button"
           :disabled="isSaving || readOnly"
@@ -130,11 +131,11 @@ function preview(src: EditorSource): void {
             : bundledExists
               ? t('Disable the built-in {key} layer (hidden from the sidebar; Reactivate to bring it back)', { key: selectedTpl.key })
               : remoteAvailable
-                ? t('Delete the {key} layer template (soft-disabled on OAP)', { key: selectedTpl.key })
-                : t('Remove the local draft for {key}', { key: selectedTpl.key })"
+                ? t('Disable the {key} layer template (hidden from everyone; Reactivate brings it back)', { key: selectedTpl.key })
+                : t('Discard the local draft for {key}', { key: selectedTpl.key })"
           @click="emit('delete')"
         >
-          {{ bundledExists ? t('Disable') : t('Delete') }}
+          {{ bundledExists || remoteAvailable ? t('Disable') : t('Discard draft') }}
         </button>
       </div>
       <div class="actions">

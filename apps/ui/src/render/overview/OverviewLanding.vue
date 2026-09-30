@@ -33,6 +33,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { firstLayerTab, useLayers } from '@/shell/useLayers';
+import { entryOf, layerPath } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
@@ -95,7 +96,7 @@ watchEffect(() => {
   //    is the honest answer.
   const layer = availableLayers.value[0];
   if (layer) {
-    void router.replace({ path: `/layer/${layer.key}/${firstLayerTab(layer)}` });
+    void router.replace({ path: layerPath(entryOf(layer), firstLayerTab(layer)) });
     return;
   }
 

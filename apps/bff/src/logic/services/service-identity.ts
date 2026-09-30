@@ -157,6 +157,20 @@ export function serviceIdOfChild(childId: string): string | null {
   return cut > 0 ? childId.slice(0, cut) : null;
 }
 
+/** `<base64 name>.<0|1>` → the name. */
+export function serviceNameOfId(serviceId: string): string | null {
+  const dot = serviceId.lastIndexOf('.');
+  return dot > 0 ? Buffer.from(serviceId.slice(0, dot), 'base64').toString('utf8') : null;
+}
+
+/** An instance or endpoint id → its service's id and name, and its own name. */
+export function childOf(childId: string): { serviceId: string; serviceName: string; name: string } | null {
+  const serviceId = serviceIdOfChild(childId);
+  const serviceName = serviceId ? serviceNameOfId(serviceId) : null;
+  if (!serviceId || serviceName === null) return null;
+  return { serviceId, serviceName, name: Buffer.from(childId.slice(serviceId.length + 1), 'base64').toString('utf8') };
+}
+
 const GET_SERVICE = /* GraphQL */ `
   query HorizonAccessService($id: String!) {
     service: getService(serviceId: $id) { id name normal group layers }

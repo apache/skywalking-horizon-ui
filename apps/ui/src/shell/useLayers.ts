@@ -35,6 +35,7 @@ import { usePreviewOverride } from '@/controls/previewOverride';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { layerContentToDef, overlayLayerDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { serviceGroupName } from '@/utils/serviceName';
+import { entryForService, entryKey, entryOf, type LayerEntryRef } from '@/utils/layerRoute';
 
 /**
  * Live OAP-driven layer + menu state. Fed by `GET /api/menu`. Refetches on
@@ -82,9 +83,14 @@ export function useLayers() {
   // live data) so the operator can navigate its tabs. Nothing is pushed to
   // OAP; this is browser-side only.
   const layers = computed<LayerDef[]>(() => {
-    const base = q.data.value?.layers ?? [];
+    // Each of a split layer's entries arrives with the layer's key and its
+    // group apart; in the browser it is keyed by both.
+    const base = (q.data.value?.layers ?? []).map((L) =>
+      L.serviceGroup === undefined ? L : { ...L, key: entryKey({ layer: L.key, group: L.serviceGroup }) },
+    );
     if (!previewMode.value) return base;
-    const seen = new Set(base.map((L) => L.key.toUpperCase()));
+    // By layer: a split layer's entries all show its one template.
+    const seen = new Set(base.map((L) => entryOf(L).layer.toUpperCase()));
     const overlaid = base.map((L) => {
       const content = previewContent(L.key);
       return content ? overlayLayerDef(L, content) : L;
@@ -97,7 +103,8 @@ export function useLayers() {
       if (seen.has(key.toUpperCase())) continue;
       const content = previewContent(key);
       if (content) {
-        injected.push(layerContentToDef(content));
+        // Keyed the way the menu keys every entry, which is what URLs name.
+        injected.push({ ...layerContentToDef(content), key: key.toLowerCase() });
         seen.add(key.toUpperCase());
       }
     }
@@ -127,8 +134,10 @@ export function useLayers() {
     return layers.value.find((L) => L.key === key);
   }
 
-  function entryKeyFor(layer: string, serviceName: string): string {
-    return entryKeyIn(layers.value, layer, serviceName);
+  /** The entry a service of the OAP layer `layer` opens under: its group's,
+   *  on a layer split by service group. */
+  function entryFor(layer: string, serviceName: string): LayerEntryRef {
+    return entryForService(layers.value, layer, serviceGroupName(serviceName));
   }
 
   /**
@@ -150,22 +159,10 @@ export function useLayers() {
     oapReachable,
     oapError,
     findLayer,
-    entryKeyFor,
+    entryFor,
     hasTopology,
     refetch: q.refetch,
   };
-}
-
-/**
- * The sidebar entry a service of the OAP layer `layer` opens under. On a
- * layer split by service group that is its group's entry — OAP's group is
- * the name before `::` — even when this reader has no such entry, so the
- * page says why; no entry carries the bare key of a split layer.
- */
-export function entryKeyIn(menu: readonly LayerDef[], layer: string, serviceName: string): string {
-  const key = layer.toLowerCase();
-  const split = menu.some((L) => L.key.startsWith(`${key}~`));
-  return split ? `${key}~${serviceGroupName(serviceName) ?? ''}` : key;
 }
 
 /**

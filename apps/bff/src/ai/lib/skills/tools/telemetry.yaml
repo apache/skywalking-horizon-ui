@@ -25,6 +25,6 @@ list_alarms:
     List recently firing alarms — SkyWalking's health signal. Start here for 'what is unhealthy / abnormal?': each alarm names the alarmed entity, scope, and the rule message. Active (unrecovered) alarms are listed first. Then drill into the alarmed entity's metrics to explain the anomaly. Optionally filter by layer or a keyword.
   params:
     layer: >-
-      OAP layer key filter, e.g. GENERAL
+      OAP layer key filter, e.g. GENERAL, or service groups of it, e.g. GENERAL[payments]
     keyword: >-
       alarm-name / entity keyword filter

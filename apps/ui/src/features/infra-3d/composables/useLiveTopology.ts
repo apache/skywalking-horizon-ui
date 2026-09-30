@@ -42,6 +42,7 @@ import type {
   MapTopologyCall,
 } from './useMapTopology';
 import type { StageReporter, TopologyProbe } from './useInfra3dPipeline';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 export interface LiveWindow {
   startMs: number;
@@ -218,8 +219,9 @@ function toHierarchyEntry(
   resp: ServiceHierarchyResponse,
 ): MapHierarchyEntry | null {
   if (!resp.reachable || resp.relations <= 0) return null;
+  const own = parseEntryKey(layer).layer;
   const peers: MapHierarchyPeer[] = resp.peers
-    .filter((g) => g.layer.toUpperCase() !== layer.toUpperCase())
+    .filter((g) => parseEntryKey(g.layer).layer !== own)
     .map((g) => ({
       layer: g.layer,
       services: g.services

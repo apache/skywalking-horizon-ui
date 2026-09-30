@@ -32,7 +32,10 @@ import { serviceLayerCatalog } from '../../../../logic/services/service-layer-ca
 import { getServiceHierarchy } from '../../../../logic/oap/hierarchy.js';
 import { layerCapabilitiesResult } from '../../../../logic/layers/capabilities.js';
 import { toolPrompt } from '../../skills/loader.js';
-import { denied as deniedOn, holds, inexact, refusal } from '../access.js';
+import { denied as deniedOn, holds, holdsAny, inexact, layerRefusal, refusal } from '../access.js';
+import { LAYER_PAGE_VERBS } from '../../../../rbac/verbs.js';
+
+const DRILL_VERBS = [...LAYER_PAGE_VERBS, 'alarms:read'] as const;
 import { getLayerCatalog } from './catalog.js';
 import { explainEmptyCatalog } from './unreadable.js';
 
@@ -107,10 +110,11 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const drl = toolPrompt('metric-catalog', 'kb_resolve_scope_drill');
   const drill = tool(
     async ({ serviceId, toScope, keyword }): Promise<string> => {
-      if (!holds(ctx, 'metrics:read')) return denied();
+      // The instance and endpoint pickers' verbs: a logs-only role finds its pods too.
+      if (!holdsAny(ctx, DRILL_VERBS)) return denied();
       const bad = inexact(serviceId, 'the service id');
       if (bad) return bad;
-      const no = await refusal(ctx, 'metrics:read', { id: serviceId }, 'this service');
+      const no = await refusal(ctx, DRILL_VERBS, { id: serviceId }, 'this service');
       if (no) return no;
       try {
         if (toScope === 'instance') {
@@ -238,6 +242,8 @@ export function metricCatalogTools(ctx: ToolContext): StructuredToolInterface[] 
   const hierarchy = tool(
     async ({ serviceId, layer }): Promise<string> => {
       if (!holds(ctx, 'topology:read')) return deniedOn('topology:read');
+      const offLayer = layer ? layerRefusal(ctx, 'topology:read', layer) : null;
+      if (offLayer) return offLayer;
       const bad = inexact(serviceId, 'the service id');
       if (bad) return bad;
       const no = await refusal(ctx, 'topology:read', { id: serviceId }, 'this service');

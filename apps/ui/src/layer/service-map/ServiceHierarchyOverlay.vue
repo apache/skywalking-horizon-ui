@@ -52,6 +52,7 @@ import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceNam
 import { serviceRef } from '@/utils/serviceRef';
 import { useServiceHierarchy } from './useServiceHierarchy';
 import { useHierarchyOverlayStore } from './hierarchyStore';
+import { entryKey, entryLayerName, entryOf, layerPath } from '@/utils/layerRoute';
 
 const router = useRouter();
 
@@ -82,7 +83,7 @@ const props = defineProps<{
 
 const { t } = useI18n({ useScope: 'global' });
 const store = useHierarchyOverlayStore();
-const { layers: allLayers, findLayer, entryKeyFor } = useLayers();
+const { layers: allLayers, findLayer, entryFor } = useLayers();
 
 // Focus + open state come from props in standalone mode, else the shared store.
 const fLayer = computed<string | null>(() => (props.standalone ? props.focus?.layer : store.focusLayer) ?? null);
@@ -98,16 +99,19 @@ const focusService = computed(() => serviceRef(fServiceId.value, fServiceName.va
 const replayDataRef = computed<ServiceHierarchyResponse | null>(() => props.replayData ?? null);
 const { data, isLoading } = useServiceHierarchy(layerKey, focusService, replayDataRef);
 
-/** Look up a layer's color from the menu registry; fall back to the
- *  accent for layers we don't have an entry for (e.g. SO11Y_OAP). */
+/** A layer's color and name from the menu, from any of its entries when it
+ *  is split by service group; the accent and the key for a layer the menu
+ *  has no entry of (e.g. SO11Y_OAP). */
+function menuEntryOfLayer(layer: string): LayerDef | undefined {
+  return allLayers.value.find((L) => entryOf(L).layer === layer.toLowerCase());
+}
 function colorForLayer(layer: string): string {
-  const def = allLayers.value.find((L) => L.key.toUpperCase() === layer.toUpperCase());
-  return def?.color ?? 'var(--sw-accent)';
+  return menuEntryOfLayer(layer)?.color ?? 'var(--sw-accent)';
 }
 
 function labelForLayer(layer: string): string {
-  const def = allLayers.value.find((L) => L.key.toUpperCase() === layer.toUpperCase());
-  return def?.name ?? layer;
+  const def = menuEntryOfLayer(layer);
+  return def ? entryLayerName(def) : layer;
 }
 
 /** Per-layer naming rule — the same `LayerDef.naming` the topology
@@ -116,8 +120,7 @@ function labelForLayer(layer: string): string {
  *  `default` cluster chip + `mesh-svr` legacy-group chip, exactly the
  *  way the layer's own service-map renders it. */
 function namingForLayer(layer: string): ServiceNamingRule | null {
-  const def = allLayers.value.find((L) => L.key.toUpperCase() === layer.toUpperCase());
-  return def?.naming ?? null;
+  return menuEntryOfLayer(layer)?.naming ?? null;
 }
 
 function identityFor(name: string, layer: string): ServiceIdentity {
@@ -334,7 +337,7 @@ watch(
  *  opens. On a layer split by service group the entry is the peer's
  *  group's. */
 function peerEntry(layer: string, name: string): LayerDef | null {
-  const def = findLayer(entryKeyFor(layer, name));
+  const def = findLayer(entryKey(entryFor(layer, name)));
   return def && def.active ? def : null;
 }
 
@@ -367,9 +370,7 @@ function confirmOpen(p: HierarchyPeer, layer: string): void {
   if (!def) return;
   const tab = firstLayerTab(def);
   const href = router.resolve({
-    // The entry key as the menu spells it: a group entry keeps its group's
-    // case, which the BFF compares exactly.
-    path: `/layer/${def.key}/${tab}`,
+    path: layerPath(entryOf(def), tab),
     query: { service: p.id },
   }).href;
   // `noopener` so the new tab can't reach back into window.opener.

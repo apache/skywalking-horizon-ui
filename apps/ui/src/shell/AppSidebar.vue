@@ -68,6 +68,7 @@ import { useSidebarActive } from './useSidebarActive';
 import { useSidebarMenu } from './useSidebarMenu';
 import { buildSidebarEntries } from './sidebarEntries';
 import { useSidebarGroups } from './useSidebarGroups';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 const { route, isActive, isActiveExact, expandedLayer, toggleLayer, navRef } =
   useSidebarActive(orderedLayers);
@@ -94,13 +95,13 @@ const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMe
  *  stays the identity everywhere that matters. */
 const signedInAs = computed(() => auth.user?.displayName || auth.user?.username);
 
-// True when this layer's template has local edits not yet published to OAP
-// (diverged) — drives the yellow warning on its sidebar row.
+// True when the template OAP stores for this layer differs from the shipped
+// one (diverged) — drives the yellow marker on its sidebar row.
 function isLayerDiverged(key: string): boolean {
   const badges = bundle.value?.syncStatus?.badges ?? [];
-  return badges.some(
-    (b) => b.kind === 'layer' && b.status === 'diverged' && b.key.toUpperCase() === key.toUpperCase(),
-  );
+  // A template is the layer's, whichever of a split layer's entries shows it.
+  const layer = parseEntryKey(key).layer;
+  return badges.some((b) => b.kind === 'layer' && b.status === 'diverged' && b.key.toLowerCase() === layer);
 }
 </script>
 

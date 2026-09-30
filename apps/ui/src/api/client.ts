@@ -109,6 +109,7 @@ import { AdminAuthApi } from './scopes/admin-auth';
 import { AdminUsersApi } from './scopes/admin-users';
 import { TemplateSyncApi } from './scopes/template-sync';
 import { AiApi } from './scopes/ai';
+import type { AlarmOwner } from '@skywalking-horizon-ui/api-client';
 export type { AiConfigResponse } from './scopes/ai';
 export type {
   AiConversationRow,
@@ -618,10 +619,10 @@ export interface AlarmMessage {
   /** Every layer of the services the alarm belongs to — its entity's owner,
    *  and for a relation both ends. Empty when none is a known service. */
   layerKeys: string[];
-  /** Every `LAYER~group` pair of those same services (`alarmOwnerKey`), the
-   *  group `''` for a service with none. A page pin with groups matches on
-   *  these; a whole-layer pin on `layerKeys`. */
-  ownerKeys: string[];
+  /** The layer and service group of each of those same services, the group
+   *  `''` for a service with none. A page pin with groups matches on these; a
+   *  whole-layer pin on `layerKeys`. */
+  owners: AlarmOwner[];
   /** The first of `layerKeys`. */
   layerKey: string | null;
 }
@@ -903,19 +904,17 @@ export class BffClient {
       },
     };
     if (body !== undefined) init.body = JSON.stringify(body);
-    // Split a composite `<layer>~<group>` key in a `/api/layer/<key>/…`
-    // path into the real layer + a `group` query param, so a
-    // split-by-service-group menu entry scopes its data without every
-    // endpoint having to parse the composite. The slices stay
-    // URL-encoded (the caller already `encodeURIComponent`'d the key, and
-    // `~` is unreserved). Non-layer paths and plain keys pass through.
+    // A split layer's entry key, `general/payments` (utils/layerRoute.ts),
+    // reaches here percent-encoded as one segment of `/api/layer/<key>/…`;
+    // its layer takes the segment and its group becomes `?group=`, so no
+    // endpoint parses it. The group comes out encoded once, as a query value.
     const splitGroupKeyPath = (p: string): string => {
       const m = /^(\/api\/layer\/)([^/?]+)(.*)$/.exec(p);
       if (!m) return p;
-      const i = m[2].indexOf('~');
+      const i = m[2].toUpperCase().indexOf('%2F');
       if (i < 0) return p;
       const sep = m[3].includes('?') ? '&' : '?';
-      return `${m[1]}${m[2].slice(0, i)}${m[3]}${sep}group=${m[2].slice(i + 1)}`;
+      return `${m[1]}${m[2].slice(0, i)}${m[3]}${sep}group=${decodeURIComponent(m[2].slice(i + 3))}`;
     };
     const url = withBase(splitGroupKeyPath(path));
     let res: Response;

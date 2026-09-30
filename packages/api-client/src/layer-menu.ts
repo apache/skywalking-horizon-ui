@@ -45,9 +45,9 @@ export type LayerMenuRowIcon = 'svc' | 'prof' | 'ep' | 'topo' | 'trace' | 'log' 
 
 /** One navigable row under a layer. */
 export interface LayerMenuRow {
-  /** Stable row key, and the route sub-path under `/layer/:layerKey/`.
-   *  Built-in components are a single segment (`service`, `pprof`); an
-   *  extension page is `<component>/<pageId>`. */
+  /** Stable row key. Built-in components are a single segment (`service`,
+   *  `pprof`), which is also the tab's URL segment; an extension page is
+   *  `<component>/<pageId>`, whose URL is `<component>/page/<pageId>`. */
   path: string;
   /** `Icon` component name the sidebar renders for this row. */
   icon: LayerMenuRowIcon;

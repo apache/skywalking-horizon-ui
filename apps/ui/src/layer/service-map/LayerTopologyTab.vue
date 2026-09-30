@@ -30,11 +30,14 @@ import type { LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 import LayerInstanceTopologyView from '@/layer/service-map/LayerInstanceTopologyView.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const showInstance = computed(
   () => Boolean(layer.value?.caps?.instanceTopology) && route.query.view === 'instance',
 );

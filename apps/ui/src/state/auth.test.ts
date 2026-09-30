@@ -177,13 +177,13 @@ describe('the auth store answers layer-qualified grants as the BFF does', () => 
 
   it('reads a split sidebar entry by its layer and its group', () => {
     const auth = signIn(['metrics:read@GENERAL[payments]', 'logs:read@GENERAL[-]', 'traces:read@GENERAL']);
-    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL~payments')).toBe(true);
-    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL~risk')).toBe(false);
-    expect(auth.hasVerbOnLayer('metrics:read', 'MESH~payments')).toBe(false);
-    // `[-]` is the ungrouped services, whose entry key ends in a bare `~`.
-    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL~')).toBe(true);
-    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL~payments')).toBe(false);
-    expect(auth.hasVerbOnLayer('traces:read', 'GENERAL~risk')).toBe(true);
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL/payments')).toBe(true);
+    expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL/risk')).toBe(false);
+    expect(auth.hasVerbOnLayer('metrics:read', 'MESH/payments')).toBe(false);
+    // `[-]` is the ungrouped services, whose entry key ends in a bare `/`.
+    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL/')).toBe(true);
+    expect(auth.hasVerbOnLayer('logs:read', 'GENERAL/payments')).toBe(false);
+    expect(auth.hasVerbOnLayer('traces:read', 'GENERAL/risk')).toBe(true);
     // On the whole layer, the group limit is the BFF's to apply.
     expect(auth.hasVerbOnLayer('metrics:read', 'GENERAL')).toBe(true);
   });

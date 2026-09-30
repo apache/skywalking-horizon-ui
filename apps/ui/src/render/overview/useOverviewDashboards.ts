@@ -24,6 +24,23 @@ import {
   getOverviews,
   useConfigBundle,
 } from '@/controls/configBundle';
+import { entryOf, widgetLayerEntry } from '@/utils/layerRoute';
+
+/**
+ * The layers an overview touches: its explicit `layers[]` (bundled JSON lists
+ * them by hand) and every layer its widgets name. User-created overviews carry
+ * no `layers[]`, so their widgets decide. A widget layer that names no layer
+ * gates nothing — the widget says so on the page.
+ */
+export function overviewLayers(d: { layers?: string[]; widgets?: Array<{ layer?: string }> }): string[] {
+  const set = new Set<string>();
+  for (const k of d.layers ?? []) set.add(k.toUpperCase());
+  for (const w of d.widgets ?? []) {
+    const entry = w.layer ? widgetLayerEntry(w.layer) : null;
+    if (entry) set.add(entry.layer.toUpperCase());
+  }
+  return Array.from(set);
+}
 
 /**
  * Overview-dashboard list driver. Fetches the BFF's bundled list, then
@@ -52,7 +69,8 @@ export function useOverviewDashboards() {
   const { availableLayers } = useLayers();
   const activeLayerKeys = computed<Set<string>>(() => {
     const s = new Set<string>();
-    for (const L of availableLayers.value) s.add(L.key.toUpperCase());
+    // By layer: one service group of a layer makes the layer active.
+    for (const L of availableLayers.value) s.add(entryOf(L).layer.toUpperCase());
     return s;
   });
 
@@ -67,19 +85,9 @@ export function useOverviewDashboards() {
     }
     return q.data.value?.dashboards ?? [];
   });
-  // Layers a dashboard touches = union of its explicit `layers[]` field
-  // (kept for back-compat with bundled JSON that lists them by hand) AND
-  // every layer referenced by its widgets. User-created dashboards from
-  // "+ New" don't carry `layers[]`, so widget-derived is what gates them.
-  function dashLayers(d: { layers?: string[]; widgets?: Array<{ layer?: string }> }): string[] {
-    const set = new Set<string>();
-    for (const k of d.layers ?? []) set.add(k.toUpperCase());
-    for (const w of d.widgets ?? []) if (w.layer) set.add(w.layer.toUpperCase());
-    return Array.from(set);
-  }
   const visible = computed(() =>
     all.value.filter((d) => {
-      const layers = dashLayers(d);
+      const layers = overviewLayers(d);
       // No layer referenced anywhere → always show (e.g. a future fleet
       // overview that pulls only from cross-layer / All scope).
       if (layers.length === 0) return true;

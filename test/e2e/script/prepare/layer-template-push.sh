@@ -118,9 +118,9 @@ JSON
 # the checks can run in — a cross-reference needs parsed data — so the
 # split is what lets each bar be pinned.
 
-# Caught by the schema: a page id equal to a real layer route segment.
-# Several sniffers test the whole path, so such an id changes unrelated
-# behaviour rather than merely colliding.
+# Caught by the schema: a page id that cannot be a URL segment. Any
+# lowercase name is allowed, a tab's included, since a page's URL is
+# `<component>/page/<id>`.
 bad_page_content() {
   cat <<'JSON'
 {
@@ -134,7 +134,7 @@ bad_page_content() {
   },
   "dashboardExtPages": {
     "service": [
-      { "id": "topology", "name": "Topology", "widgets": [] }
+      { "id": "Usage Page", "name": "Usage", "widgets": [] }
     ]
   }
 }
@@ -231,7 +231,7 @@ case "${MODE}" in
   bad-page)
     CODE=$(expect_refused page "$(bad_page_content)")
     CODEFIELD=$(yq -r '.code // ""' /tmp/lt-bad.json)
-    REPORTS=$(yq -r '[.issues[]? | select(test("topology"))] | length > 0' /tmp/lt-bad.json)
+    REPORTS=$(yq -r '[.issues[]? | select(test("dashboardExtPages\\.service\\.0\\.id"))] | length > 0' /tmp/lt-bad.json)
     echo "{\"httpCode\": ${CODE}, \"code\": \"${CODEFIELD}\", \"namesTheProblem\": ${REPORTS}}"
     ;;
   bad-order)

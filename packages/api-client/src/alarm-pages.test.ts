@@ -30,12 +30,18 @@ describe('alarm pins', () => {
   });
 
   it('counts a whole-layer pin by layer, and a group pin by the services the alarm concerns', () => {
-    const row = { layerKeys: ['GENERAL', 'MESH'], ownerKeys: ['GENERAL~payments', 'MESH~risk'] };
+    const row = {
+      layerKeys: ['GENERAL', 'MESH'],
+      owners: [
+        { layer: 'GENERAL', group: 'payments' },
+        { layer: 'MESH', group: 'risk' },
+      ],
+    };
     expect(alarmPinMatches({ layer: 'GENERAL' }, row)).toBe(true);
     expect(alarmPinMatches({ layer: 'GENERAL', groups: ['payments'] }, row)).toBe(true);
     // The pair decides: payments is in GENERAL, not in MESH.
     expect(alarmPinMatches({ layer: 'MESH', groups: ['payments'] }, row)).toBe(false);
-    expect(alarmPinMatches({ layer: 'GENERAL', groups: [''] }, { layerKeys: ['GENERAL'], ownerKeys: ['GENERAL~'] })).toBe(true);
+    expect(alarmPinMatches({ layer: 'GENERAL', groups: [''] }, { layerKeys: ['GENERAL'], owners: [{ layer: 'GENERAL', group: '' }] })).toBe(true);
     expect(alarmPinMatches({ layer: 'GENERAL', groups: ['payments'] }, { layerKeys: ['GENERAL'] })).toBe(false);
   });
 });

@@ -114,7 +114,7 @@ landingByRole:
   admin: /operate/cluster
 ```
 
-The login flow returns this route as `landingRoute` in the login response. The UI router uses it as the post-login destination unless a `?redirect=` query param overrides (e.g., the user was bounced to login from a protected route — they return there after auth).
+A layer page's route is its address as the sidebar opens it, such as `/layer/general/service`, or `/layer/general/payments/service` for one service group of a layer split by service group. The login flow returns this route as `landingRoute` in the login response. The UI router uses it as the post-login destination unless a `?redirect=` query param overrides (e.g., the user was bounced to login from a protected route — they return there after auth).
 
 ## Common shapes
 

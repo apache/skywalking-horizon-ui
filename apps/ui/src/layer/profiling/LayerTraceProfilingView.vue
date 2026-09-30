@@ -35,7 +35,6 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
@@ -62,13 +61,15 @@ import TraceProfileTaskDetailModal from '@/layer/profiling/TraceProfileTaskDetai
 import { profileTimeRanges } from '@/layer/profiling/profileTimeRanges';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
-const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key === layerKey.value) ?? null,
+  () => findEntry(layers.value, layerKey.value) ?? null,
 );
 
 // Reuse the landing feed to resolve the URL `?service=` id back to a
@@ -258,6 +259,8 @@ async function openTaskDetail(t: ProfileTask, ev: Event): Promise<void> {
 
 async function runAnalyze(): Promise<void> {
   const span = currentSpan.value;
+  const task = currentTask.value;
+  if (!task) return;
   if (!span?.profiled) {
     analyzeMessage.value = t("It's a un-profiled span");
     return;
@@ -270,7 +273,7 @@ async function runAnalyze(): Promise<void> {
       segmentId: span.segmentId,
       timeRange: tr,
     }));
-    const resp = await bffClient.profile.analyze(queries);
+    const resp = await bffClient.profile.analyze(layerKey.value, task.id, queries);
     // A span, task or service switch while this runs must not paint the old
     // target's flame graph under the new one.
     if (generation !== analyzeRequestGeneration) return;

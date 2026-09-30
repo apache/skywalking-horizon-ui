@@ -105,7 +105,7 @@ beforeEach(() => {
     layer('general', 3),
     layer('mesh', 0),
     layer('banyandb', -1),
-    layer('k8s_service~payments-prod', 2, { serviceGroup: 'payments-prod' }),
+    layer('k8s_service', 2, { serviceGroup: 'payments-prod' }),
   ];
   rows = [
     alertRow('default', DEFAULT_CONTENT),

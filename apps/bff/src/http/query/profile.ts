@@ -257,9 +257,10 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
   );
 
   app.post(
-    '/api/profile/analyze',
+    '/api/layer/:key/profile/tasks/:taskId/analyze',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = req.params as { taskId: string };
       const body = req.body as { queries?: ProfileAnalyzeQuery[] } | undefined;
       const payload: ProfileAnalyzationResponse = {
         tip: null,
@@ -270,6 +271,18 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
       if (!queries.length) return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
+        // A segment id names no service: it is analyzed only as one of the
+        // task's, whose service the gate checked.
+        const listed = await graphqlPost<{ segmentList: Array<{ spans?: Array<{ segmentId?: string | null }> | null }> | null }>(
+          opts,
+          GET_PROFILE_TASK_SEGMENTS,
+          { taskID: params.taskId },
+        );
+        // OAP carries a segment's id on its spans, not on the trace row.
+        const ofTask = new Set((listed.segmentList ?? []).flatMap((t) => (t.spans ?? []).map((s) => s.segmentId)));
+        if (queries.some((q) => !ofTask.has(q.segmentId))) {
+          return reply.code(403).send({ error: 'permission_denied', verb: 'profile:read', reason: 'segment_not_in_task' });
+        }
         const data = await graphqlPost<{
           analyze: { tip: string | null; trees: ProfileAnalyzationResponse['trees'] };
         }>(opts, GET_PROFILE_ANALYZE, { queries });

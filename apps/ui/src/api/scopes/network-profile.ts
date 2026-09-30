@@ -106,6 +106,9 @@ export class NetworkProfileApi {
       windowMinutes?: number;
       /** Admin preview: the operator's draft `processTopology` block. */
       previewConfig?: string;
+      /** The profiled instance the processes were drawn for — what the BFF
+       *  checks, keeping the pair to that instance's calls. */
+      serviceInstanceId: string;
     },
   ): Promise<ProcessRelationMetricsResponse> {
     return this.bff.request<ProcessRelationMetricsResponse>(

@@ -28,6 +28,7 @@
  */
 
 import { z } from 'zod';
+import { parseAlarmPin } from '@skywalking-horizon-ui/api-client';
 
 /** `pageSize` cap for the list route: one fetch holds every row the page's
  *  header KPIs and list draw. */
@@ -45,9 +46,12 @@ export const alarmsQuerySchema = z
     pageSize: z.coerce.number().int().min(1).max(LIST_PAGE_SIZE_CAP).default(LIST_PAGE_SIZE_CAP),
     /** Applied only without a service, and never sent to OAP, which stores
      *  one layer per alarm: a row is kept when a service it concerns is in
-     *  this layer (`layerKeys`). A split menu entry's `<LAYER>~<group>` keeps
-     *  the rows of that group's services (`ownerKeys`), the group as written. */
-    layer: z.string().optional(),
+     *  this layer (`layerKeys`). `GENERAL[payments]` keeps the rows of that
+     *  group's services (`owners`), the group as written. */
+    layer: z
+      .string()
+      .refine((v) => parseAlarmPin(v) !== null, 'must be a layer, or a layer with service groups such as GENERAL[payments]')
+      .optional(),
     /** New-mode only. The picked service's NAME, which is the half OAP's alarm
      *  entity filter takes — `alarm.graphqls` has no id form. Combined with
      *  `instance` / `endpoint` it is sent to OAP; alone it keeps the rows that

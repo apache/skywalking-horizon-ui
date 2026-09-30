@@ -22,12 +22,13 @@
  * caller reads either end.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { configSchema } from '../../config/schema.js';
 import { buildServiceTopology } from './service-topology.js';
 import { buildInstanceTopology } from './instance-topology.js';
 import { buildEndpointDependency } from './endpoint-dependency.js';
+import { _resetMetricScopes } from './metric-scopes.js';
 
 const id = (name: string, normal = true) => `${Buffer.from(name).toString('base64')}.${normal ? 1 : 0}`;
 const child = (serviceId: string, name: string) => `${serviceId}_${Buffer.from(name).toString('base64')}`;
@@ -37,10 +38,21 @@ const A = id('payments::a');
 const B = id('risk::b');
 const C = id('risk::c');
 const USER = id('User', false);
-const readableOf = async () => new Set([A]);
+const reach = (readable: string[], unavailable: string[] = []) => ({ readable: new Set(readable), unavailable: new Set(unavailable) });
+const readableOf = async () => reach([A]);
 
 const node = (nodeId: string, name: string, isReal = true) => ({ id: nodeId, name, type: null, isReal, layers: isReal ? ['GENERAL'] : [] });
 const call = (source: string, target: string) => ({ id: `${source}-${target}`, source, target, detectPoints: ['SERVER', 'CLIENT'] });
+
+let catalogDown = false;
+
+/** OAP's metric catalog: a relation metric and a service one. */
+const CATALOG = [
+  { name: 'service_relation_server_cpm', catalog: 'SERVICE_RELATION' },
+  { name: 'service_relation_client_cpm', catalog: 'SERVICE_RELATION' },
+  { name: 'service_cpm', catalog: 'SERVICE' },
+  { name: 'endpoint_relation_cpm', catalog: 'ENDPOINT_RELATION' },
+];
 
 /** Answers the graph queries with `graphs` and every metric with 5; records
  *  the metric queries it was sent. */
@@ -52,6 +64,9 @@ function oap(graphs: Record<string, unknown>) {
     if (query.includes('execExpression')) {
       metricQueries.push(query);
       for (const m of query.matchAll(/(\w+): execExpression/g)) data[m[1]!] = { type: 'TIME_SERIES_VALUES', results: [{ values: [{ value: '5' }] }] };
+    } else if (query.includes('listMetrics')) {
+      if (catalogDown) throw new Error('connect ECONNREFUSED');
+      data = { metrics: CATALOG };
     } else {
       const key = Object.keys(graphs).find((k) => query.includes(k));
       data = key ? (graphs[key] as Record<string, unknown>) : {};
@@ -70,6 +85,8 @@ const opts = (fetch: FetchLike) => ({ queryUrl: 'http://oap:12800', timeoutMs: 5
 const metric = { id: 'cpm', label: 'Load', mqe: 'service_cpm' };
 const link = { id: 'cpm', label: 'Load', mqe: 'service_relation_server_cpm' };
 const linkCli = { id: 'cpm', label: 'Load', mqe: 'service_relation_client_cpm' };
+
+beforeEach(() => _resetMetricScopes());
 
 describe('the service map', () => {
   const graph = {
@@ -193,5 +210,106 @@ describe('the API dependency graph', () => {
     expect(res.nodes.find((n) => n.id === pay)).toMatchObject({ metrics: { cpm: 5 } });
     expect(res.calls[0]).toMatchObject({ metrics: { cpm: 5 } });
     expect(o.metricQueries()).not.toMatch(/scope: Endpoint,\s*serviceName: "risk::b"/);
+  });
+});
+
+describe('what a call read through its destination alone may run', () => {
+  const graph = {
+    getServicesTopology: { topology: { nodes: [node(A, 'payments::a'), node(B, 'risk::b')], calls: [call(B, A)] } },
+    listServices: { services: [] },
+  };
+
+  it('runs relation metrics, and not a service metric, which OAP reads for the source', async () => {
+    const o = oap(graph);
+    const res = await buildServiceTopology({
+      ...base,
+      opts: opts(o.fetch),
+      cfg: {
+        nodeMetrics: [],
+        linkServerMetrics: [link, { id: 'srcLoad', label: 'Source load', mqe: 'service_cpm' }],
+        linkClientMetrics: [],
+      },
+      layerKey: 'GENERAL',
+      serviceArg: A,
+      depth: 1,
+      readableOf,
+    });
+    const ba = res.calls[0]!;
+    expect(ba.serverMetrics).toEqual({ cpm: 5, srcLoad: null });
+    expect(o.metricQueries()).not.toContain('"service_cpm"');
+  });
+});
+
+describe('a call read through its destination while OAP\'s metric catalog cannot be read', () => {
+  it('runs none of its metrics and says they were not read', async () => {
+    catalogDown = true;
+    try {
+      const o = oap({
+        getServicesTopology: { topology: { nodes: [node(A, 'payments::a'), node(B, 'risk::b')], calls: [call(B, A)] } },
+        listServices: { services: [] },
+      });
+      const res = await buildServiceTopology({
+        ...base,
+        opts: opts(o.fetch),
+        cfg: { nodeMetrics: [], linkServerMetrics: [link], linkClientMetrics: [] },
+        layerKey: 'GENERAL',
+        serviceArg: A,
+        depth: 1,
+        readableOf,
+      });
+      expect(res.calls[0]).toMatchObject({ metricsUnavailable: true, serverMetrics: { cpm: null } });
+      expect(o.metricQueries()).toBe('');
+    } finally {
+      catalogDown = false;
+    }
+  });
+});
+
+describe('a baseline, which OAP reads by service name', () => {
+  const graph = {
+    getServicesTopology: { topology: { nodes: [node(A, 'payments::a'), node(B, 'risk::b')], calls: [call(B, A), call(A, B)] } },
+    listServices: { services: [] },
+  };
+  const predicted = { id: 'pred', label: 'Predicted', mqe: 'baseline(service_cpm, value)' };
+
+  it('runs only for a node, and a call source, every service of whose name the caller reads', async () => {
+    const o = oap(graph);
+    const res = await buildServiceTopology({
+      ...base,
+      opts: opts(o.fetch),
+      cfg: { nodeMetrics: [metric, predicted], linkServerMetrics: [link, { ...predicted, mqe: 'baseline(service_relation_server_cpm, value)' }], linkClientMetrics: [] },
+      layerKey: 'GENERAL',
+      serviceArg: A,
+      depth: 1,
+      // payments::a is readable by id, but a namesake of its name is not.
+      readableOf: async () => reach([A]),
+      namesReadableOf: async () => reach([]),
+    });
+    expect(res.nodes.find((n) => n.id === A)).toMatchObject({ metrics: { cpm: 5, pred: null } });
+    // Read through its destination: the relation metric runs, the baseline (read for the source) does not.
+    expect(res.calls.find((c) => c.id === `${B}-${A}`)).toMatchObject({ serverMetrics: { cpm: 5, pred: null } });
+    expect(o.metricQueries()).not.toContain('baseline');
+  });
+});
+
+describe('a service OAP could not say the owner of', () => {
+  it('is drawn without its metrics and marked as not answered, not as refused', async () => {
+    const o = oap({
+      getServicesTopology: { topology: { nodes: [node(A, 'payments::a'), node(B, 'risk::b'), node(C, 'risk::c')], calls: [call(A, B), call(B, C)] } },
+      listServices: { services: [] },
+    });
+    const res = await buildServiceTopology({
+      ...base,
+      opts: opts(o.fetch),
+      cfg: { nodeMetrics: [metric], linkServerMetrics: [link], linkClientMetrics: [] },
+      layerKey: 'GENERAL',
+      serviceArg: A,
+      depth: 2,
+      readableOf: async () => reach([A], [B]),
+    });
+    expect(res.nodes.find((n) => n.id === B)).toMatchObject({ metricsUnavailable: true, metrics: { cpm: null } });
+    expect(res.nodes.find((n) => n.id === B)!.metricsBlocked).toBeUndefined();
+    expect(res.nodes.find((n) => n.id === C)).toMatchObject({ metricsBlocked: true });
+    expect(res.calls.find((c) => c.id === `${B}-${C}`)).toMatchObject({ metricsUnavailable: true });
   });
 });

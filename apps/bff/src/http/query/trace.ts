@@ -75,6 +75,7 @@ import {
   summariseZipkinTrace,
   type ZipkinClientOpts,
 } from '../../client/zipkin.js';
+import { isExactIdentity } from '../../rbac/request-access.js';
 
 export interface TraceRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -476,6 +477,16 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       // for their own), but it cannot ask for one the layer does not declare.
       const wantNative = stores.includes('native') && body.source !== 'zipkin';
       const wantZipkin = stores.includes('zipkin') && body.source !== 'native';
+      // A native list naming nothing reads every service's traces — the
+      // Platform monitoring ones too — so it needs the verb on every layer.
+      // Only the native `traceId` narrows it, and only an exact one: OAP drops
+      // a blank id. The Zipkin search is never narrowed — traces cross layers.
+      const nativeNarrowed =
+        !!body.serviceId || !!body.instanceId || !!body.endpointId ||
+        (typeof body.traceId === 'string' && isExactIdentity(body.traceId));
+      if (wantNative && !nativeNarrowed && req.access && !req.access.readsEveryLayer(['traces:read'])) {
+        return reply.code(403).send({ error: 'permission_denied', verb: 'traces:read', reason: 'service_required' });
+      }
       const requestedSource: TraceSource =
         wantNative && wantZipkin ? 'both' : wantZipkin ? 'zipkin' : 'native';
       // Fan out in parallel; partial failures don't drop the whole

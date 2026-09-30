@@ -23,7 +23,6 @@ import { ref } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
 import { componentOwnedCount, disableEntityComponent, type EntityScope } from './componentDisable';
 import { useExtPages, suggestPageId, extPageIdIssue, isPageableScope } from './useExtPages';
-import { isBuiltInLayerRow } from '@skywalking-horizon-ui/api-client';
 
 const w = (id: string) => ({ id, type: 'line' as const, title: id, expressions: ['x'] });
 
@@ -154,14 +153,11 @@ describe('page ids', () => {
     expect(suggestPageId('Resource usage', ['resource-usage', 'resource-usage-2'])).toBe('resource-usage-3');
   });
 
-  it('refuses an id that impersonates a built-in tab', () => {
-    for (const id of ['service', 'topology', 'zipkin-trace', 'pprof']) {
-      expect(extPageIdIssue(id, [], isBuiltInLayerRow)).toBe('reserved');
+  it('accepts a well-formed id, including a tab\'s name: a page sits under page/', () => {
+    for (const id of ['resource-usage', 'service', 'topology', 'zipkin-trace']) {
+      expect(extPageIdIssue(id, [])).toBeNull();
     }
-  });
-
-  it('accepts a well-formed id', () => {
-    expect(extPageIdIssue('resource-usage', [], isBuiltInLayerRow)).toBeNull();
+    expect(suggestPageId('Topology', [])).toBe('topology');
   });
 
   it('knows which components can carry pages', () => {

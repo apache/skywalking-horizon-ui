@@ -18,6 +18,7 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { SidebarEntry } from './sidebarEntries';
+import { useActiveEntry } from '@/shell/useLayerEntry';
 
 /** Fold groups independently of their layers, revealing the active group
  * on navigation without undoing a manual fold when the menu refreshes. */
@@ -33,11 +34,9 @@ export function useSidebarGroups(entries: Ref<readonly SidebarEntry[]>) {
     if (!collapsedGroups.value.delete(label)) collapsedGroups.value.add(label);
   }
 
+  const { isEntryActive } = useActiveEntry();
   const activeGroup = computed(() => {
-    const key = route.path.match(/^\/layer\/([^/]+)/)?.[1]?.toLowerCase();
-    const entry = entries.value.find((entry) =>
-      entry.kind === 'group' && entry.layers.some((layer) => layer.key.toLowerCase() === key),
-    );
+    const entry = entries.value.find((entry) => entry.kind === 'group' && entry.layers.some((layer) => isEntryActive(layer)));
     return entry?.kind === 'group' ? entry.label : undefined;
   });
   // Watch the label rather than the entry object: each menu refresh builds

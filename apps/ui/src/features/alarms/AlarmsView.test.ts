@@ -194,8 +194,8 @@ describe('Alarms page — the applied filter sends the service identity', () => 
 describe('Alarms page — a layer split by service group is one filter option', () => {
   it('offers the layer once, by its own name, and filters by the layer key alone', async () => {
     const bff = fakeBff([
-      menuLayer('GENERAL~payments', 'payments · General', 'payments'),
-      menuLayer('GENERAL~risk', 'risk · General', 'risk'),
+      menuLayer('GENERAL', 'payments · General', 'payments'),
+      menuLayer('GENERAL', 'risk · General', 'risk'),
       menuLayer('database', 'Database'),
     ]);
     vi.stubGlobal('fetch', bff.fetchSpy);

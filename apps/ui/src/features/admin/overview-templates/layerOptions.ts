@@ -15,12 +15,20 @@
  * limitations under the License.
  */
 
-/** A widget's layer as the editor offers it: the layer key upper-cased, and
- *  a split entry's `~group` kept as written, because the group reaches OAP as
- *  the service group and OAP groups are case-sensitive. */
-export function widgetLayerKey(key: string): string {
-  const cut = key.indexOf('~');
-  return cut < 0 ? key.toUpperCase() : `${key.slice(0, cut).toUpperCase()}${key.slice(cut)}`;
+import { parseEntryKey, widgetLayerEntry, widgetLayerOf } from '@/utils/layerRoute';
+
+/** A menu entry as a widget stores its layer: `GENERAL`, or one group of a
+ *  split layer, `GENERAL[payments]`; null for a group the notation cannot
+ *  write, which is not offered rather than saved as another. */
+export function widgetLayerKey(menuKey: string): string | null {
+  return widgetLayerOf(parseEntryKey(menuKey));
+}
+
+/** A draft's stored layer as the options list it; one that names no entry is
+ *  listed as written, so the widget still shows what it holds. */
+function storedOption(stored: string): string {
+  const ref = widgetLayerEntry(stored);
+  return (ref && widgetLayerOf(ref)) ?? stored;
 }
 
 /** Every layer the menu knows, with or without services now — a quiet layer
@@ -30,7 +38,13 @@ export function overviewLayerOptions(
   menuKeys: readonly string[],
   draftLayers: readonly (string | undefined)[],
 ): string[] {
-  const known = new Set(menuKeys.map(widgetLayerKey));
-  for (const l of draftLayers) if (l) known.add(widgetLayerKey(l));
+  const known = new Set<string>();
+  for (const key of menuKeys) {
+    // A split layer is offered whole as well as by each group.
+    known.add(parseEntryKey(key).layer.toUpperCase());
+    const entry = widgetLayerKey(key);
+    if (entry !== null) known.add(entry);
+  }
+  for (const l of draftLayers) if (l) known.add(storedOption(l));
   return [...known].sort();
 }

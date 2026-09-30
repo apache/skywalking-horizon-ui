@@ -37,7 +37,6 @@ import type {
 import Btn from '@/components/primitives/Btn.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import Icon from '@/components/icons/Icon.vue';
-import { useRoute } from 'vue-router';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { serviceRef } from '@/utils/serviceRef';
@@ -50,13 +49,14 @@ import {
   useContinuousProfilingInstances,
   useLayerPolicySummary,
 } from './useContinuousProfiling';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
 
 const { t } = useI18n();
 // The policy is keyed on serviceId, which OAP builds without any layer — the
 // layer is navigation here, not scope.
 const { selectedId: serviceId, setSelected } = useSelectedService();
-const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const routeEntryKey = useLayerEntryKey();
+const layerKey = computed(() => routeEntryKey.value);
 const { services, isLoading: servicesLoading } = useLayerServices(layerKey);
 const serviceName = computed<string>(
   () => services.value.find((s) => s.id === serviceId.value)?.name ?? '',

@@ -44,6 +44,8 @@ import { blockedReason, resolveEffectiveLayer } from '../../logic/layers/effecti
 import { parsePreviewDeployment } from '../../logic/layers/preview.js';
 import { buildDeployment, emptyDeploymentResponse } from '../../logic/oap/deployment.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import { ownershipUnavailable } from '../ownership-unavailable.js';
+import { ServiceLookupUnavailable } from '../../logic/services/service-identity.js';
 
 export interface DeploymentRouteDeps extends AuthDeps {
   fetch?: FetchLike;
@@ -127,12 +129,19 @@ export function registerDeploymentRoute(
             defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
+      let granted = cfg;
+      try {
+        if (req.access) granted = await req.access.graphConfig(['topology:read'], [serviceId], cfg);
+      } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return ownershipUnavailable(reply);
+        throw err;
+      }
       const response = await buildDeployment({
         opts,
         perf: cfgCurrent.performance,
         window,
         coldStage: !!req.coldStage,
-        cfg: req.access ? await req.access.graphConfig(['topology:read'], [serviceId], cfg) : cfg,
+        cfg: granted,
         layerKey,
         serviceId,
       });

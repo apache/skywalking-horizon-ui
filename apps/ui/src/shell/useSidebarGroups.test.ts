@@ -23,6 +23,9 @@ import { buildSidebarEntries, type SidebarEntry } from './sidebarEntries';
 import { useSidebarGroups } from './useSidebarGroups';
 
 vi.mock('vue-router', () => ({ useRoute: vi.fn() }));
+// The active entry is resolved against the menu, as the layer page resolves it.
+const menuRows = shallowRef<readonly LayerDef[]>([]);
+vi.mock('@/shell/useLayers', () => ({ useLayers: () => ({ layers: menuRows }) }));
 
 const route = reactive({ path: '/', fullPath: '/', params: {} });
 const scopes: EffectScope[] = [];
@@ -30,7 +33,9 @@ const scopes: EffectScope[] = [];
 function navigate(path: string): void {
   route.path = path;
   route.fullPath = path;
-  route.params = { layerKey: path.match(/^\/layer\/([^/]+)/)?.[1] };
+  // `/layer/<layer>/<tab>`, or `/layer/<layer>/<group>/<tab>` for a group entry.
+  const [, layerKey, second, third] = path.match(/^\/layer\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/) ?? [];
+  route.params = third ? { layerKey, group: second } : { layerKey };
 }
 
 function layer(key: string, group?: string): LayerDef {
@@ -55,6 +60,7 @@ const postgres = layer('POSTGRESQL', 'Databases');
 const menu = [mq, kafka, ai, mysql, postgres];
 
 function setup(rows: readonly LayerDef[] = menu) {
+  menuRows.value = rows;
   const entries = shallowRef<readonly SidebarEntry[]>(buildSidebarEntries(rows));
   const scope = effectScope();
   scopes.push(scope);
@@ -127,6 +133,17 @@ describe('useSidebarGroups', () => {
 
     expect(isGroupOpen('MQ')).toBe(false);
     expect(isGroupOpen('Databases')).toBe(true);
+  });
+
+  it('opens the group holding a split layer\'s group entry', async () => {
+    const payments = { ...layer('general/payments', 'Services'), serviceGroup: 'payments' };
+    const ungrouped = { ...layer('general/', 'Services'), serviceGroup: '' };
+    const { isGroupOpen, toggleGroup } = setup([payments, ungrouped, mysql, postgres]);
+    toggleGroup('Services');
+
+    navigate('/layer/general/payments/service');
+    await nextTick();
+    expect(isGroupOpen('Services')).toBe(true);
   });
 
   it('opens a previously collapsed group when its active singleton gains another member', async () => {

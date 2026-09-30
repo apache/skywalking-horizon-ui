@@ -64,19 +64,20 @@ export function alarmPinKey(pin: AlarmPin): string {
   return pin.groups ? `${pin.layer}[${[...pin.groups].sort().join(',')}]` : pin.layer;
 }
 
-/** The pin a layer filter names: a layer, or one service group of it written
- *  the way the sidebar keys a group entry, `GENERAL~payments` (`GENERAL~` is
- *  the ungrouped services). Only the layer is canonicalised — a group is
- *  matched exactly as written. */
-export function layerFilterPin(key: string, canonicalLayer: (layer: string) => string): AlarmPin {
-  const cut = key.indexOf('~');
-  if (cut < 0) return { layer: canonicalLayer(key) };
-  return { layer: canonicalLayer(key.slice(0, cut)), groups: [key.slice(cut + 1)] };
+/** The pin a layer filter names — a layer, or service groups of it written
+ *  as a pin, `GENERAL[payments]` — with its layer canonicalised; a group is
+ *  matched exactly as written. `null` when the text names no pin, which a
+ *  caller must not read as "every layer". */
+export function layerFilterPin(text: string, canonicalLayer: (layer: string) => string): AlarmPin | null {
+  const pin = parseAlarmPin(text);
+  return pin ? { ...pin, layer: canonicalLayer(pin.layer) } : null;
 }
 
-/** One layer-and-group pair a service an alarm concerns is in. */
-export function alarmOwnerKey(layer: string, group: string): string {
-  return `${layer}~${group}`;
+/** A layer and service group a service an alarm concerns is in; `group` is
+ *  `''` for a service with none. */
+export interface AlarmOwner {
+  layer: string;
+  group: string;
 }
 
 /** Does an alarm count under `pin`? A whole-layer pin reads the row's layers;
@@ -85,11 +86,11 @@ export function alarmOwnerKey(layer: string, group: string): string {
  *  pin's layer must already be canonical. */
 export function alarmPinMatches(
   pin: AlarmPin,
-  row: { layerKeys: readonly string[]; ownerKeys?: readonly string[] },
+  row: { layerKeys: readonly string[]; owners?: readonly AlarmOwner[] },
 ): boolean {
   if (!pin.groups) return row.layerKeys.includes(pin.layer);
-  const keys = row.ownerKeys ?? [];
-  return pin.groups.some((g) => keys.includes(alarmOwnerKey(pin.layer, g)));
+  const groups = pin.groups;
+  return (row.owners ?? []).some((o) => o.layer === pin.layer && groups.includes(o.group));
 }
 
 /** A page as one reader sees it: the pins they cannot reach are left out, and

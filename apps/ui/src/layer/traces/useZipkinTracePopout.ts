@@ -23,6 +23,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 import { withTraceFocus, clearTraceFocus } from './tracePopoutQuery';
 import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
+import { resolveEntry, routeRow } from '@/utils/layerRoute';
 
 // Native vs Zipkin keys on the trace source, not the ID shape — native IDs
 // can be bare hex, same as Zipkin. An explicit `?source=` (written by the
@@ -37,9 +38,11 @@ export function useTraceSourceIsZipkin() {
     const src = route.query.source;
     if (src === 'zipkin') return true;
     if (src === 'native') return false;
-    if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
-    const key = String(route.params.layerKey ?? '');
-    return traceRowIsZipkin(layers.value.find((l) => l.key === key)?.traces);
+    if (routeRow(route) === 'zipkin-trace') return true;
+    const layer = route.params.layerKey;
+    if (typeof layer !== 'string') return false;
+    const group = typeof route.params.group === 'string' ? route.params.group : undefined;
+    return traceRowIsZipkin(resolveEntry(layers.value, layer, group).def?.traces);
   });
 }
 

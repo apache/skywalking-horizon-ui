@@ -105,7 +105,9 @@ async function menuFor(role: keyof typeof ROLES): Promise<Array<{ key: string; s
 
 async function menuEntries(
   role: keyof typeof ROLES,
-): Promise<Array<{ key: string; serviceCount: number; rows: string[]; slots: MenuResponse['layers'][number]['slots'] }>> {
+): Promise<
+  Array<{ key: string; serviceCount: number; rows: string[]; slots: MenuResponse['layers'][number]['slots']; raw: MenuResponse['layers'][number] }>
+> {
   const cfg = configSchema.parse({ rbac: { roles: ROLES } });
   const config: ConfigSource = { current: cfg, current_: () => cfg, path: '', onChange: () => () => {}, close: async () => {} };
   const sessions = new SessionStore({ ttlMinutes: 60 });
@@ -127,8 +129,11 @@ async function menuEntries(
   await app.ready();
   const sid = sessions.create(role, [role]).sid;
   const res = await app.inject({ method: 'GET', url: '/api/menu', headers: { cookie: `horizon_sid=${sid}` } });
+  // An entry named the way a grant names it: the layer, and a split layer's
+  // group in brackets. Every entry of a layer carries the layer's own key.
   return (res.json() as MenuResponse).layers.map((l) => ({
-    key: l.key.toLowerCase(),
+    key: l.serviceGroup === undefined ? l.key.toLowerCase() : `${l.key.toLowerCase()}[${l.serviceGroup}]`,
+    raw: l,
     serviceCount: l.serviceCount,
     rows: (l.menuRows ?? []).map((r) => r.path),
     slots: l.slots,
@@ -140,16 +145,22 @@ const keys = (m: Array<{ key: string }>) => m.map((l) => l.key).sort();
 describe('the menu follows the verbs', () => {
   it('shows a plain viewer every layer but the operate ones', async () => {
     const menu = keys(await menuFor('viewer'));
-    expect(menu).toEqual(expect.arrayContaining(['general~payments', 'general~risk', 'mysql']));
+    expect(menu).toEqual(expect.arrayContaining(['general[payments]', 'general[risk]', 'mysql']));
     expect(menu).not.toContain('banyandb');
   });
 
   it('shows the operate layers to cluster:read', async () => {
-    expect(keys(await menuFor('maintainer'))).toEqual(expect.arrayContaining(['banyandb', 'general~payments', 'mysql']));
+    expect(keys(await menuFor('maintainer'))).toEqual(expect.arrayContaining(['banyandb', 'general[payments]', 'mysql']));
   });
 
   it('shows a group grant its own group entry only', async () => {
-    expect(await menuFor('payments')).toEqual([{ key: 'general~payments', serviceCount: 2 }]);
+    expect(await menuFor('payments')).toEqual([{ key: 'general[payments]', serviceCount: 2 }]);
+  });
+
+  it('keys a split layer\'s entries by the layer, the group apart', async () => {
+    const raw = (await menuEntries('viewer')).map((e) => e.raw).filter((l) => l.key === 'general');
+    expect(raw.map((l) => l.serviceGroup).sort()).toEqual(['payments', 'risk']);
+    expect(JSON.stringify(raw)).not.toContain('~');
   });
 
   it('shows an explicit operate-layer grant that layer alone', async () => {
@@ -158,14 +169,14 @@ describe('the menu follows the verbs', () => {
 
   it('shows a layer with all its pages or not at all', async () => {
     const rowsOf = async (role: keyof typeof ROLES) =>
-      (await menuEntries(role)).find((e) => e.key === 'general~payments')?.rows;
+      (await menuEntries(role)).find((e) => e.key === 'general[payments]')?.rows;
     const every = ['service', 'instance', 'topology', 'trace', 'logs'];
     expect(await rowsOf('payments')).toEqual(every);
     expect(await rowsOf('everyPage')).toEqual(every);
   });
 
   it('does not open layer pages through a verb that has none', async () => {
-    expect(keys(await menuFor('alarmsOnly'))).toEqual(['general~payments']);
+    expect(keys(await menuFor('alarmsOnly'))).toEqual(['general[payments]']);
   });
 });
 
@@ -180,12 +191,12 @@ describe('a stored layer row that spells its entity terms as `aliases`', () => {
     });
     try {
       const entries = await menuEntries('viewer');
-      expect(entries.find((l) => l.key === 'general~payments')?.slots).toEqual({ services: 'Apps' });
+      expect(entries.find((l) => l.key === 'general[payments]')?.slots).toEqual({ services: 'Apps' });
       // Neither spelling: an empty map, never a missing one.
       store[0] = layerRow('GENERAL', { slots: undefined, splitByServiceGroup: true });
       await app?.close();
       invalidateSyncCache();
-      expect((await menuEntries('viewer')).find((l) => l.key === 'general~payments')?.slots).toEqual({});
+      expect((await menuEntries('viewer')).find((l) => l.key === 'general[payments]')?.slots).toEqual({});
     } finally {
       store[0] = general;
     }

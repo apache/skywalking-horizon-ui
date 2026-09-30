@@ -40,6 +40,7 @@
 import type { PlaneId, SceneGraph, SceneLayer, SceneServiceNode } from './useMapTopology';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 export interface NodePlacement {
   nodeId: string;
@@ -170,7 +171,7 @@ const CLUSTER_GAP_X = 2.2;
 const CLUSTER_INNER_PAD = 0.9;
 
 export function tintForLayer(layerKey: string, group: string | null): ZoneTint {
-  const k = layerKey.toLowerCase();
+  const k = parseEntryKey(layerKey).layer;
   if (k === 'general') return 'app';
   if (k === 'browser') return 'browser';
   if (k === 'ios' || k.endsWith('_mini_program')) return 'mobile';
@@ -611,7 +612,13 @@ export function computePlacement(
 
     // ── Build units: one per logic group on this plane (clustering its
     //    present member layers), then one per remaining solo layer.
-    const byKey = new Map(planeLayers.map((L) => [L.key.toUpperCase(), L]));
+    // By the layer the config names — a layer split by service group has
+    // an entry per group, and a logic group takes every one of them.
+    const byLayer = new Map<string, SceneLayer[]>();
+    for (const L of planeLayers) {
+      const layer = parseEntryKey(L.key).layer.toUpperCase();
+      byLayer.set(layer, [...(byLayer.get(layer) ?? []), L]);
+    }
     const claimed = new Set<string>();
     const units: PreUnit[] = [];
 
@@ -619,10 +626,11 @@ export function computePlacement(
       if (g.level !== id) continue;
       const members: SceneLayer[] = [];
       for (const k of g.layers) {
-        const L = byKey.get(k.toUpperCase());
-        if (L && !claimed.has(L.key.toUpperCase())) {
+        for (const L of byLayer.get(k.toUpperCase()) ?? []) {
+          // Entry keys as they are: a group keeps its case, which OAP keeps.
+          if (claimed.has(L.key)) continue;
           members.push(L);
-          claimed.add(L.key.toUpperCase());
+          claimed.add(L.key);
         }
       }
       if (members.length === 0) continue;
@@ -657,8 +665,8 @@ export function computePlacement(
     }
 
     for (const L of planeLayers) {
-      if (claimed.has(L.key.toUpperCase())) continue;
-      const r = rawLayout(L, namingByLayer?.[L.key.toUpperCase()] ?? null);
+      if (claimed.has(L.key)) continue;
+      const r = rawLayout(L, namingByLayer?.[parseEntryKey(L.key).layer.toUpperCase()] ?? null);
       units.push({
         kind: 'layer',
         key: L.key,

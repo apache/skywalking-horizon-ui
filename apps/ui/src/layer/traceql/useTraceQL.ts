@@ -37,6 +37,7 @@ import { traceOutcome } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { errorText } from '@/api/permissionDenied';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 /** Adapt a TraceQL row onto the shared list/scatter row — a presentation
  *  shape every trace source fills, not a span model.
@@ -369,7 +370,9 @@ export function useTraceQLOptions(
     ]),
     queryFn: ({ signal }) =>
       bffClient.traceql.tagValues(ds.value, 'resource.service.name', window.value, {
-        layer: layerKey.value,
+        // The layer, whose traces filter applies; a TraceQL search is not
+        // narrowed to a service group.
+        layer: parseEntryKey(layerKey.value).layer,
         ...(previewTraces.value ? { previewConfig: previewTraces.value } : {}),
         signal,
       }),
@@ -390,7 +393,7 @@ export function useTraceQLOptions(
         // The value is interpolated into an expression, so it is escaped the
         // same way the builder escapes it.
         q: `{resource.service.name="${service.value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"}`,
-        layer: layerKey.value,
+        layer: parseEntryKey(layerKey.value).layer,
         signal,
       }),
     staleTime: 60_000,

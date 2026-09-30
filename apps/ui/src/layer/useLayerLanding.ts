@@ -25,6 +25,7 @@ import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useRefreshErrorReport } from '@/controls/errorCenter';
 import { useAuthStore } from '@/state/auth';
 import { useLayerServices } from '@/layer/useLayerServices';
+import { entryKey, parseEntryKey } from '@/utils/layerRoute';
 
 /**
  * Live top-N service rollup for one Overview landing card. Polls every
@@ -114,9 +115,9 @@ export function useLayerLanding(
   });
   const beyondMetrics = computed(() => {
     if (!partialMetrics.value) return [];
-    const base = layerKey.value.split('~', 1)[0];
+    const layer = parseEntryKey(layerKey.value).layer;
     return roster.services.value
-      .filter((s) => !auth.hasVerbOnLayer('metrics:read', `${base}~${s.group ?? ''}`, operate.value))
+      .filter((s) => !auth.hasVerbOnLayer('metrics:read', entryKey({ layer, group: s.group ?? '' }), operate.value))
       .map(unmeasured);
   });
   const isEnabled = computed(() => !(replay?.value ?? false) && readsMetrics.value);

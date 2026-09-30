@@ -19,7 +19,7 @@
  * How a dashboard URL resolves to (scope, page).
  *
  * The rule this replaces inferred scope by testing whether the path ENDED
- * WITH a known segment. A page id defeats that — `/layer/K/instance/runtime`
+ * WITH a known segment. A page id defeats that — `/layer/K/instance/page/runtime`
  * ends with neither `instance` nor anything else known — so the view fell
  * through to `service` and would have queried Service-scope metrics on an
  * Instance page. That renders a full, plausible, wrong grid, which is why
@@ -29,6 +29,7 @@
 import { describe, it, expect } from 'vitest';
 import router from '@/shell/router/index';
 import { resolveLayerMenuRows } from '@skywalking-horizon-ui/api-client';
+import { rowPath } from '@/utils/layerRoute';
 
 function resolve(path: string): { scope: unknown; pageId: unknown } {
   const r = router.resolve(path);
@@ -47,9 +48,9 @@ describe('entity dashboard routes', () => {
   });
 
   it.each([
-    ['/layer/general/service/resource', 'service', 'resource'],
-    ['/layer/general/instance/runtime', 'instance', 'runtime'],
-    ['/layer/general/endpoint/detail', 'endpoint', 'detail'],
+    ['/layer/general/service/page/resource', 'service', 'resource'],
+    ['/layer/general/instance/page/runtime', 'instance', 'runtime'],
+    ['/layer/general/endpoint/page/detail', 'endpoint', 'detail'],
   ])('%s resolves scope %s and page %s', (path, scope, pageId) => {
     const r = resolve(path);
     expect(r.scope).toBe(scope);
@@ -59,8 +60,8 @@ describe('entity dashboard routes', () => {
   it('carries scope on the record, so a page id cannot change it', () => {
     // The exact shape the old endsWith rule got wrong: a second segment
     // named after another scope must not re-point the page.
-    expect(resolve('/layer/general/instance/service').scope).toBe('instance');
-    expect(resolve('/layer/general/service/instance').scope).toBe('service');
+    expect(resolve('/layer/general/instance/page/service').scope).toBe('instance');
+    expect(resolve('/layer/general/service/page/instance').scope).toBe('service');
   });
 
   it('does not swallow a component tab that has its own view', () => {
@@ -93,7 +94,7 @@ describe('bare and unsupported layer routes', () => {
 
   it('matches a page route case-insensitively on the layer key', () => {
     // Menu keys are lower-case; a hand-typed URL may not be.
-    const upper = router.resolve('/layer/GENERAL/service/resource');
+    const upper = router.resolve('/layer/GENERAL/service/page/resource');
     expect(upper.meta.dashboardScope).toBe('service');
     expect(upper.params.pageId).toBe('resource');
   });
@@ -183,7 +184,7 @@ describe('every resolved menu row maps to a route with the right scope and page'
     ['instance', 'runtime'],
     ['endpoint', 'public'],
   ])('%s/%s keeps its component scope and carries its page id', (scope, page) => {
-    const r = resolve(`/layer/k/${scope}/${page}`);
+    const r = resolve(`/layer/k/${scope}/page/${page}`);
     // Both halves matter: the scope decides which metrics are queried and
     // the page decides which widgets — getting either wrong renders a
     // full, plausible, wrong grid.
@@ -194,7 +195,7 @@ describe('every resolved menu row maps to a route with the right scope and page'
   it('routes every row the resolver emits, with nothing left unhandled', () => {
     for (const row of rows) {
       const [scope, pageId] = row.split('/');
-      const r = resolve(`/layer/k/${row}`);
+      const r = resolve(`/layer/k/${rowPath(row)}`);
       if (['service', 'instance', 'endpoint'].includes(scope!)) {
         expect(r.scope, `${row} resolved to the wrong scope`).toBe(scope);
         expect(r.pageId ?? undefined, `${row} lost its page id`).toBe(pageId);

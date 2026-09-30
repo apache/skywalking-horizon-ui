@@ -90,6 +90,8 @@ import {
   type LayoutNode,
   type Pos,
 } from '@/layer/service-map/useTopologyLayout';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry, type LayerEntryRef, layerPath, parseEntryKey } from '@/utils/layerRoute';
 
 /** When embedded as a widget (e.g. inside the Services / Mesh overview
  *  dashboards) the host passes the layer key directly and asks for the
@@ -125,19 +127,20 @@ const props = defineProps<{
   replayData?: TopologyResponse;
 }>();
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 const embedded = computed(() => Boolean(props.embedded));
 
-const { layers, entryKeyFor } = useLayers();
+const { layers, entryFor } = useLayers();
 const auto = useAutoRefreshStore();
 const layer = computed<LayerDef | null>(
   // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
   // arrive lowercased (e.g. the AI chat block passes spec.layer.toLowerCase()).
-  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
+  () => findEntry(layers.value, layerKey.value) ?? null,
 );
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -706,7 +709,7 @@ function openInstanceTopology(): void {
   const dst = selectedCallTarget.value;
   if (!c || !src || !dst || !src.isReal || !dst.isReal) return;
   openRouteInNewTab({
-    path: `/layer/${layerKey.value}/topology`,
+    path: layerPath(parseEntryKey(layerKey.value), 'topology'),
     query: { ...route.query, view: 'instance', client: c.source, server: c.target },
   });
 }
@@ -760,23 +763,22 @@ function isCallFocused(id: string): boolean {
 }
 
 /**
- * Resolve the layer key we should jump into for the selected node. A
- * service may belong to multiple OAP layers; OAP returns the complete
- * list on `node.layers`. Stay in the current layer when it's in that
- * list, else fall back to the first one. The current key of a layer split
- * by service group carries `~<group>`, which no OAP layer does.
+ * The entry to open the selected node under. A service may belong to several
+ * OAP layers; OAP returns them all on `node.layers`. Stay in the current
+ * layer when it's in that list, else fall back to the first one; on a layer
+ * split by service group, open the node's own group.
  */
-function targetLayerFor(n: TopologyNode): string {
-  const current = layerKey.value.split('~', 1)[0]!.toUpperCase();
+function targetLayerFor(n: TopologyNode): LayerEntryRef {
+  const current = parseEntryKey(layerKey.value).layer.toUpperCase();
   const ls = n.layers ?? [];
   const pick = ls.includes(current) ? current : (ls[0] ?? current);
-  return entryKeyFor(pick, n.name);
+  return entryFor(pick, n.name);
 }
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${targetLayerFor(sel)}/service`,
+    path: layerPath(targetLayerFor(sel), 'service'),
     query: { service: sel.id },
   });
 }
@@ -784,7 +786,7 @@ function jumpToEndpointDependency(): void {
   const sel = selectedNode.value;
   if (!sel) return;
   openRouteInNewTab({
-    path: `/layer/${targetLayerFor(sel)}/dependency`,
+    path: layerPath(targetLayerFor(sel), 'dependency'),
     query: { service: sel.id },
   });
 }
@@ -836,7 +838,8 @@ function openHierarchy(): void {
   hierarchy.open({
     serviceId: sel.id,
     serviceName: identity(sel.name).display,
-    layer: layerKey.value,
+    // The OAP layer, which the hierarchy lanes are, not a group entry.
+    layer: parseEntryKey(layerKey.value).layer,
     zoom: { k: zoomT.value.k, x: zoomT.value.x, y: zoomT.value.y },
   });
 }
@@ -1104,13 +1107,13 @@ onBeforeUnmount(() => {
                 </g>
               </template>
               <g
-                v-else-if="c.metricsBlocked && edgeMidpoint(c)"
+                v-else-if="(c.metricsBlocked || c.metricsUnavailable) && edgeMidpoint(c)"
                 :transform="`translate(${edgeMidpoint(c)!.x - 44}, ${edgeMidpoint(c)!.y - 13})`"
                 style="pointer-events: none"
               >
                 <rect x="0" y="0" width="88" height="24" rx="12" fill="var(--sw-bg-1)" stroke="var(--sw-line-2)" stroke-width="1" />
                 <text x="44" y="17" text-anchor="middle" fill="var(--sw-fg-3)" font-size="12" font-family="var(--sw-mono)" font-weight="600">
-                  {{ t('blocked') }}
+                  {{ c.metricsBlocked ? t('blocked') : t('unavailable') }}
                 </text>
               </g>
             </g>
@@ -1270,7 +1273,7 @@ onBeforeUnmount(() => {
               <!-- Drawn because it is connected; the role may not read it,
                    so its metrics were not read — say so, not "no value". -->
               <text
-                v-if="n.metricsBlocked"
+                v-if="n.metricsBlocked || n.metricsUnavailable"
                 text-anchor="middle"
                 y="-50"
                 fill="var(--sw-fg-3)"
@@ -1278,7 +1281,7 @@ onBeforeUnmount(() => {
                 font-family="var(--sw-mono)"
                 font-weight="600"
               >
-                {{ t('blocked') }}
+                {{ n.metricsBlocked ? t('blocked') : t('unavailable') }}
               </text>
               <text
                 v-else-if="centerDef && nodeVal(n, centerDef) !== null"

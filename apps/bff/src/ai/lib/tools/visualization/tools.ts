@@ -71,7 +71,8 @@ import { fetchLogs } from '../../../../http/query/log.js';
 import { fetchBrowserErrors } from '../../../../http/query/browser-errors.js';
 import { getServerOffsetMinutes, fmtSecond } from '../../../../util/window.js';
 import { toolPrompt } from '../../skills/loader.js';
-import { decide, denied, graphConfig, holds, inexact, readableRow, refusal, tellsUnknownApart, unverifiable } from '../access.js';
+import { decide, denied, graphConfig, holds, inexact, layerRefusal, readableRow, refusal, tellsUnknownApart, unverifiable } from '../access.js';
+import { ServiceLookupUnavailable } from '../../../../logic/services/service-identity.js';
 import { readsByNameOnly } from '../../../../rbac/request-access.js';
 
 // Capture caps for the frozen triage lists — each is further clamped by the
@@ -171,9 +172,11 @@ function topoMetricLine(metrics: Record<string, number | null>, defs: MetricLege
 /** What the model is told of a service or call the user may not read: it is
  *  drawn, its values are not read. */
 const METRICS_BLOCKED = 'metrics blocked for the current user';
+/** …and of one OAP could not say the owner of: an outage, not a refusal. */
+const METRICS_UNAVAILABLE = 'metrics not read: OAP did not say who owns it';
 
 function summarizeMapNodes(
-  nodes: Array<{ name: string; metrics: Record<string, number | null>; metricsBlocked?: boolean }>,
+  nodes: Array<{ name: string; metrics: Record<string, number | null>; metricsBlocked?: boolean; metricsUnavailable?: boolean }>,
   nodeDefs: MetricLegend[],
   cap: number,
 ): string {
@@ -182,6 +185,7 @@ function summarizeMapNodes(
     .slice(0, cap)
     .map((n) => {
       if (n.metricsBlocked) return `${n.name} (${METRICS_BLOCKED})`;
+      if (n.metricsUnavailable) return `${n.name} (${METRICS_UNAVAILABLE})`;
       const line = topoMetricLine(n.metrics, nodeDefs);
       return line ? `${n.name} (${line})` : n.name;
     })
@@ -254,8 +258,20 @@ function summarizeTopology(snap: TopologyResponse, focusId: string, service: str
     const node = nodeById.get(peerId);
     const name = node?.name ?? peerId;
     const hasNodeVal = !!node && Object.values(node.metrics ?? {}).some((v) => v != null);
-    const health = node?.metricsBlocked ? METRICS_BLOCKED : hasNodeVal ? topoMetricLine(node!.metrics, nodeDefs) : '';
-    const edge = call?.metricsBlocked ? METRICS_BLOCKED : call ? topoMetricLine(call.serverMetrics, srvDefs) : '';
+    const health = node?.metricsBlocked
+      ? METRICS_BLOCKED
+      : node?.metricsUnavailable
+        ? METRICS_UNAVAILABLE
+        : hasNodeVal
+          ? topoMetricLine(node!.metrics, nodeDefs)
+          : '';
+    const edge = call?.metricsBlocked
+      ? METRICS_BLOCKED
+      : call?.metricsUnavailable
+        ? METRICS_UNAVAILABLE
+        : call
+          ? topoMetricLine(call.serverMetrics, srvDefs)
+          : '';
     const parts = [health && `node ${health}`, edge && `edge ${edge}`].filter(Boolean);
     return parts.length ? `${name} (${parts.join(' · ')})` : name;
   };
@@ -283,6 +299,8 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
 
   async function render(type: DashboardWidgetType, input: RenderInput): Promise<string> {
     if (!holds(ctx, 'metrics:read')) return denied('metrics:read');
+    const offLayer = layerRefusal(ctx, 'metrics:read', input.layer);
+    if (offLayer) return offLayer;
     // SkyWalking has no instance×endpoint scope: an Endpoint is measured across
     // the whole service, a ServiceInstance across all its endpoints. Combining
     // them returns empty — reject it so the model re-renders at one scope.
@@ -390,6 +408,8 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       group?: string;
     }): Promise<string> => {
       if (!holds(ctx, 'metrics:read')) return denied('metrics:read');
+      const offLayer = layerRefusal(ctx, 'metrics:read', layer);
+      if (offLayer) return offLayer;
       const bad = inexact(service);
       if (bad) return bad;
       if (instance && endpoint) return 'Invalid scope: pass instance OR endpoint, not both.';
@@ -456,7 +476,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       const res = await getServiceHierarchy(ctx.config.current, row.id, layer, ctx.fetch);
@@ -521,10 +541,9 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       // graph rather than as two ego graphs repeating the edge between them.
       const wanted = (services?.length ? services : service ? [service] : []).map((n) => n.trim()).filter(Boolean);
       if (!wanted.length) return 'Name at least one service, or use show_layer_topology for the whole layer.';
-      const inLayer = cat.byLayer.get(layer.toUpperCase()) ?? [];
-      const rows: typeof inLayer = [];
+      const rows: Array<{ id: string; name: string; normal?: boolean | null }> = [];
       for (const n of wanted) {
-        const pick = await readableRow(ctx, 'topology:read', layer, n, inLayer);
+        const pick = await readableRow(ctx, 'topology:read', layer, n, cat);
         if ('answer' in pick) return pick.answer;
         rows.push(pick.row);
       }
@@ -573,7 +592,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: await graphConfig(ctx, 'topology:read', rows.map((r) => r!.id), topologyConfigFor(eff.template)),
+        cfg: topologyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
         // Comma-joined ids: how the builder takes several seeds, and how the
         // layer's own map page passes a roster selection.
@@ -650,7 +669,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: await graphConfig(ctx, 'topology:read', [], topologyConfigFor(eff.template)),
+        cfg: topologyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
         // No seed ids: an empty serviceArg is what asks OAP for the whole layer,
         // the same call the layer's own map page makes.
@@ -717,7 +736,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
@@ -725,12 +744,19 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
       if (eff.blocked) return `Deployment for ${service} is unavailable (template store unreachable).`;
       const cfg = deploymentConfigFor(eff.template);
       if (!cfg) return `The ${layer.toUpperCase()} layer doesn't configure a deployment view (no intra-service instance graph).`;
+      let granted = cfg;
+      try {
+        granted = await graphConfig(ctx, 'topology:read', [row.id], cfg);
+      } catch (err) {
+        if (err instanceof ServiceLookupUnavailable) return unverifiable(`service ${service}`);
+        throw err;
+      }
       const snapshot = await buildDeployment({
         opts: ctx.opts,
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: await graphConfig(ctx, 'topology:read', [row.id], cfg),
+        cfg: granted,
         layerKey: layer.toUpperCase(),
         serviceId: row.id,
       });
@@ -775,6 +801,8 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
   const instanceTopologyTool = tool(
     async ({ layer, sourceService, destService, title }: { layer: string; sourceService: string; destService: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'topology:read')) return denied('topology:read');
+      const offLayer = layerRefusal(ctx, 'topology:read', layer);
+      if (offLayer) return offLayer;
       const cat = await catalog();
       const rows = cat.byLayer.get(layer.toUpperCase()) ?? [];
       const client = rows.find((s) => s.name === sourceService);
@@ -800,7 +828,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: await graphConfig(ctx, 'topology:read', [client.id, server.id], cfg),
+        cfg,
         layerKey: layer.toUpperCase(),
         clientServiceId: client.id,
         serverServiceId: server.id,
@@ -847,7 +875,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, endpoint, title }: { layer: string; service: string; endpoint?: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'topology:read')) return denied('topology:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'topology:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'topology:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       // The builder takes an endpoint id as it is, so an id must be one of
@@ -866,7 +894,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
         perf: ctx.config.current.performance,
         window: ctx.window,
         coldStage: false,
-        cfg: await graphConfig(ctx, 'topology:read', [row.id], endpointDependencyConfigFor(eff.template)),
+        cfg: endpointDependencyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
         service: { id: row.id, name: row.name, normal: row.normal !== false },
         endpointArg: endpoint ?? '',
@@ -919,7 +947,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'traces:read')) return denied('traces:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'traces:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'traces:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       // Freeze the native list (frozen-always) so the block replays offline.
@@ -1073,7 +1101,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'logs:read')) return denied('logs:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'logs:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'logs:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       const maxLogs = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.logs);
@@ -1120,7 +1148,7 @@ export function visualizationTools(ctx: ToolContext): StructuredToolInterface[] 
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!holds(ctx, 'browser-errors:read')) return denied('browser-errors:read');
       const cat = await catalog();
-      const pick = await readableRow(ctx, 'browser-errors:read', layer, service, cat.byLayer.get(layer.toUpperCase()) ?? []);
+      const pick = await readableRow(ctx, 'browser-errors:read', layer, service, cat);
       if ('answer' in pick) return pick.answer;
       const { row } = pick;
       const maxBrowser = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.browserLogs);

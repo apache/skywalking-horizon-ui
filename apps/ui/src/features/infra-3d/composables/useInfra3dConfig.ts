@@ -42,6 +42,7 @@ import type {
   InfraLevelSpec,
   InfraMqe,
 } from '../../../api/client';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 /** Module-level snapshot — the 3D view, the admin editor, and any
  *  other surface that consumes the config all share one fetch. */
@@ -185,8 +186,14 @@ export async function refresh(): Promise<Infra3dConfig> {
   return ensureLoaded();
 }
 
+/** The layer the 3D config names for a menu entry key: every entry of a layer
+ *  split by service group takes its layer's tier, colour, metric and filter. */
+export function configLayer(layerKey: string): string {
+  return parseEntryKey(layerKey).layer.toUpperCase();
+}
+
 export function levelForLayer(layerKey: string): string {
-  const u = layerKey.toUpperCase();
+  const u = configLayer(layerKey);
   const m = layerToLevelId.value[u];
   if (m) return m;
   return cfg.value?.unknownLayer.level ?? 'middleware';
@@ -199,24 +206,24 @@ export function isLayerExcluded(layerKey: string): boolean {
   const f = cfg.value?.filter.layer;
   if (!f) return false;
   const r = safeRegex(f);
-  return r ? !r.test(layerKey.toUpperCase()) : false;
+  return r ? !r.test(configLayer(layerKey)) : false;
 }
 
 export function colorForLayer(layerKey: string): string {
-  const u = layerKey.toUpperCase();
+  const u = configLayer(layerKey);
   const spec = cfg.value?.layers[u];
   return spec?.color ?? '#8a8a8a';
 }
 
 /** The logic group a layer belongs to, or null if ungrouped. */
 export function groupForLayer(layerKey: string): InfraGroupSpec | null {
-  const id = layerToGroupId.value[layerKey.toUpperCase()];
+  const id = layerToGroupId.value[configLayer(layerKey)];
   if (!id) return null;
   return cfg.value?.groups?.find((g) => g.id === id) ?? null;
 }
 
 export function layerSpec(layerKey: string): InfraLayerSpec | null {
-  const u = layerKey.toUpperCase();
+  const u = configLayer(layerKey);
   return cfg.value?.layers[u] ?? null;
 }
 

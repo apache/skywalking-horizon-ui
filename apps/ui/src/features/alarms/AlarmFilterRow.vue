@@ -31,6 +31,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useAuthStore } from '@/state/auth';
 import { canonicalLayerKey } from '@/state/verbGrammar';
 import type { AlarmFilters } from './useAlarmFilters';
+import { entryLayerName, entryOf } from '@/utils/layerRoute';
 
 const { t } = useI18n();
 const props = defineProps<{
@@ -47,14 +48,12 @@ const { availableLayers, alarmLayers } = useLayers();
 const auth = useAuthStore();
 const limitedLayers = computed(() => auth.layersFor('alarms:read'));
 /** One option per OAP layer. A layer split by service group is several menu
- *  entries keyed `<layer>~<group>`, and the filter takes the layer alone. */
+ *  entries, and the filter takes the layer alone. */
 const baseLayers = computed(() => {
   const out = new Map<string, string>();
   for (const L of availableLayers.value) {
-    const key = canonicalLayerKey(L.key.split('~', 1)[0]!);
-    // A split entry's name leads with its group.
-    const name = L.serviceGroup ? L.name.replace(`${L.serviceGroup} · `, '') : L.name;
-    if (!out.has(key) || !L.serviceGroup) out.set(key, name);
+    const key = canonicalLayerKey(entryOf(L).layer);
+    if (!out.has(key) || !L.serviceGroup) out.set(key, entryLayerName(L));
   }
   return out;
 });

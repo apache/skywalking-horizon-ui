@@ -28,7 +28,7 @@ const overview = {
     { id: 'w1', type: 'metric', layer: 'GENERAL', mqe: 'avg(top_n(service_cpm,{{topn}},DES))' },
     { id: 'w2', type: 'kpi-tile', layer: 'general', kpis: [{ label: 'SLA', mqe: 'avg(top_n(service_sla,{{topn}},DES))' }] },
     { id: 'w3', type: 'metric', layer: 'MESH', mqe: 'avg(top_n(service_resp_time,{{topn}},DES))' },
-    { id: 'w4', type: 'metric', layer: 'GENERAL~payments', mqe: 'avg(top_n(service_apdex,{{topn}},DES))' },
+    { id: 'w4', type: 'metric', layer: 'GENERAL[payments]', mqe: 'avg(top_n(service_apdex,{{topn}},DES))' },
   ],
 };
 

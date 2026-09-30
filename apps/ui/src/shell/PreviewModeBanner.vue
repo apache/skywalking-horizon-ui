@@ -27,23 +27,19 @@ import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
 import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
-import { useLayers } from '@/shell/useLayers';
 import { useConfigBundle } from '@/controls/configBundle';
+import { useRouteEntry } from '@/shell/useLayerEntry';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const previewMode = usePreviewMode();
-const { layers } = useLayers();
+const routeEntry = useRouteEntry();
 const { bundle } = useConfigBundle();
 
 /** Friendly name of the dashboard being previewed (layer name / overview
  *  title), from the current route. */
 const target = computed<string | null>(() => {
-  const lm = route.path.match(/^\/layer\/([^/]+)/);
-  if (lm) {
-    const key = lm[1]!;
-    return layers.value.find((l) => l.key.toLowerCase() === key.toLowerCase())?.name || key.toUpperCase();
-  }
+  if (routeEntry.value) return routeEntry.value.def?.name || routeEntry.value.ref.layer.toUpperCase();
   const om = route.path.match(/^\/overview\/([^/]+)/);
   if (om) {
     const id = om[1]!;

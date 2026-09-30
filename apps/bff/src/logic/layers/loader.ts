@@ -128,10 +128,9 @@ export interface LayerHeaderConfig {
 
 /**
  * Per-scope dashboards bundled with a layer template. Each scope is an
- * independent widget set; the SPA picks one based on the active route
- * (`/layer/:key/service`, `/instance`, `/endpoint`, `/trace`,
- * `/profiling`). Legacy `widgets` (flat array) is migrated to
- * `dashboards.service` at load time.
+ * independent widget set; the SPA picks the one of the tab it shows.
+ * Legacy `widgets` (flat array) is migrated to `dashboards.service` at load
+ * time.
  */
 export interface LayerDashboards {
   service?: DashboardWidget[];
@@ -167,10 +166,10 @@ export const EXT_PAGE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
  * One additional dashboard page for an entity component, beyond the
  * component's default `dashboards.<scope>` grid.
  *
- * `id` is both the identity and the route segment (`/layer/K/service/<id>`),
- * unique within its component. Uniqueness is load-bearing twice over: it
- * addresses the route, and it is what makes the page array id-addressable
- * for translation overlays — a duplicate would silently drop the whole
+ * `id` is both the identity and the route segment
+ * (`/layer/K/service/page/<id>`), unique within its component. Uniqueness
+ * is load-bearing twice over: it addresses the route, and it is what makes
+ * the page array id-addressable for translation overlays — a duplicate would silently drop the whole
  * array back to position-based matching.
  */
 /** The entity narrowing a page applies, default or extension. */

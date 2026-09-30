@@ -43,7 +43,7 @@ import type { ProfilingAnalysis } from '../../../../logic/oap/profiling.js';
 import { layerCapabilities } from '../../../../logic/layers/capabilities.js';
 import { resolveEffectiveLayer } from '../../../../logic/layers/effective.js';
 import { getServerOffsetMinutes } from '../../../../util/window.js';
-import { decide, holds, inexact, tellsUnknownApart, unverifiable } from '../access.js';
+import { decide, holds, inexact, layerRefusal, tellsUnknownApart, unverifiable } from '../access.js';
 
 // Horizon-side template config, NOT an OAP capability: none of OAP's five
 // profiling create paths takes a layer, so a missing type is a hint, not proof
@@ -140,6 +140,8 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
     async ({ layer, serviceId, service, profilingType, durationMinutes, endpoint, event, targetType, instances, cause, rationale, expectation }): Promise<string> => {
       const bad = inexact(serviceId, 'the service id');
       if (bad) return bad;
+      const offLayer = holds(ctx, 'profile:enable') ? layerRefusal(ctx, 'profile:enable', layer) : null;
+      if (offLayer) return offLayer;
       const may = holds(ctx, 'profile:enable') ? await decide(ctx, 'profile:enable', { id: serviceId }) : 'deny';
       if (may === 'unavailable') return unverifiable(service);
       if (may === 'deny') {
@@ -356,6 +358,8 @@ export function triggerTools(ctx: ToolContext): StructuredToolInterface[] {
       if (bad) return bad;
       const refused = `Permission denied: the current user cannot read profiling results for ${service} (profile:read). Do not analyze; say profiling results are not readable for this user.`;
       if (!holds(ctx, 'profile:read')) return refused;
+      const offLayer = layerRefusal(ctx, 'profile:read', layer);
+      if (offLayer) return offLayer;
       // The analysis reads the one service the name resolves to in this layer,
       // so that is the identity to check — not every service of the name.
       let serviceId: string;

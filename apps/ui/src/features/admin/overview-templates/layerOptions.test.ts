@@ -19,15 +19,20 @@ import { describe, expect, it } from 'vitest';
 import { overviewLayerOptions, widgetLayerKey } from './layerOptions';
 
 describe('overview editor layer options', () => {
-  it('upper-cases the layer and keeps a split entry\'s group as written', () => {
+  it('writes a split layer\'s group the way a grant does, as written', () => {
     expect(widgetLayerKey('general')).toBe('GENERAL');
-    expect(widgetLayerKey('general~payments')).toBe('GENERAL~payments');
-    expect(widgetLayerKey('general~Risk-EU')).toBe('GENERAL~Risk-EU');
+    expect(widgetLayerKey('general/payments')).toBe('GENERAL[payments]');
+    expect(widgetLayerKey('general/Risk-EU')).toBe('GENERAL[Risk-EU]');
+    expect(widgetLayerKey('general/')).toBe('GENERAL[-]');
+  });
+
+  it('does not offer a group the notation cannot write', () => {
+    expect(overviewLayerOptions(['general/payments', 'general/-', 'general/a%2Cb'], [])).toEqual(['GENERAL', 'GENERAL[payments]']);
   });
 
   it('lists every menu layer and every layer the draft references, once each', () => {
     expect(
-      overviewLayerOptions(['mesh', 'general', 'general~payments', 'virtual_genai'], ['GENERAL', undefined, 'k8s', 'general~payments']),
-    ).toEqual(['GENERAL', 'GENERAL~payments', 'K8S', 'MESH', 'VIRTUAL_GENAI']);
+      overviewLayerOptions(['mesh', 'general', 'general/payments', 'virtual_genai'], ['GENERAL', undefined, 'k8s', 'GENERAL[payments]']),
+    ).toEqual(['GENERAL', 'GENERAL[payments]', 'K8S', 'MESH', 'VIRTUAL_GENAI']);
   });
 });

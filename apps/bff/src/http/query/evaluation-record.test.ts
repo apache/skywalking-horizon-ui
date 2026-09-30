@@ -23,7 +23,8 @@ import { configSchema } from '../../config/schema.js';
 import type { ConfigSource } from '../../config/loader.js';
 import { SessionStore } from '../../user/sessions.js';
 import { makeRouteAuthHook } from '../../rbac/route-policy.js';
-import { resetServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
+import { resetServiceLayerCatalog, serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
+import { ServiceIdentityResolver, serviceIdOf } from '../../logic/services/service-identity.js';
 import { fetchEvaluationRecords, registerEvaluationRecordRoute } from './evaluation-record.js';
 import { registerLandingRoute } from './landing.js';
 
@@ -324,5 +325,66 @@ describe('evaluation-record route scope and time window', () => {
     const call = oap.calls.find((c) => c.query.includes('QueryGenAIEvaluationRecordFacets'));
     const condition = call?.variables.evaluationRecordCondition as Record<string, unknown>;
     expect(condition).not.toHaveProperty('maxScore');
+  });
+});
+
+describe('evaluation records for a role granted part of a side', () => {
+  const PROVIDER = serviceIdOf('openai', false);
+  const CALLER = serviceIdOf('payments::checkout', true);
+  const ROLES = {
+    plain: ['logs:read'],
+    team: ['logs:read@GENERAL[payments]', 'logs:read@VIRTUAL_GENAI'],
+    partProviders: ['logs:read@GENERAL', 'logs:read@VIRTUAL_GENAI[-]'],
+  };
+  const oap: FetchLike = async (_url, init) => {
+    const { query = '' } = JSON.parse(String(init?.body ?? '{}')) as { query?: string };
+    if (query.includes('getTimeInfo')) return json({ data: { time: { timezone: '+0000' } } });
+    if (query.includes('HorizonServiceCatalogLayers')) return json({ data: { layers: ['VIRTUAL_GENAI', 'GENERAL'] } });
+    if (query.includes('HorizonServiceCatalogServices')) {
+      return json({
+        data: {
+          _0: [{ id: PROVIDER, name: 'openai', normal: false, group: '' }],
+          _1: [{ id: CALLER, name: 'payments::checkout', normal: true, group: 'payments' }],
+        },
+      });
+    }
+    if (query.includes('QueryGenAIEvaluationRecords')) return json({ data: { data: { genAIEvaluationRecordList: [] } } });
+    return json({ data: {} });
+  };
+
+  async function post(role: keyof typeof ROLES, body: Record<string, unknown>) {
+    const cfg = configSchema.parse({ oap: { queryUrl: 'http://evaluation-test.invalid' }, rbac: { roles: ROLES } });
+    const config: ConfigSource = { current: cfg, current_: () => cfg, path: '', onChange: () => () => {}, close: async () => {} };
+    const sessions = new SessionStore({ ttlMinutes: 60 });
+    const catalog = serviceLayerCatalog({ config, fetch: oap });
+    const app = Fastify();
+    await app.register(cookie);
+    app.addHook(
+      'onRoute',
+      makeRouteAuthHook({
+        config,
+        sessions,
+        access: { services: new ServiceIdentityResolver({ config, fetch: oap, catalog }), classify: async () => ({ isOperate: () => false }) },
+      }),
+    );
+    registerEvaluationRecordRoute(app, { config, sessions, fetch: oap });
+    await app.ready();
+    const sid = sessions.create(role, [role]).sid;
+    const res = await app.inject({ method: 'POST', url: '/api/layer/virtual_genai/evaluation-records', payload: body, headers: { cookie: `horizon_sid=${sid}` } });
+    await app.close();
+    return { status: res.statusCode, reason: (res.json() as { reason?: string }).reason };
+  }
+
+  it('reads every provider and every caller for a role that reads both sides whole', async () => {
+    expect((await post('plain', {})).status).toBe(200);
+  });
+
+  it('needs a caller named by a role granted part of the callers', async () => {
+    expect(await post('team', { providerId: PROVIDER })).toEqual({ status: 403, reason: 'caller_required' });
+    expect((await post('team', { providerId: PROVIDER, serviceId: CALLER })).status).toBe(200);
+  });
+
+  it('needs a provider named by a role granted part of the providers', async () => {
+    expect(await post('partProviders', { serviceId: CALLER })).toEqual({ status: 403, reason: 'provider_required' });
   });
 });

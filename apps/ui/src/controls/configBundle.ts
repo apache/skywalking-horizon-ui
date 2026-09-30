@@ -43,6 +43,7 @@ import { usePreviewOverride } from '@/controls/previewOverride';
 import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import type { ConfigBundle, BundleScopeMap } from '@/api/scopes/configs';
 import type { DashboardWidget, OverviewDashboard } from '@skywalking-horizon-ui/api-client';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 // Browser-side unpublished drafts. Overlaid on live pages ONLY while the
 // route is in `?mode=preview` — the editor's explicit preview entrance.
@@ -331,8 +332,10 @@ export function getDashboardConfig(
   }
   const b = state.value;
   if (!b) return null;
-  if (page) return b.layerExtPages?.[layerKey.toLowerCase()]?.[`${scope}/${page}`] ?? null;
-  const layer = b.layers[layerKey.toLowerCase()] as BundleScopeMap | undefined;
+  // The bundle holds each layer's template once; a split layer's entries share it.
+  const key = parseEntryKey(layerKey).layer;
+  if (page) return b.layerExtPages?.[key]?.[`${scope}/${page}`] ?? null;
+  const layer = b.layers[key] as BundleScopeMap | undefined;
   return layer?.[scope] ?? null;
 }
 

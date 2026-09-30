@@ -68,3 +68,31 @@ describe('computePlacement bounds — what the camera frames', () => {
     expect(none.bounds.maxY).toBe(Math.max(...none.planes.map((pl) => pl.y)));
   });
 });
+
+// A layer split by service group reaches the scene as one layer per group
+// entry; a logic group naming the layer takes every one of them.
+describe('computePlacement logic groups', () => {
+  it('put every entry of a split member layer in the group\'s block', () => {
+    const group = { id: 'apps', label: 'Apps', level: 'apps', color: '#fff', icon: 'sky', layers: ['GENERAL'] };
+    const p = computePlacement(
+      graph([layer('general/', 'apps', 1), layer('general/payments', 'apps', 2), layer('mesh', 'apps', 1)]),
+      undefined,
+      [group],
+    );
+    const block = p.zones.find((z) => z.group?.id === 'apps');
+    expect(block?.group?.layerKeys.sort()).toEqual(['general/', 'general/payments']);
+    // The layer outside the group keeps a zone of its own.
+    expect(p.zones.some((z) => !z.group && z.layerKey === 'mesh')).toBe(true);
+  });
+});
+
+describe('computePlacement with groups differing only in case', () => {
+  it('keeps both entries, in the logic group and out of it', () => {
+    const group = { id: 'apps', label: 'Apps', level: 'apps', color: '#fff', icon: 'sky', layers: ['GENERAL'] };
+    const entries = [layer('general/payments', 'apps', 1), layer('general/Payments', 'apps', 1)];
+    const grouped = computePlacement(graph(entries), undefined, [group]);
+    expect(grouped.zones.find((z) => z.group?.id === 'apps')?.group?.layerKeys.sort()).toEqual(['general/Payments', 'general/payments']);
+    const solo = computePlacement(graph(entries));
+    expect(solo.zones.map((z) => z.layerKey).sort()).toEqual(['general/Payments', 'general/payments']);
+  });
+});

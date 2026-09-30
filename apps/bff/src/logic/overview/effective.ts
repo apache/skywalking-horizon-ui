@@ -89,9 +89,9 @@ export async function overviewExpressionsForLayer(
   uiTemplateClient: (() => UITemplateClient) | undefined,
   layerKey: string,
 ): Promise<Set<string>> {
-  // A widget on a split layer names `<layer>~<group>`; its landing read
-  // arrives as the layer with a `group` parameter.
-  const layerOf = (k: string) => canonicalLayerKey(k.split('~', 1)[0]!);
+  // A widget on one service group names it `GENERAL[payments]`; its landing
+  // read arrives as the layer with a `group` parameter.
+  const layerOf = (k: string) => canonicalLayerKey(k.split('[', 1)[0]!.trim());
   const key = layerOf(layerKey);
   const out = new Set<string>();
   for (const d of await resolveEffectiveOverviews(uiTemplateClient)) {

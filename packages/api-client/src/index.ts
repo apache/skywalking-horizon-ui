@@ -364,12 +364,12 @@ export {
 export {
   ALERT_DEFAULT_PAGE_ID,
   UNGROUPED_PIN,
-  alarmOwnerKey,
   alarmPinKey,
   alarmPinMatches,
   formatAlarmPin,
   layerFilterPin,
   parseAlarmPin,
+  type AlarmOwner,
   type AlarmPageView,
   type AlarmPagesResponse,
   type AlarmPin,

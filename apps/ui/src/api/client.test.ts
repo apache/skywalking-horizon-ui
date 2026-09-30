@@ -24,6 +24,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BffClient } from './client';
+import { entryKey } from '@/utils/layerRoute';
 import { pushEvent, resetEventLog, useEventLog } from '@/controls/eventLog';
 
 describe('BffClient — the 401 breadcrumb survives the session reset it triggers', () => {
@@ -65,5 +66,36 @@ describe('BffClient — the 401 breadcrumb survives the session reset it trigger
     expect(useEventLog().all.value.map((e) => e.text)).toContain(
       'POST /api/sourcemaps · 401 (re-auth)',
     );
+  });
+});
+
+describe('BffClient — a split layer entry reads with its group', () => {
+  let urls: string[] = [];
+  beforeEach(() => {
+    urls = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(url);
+        return new Response(JSON.stringify({ services: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the layer as the path and the group as `?group=`, encoded once', async () => {
+    const client = new BffClient();
+    await client.layer.services('general/payments');
+    await client.layer.services('general/');
+    await client.layer.services(entryKey({ layer: 'general', group: 'a/b c' }));
+    await client.layer.services('mesh');
+    expect(urls.map((u) => u.replace(/^.*\/api/, '/api'))).toEqual([
+      '/api/layer/general/services?group=payments',
+      '/api/layer/general/services?group=',
+      '/api/layer/general/services?group=a%2Fb%20c',
+      '/api/layer/mesh/services',
+    ]);
   });
 });

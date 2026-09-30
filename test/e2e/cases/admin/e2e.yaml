@@ -143,10 +143,8 @@ verify:
           "http://${horizon_host}:${horizon_8081}" valid
       expected: expected/layer-template-saved.yml
 
-    # 11. …and the publish boundary REFUSES a page id equal to a real layer
-    #     route segment. Path sniffers elsewhere in the app test the whole
-    #     route, so such an id changes unrelated behaviour rather than merely
-    #     colliding. The operator sees a generic error on screen, so the
+    # 11. …and the publish boundary REFUSES a page id that cannot be a URL
+    #     segment. The operator sees a generic error on screen, so the
     #     refusal and its reason are only observable here.
     - query: |
         bash test/e2e/script/prepare/layer-template-push.sh \

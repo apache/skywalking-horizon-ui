@@ -36,6 +36,7 @@ import {
 import { sessionHasVerb } from './policy.js';
 import { fieldValue, type IdSpec, type ScopeRule } from './route-scope.js';
 import type { Verb } from './verbs.js';
+import { ownershipUnavailable } from '../http/ownership-unavailable.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -139,15 +140,6 @@ function refsOf(req: FastifyRequest, spec: IdSpec, into: Named): ServiceRef[] {
     const other = id ? null : str(fieldValue(req, spec.idOrName), into);
     if (id) out.push({ id });
     else if (other) out.push({ idOrName: other });
-  } else if ('processEnd' in spec) {
-    const v = fieldValue(req, spec.processEnd);
-    const s = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-    // The handler sends whatever the end carries: an empty name OAP reads as
-    // `_blank`, a missing one as no service (a `top_n` then ranks them all).
-    if (v !== undefined && !(typeof s.serviceName === 'string' && isExactIdentity(s.serviceName))) into.padded = true;
-    const name = str(s.serviceName, into);
-    // The handler reads anything but boolean `false` as true; check the same service.
-    if (name) out.push(serviceRefFromName(name, s.normal !== false));
   }
   return out;
 }
@@ -167,7 +159,7 @@ function named(req: FastifyRequest, rule: ScopeRule): Named {
 }
 
 function unavailable(reply: FastifyReply): void {
-  reply.code(503).send({ error: 'oap_unreachable', message: 'OAP did not answer who owns the service this request reads' });
+  ownershipUnavailable(reply);
 }
 
 function deny(reply: FastifyReply, verbs: readonly Verb[], reason: string, extra: Record<string, unknown> = {}): void {

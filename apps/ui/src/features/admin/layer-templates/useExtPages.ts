@@ -30,7 +30,6 @@ import { computed, type Ref } from 'vue';
 import type { InstanceAttributePredicate } from '@skywalking-horizon-ui/api-client';
 import type { AdminEntityFilter, AdminExtPage, AdminLayerTemplate } from '@/api/client';
 import {
-  isBuiltInLayerRow,
   MAX_EXT_PAGE_ID_LENGTH,
   MAX_EXT_PAGE_NAME_LENGTH,
 } from '@skywalking-horizon-ui/api-client';
@@ -70,7 +69,7 @@ export function draftPageIdIssues(tpl: AdminLayerTemplate | null): string[] {
     const pages = byScope[scope] ?? [];
     const seen: string[] = [];
     for (const p of pages) {
-      const issue = extPageIdIssue(p.id, seen, isBuiltInLayerRow);
+      const issue = extPageIdIssue(p.id, seen);
       if (issue) out.push(`${scope}.${p.id || '(empty)'}: ${issue}`);
       else if (p.id.length > MAX_EXT_PAGE_ID_LENGTH) out.push(`${scope}.${p.id}: too long`);
       else if (p.name.trim() === '') out.push(`${scope}.${p.id}: empty name`);
@@ -81,10 +80,9 @@ export function draftPageIdIssues(tpl: AdminLayerTemplate | null): string[] {
   return out;
 }
 
-export function extPageIdIssue(id: string, taken: readonly string[], reserved: (v: string) => boolean): string | null {
+export function extPageIdIssue(id: string, taken: readonly string[]): string | null {
   if (!id) return 'empty';
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return 'format';
-  if (reserved(id)) return 'reserved';
   if (taken.includes(id)) return 'duplicate';
   return null;
 }
@@ -92,24 +90,15 @@ export function extPageIdIssue(id: string, taken: readonly string[], reserved: (
 /**
  * Derive a route id from a display name — lowercase, hyphenated, and
  * numbered until it is free.
- *
- * `reserved` rejects ids that would impersonate a built-in tab. A display
- * name is NOT an id, so a page legitimately called "Topology" gets
- * `topology-2` rather than being refused: the operator named a page, they
- * did not ask for a route.
  */
-export function suggestPageId(
-  name: string,
-  taken: readonly string[],
-  reserved: (id: string) => boolean = () => false,
-): string {
+export function suggestPageId(name: string, taken: readonly string[]): string {
   const base =
     name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 40) || 'page';
-  const free = (id: string): boolean => !taken.includes(id) && !reserved(id);
+  const free = (id: string): boolean => !taken.includes(id);
   if (free(base)) return base;
   for (let i = 2; i < 100; i++) {
     const candidate = `${base}-${i}`;

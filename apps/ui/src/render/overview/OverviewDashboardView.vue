@@ -39,6 +39,7 @@ import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
 import CalendarHeatmapWidget from '@/render/widgets/CalendarHeatmapWidget.vue';
 import RankingWidget from '@/render/widgets/RankingWidget.vue';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
+import { widgetEntryKey, widgetLayerEntry } from '@/utils/layerRoute';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -96,8 +97,16 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
           :style="{ gridTemplateColumns: `repeat(${sec.cols}, minmax(0, 1fr))` }"
         >
           <template v-for="w in sec.widgets" :key="w.id">
+            <div
+              v-if="w.layer && !widgetLayerEntry(w.layer)"
+              class="widget-unreadable sw-card"
+              :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
+            >
+              <strong>{{ w.title }}</strong>
+              <p>{{ t('This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.', { layer: w.layer }) }}</p>
+            </div>
             <MetricWidget
-              v-if="w.type === 'metric'"
+              v-else-if="w.type === 'metric'"
               :title="w.title"
               :tip="w.tip"
               :value="values.values[w.id]"
@@ -131,9 +140,7 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
               class="topo-host sw-card"
               :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
             >
-              <!-- Lowercase to match the /api/menu casing the layer
-                   composables look up by. -->
-              <LayerServiceMapView :layer-key="w.layer.toLowerCase()" :embedded="true" />
+              <LayerServiceMapView :layer-key="widgetEntryKey(w.layer)" :embedded="true" />
             </div>
             <MetricCompositeWidget
               v-else-if="w.type === 'metric-composite'"
@@ -201,6 +208,14 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
   display: grid;
   grid-auto-rows: 72px;
   gap: 12px;
+}
+.widget-unreadable {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--sw-fg-2);
+}
+.widget-unreadable p {
+  margin: 6px 0 0;
 }
 .topo-host {
   padding: 0;

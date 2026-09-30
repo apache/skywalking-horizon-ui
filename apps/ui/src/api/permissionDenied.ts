@@ -56,6 +56,10 @@ export function describeRefusal(d: PermissionDenied): string | null {
       return d.layer
         ? t('You do not have access to the {layer} layer.', { layer: d.layer.toUpperCase() })
         : t('You do not have access to this layer.');
+    case 'caller_required':
+      return t('Pick a calling service: your role reads only some services, so a query across every caller is refused.');
+    case 'provider_required':
+      return t('Pick a provider: your role reads only some providers, so a query across every provider is refused.');
     case 'group_not_granted':
       return t('You do not have access to the {group} services of the {layer} layer.', {
         group: d.group ?? '',

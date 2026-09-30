@@ -47,12 +47,18 @@ import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetai
 import RelatedTraceSpanPicker, { type RelatedSpanPick } from '@/layer/evaluation-record/RelatedTraceSpanPicker.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const router = useRouter();
 const { t } = useI18n();
 const auth = useAuthStore();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+// Every caller is every layer's services: a role whose logs:read is limited to
+// layers names one of its own callers.
+const callerRequired = computed(() => auth.layerLimited('logs:read'));
+const layerKey = computed(() => routeEntryKey.value);
 const { openResultTrace } = useResultTracePopout();
 
 function queryString(name: string): string | null {
@@ -92,8 +98,11 @@ const catalogFailure = computed<string | null>(() => {
 // and draws it from this `logs:read` catalog: the shell's picker reads the
 // metrics roster, which a logs-only role cannot.
 const providers = computed(() => {
-  const key = layerKey.value.toUpperCase();
-  return callerServices.value.filter((candidate) => candidate.layer.toUpperCase() === key);
+  const { layer, group } = parseEntryKey(layerKey.value);
+  return callerServices.value.filter(
+    (candidate) =>
+      candidate.layer.toLowerCase() === layer && (group === undefined || (candidate.group ?? '') === group),
+  );
 });
 const selectedService = computed(() => callerServices.value.find((candidate) => candidate.id === selectedId.value) ?? null);
 const service = computed<ServiceRef | null>(() => {
@@ -106,12 +115,18 @@ watch(providers, (rows) => {
 watch(providerIdParam, (providerId) => {
   if (providerId && selectedId.value !== providerId) setSelectedService(providerId);
 }, { immediate: true });
-// A bookmarked provider that has gone quiet stays selectable, as a model does.
+// A bookmarked provider that has gone quiet stays selectable, as a model does —
+// but not for a role that reads only some providers: one outside its list is
+// then one it may not read, and would only be refused.
 const providerOptions = computed(() => {
   const id = selectedId.value;
-  return id && !providers.value.some((p) => p.id === id)
+  return id && !callerRequired.value && !providers.value.some((p) => p.id === id)
     ? [{ id, name: id }, ...providers.value]
     : providers.value;
+});
+watch([providers, callerRequired], ([rows, limited]) => {
+  const id = selectedId.value;
+  if (limited && id && rows.length > 0 && !rows.some((p) => p.id === id)) setSelectedService(rows[0]!.id);
 });
 function changeProvider(providerId: string): void {
   if (providerId) setSelectedService(providerId);
@@ -135,7 +150,9 @@ const callerTypeaheadOptions = computed(() => {
   const orphan = picked && !known.has(picked) && !seenCallers.value.has(picked)
     ? [{ value: picked, label: picked }]
     : [];
-  return [{ value: '', label: t('All services') }, ...catalog, ...seen, ...orphan];
+  // Every caller is every layer's services: a role granted part of them names
+  // one of its own, and is not offered the whole.
+  return [...(callerRequired.value ? [] : [{ value: '', label: t('All services') }]), ...catalog, ...seen, ...orphan];
 });
 // — Model picker. Evaluation records currently reuse the instance
 // selector plumbing, but the UI labels it by the GenAI domain concept.
@@ -457,7 +474,10 @@ const hasQueried = ref(false);
 // The provider is the upstream control: both reads stay parked until one is
 // picked, however many times Run query is pressed.
 const providerReady = computed(() => !!selectedId.value);
-const queryEnabled = computed(() => hasQueried.value && providerReady.value && customRangeError.value == null);
+const callerReady = computed(() => !callerRequired.value || !!serviceId.value);
+const queryEnabled = computed(
+  () => hasQueried.value && providerReady.value && callerReady.value && customRangeError.value == null,
+);
 const a = <K extends keyof AppliedConditions>(key: K) => computed(() => applied.value[key]);
 
 const { genAIEvaluationRecordStreamRows, total, hasNext, reachable, queryError, isFetching, refetch } = useLayerEvaluationRecord(layerKey, {
@@ -522,7 +542,7 @@ watch(() => facets.value?.services, (services) => {
 // Run query commits the draft and refetches BOTH reads, so the facet sample
 // never diverges from the stream (facets carry a staleTime of their own).
 function runQuery(): void {
-  if (!providerReady.value || customRangeError.value != null) return;
+  if (!providerReady.value || !callerReady.value || customRangeError.value != null) return;
   page.value = 1;
   hasQueried.value = true;
   applyConditions();
@@ -678,7 +698,8 @@ watch([drillArmed, providerReady], ([armed, ready]) => {
         <span class="kicker">{{ t('Evaluation records') }}</span>
         <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}...</code></span>
         <span v-if="isFetching" class="hint">refreshing...</span>
-        <button class="sw-btn primary lg-run-btn" type="button" :disabled="!providerReady || customRangeError != null" @click="runQuery">{{ t('Run query') }}</button>
+        <span v-if="!callerReady" class="hint">{{ t('Pick a calling service: your role reads only some services, so a query across every caller is refused.') }}</span>
+        <button class="sw-btn primary lg-run-btn" type="button" :disabled="!providerReady || !callerReady || customRangeError != null" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <div class="cf-row cf-row-3">

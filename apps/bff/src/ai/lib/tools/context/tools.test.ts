@@ -68,8 +68,8 @@ describe('list_services', () => {
     expect(new Set(out.services.map((s: { layer: string }) => s.layer))).toEqual(new Set(['GENERAL', 'K8S_SERVICE']));
   });
 
-  it('denies without metrics:read', async () => {
-    expect(String(await tools(false).listServices.invoke({}))).toMatch(/permission|metrics:read/i);
+  it('denies a caller who can open no layer page', async () => {
+    expect(String(await tools(false).listServices.invoke({}))).toMatch(/permission/i);
   });
 });
 
@@ -86,6 +86,12 @@ describe('the roster tools answer with what the caller may read', () => {
     const t = limited(['metrics:read']);
     expect(parse(await t.listServices.invoke({})).services.map((s: { layer: string }) => s.layer)).toEqual(['GENERAL', 'GENERAL']);
     expect(parse(await t.listLayers.invoke({})).map((l: { layer: string }) => l.layer)).toEqual(['GENERAL']);
+  });
+
+  it('lists a logs-only role its services, as the page picker does', async () => {
+    const t = limited(['logs:read@K8S_SERVICE']);
+    expect(parse(await t.listServices.invoke({})).services.map((s: { name: string }) => s.name)).toEqual(['showcase::gateway.ns']);
+    expect(parse(await t.listLayers.invoke({})).map((l: { layer: string }) => l.layer)).toEqual(['K8S_SERVICE']);
   });
 
   it('lists only the granted layer for a layer grant, and the operate one it names', async () => {

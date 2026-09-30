@@ -64,6 +64,7 @@ import {
   type GridFit,
   type WorkComparison,
 } from './calendarHeatmap';
+import { widgetEntryKey } from '@/utils/layerRoute';
 
 const props = withDefaults(
   defineProps<{
@@ -151,7 +152,7 @@ const query = useQuery({
       ],
     };
     return fetchDrawable(() =>
-      bffClient.layer.landing(props.layer ?? '', cfg, { step: hourly ? 'HOUR' : 'DAY', startMs, endMs }, signal),
+      bffClient.layer.landing(widgetEntryKey(props.layer ?? ''), cfg, { step: hourly ? 'HOUR' : 'DAY', startMs, endMs }, signal),
     ).then(toRead);
   },
   staleTime: 0,

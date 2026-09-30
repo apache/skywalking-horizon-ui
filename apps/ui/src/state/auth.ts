@@ -22,6 +22,7 @@ import { useTemplatePreference } from '@/controls/templatePreference';
 import { resetSessionState } from '@/state/sessionReset';
 import { i18n } from '@/i18n';
 import { canonicalLayerKey, hasPlainVerb, layerGrantCovers, parseLayerGrant, type LayerGrant } from './verbGrammar';
+import { parseEntryKey } from '@/utils/layerRoute';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<MeResponse | null>(null);
@@ -123,15 +124,14 @@ export const useAuthStore = defineStore('auth', () => {
    * May the session use `verb` on this layer's pages? A plain grant reaches
    * every layer except an operate one (Platform monitoring), which also needs
    * `cluster:read`; a `verb@LAYER` grant reaches exactly its layer. `layerKey`
-   * may be a sidebar entry's `<layer>~<group>` key, and then the grant must
-   * also reach that group. On a whole layer, group limits are left to the BFF,
+   * may be a split layer's entry key, and then the grant must also reach that
+   * group. On a whole layer, group limits are left to the BFF,
    * which drops the roster rows they exclude.
    */
   function hasVerbOnLayer(verb: string, layerKey: string, operate = false): boolean {
     if (hasVerb(verb) && (!operate || hasVerb('cluster:read'))) return true;
-    const cut = layerKey.indexOf('~');
-    const key = canonicalLayerKey(cut < 0 ? layerKey : layerKey.slice(0, cut));
-    const group = cut < 0 ? undefined : layerKey.slice(cut + 1);
+    const { layer, group } = parseEntryKey(layerKey);
+    const key = canonicalLayerKey(layer);
     return layerGrantsFor(verb).some(
       (g) => canonicalLayerKey(g.layer) === key && (group === undefined || !g.groups || g.groups.includes(group)),
     );

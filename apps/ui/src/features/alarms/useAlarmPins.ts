@@ -32,7 +32,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { alarmPinKey, alarmPinMatches, formatAlarmPin, parseAlarmPin, type AlarmPin } from '@skywalking-horizon-ui/api-client';
+import { alarmPinKey, alarmPinMatches, formatAlarmPin, parseAlarmPin, type AlarmOwner, type AlarmPin } from '@skywalking-horizon-ui/api-client';
 import { canonicalLayerKey } from '@/state/verbGrammar';
 import type { AlarmIncident } from '@/utils/alarmIncidents';
 
@@ -54,7 +54,7 @@ export interface PinnedTile extends AlarmChip {
 /** Anything the pins can be matched against: an incident, or a raw alarm row. */
 export interface PinMatchable {
   layerKeys: readonly string[];
-  ownerKeys?: readonly string[];
+  owners?: readonly AlarmOwner[];
 }
 
 /** `VIRTUAL_DATABASE` → `Virtual Database`. */

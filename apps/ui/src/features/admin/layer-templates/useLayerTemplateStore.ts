@@ -46,6 +46,7 @@ import { refreshConfigBundle } from '@/controls/configBundle';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { type AdminScope, SCOPES } from './layer-dashboards.scopes';
 import { draftPageIdIssues } from './useExtPages';
+import { layerPath, menuLayers as layersOfMenu } from '@/utils/layerRoute';
 
 export function useLayerTemplateStore() {
   // OAP UI-template sync status for layer dashboards. Drives the banner +
@@ -84,7 +85,8 @@ export function useLayerTemplateStore() {
       rawTemplates.value,
       sources.remoteNames(),
       (name) => sources.remote<AdminLayerTemplate>(name),
-      menuLayers.value.map((L) => ({ key: L.key, name: L.name, color: L.color })),
+      // One per layer: a layer split by service group is one template.
+      layersOfMenu(menuLayers.value).map(({ layer, name, def }) => ({ key: layer, name, color: def.color })),
       blankTemplateFor,
     ),
   );
@@ -443,7 +445,7 @@ export function useLayerTemplateStore() {
     if (!content) return;
     previewOverride.set(editName.value, content);
     const href = router.resolve({
-      path: `/layer/${selectedKey.value}/${firstTabFor(content)}`,
+      path: layerPath({ layer: selectedKey.value.toLowerCase() }, firstTabFor(content)),
       query: { mode: 'preview', source: src },
     }).href;
     window.open(href, '_blank', 'noopener');
@@ -723,17 +725,17 @@ export function useLayerTemplateStore() {
     if (!key || !editName.value || sync.readOnly.value) return;
     const onOap = remoteAvailable.value || bundledExists.value;
     if (!onOap) {
-      confirmTitle.value = 'Remove local draft?';
-      confirmMessage.value = `Remove the local draft for “${key}”? It was never published — this clears it from this browser only.`;
-      confirmLabel.value = 'Remove draft';
+      confirmTitle.value = 'Discard draft?';
+      confirmMessage.value = `Discard the local draft for “${key}”? It was never published — this clears it from this browser only.`;
+      confirmLabel.value = 'Discard draft';
     } else if (bundledExists.value) {
       confirmTitle.value = 'Disable built-in layer?';
       confirmMessage.value = `Disable the built-in “${key}” layer? It's soft-disabled on OAP and disappears from the sidebar for everyone. You can bring it back later with Reactivate.`;
       confirmLabel.value = 'Disable';
     } else {
-      confirmTitle.value = 'Delete layer template?';
-      confirmMessage.value = `Delete the “${key}” layer template? OAP has no hard delete, so it's soft-disabled — hidden from everyone.`;
-      confirmLabel.value = 'Delete';
+      confirmTitle.value = 'Disable layer template?';
+      confirmMessage.value = `Disable the “${key}” layer template? It disappears from the sidebar for everyone. You can bring it back later with Reactivate.`;
+      confirmLabel.value = 'Disable';
     }
     confirmIsDanger.value = true;
     confirmFn = doDeleteLayer;

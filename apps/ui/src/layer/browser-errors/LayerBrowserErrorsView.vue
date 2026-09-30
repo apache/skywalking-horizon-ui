@@ -31,7 +31,6 @@ import {
   MAX_RECORD_RANGE_DAYS,
   SLOW_RECORD_RANGE_HOURS,
 } from '@/utils/recordTimeRange';
-import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { BrowserErrorCategory, BrowserErrorRow, BrowserErrorsResponse, LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
@@ -48,6 +47,8 @@ import { useDensityBins } from '@/layer/_shared/useDensityBins';
 import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
 import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
+import { useLayerEntryKey } from '@/shell/useLayerEntry';
+import { findEntry } from '@/utils/layerRoute';
 
 const props = defineProps<{
   /** Embedded (AI-chat) mode: seed the focus service from props, bypass the
@@ -65,16 +66,16 @@ const props = defineProps<{
   replay?: boolean;
   replayData?: BrowserErrorsResponse | null;
 }>();
-const route = useRoute();
+const routeEntryKey = useLayerEntryKey();
 const { t } = useI18n({ useScope: 'global' });
 const embedded = computed(() => Boolean(props.embedded));
 const replay = computed(() => Boolean(props.replay));
 const layerKey = computed(() =>
-  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const layer = computed<LayerDef | null>(() => findEntry(layers.value, layerKey.value) ?? null);
 const setup = useSetupStore();
 const { selectedId, setSelected } = useSelectedService();
 const safeLayer = computed<LayerDef>(
@@ -370,6 +371,7 @@ function fmtDate(ts: number): string {
 
 const {
   showMaps,
+  mapsReadable,
   sourceMaps,
   usage,
   mapsEnabled,
@@ -410,7 +412,7 @@ function loc(row: BrowserErrorRow): string {
       <div class="lg-toolbar-head">
         <span class="kicker">{{ t('Browser Logs') }}</span>
         <div class="be-head-right">
-          <button type="button" class="be-maps-toggle" @click="showMaps = !showMaps">
+          <button v-if="mapsReadable" type="button" class="be-maps-toggle" @click="showMaps = !showMaps">
             <span class="be-caret">{{ showMaps ? '▾' : '▸' }}</span>
             {{ t('Source maps') }}
             <span class="be-maps-count">{{ sourceMaps.length }}</span>
@@ -478,7 +480,7 @@ function loc(row: BrowserErrorRow): string {
         </label>
       </div>
       <SourceMapManager
-        v-if="showMaps"
+        v-if="showMaps && mapsReadable"
         :maps="sourceMaps"
         :usage="usage"
         :enabled="mapsEnabled"

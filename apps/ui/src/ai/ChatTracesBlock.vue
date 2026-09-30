@@ -31,26 +31,27 @@ import ChatCapturedTag from './ChatCapturedTag.vue';
 import { useLayers } from '@/shell/useLayers';
 import type { TracesSpec } from './types';
 import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
+import { entryOf, layerPath } from '@/utils/layerRoute';
 
 const props = defineProps<{ n: number; spec: TracesSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
-const { layers } = useLayers();
+const { layers, entryFor } = useLayers();
 
 // A captured block is a static file of what was read — it replays from its own
 // snapshot and must NOT gate on the live layer list (empty or still in flight
 // would refuse to render an offline-safe block). The layer info is consulted for
 // the non-captured path only.
 const captured = computed(() => Boolean(props.spec.replayData));
-const layerDef = computed(() =>
-  layers.value.find((L) => L.key.toUpperCase() === props.spec.layer.toUpperCase()),
-);
+// Any entry of the layer: a layer split by service group has one per group,
+// and they share the layer's components.
+const layerDef = computed(() => layers.value.find((L) => entryOf(L).layer === props.spec.layer.toLowerCase()));
 const noTraces = computed(() => !captured.value && !layerDef.value?.caps?.traces);
 // Only a layer whose trace row IS Zipkin can't be embedded here.
 const isZipkinOnly = computed(() => !captured.value && traceRowIsZipkin(layerDef.value?.traces));
 
 function openZipkinTab(): void {
-  const href = router.resolve({ path: `/layer/${props.spec.layer.toLowerCase()}/zipkin-trace` }).href;
+  const href = router.resolve({ path: layerPath(entryFor(props.spec.layer, props.spec.service ?? ''), 'zipkin-trace') }).href;
   window.open(href, '_blank', 'noopener');
 }
 </script>

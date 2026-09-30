@@ -1108,7 +1108,7 @@ describe('POST /api/admin/templates/save — alarm pages', () => {
     ['an empty group list', 'GENERAL[]'],
     ['an empty group between two', 'GENERAL[a,,b]'],
     ['text after the groups', 'GENERAL[a]x'],
-    ['a split-layer menu key', 'GENERAL~payments'],
+    ['a layer and group joined by a tilde', 'GENERAL~payments'],
     ['a blank pin', '  '],
   ])('refuses %s as a pin, on either kind of page', async (_label, pin) => {
     for (const [name, content] of [
