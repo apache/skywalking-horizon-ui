@@ -50,7 +50,8 @@
 #   4. Cut a GitHub release on tag v<v>, attaching the SAME voted bytes
 #      (src + bin tarballs + .asc + .sha512) that were just verified, with
 #      the release's notes — docs/changelog/<v>.md read out of the tag, not out
-#      of the working tree — as the body. On a release that already exists, every attached
+#      of the working tree — as the body. It is marked Latest only when v<v> is
+#      the highest v* tag. On a release that already exists, every attached
 #      asset is compared against those verified bytes (size, then sha512) and
 #      only what is missing or different is (re-)uploaded: a matching FILENAME
 #      is not evidence that the bytes behind it are the voted ones.
@@ -401,6 +402,18 @@ SVN_AUTH_READY=false
 # ========================== Step 7: GitHub release ==========================
 note "Step 7 — GitHub release ${TAG}"
 
+# Latest — the GitHub release badge here, the `:latest` image tag in Step 8 —
+# must always name the NEWEST Horizon release: finalizing a patch on an older
+# line (1.0.1 after 1.1.0) leaves both on the newer one. Step 2 only proves
+# that ${TAG} itself resolves, so fetch first; a checkout whose tags are stale
+# could judge a superseded release the highest.
+git -C "${PROJECT_DIR}" fetch --tags --quiet origin 2>/dev/null || true
+HIGHEST_TAG=$(cd "${PROJECT_DIR}" && git tag --list 'v*' --sort=-version:refname | head -1)
+IS_HIGHEST_TAG=false
+if [ "${TAG}" = "${HIGHEST_TAG}" ]; then
+    IS_HIGHEST_TAG=true
+fi
+
 # The release body is this version's changelog file, read out of the TAG rather
 # than the working tree — the body has to describe the bytes being published,
 # and the checkout this script runs from may have moved on since the release
@@ -496,6 +509,11 @@ else
     echo "------------------------------------------------------------"
     cat "${NOTES_FILE}"
     echo "------------------------------------------------------------"
+    if [ "${IS_HIGHEST_TAG}" = true ]; then
+        echo "Marked Latest: yes — ${TAG} is the highest v* tag."
+    else
+        echo "Marked Latest: no — Latest stays on ${HIGHEST_TAG}."
+    fi
     if confirm "Create release ${TAG} on https://github.com/${GH_REPO}/releases/tag/${TAG} with these notes and the ${#ART_FILES[@]} verified artifacts?"; then
         RELEASE_UPLOADS=()
         for f in "${ART_FILES[@]}"; do
@@ -503,8 +521,11 @@ else
         done
         # --verify-tag: without it, a ${TAG} that never reached origin makes
         # GitHub CREATE one at the default branch's HEAD — publishing a release
-        # tag that points at main instead of the voted commit.
+        # tag that points at main instead of the voted commit. --latest is always
+        # explicit: left out, GitHub marks every new release Latest, whatever its
+        # version.
         gh release create "${TAG}" --verify-tag \
+            --latest="${IS_HIGHEST_TAG}" \
             --repo "${GH_REPO}" \
             --title "${RELEASE_VERSION}" \
             --notes-file "${NOTES_FILE}" \
@@ -539,19 +560,10 @@ dockerhub_digest() {
     docker buildx imagetools inspect "$1" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }'
 }
 
-# `:latest` must always name the NEWEST Horizon release, so the promotion run
-# moves it only when the promoted tag is the highest v* in the repo. The same
-# rule is applied here against THIS checkout's tag list — Step 2 only proves
-# that ${TAG} itself resolves, so a checkout whose tags are stale could judge
-# a superseded release "highest"; the fetch below removes that doubt. Finalizing a patch on a superseded
-# line leaves `:latest` on the newer release, and demanding it here would fail
-# a perfectly good maintenance release.
-git -C "${PROJECT_DIR}" fetch --tags --quiet origin 2>/dev/null || true
-HIGHEST_TAG=$(cd "${PROJECT_DIR}" && git tag --list 'v*' --sort=-version:refname | head -1)
-IS_HIGHEST_TAG=false
-if [ "${TAG}" = "${HIGHEST_TAG}" ]; then
-    IS_HIGHEST_TAG=true
-fi
+# The promotion run moves `:latest` only when the promoted tag is the highest
+# v* in the repo — the same IS_HIGHEST_TAG Step 7 computed. Finalizing a patch on
+# a superseded line leaves `:latest` on the newer release, and demanding it here
+# would fail a perfectly good maintenance release.
 
 echo "Expected on Docker Hub:"
 echo "  ${DH_VERSION_TAG}   (immutable, this release)"
