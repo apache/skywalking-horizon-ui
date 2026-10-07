@@ -80,7 +80,7 @@ test('a log row jumps to the trace popout and back', async ({ page, pageErrors }
   expect(pageErrors).toEqual([]);
 });
 
-test('a log row opens its detail with the full content', async ({ page, pageErrors }) => {
+test('a log row expands in place and pops out its full content', async ({ page, pageErrors }) => {
   await page.goto(`/layer/${LAYER}/logs`);
   await selectService(page, PROVIDER_SERVICE);
   await page.locator('button.lg-run-btn').click();
@@ -89,12 +89,36 @@ test('a log row opens its detail with the full content', async ({ page, pageErro
   await expect(rows.first()).toBeVisible({ timeout: 45_000 });
   await rows.first().click();
 
-  // The stream truncates each line to one row; the detail is where the whole
-  // record — format, service, full body — becomes readable.
+  // The row opens below itself with the whole body and its entity context;
+  // the popout is one step further, behind Pop out.
+  const expanded = page.locator('.lg-expand').first();
+  await expect(expanded.locator('.lg-expand-body')).not.toBeEmpty();
+  await expect(expanded.locator('.lg-expand-meta')).toContainText(PROVIDER_SERVICE);
+  await expanded.locator('.lg-popout').click();
+
   const detail = page.locator('.ld');
   await expect(detail).toBeVisible({ timeout: 45_000 });
   await expect(detail.locator('.ld-head')).toBeVisible();
   await expect(detail).toContainText(PROVIDER_SERVICE);
+
+  expect(pageErrors).toEqual([]);
+});
+
+test('with Pop out picked, a log row click opens the popout', async ({ page, pageErrors }) => {
+  await page.goto(`/layer/${LAYER}/logs`);
+  await selectService(page, PROVIDER_SERVICE);
+  await page.locator('button.lg-run-btn').click();
+
+  const rows = page.locator('.lg-stream .lg-row');
+  await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+  // `exact` keeps this off an expanded row's "Pop out ⤢" button.
+  await page.getByRole('button', { name: 'Pop out', exact: true }).click();
+  await rows.first().click();
+
+  const detail = page.locator('.ld');
+  await expect(detail).toBeVisible({ timeout: 45_000 });
+  await expect(detail).toContainText(PROVIDER_SERVICE);
+  await expect(page.locator('.lg-expand')).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
 });

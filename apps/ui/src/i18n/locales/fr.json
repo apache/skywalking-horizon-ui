@@ -3517,5 +3517,9 @@
   "alarm page | alarm pages": "page d’alarmes | pages d’alarmes",
   "The same pin is listed twice. Remove one of them.": "La même épingle figure deux fois. Retirez-en une.",
   "This group cannot be written in a pin: its name contains “,”, “[” or “]”, or is “-”.": "Ce groupe ne peut pas s’écrire dans une épingle : son nom contient “,”, “[” ou “]”, ou vaut “-”.",
-  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "Ce widget indique {layer}, qui n'est pas une couche. Choisissez de nouveau sa couche dans l'éditeur de vue d'ensemble."
+  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "Ce widget indique {layer}, qui n'est pas une couche. Choisissez de nouveau sa couche dans l'éditeur de vue d'ensemble.",
+  "Inline": "En ligne",
+  "Open a clicked log": "Ouvrir un log cliqué",
+  "Expand a clicked log in place": "Déplier le log cliqué sur place",
+  "Open a clicked log in a popout": "Ouvrir le log cliqué dans une fenêtre détachée"
 }

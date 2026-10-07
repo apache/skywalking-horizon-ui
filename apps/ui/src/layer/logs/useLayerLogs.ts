@@ -85,6 +85,10 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
       () => layerKey.value.length > 0 && !replay.value && (params.enabled ? params.enabled.value : true),
     ),
     staleTime: 15_000,
+    // The window rolls with "now", so a re-read on returning to the browser tab
+    // swaps the page under the operator and folds the rows they had open.
+    // Reads belong to Run query and the pager.
+    refetchOnWindowFocus: false,
   });
 
   // Replay renders straight from the captured payload — NOT the query cache, so a
@@ -171,6 +175,8 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
         (params.enabled ? params.enabled.value : true),
     ),
     staleTime: 30_000,
+    // Same reason as the stream: the level counts must describe the rows on screen.
+    refetchOnWindowFocus: false,
   });
   return {
     facets: computed(() => q.data.value ?? null),

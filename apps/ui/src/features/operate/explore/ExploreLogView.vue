@@ -19,8 +19,9 @@
   ExploreView (Trace inspect): same dark-dense spine, same OPTIONAL
   entity (pick a layer-filtered service, type its name + the real flag,
   or leave it blank to query every service). One query → one full-width
-  log stream, rendered with the shared LogStreamPanel; clicking a row
-  opens the shared LogDetailPopout with the full payload. The
+  log stream, rendered with the shared LogStreamPanel; a row click
+  expands it in place or opens the shared LogDetailPopout with the full
+  payload, per the viewer's Inline | Pop out choice. The
   resolved-query panel surfaces the exact condition the BFF ran.
 
   Three sources: Log · raw (queryLogs), Log · browser (BROWSER-layer JS
@@ -64,6 +65,7 @@ import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
+import LogOpenModeToggle from '@/render/widgets/LogOpenModeToggle.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import BrowserErrorPopout from '@/render/widgets/BrowserErrorPopout.vue';
 import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
@@ -433,9 +435,10 @@ const podRows = computed<PodLogLine[]>(() =>
   hasQueried.value && logSource.value === 'pods' ? podLines.value : [],
 );
 
-// ── detail — clicking a row opens the shared full-payload popout. The
-// stream stays full-width; the popout owns its own Escape / close +
-// format-aware pretty-print + copy + tag table.
+// ── detail — a Pop out (row click in that mode, or the expanded row's
+// button) opens the shared full-payload popout. The stream stays
+// full-width; the popout owns its own Escape / close + format-aware
+// pretty-print + copy + tag table.
 const selectedKey = ref<string | null>(null);
 const selectedRow = ref<LogRow | null>(null);
 
@@ -880,14 +883,15 @@ watch(logSource, (next, prev) => {
           <h4>{{ t('Logs') }}</h4>
           <span class="hint">{{ rows.length }} {{ t('logs') }}</span>
           <span v-if="capped" class="hint">{{ t('capped at {n} — narrow the window', { n: rows.length }) }}</span>
+          <LogOpenModeToggle class="iq-open-toggle" />
         </header>
         <div class="iq-stream-scroll">
-          <LogStreamPanel :rows="rows" :selected-key="selectedKey" @select="openRow" @jump-trace="jumpToTrace($event.traceId, $event.ts)" />
+          <LogStreamPanel :rows="rows" :selected-key="selectedKey" @open="openRow" @jump-trace="jumpToTrace($event.traceId, $event.ts)" />
         </div>
       </article>
     </div>
 
-    <!-- Row click → shared full-payload popout (format-aware pretty-print
+    <!-- Pop out → shared full-payload popout (format-aware pretty-print
          + copy + tag table + trace link). Escape / × closes it. -->
     <LogDetailPopout :row="selectedRow" @close="closeDetail" @jump-trace="jumpToTrace($event.traceId, $event.ts)" />
     <!-- Browser row → browser-error popout (raw stack + source-map resolve). -->
@@ -1028,6 +1032,7 @@ watch(logSource, (next, prev) => {
 .iq-list-head { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--sw-line); flex: 0 0 auto; }
 .iq-list-head h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
 .iq-list-head .hint { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); }
+.iq-list-head .iq-open-toggle { align-self: center; margin-left: 4px; }
 .iq-stream-scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .mono { font-family: var(--sw-mono); }
 .dim { color: var(--sw-fg-3); }

@@ -3517,5 +3517,9 @@
   "alarm page | alarm pages": "alarm page | alarm pages",
   "The same pin is listed twice. Remove one of them.": "The same pin is listed twice. Remove one of them.",
   "This group cannot be written in a pin: its name contains “,”, “[” or “]”, or is “-”.": "This group cannot be written in a pin: its name contains “,”, “[” or “]”, or is “-”.",
-  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor."
+  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.",
+  "Inline": "Inline",
+  "Open a clicked log": "Open a clicked log",
+  "Expand a clicked log in place": "Expand a clicked log in place",
+  "Open a clicked log in a popout": "Open a clicked log in a popout"
 }
