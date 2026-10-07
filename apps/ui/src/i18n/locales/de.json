@@ -3517,5 +3517,9 @@
   "alarm page | alarm pages": "Alarmseite | Alarmseiten",
   "The same pin is listed twice. Remove one of them.": "Dieselbe Anheftung ist zweimal aufgeführt. Entfernen Sie eine davon.",
   "This group cannot be written in a pin: its name contains “,”, “[” or “]”, or is “-”.": "Diese Gruppe lässt sich nicht in eine Anheftung schreiben: Ihr Name enthält „,“, „[“ oder „]“ oder lautet „-“.",
-  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "Dieses Widget nennt {layer}, das keine Ebene ist. Wählen Sie seine Ebene im Übersichts-Editor erneut aus."
+  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "Dieses Widget nennt {layer}, das keine Ebene ist. Wählen Sie seine Ebene im Übersichts-Editor erneut aus.",
+  "Inline": "Inline",
+  "Open a clicked log": "Angeklicktes Log öffnen",
+  "Expand a clicked log in place": "Angeklicktes Log an Ort und Stelle aufklappen",
+  "Open a clicked log in a popout": "Angeklicktes Log in einem Pop-out öffnen"
 }

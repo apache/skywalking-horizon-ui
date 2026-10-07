@@ -50,6 +50,7 @@ import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
+import LogOpenModeToggle from '@/render/widgets/LogOpenModeToggle.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import { useLayerEntryKey } from '@/shell/useLayerEntry';
@@ -437,7 +438,7 @@ const levelFacet = computed<Record<Level, number>>(() => {
 const filteredLogs = computed<LogRow[]>(() => logs.value);
 
 const popoutRow = ref<LogRow | null>(null);
-function onRowClick(r: LogRow): void {
+function openPopout(r: LogRow): void {
   popoutRow.value = r;
 }
 
@@ -627,10 +628,13 @@ watch(
             <span class="lg-legend-name">{{ l }}</span>
             <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
           </button>
-          <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
-            {{ facets.truncated
-              ? t('sample of {n}+ (capped — narrow the window)', { n: facets.sampled })
-              : t('sample of {n}', { n: facets.sampled }) }}
+          <span class="lg-legend-end">
+            <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
+              {{ facets.truncated
+                ? t('sample of {n}+ (capped — narrow the window)', { n: facets.sampled })
+                : t('sample of {n}', { n: facets.sampled }) }}
+            </span>
+            <LogOpenModeToggle />
           </span>
         </div>
 
@@ -644,7 +648,7 @@ watch(
         <LogStreamPanel
           v-else
           :rows="filteredLogs"
-          @select="onRowClick($event.row)"
+          @open="openPopout($event.row)"
           @jump-trace="jumpToTrace($event.traceId, $event.ts)"
         />
         <div class="lg-pager">
@@ -844,8 +848,13 @@ watch(
   margin-left: 2px;
 }
 .lg-legend-chip.on .lg-legend-count { color: var(--sw-accent-2); border-color: var(--sw-accent-line); }
-.lg-legend-sample {
+.lg-legend-end {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.lg-legend-sample {
   font-size: 10.5px;
   color: var(--sw-fg-3);
   font-family: var(--sw-mono);

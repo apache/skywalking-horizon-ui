@@ -36,6 +36,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
 import Modal from '@/components/primitives/Modal.vue';
+import { detectFormat, prettyContent, type LogFormat } from './logContent';
 
 const { t } = useI18n();
 
@@ -45,29 +46,6 @@ const emit = defineEmits<{
   (e: 'jump-trace', payload: { traceId: string; ts: number }): void;
 }>();
 
-type LogFormat = 'json' | 'yaml' | 'text';
-function detectFormat(r: LogRow): LogFormat {
-  if (r.contentType === 'application/json') return 'json';
-  const trimmed = r.content?.trim() ?? '';
-  if (!trimmed) return 'text';
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try { JSON.parse(trimmed); return 'json'; } catch { /* fallthrough */ }
-  }
-  if (trimmed.startsWith('---') || trimmed.startsWith('apiVersion:')) return 'yaml';
-  const lines = trimmed.split('\n');
-  if (lines.length >= 2) {
-    const topLevelMaps = lines.filter((l) => /^[A-Za-z_][\w.-]*\s*:\s*(\S|$)/.test(l)).length;
-    if (topLevelMaps >= 2) return 'yaml';
-  }
-  return 'text';
-}
-function prettyContent(r: LogRow): string {
-  if (detectFormat(r) === 'json') {
-    try { return JSON.stringify(JSON.parse(r.content), null, 2); } catch { /* fall through */ }
-  }
-  return r.content;
-}
 function fmtTime(ts: number): string {
   const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -124,7 +102,7 @@ function onJumpTrace(): void {
         <span v-if="row.traceId" class="ld-meta-item">{{ t('Trace ID') }} <code class="mono">{{ row.traceId }}</code></span>
       </div>
       <div class="ld-split">
-        <pre class="ld-body" :class="`fmt-${fmt}`">{{ prettyContent(row) }}</pre>
+        <pre class="ld-body">{{ prettyContent(row) }}</pre>
         <aside v-if="row.tags.length > 0" class="ld-tags">
           <table class="ld-tag-tbl">
             <thead><tr><th>{{ t('Key') }}</th><th>{{ t('Value') }}</th></tr></thead>
@@ -170,8 +148,6 @@ function onJumpTrace(): void {
   color: var(--sw-fg-0); white-space: pre-wrap; word-break: break-all; overflow: auto;
   border-radius: 4px;
 }
-.ld-body.fmt-json { color: var(--sw-cyan); }
-.ld-body.fmt-yaml { color: #fbbf24; }
 .ld-tags {
   flex: 0 0 340px; border-left: 1px solid var(--sw-line); padding: 8px 14px 12px;
   overflow: auto; background: var(--sw-bg-1);

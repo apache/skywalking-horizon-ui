@@ -3517,5 +3517,9 @@
   "alarm page | alarm pages": "告警页面",
   "The same pin is listed twice. Remove one of them.": "同一个固定项出现了两次，请移除其中一个。",
   "This group cannot be written in a pin: its name contains “,”, “[” or “]”, or is “-”.": "该分组无法写入固定项：名称包含“,”、“[”或“]”，或者就是“-”。",
-  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "此组件指定的 {layer} 不是一个 layer。请在概览编辑器中重新选择它的 layer。"
+  "This widget names {layer}, which is not a layer. Pick its layer again in the overview editor.": "此组件指定的 {layer} 不是一个 layer。请在概览编辑器中重新选择它的 layer。",
+  "Inline": "行内",
+  "Open a clicked log": "点击日志的打开方式",
+  "Expand a clicked log in place": "点击日志后在原位展开",
+  "Open a clicked log in a popout": "点击日志后在弹出窗口中打开"
 }
