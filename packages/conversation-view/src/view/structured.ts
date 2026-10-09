@@ -282,14 +282,15 @@ export function copyButton(s: Pick<ViewStrings, 'copy'>, title = s.copy): string
  *  the block it is scoped to. Says so on the button for a moment. */
 export function copyField(btn: HTMLElement, copied: string): void {
   const text = btn.closest('.acv-field, [data-copy-scope]')?.querySelector('.acv-copy-src, .acv-field-text, .acv-field-value, .acv-copy-text');
-  if (!text || typeof navigator === 'undefined' || !navigator.clipboard) return;
+  if (!text) return;
   const value = text.querySelector('.acv-faint')
     ? ''
     : Array.from(text.childNodes)
         .filter((node) => !(node instanceof HTMLElement && node.classList.contains('acv-field-cut')))
         .map((node) => node.textContent ?? '')
         .join('');
-  void navigator.clipboard.writeText(value).then(() => {
+  void writeClipboard(btn.ownerDocument, value).then((done) => {
+    if (!done) return;
     const was = btn.textContent;
     btn.textContent = copied;
     btn.classList.add('done');
@@ -298,6 +299,37 @@ export function copyField(btn: HTMLElement, copied: string): void {
       btn.classList.remove('done');
     }, 1400);
   });
+}
+
+/** A browser has the Clipboard API only in a secure context, HTTPS or
+ *  localhost, and a self-hosted Horizon or Sessionizer viewer is often plain
+ *  HTTP. Without it the copy goes through a selection instead, still inside
+ *  the click, which is the user activation `execCommand` needs. */
+function writeClipboard(doc: Document, value: string): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) return Promise.resolve(copySelection(doc, value));
+  return navigator.clipboard.writeText(value).then(
+    () => true,
+    () => copySelection(doc, value),
+  );
+}
+
+function copySelection(doc: Document, value: string): boolean {
+  const focused = doc.activeElement;
+  const area = doc.createElement('textarea');
+  area.value = value;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  doc.body.appendChild(area);
+  area.select();
+  try {
+    return doc.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+    if (focused instanceof HTMLElement && doc.activeElement !== focused) focused.focus({ preventScroll: true });
+  }
 }
 
 export interface TextBody {

@@ -194,9 +194,11 @@ function drawSide(
   } else if (read.text != null) {
     // the body rebuilt and matched its digest but is not JSON — a provider's plain error, say. It is
     // shown as the text it is; nothing about it is known beyond that.
-    panel = section(ctx, e, 'raw', s.promptWholeBody, '', block(ctx, { kind: 'text', text: read.text }, `${e.id}|${state.promptSide}|raw`), true);
+    const text = `<div class="acv-prompt-block">${textBlock(ctx, read.text, `${e.id}|${state.promptSide}|raw`)}</div>`;
+    panel = section(ctx, e, 'raw', s.promptWholeBody, '', text, { open: true, copy: read.text });
   } else {
-    panel = section(ctx, e, 'raw', s.promptWholeBody, '', json(ctx, read.raw, `${e.id}|${state.promptSide}|raw`), true);
+    const raw = pretty(read.raw);
+    panel = section(ctx, e, 'raw', s.promptWholeBody, '', json(ctx, raw, `${e.id}|${state.promptSide}|raw`), { open: true, copy: raw });
   }
   return panel;
 }
@@ -278,13 +280,13 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
     fill(s.promptMessages, { count: String(read.messages.length) }),
     fill(s.promptMessagesNote, { bytes: f.number(new TextEncoder().encode(JSON.stringify(read.raw['messages'])).length) }),
     read.messages.map((m, i) => message(ctx, m, i + 1, read.messages.length, `${e.id}|req|msg|${i}`)).join(''),
-    true,
+    { open: true },
   );
   // A LangChain request carries nothing but its messages, and an empty section says nothing.
   const settings = Object.keys(read.rest).length
-    ? section(ctx, e, 'settings', s.promptSettings, Object.keys(read.rest).join(', '), json(ctx, read.rest, `${e.id}|req|set`))
+    ? documentSection(ctx, e, 'settings', s.promptSettings, Object.keys(read.rest).join(', '), read.rest, `${e.id}|req|set`)
     : '';
-  const whole = section(ctx, e, 'request-raw', s.promptWholeBody, '', json(ctx, read.raw, `${e.id}|req|raw`));
+  const whole = documentSection(ctx, e, 'request-raw', s.promptWholeBody, '', read.raw, `${e.id}|req|raw`);
   return `${modes}${system}${tools}${messages}${settings}${whole}`;
 }
 
@@ -374,25 +376,47 @@ function drawResponse(ctx: ViewContext, e: Step, read: ReadResponse): string {
   // What the sections above do not show: the model, the type, a stop sequence, and whatever else the
   // provider sent. A body that verified is shown whole or not at all.
   const rest = Object.keys(read.rest).length
-    ? section(ctx, e, 'response-settings', s.promptSettings, Object.keys(read.rest).join(', '), json(ctx, read.rest, `${e.id}|res|rest`))
+    ? documentSection(ctx, e, 'response-settings', s.promptSettings, Object.keys(read.rest).join(', '), read.rest, `${e.id}|res|rest`)
     : '';
-  const whole = section(ctx, e, 'response-raw', s.promptWholeBody, '', json(ctx, read.raw, `${e.id}|res|raw`));
+  const whole = documentSection(ctx, e, 'response-raw', s.promptWholeBody, '', read.raw, `${e.id}|res|raw`);
   return `<div class="acv-prompt-facts">${facts}</div>${usage}${blocks}${rest}${whole}`;
 }
 
-/** One collapsible section, remembered per step so a reader's choice survives redraws. */
-function section(ctx: ViewContext, e: Step, key: string, title: string, note: string, inner: string, openByDefault = false): string {
+/**
+ * One collapsible section, remembered per step so a reader's choice survives redraws.
+ *
+ * A section that holds one document carries its copy button in its title row, outside the toggle,
+ * so the whole document copies while the section is still closed.
+ */
+function section(
+  ctx: ViewContext,
+  e: Step,
+  key: string,
+  title: string,
+  note: string,
+  inner: string,
+  opts: { open?: boolean; copy?: string } = {},
+): string {
   const id = `${e.id}|${key}`;
-  const open = ctx.state.openPromptSections.has(id) || (openByDefault && !ctx.state.openPromptSections.has(`-${id}`));
+  const open = ctx.state.openPromptSections.has(id) || (!!opts.open && !ctx.state.openPromptSections.has(`-${id}`));
   return `
-    <section class="acv-prompt-section">
-      <button type="button" class="acv-prompt-head-btn" data-prompt-section="${esc(id)}" aria-expanded="${open}">
-        <span class="acv-kicker">${esc(title)}</span>
-        ${note ? `<span class="acv-faint">${esc(note)}</span>` : ''}
-        <span class="acv-prompt-caret">${open ? '▾' : '▸'}</span>
-      </button>
+    <section class="acv-prompt-section"${opts.copy != null ? ' data-copy-scope' : ''}>
+      <div class="acv-prompt-section-head">
+        <button type="button" class="acv-prompt-head-btn" data-prompt-section="${esc(id)}" aria-expanded="${open}">
+          <span class="acv-kicker">${esc(title)}</span>
+          ${note ? `<span class="acv-faint">${esc(note)}</span>` : ''}
+          <span class="acv-prompt-caret">${open ? '▾' : '▸'}</span>
+        </button>
+        ${opts.copy != null ? copyOf(ctx, opts.copy) : ''}
+      </div>
       ${open ? `<div class="acv-prompt-body">${inner}</div>` : ''}
     </section>`;
+}
+
+/** A section that is one JSON value, such as the whole body or its settings. */
+function documentSection(ctx: ViewContext, e: Step, key: string, title: string, note: string, value: unknown, textKey: string): string {
+  const text = pretty(value);
+  return section(ctx, e, key, title, note, json(ctx, text, textKey), { copy: text });
 }
 
 /**
@@ -404,13 +428,16 @@ function section(ctx: ViewContext, e: Step, key: string, title: string, note: st
  */
 function message(ctx: ViewContext, m: PromptMessage, n: number, total: number, key: string): string {
   const { s } = ctx;
+  // A message that is one text with no label of its own has no title but the message's, so its copy
+  // button goes there rather than on a title row of its own.
+  const only = m.blocks.length === 1 && m.blocks[0]!.kind === 'text' && !m.blocks[0]!.reminder ? m.blocks[0]! : null;
   return `
-    <div class="acv-prompt-message">
+    <div class="acv-prompt-message"${only ? ' data-copy-scope' : ''}>
       <div class="acv-prompt-message-head">
-        <span class="acv-prompt-role">${esc(m.role || s.promptUnknownRole)}</span>
+        <span><span class="acv-prompt-role">${esc(m.role || s.promptUnknownRole)}</span>${only ? copyOf(ctx, only.text ?? '') : ''}</span>
         <span class="acv-faint">${esc(fill(s.promptMessageOf, { n: String(n), total: String(total) }))}</span>
       </div>
-      <div class="acv-prompt-message-body">${m.blocks.map((b, i) => block(ctx, b, `${key}|${i}`)).join('')}</div>
+      <div class="acv-prompt-message-body">${m.blocks.map((b, i) => block(ctx, b, `${key}|${i}`, b === only)).join('')}</div>
     </div>`;
 }
 
@@ -420,9 +447,11 @@ function message(ctx: ViewContext, m: PromptMessage, n: number, total: number, k
  * Every block is drawn the same way, whatever it holds: a label saying what it is, then the content
  * in a card of its own with a coloured edge naming its kind, the page's own colour for that kind.
  * A message holds several of these, and a reader has to be able to see where one ends — which text
- * the runtime injected, and which of them the person wrote.
+ * the runtime injected, and which of them the person wrote. The label row is the block's title and
+ * carries its copy button; a text with no label gets a row with the button alone, unless the
+ * message's own head is its title.
  */
-function block(ctx: ViewContext, b: PromptBlock, key: string): string {
+function block(ctx: ViewContext, b: PromptBlock, key: string, headed = false): string {
   const { s } = ctx;
   if (b.kind === 'text' || b.kind === 'thinking') {
     const text = b.text ?? '';
@@ -430,29 +459,33 @@ function block(ctx: ViewContext, b: PromptBlock, key: string): string {
     // The label is the block's own, never the message's: a message whose first block the runtime
     // injected usually carries the person's text as its second, and the two must not read alike.
     const mark = b.kind === 'thinking' ? ' thinking' : b.reminder ? ' injected' : '';
+    if (headed) return `<div class="acv-prompt-block${mark}">${textBlock(ctx, text, key)}</div>`;
     return `
-      <div class="acv-prompt-block${mark}">
-        ${label ? `<div class="acv-kicker">${esc(label)}</div>` : ''}
+      <div class="acv-prompt-block${mark}" data-copy-scope>
+        <div class="acv-kicker">${esc(label)}${copyOf(ctx, text)}</div>
         ${textBlock(ctx, text, key)}
       </div>`;
   }
   if (b.kind === 'tool_use') {
+    const input = pretty(b.json);
     return `
-      <div class="acv-prompt-block tool">
-        <div class="acv-kicker">${esc(fill(s.promptToolUse, { name: b.name ?? '' }))}${blockId(ctx, b)}</div>
-        ${json(ctx, b.json, key)}
+      <div class="acv-prompt-block tool" data-copy-scope>
+        <div class="acv-kicker">${esc(fill(s.promptToolUse, { name: b.name ?? '' }))}${blockId(ctx, b)}${copyOf(ctx, input)}</div>
+        ${json(ctx, input, key)}
       </div>`;
   }
   if (b.kind === 'tool_result') {
+    const result = b.text ?? pretty(b.json);
     // a result that failed and one that did not can carry the same text, and the panel must not make
     // them look alike
     return `
-      <div class="acv-prompt-block tool${b.failed ? ' failed' : ''}">
-        <div class="acv-kicker">${esc(b.failed ? s.promptToolFailed : s.promptToolResult)}${blockId(ctx, b)}</div>
-        ${b.text != null ? textBlock(ctx, b.text, key) : json(ctx, b.json, key)}
+      <div class="acv-prompt-block tool${b.failed ? ' failed' : ''}" data-copy-scope>
+        <div class="acv-kicker">${esc(b.failed ? s.promptToolFailed : s.promptToolResult)}${blockId(ctx, b)}${copyOf(ctx, result)}</div>
+        ${b.text != null ? textBlock(ctx, result, key) : json(ctx, result, key)}
       </div>`;
   }
-  return `<div class="acv-prompt-block"><div class="acv-kicker">${esc(b.kind)}</div>${json(ctx, b.json, key)}</div>`;
+  const value = pretty(b.json);
+  return `<div class="acv-prompt-block" data-copy-scope><div class="acv-kicker">${esc(b.kind)}${copyOf(ctx, value)}</div>${json(ctx, value, key)}</div>`;
 }
 
 /** The tool call a block is: its own id, or the one a result answers. */
@@ -462,11 +495,12 @@ function blockId(ctx: ViewContext, b: PromptBlock): string {
 
 function tool(ctx: ViewContext, t: { name: string; description: string; raw: unknown }, key: string): string {
   const first = t.description.split('\n')[0] ?? '';
+  const definition = pretty(t.raw);
   return `
-    <div class="acv-prompt-tool">
-      <div class="acv-prompt-tool-name mono">${esc(t.name)}</div>
+    <div class="acv-prompt-tool" data-copy-scope>
+      <div class="acv-prompt-tool-name mono">${esc(t.name)}${copyOf(ctx, definition)}</div>
       <div class="acv-faint">${esc(first.length > 200 ? `${first.slice(0, 200)}…` : first)}</div>
-      ${json(ctx, t.raw, key)}
+      ${json(ctx, definition, key)}
     </div>`;
 }
 
@@ -476,31 +510,37 @@ function blockSummary(ctx: ViewContext, blocks: PromptBlock[]): string {
 }
 
 /**
- * A text, cut short until the reader asks for the rest.
- *
- * The whole text is always in the page, hidden beside the button that copies it, so the copy is of
- * everything whatever is shown. What the reader opened is remembered per text, the way the
- * transcript remembers it, so it survives moving between the request and the response.
+ * The copy button for a title, with the whole text it copies hidden beside it. The text is never
+ * the preview the panel shows, so a long text copies whole while it is still cut short.
+ */
+function copyOf(ctx: ViewContext, text: string): string {
+  return `${copyButton(ctx.s)}<span class="acv-copy-src" hidden>${esc(text)}</span>`;
+}
+
+function pretty(value: unknown): string {
+  return JSON.stringify(value, null, 2) ?? '';
+}
+
+/**
+ * A text, cut short until the reader asks for the rest. What the reader opened is remembered per
+ * text, the way the transcript remembers it, so it survives moving between the request and the
+ * response.
  */
 function textBlock(ctx: ViewContext, text: string, key: string): string {
   const { s, state } = ctx;
   const long = text.length > PREVIEW;
   const open = long && state.openTexts.has(key);
   const more = long && !open ? `<button type="button" class="acv-linkish acv-text-more" data-text-toggle="${esc(key)}">${esc(s.showAllLines)}</button>` : '';
-  return `<div class="acv-block" data-copy-scope>${esc(open || !long ? text : `${text.slice(0, PREVIEW)}…`)}${copyButton(
-    s,
-  )}<span class="acv-copy-src" hidden>${esc(text)}</span></div>${more}`;
+  return `<div class="acv-block">${esc(open || !long ? text : `${text.slice(0, PREVIEW)}…`)}</div>${more}`;
 }
 
-function json(ctx: ViewContext, value: unknown, key: string): string {
+/** A JSON value as `pretty` writes it, cut short the same way. */
+function json(ctx: ViewContext, text: string, key: string): string {
   const { s, state } = ctx;
-  const text = JSON.stringify(value, null, 2) ?? '';
   const long = text.length > JSON_PREVIEW;
   const open = long && state.openTexts.has(key);
   const more = long && !open ? `<button type="button" class="acv-linkish acv-text-more" data-text-toggle="${esc(key)}">${esc(s.showAllLines)}</button>` : '';
-  return `<pre class="acv-raw" data-copy-scope>${esc(open || !long ? text : `${text.slice(0, JSON_PREVIEW)}…`)}${copyButton(
-    s,
-  )}<span class="acv-copy-src" hidden>${esc(text)}</span></pre>${more}`;
+  return `<pre class="acv-raw">${esc(open || !long ? text : `${text.slice(0, JSON_PREVIEW)}…`)}</pre>${more}`;
 }
 
 function wire(ctx: ViewContext, body: HTMLElement): void {
