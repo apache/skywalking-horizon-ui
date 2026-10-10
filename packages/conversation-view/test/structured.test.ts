@@ -17,10 +17,10 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { AszViewDocument } from '../src/index.js';
 import { ConversationModel } from '../src/model.js';
-import { drawStructured, structure, textBody } from '../src/view/structured.js';
+import { copyField, drawStructured, structure, textBody } from '../src/view/structured.js';
 
 const S = { copy: 'copy' };
 const changes = JSON.parse(readFileSync(resolve('test/fixtures/workspace-changes.json'), 'utf8')) as AszViewDocument;
@@ -159,5 +159,69 @@ describe('copy buttons and the edit diff', () => {
       ['old_string', 'copy old_string'],
       ['new_string', 'copy new_string'],
     ]);
+  });
+});
+
+describe('copying on a page that has no Clipboard API', () => {
+  /** What a browser copies: the selected part of the element that holds
+   *  the selection. jsdom has no execCommand, so the test stands in for it. */
+  function selectionCopy(answer: boolean): string[] {
+    const written: string[] = [];
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: (command: string) => {
+        const area = document.body.querySelector('textarea')!;
+        if (command === 'copy' && answer) written.push(area.value.slice(area.selectionStart, area.selectionEnd));
+        return answer;
+      },
+    });
+    return written;
+  }
+  function field(): HTMLButtonElement {
+    const host = document.createElement('div');
+    host.innerHTML = drawStructured(structure('{"command":"ls -la","description":"list"}')!, S);
+    document.body.appendChild(host);
+    const btn = host.querySelector<HTMLButtonElement>('[data-copy]')!;
+    btn.focus();
+    return btn;
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+    Reflect.deleteProperty(document, 'execCommand');
+    document.body.innerHTML = '';
+  });
+
+  it('copies through a selection when the page is plain HTTP', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    const written = selectionCopy(true);
+    const btn = field();
+    copyField(btn, 'copied');
+    await settle();
+    expect(written).toEqual(['ls -la']);
+    expect(btn.textContent).toBe('copied');
+    expect(document.body.querySelector('textarea')).toBeNull();
+    expect(document.activeElement).toBe(btn);
+  });
+
+  it('copies through a selection when the browser refuses the Clipboard API', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('NotAllowedError')) } });
+    const written = selectionCopy(true);
+    const btn = field();
+    copyField(btn, 'copied');
+    await settle();
+    expect(written).toEqual(['ls -la']);
+    expect(btn.textContent).toBe('copied');
+  });
+
+  it('does not say copied when the browser refuses both ways', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    selectionCopy(false);
+    const btn = field();
+    copyField(btn, 'copied');
+    await settle();
+    expect(btn.textContent).toBe('copy');
+    expect(btn.classList.contains('done')).toBe(false);
   });
 });

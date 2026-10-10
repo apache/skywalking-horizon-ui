@@ -192,7 +192,8 @@ function callWithSummary(): string {
 }
 
 describe('the prompt panel on a LangChain call', () => {
-  it('draws the request message by message, in LangChain words', async () => {
+  /** Mounts the call, loads its bodies, and gives the page's root. */
+  async function openPrompt(): Promise<HTMLElement> {
     const step = callWithSummary();
     expect(step).not.toBe('');
     host = document.createElement('div');
@@ -207,7 +208,12 @@ describe('the prompt panel on a LangChain call', () => {
     host.querySelector<HTMLButtonElement>('[data-tab="prompt"]')!.click();
     host.querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
     await new Promise((r) => setTimeout(r, 0));
-    const panel = host.querySelector<HTMLElement>('.acv-inspector-body')!;
+    return host;
+  }
+
+  it('draws the request message by message, in LangChain words', async () => {
+    const root = await openPrompt();
+    const panel = root.querySelector<HTMLElement>('.acv-inspector-body')!;
     const roles = [...panel.querySelectorAll('.acv-prompt-role')].map((e) => e.textContent);
     expect(roles).toContain('system');
     expect(roles).toContain('human');
@@ -220,9 +226,24 @@ describe('the prompt panel on a LangChain call', () => {
     // nothing but messages in the body, so no empty settings section
     expect(panel.textContent).not.toContain('Settings');
     // a LangChain request names no request before it, and nothing is missing
-    host.querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
-    const changes = host.querySelector<HTMLElement>('.acv-inspector-body')!.textContent;
+    root.querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
+    const changes = root.querySelector<HTMLElement>('.acv-inspector-body')!.textContent;
     expect(changes).toContain('names no request before it');
     expect(changes).not.toContain('not among the loaded bodies');
+  });
+
+  it("puts the copy button of a message that is one text on the message's head", async () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: (t: string) => (written.push(t), Promise.resolve()) },
+    });
+    const panel = (await openPrompt()).querySelector<HTMLElement>('.acv-inspector-body')!;
+    const system = [...panel.querySelectorAll<HTMLElement>('.acv-prompt-message')].find((m) => m.querySelector('.acv-prompt-role')!.textContent === 'system')!;
+    expect(system.querySelector('.acv-prompt-block .acv-kicker')).toBeNull();
+    system.querySelector<HTMLButtonElement>('.acv-prompt-message-head .acv-copy')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(written).toEqual([system.querySelector('.acv-block')!.textContent]);
+    expect(written[0]).not.toBe('');
   });
 });

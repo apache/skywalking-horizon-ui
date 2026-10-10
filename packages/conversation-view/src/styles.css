@@ -507,6 +507,11 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-prompt-head-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .acv-prompt-head-btn:hover { background: color-mix(in srgb, var(--sw-info) 4%, transparent); }
 .acv-prompt-caret { margin-left: auto; color: var(--acv-faint); }
+/* The copy button sits beside the toggle, not inside it: HTML allows no button inside a button. */
+.acv-prompt-section-head { display: flex; align-items: center; }
+.acv-prompt-section-head > .acv-prompt-head-btn { flex: 1; min-width: 0; }
+.acv-prompt-section-head > .acv-copy { margin-right: 11px; }
+.acv-prompt-block > .acv-kicker > .acv-copy:first-child { margin-left: 0; }
 .acv-prompt-body { padding: 4px 11px 11px; }
 .acv-prompt-message { margin: 10px 0; border: 1px solid var(--acv-line); border-radius: 7px; overflow: hidden; }
 .acv-prompt-message-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 9px; border-bottom: 1px solid var(--acv-line); background: var(--acv-surface-2); }

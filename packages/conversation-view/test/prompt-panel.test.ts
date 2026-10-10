@@ -209,12 +209,78 @@ describe('the prompt panel', () => {
     tab(root, 'prompt')!.click();
     panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
     await new Promise((r) => setTimeout(r, 0));
-    const copy = panel(root).querySelector<HTMLButtonElement>('.acv-block .acv-copy')!;
-    const whole = copy.parentElement!.querySelector('.acv-copy-src')!.textContent!;
-    copy.click();
+    // the injected reminder of the first message is long, so the panel shows it cut short
+    const reminder = panel(root).querySelector<HTMLElement>('.acv-prompt-block.injected')!;
+    const preview = reminder.querySelector('.acv-block')!.textContent!;
+    expect(preview).toContain('…');
+    reminder.querySelector<HTMLButtonElement>('.acv-kicker .acv-copy')!.click();
     await new Promise((r) => setTimeout(r, 0));
-    expect(written).toEqual([whole]);
-    expect(written[0]).not.toBe('copy');
+    expect(written).toHaveLength(1);
+    expect(written[0]).toBe(reminder.querySelector('.acv-copy-src')!.textContent);
+    expect(written[0]!.length).toBeGreaterThan(preview.length);
+    expect(written[0]).toContain(preview.slice(0, -1));
+    expect(written[0]).not.toContain('copy');
+  });
+
+  it('puts each copy button in the title of what it copies, never at the end of the text', async () => {
+    const root = mount();
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: (t: string) => (written.push(t), Promise.resolve()) },
+    });
+    tab(root, 'prompt')!.click();
+    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(panel(root).querySelectorAll('.acv-block .acv-copy, .acv-raw .acv-copy')).toHaveLength(0);
+    // the assistant's text has no label, and it is one of two blocks, so its title row is the button alone
+    const answer = panel(root).querySelectorAll<HTMLElement>('.acv-prompt-message')[1]!;
+    expect(answer.querySelector('.acv-prompt-message-head .acv-copy')).toBeNull();
+    const text = answer.querySelector<HTMLElement>('.acv-prompt-block:not(.tool) > .acv-kicker')!;
+    expect(text.firstElementChild!.classList.contains('acv-copy')).toBe(true);
+    text.querySelector<HTMLButtonElement>('.acv-copy')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(written).toEqual(['Reading it.']);
+    written.length = 0;
+    // the whole body copies from its title while its section is still closed
+    const head = panel(root).querySelector<HTMLElement>('[data-prompt-section$="|request-raw"]')!.parentElement!;
+    expect(head.parentElement!.querySelector('.acv-prompt-body')).toBeNull();
+    head.querySelector<HTMLButtonElement>('.acv-copy')!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(Object.keys(JSON.parse(written[0]!) as object)).toContain('messages');
+    head.querySelector<HTMLButtonElement>('[data-prompt-section]')!.click();
+    panel(root).querySelector<HTMLButtonElement>('[data-prompt-section$="|request-raw"]')!.closest('section')!.querySelector<HTMLButtonElement>('[data-text-toggle]')?.click();
+    const shown = panel(root).querySelector('[data-prompt-section$="|request-raw"]')!.closest('section')!.querySelector('.acv-raw')!.textContent;
+    expect(written[0]).toBe(shown);
+  });
+
+  it('copies the whole text on a page served over plain HTTP, which has no Clipboard API', async () => {
+    const root = mount();
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: (command: string) => {
+        const area = document.body.querySelector('textarea')!;
+        written.push(`${command}:${area.value.slice(area.selectionStart, area.selectionEnd)}`);
+        return true;
+      },
+    });
+    try {
+      tab(root, 'prompt')!.click();
+      panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+      await new Promise((r) => setTimeout(r, 0));
+      const reminder = panel(root).querySelector<HTMLElement>('.acv-prompt-block.injected')!;
+      const copy = reminder.querySelector<HTMLButtonElement>('.acv-kicker .acv-copy')!;
+      const whole = reminder.querySelector('.acv-copy-src')!.textContent!;
+      copy.click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(written).toEqual([`copy:${whole}`]);
+      expect(copy.textContent).toBe('copied');
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      Reflect.deleteProperty(document, 'execCommand');
+    }
   });
 
   it('draws what it could rebuild when the server left a file out', async () => {
