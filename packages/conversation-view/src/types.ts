@@ -268,8 +268,6 @@ export interface AszStream {
 
 export interface AszSegment {
   id: string;
-  state: string;
-  committable: boolean;
   talks: number;
   from: number;
   to: number;
