@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "지연 시간"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "오류율",
-        "tip": "상태가 ERROR인 서버 스팬의 비율입니다."
+        "tip": "실패한 서버 스팬과 컨슈머 스팬의 비율입니다. 상태가 ERROR이거나 HTTP 상태가 400 이상이면 실패로 셉니다."
       },
       {
         "id": "apdex_line",

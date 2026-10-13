@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "延迟"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "错误率",
-        "tip": "状态为 ERROR 的服务端 span 占比。"
+        "tip": "失败的服务端与消费者 span 占比：状态为 ERROR，或 HTTP 状态码为 400 及以上。"
       },
       {
         "id": "apdex_line",

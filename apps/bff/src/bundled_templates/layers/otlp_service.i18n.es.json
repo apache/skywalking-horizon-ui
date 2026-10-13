@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "Latencia"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "Tasa de errores",
-        "tip": "Porcentaje de spans de servidor cuyo estado es ERROR."
+        "tip": "Porcentaje de spans de servidor y consumidor que fallaron: estado ERROR o un estado HTTP de 400 o superior."
       },
       {
         "id": "apdex_line",

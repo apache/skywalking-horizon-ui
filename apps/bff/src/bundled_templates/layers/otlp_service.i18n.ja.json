@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "レイテンシ"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "エラー率",
-        "tip": "ステータスが ERROR のサーバースパンの割合。"
+        "tip": "失敗したサーバースパンとコンシューマースパンの割合（ステータスが ERROR、または HTTP ステータスが 400 以上）。"
       },
       {
         "id": "apdex_line",

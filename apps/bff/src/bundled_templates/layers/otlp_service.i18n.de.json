@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "Latenz"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "Fehlerrate",
-        "tip": "Anteil der Server-Spans mit Status ERROR in Prozent."
+        "tip": "Anteil der Server- und Consumer-Spans, die fehlgeschlagen sind: Status ERROR oder ein HTTP-Status von 400 oder höher."
       },
       {
         "id": "apdex_line",

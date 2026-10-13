@@ -18,7 +18,7 @@ limitations under the License.
 
 The **OTLP_SERVICE** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP registers a service here from the `service.name` of every OTLP span it receives, derives the metrics below from the spans themselves, and draws the topology from each span's peer. Nothing needs to be enabled on the OAP side beyond the OTLP trace receiver: the shipped TAL rule file produces all of it. These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
 
-In Horizon's sidebar the layer is named **OTLP Service** and sits in the Layers section; the OTLP Virtual Database, OTLP Virtual MQ and OTLP Virtual Cache layers are nested under its entry, after its own rows. It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off because neither bundled demo exports OTLP logs to the OAP; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
+In Horizon's sidebar the layer is named **OTLP Service** and sits in the Layers section; the OTLP Virtual Database, OTLP Virtual MQ and OTLP Virtual Cache layers are nested under its entry, after its own rows. It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off in the bundled template; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
 
 This page is the **operator reference** for the bundled OTLP Service dashboard: what you see on each scope and what each widget means.
 
@@ -34,7 +34,7 @@ Before opening a service, the layer landing page lists every OpenTelemetry servi
 
 - **Latency** — average server span duration in ms (`otlp_service_resp_time`).
 
-- **Error Rate** — percent of server spans whose status is ERROR (`100 - otlp_service_sla/100`).
+- **Error Rate** — percent of server and consumer spans that failed: status ERROR, or an HTTP status of 400 or above (`100 - otlp_service_sla/100`).
 
 ## Service dashboard
 
@@ -44,7 +44,7 @@ The primary drill-down for one selected service.
 
 - **Traffic** — server and consumer spans per minute, counted by the TAL rule before the receiver's own head sampling, so it reflects what the SDK sent (`otlp_service_cpm`).
 
-- **Error Rate** — percent of server spans with status ERROR (`100 - otlp_service_sla/100`).
+- **Error Rate** — percent of server and consumer spans that failed, as in the service list (`100 - otlp_service_sla/100`).
 
 - **Apdex** — the Apdex score over the window (`otlp_service_apdex/10000`).
 
@@ -52,15 +52,15 @@ The primary drill-down for one selected service.
 
 - **Avg Response Time** — mean server span duration in ms (`otlp_service_resp_time`).
 
-- **Top 10 instances by load / slowest instances / instances by success rate** — the service's instances ranked by `otlp_instance_cpm`, `otlp_instance_resp_time` and `otlp_instance_sla`. Instances exist only when the SDK's resource carries `service.instance.id`; a service whose SDK does not set it shows `no data` here and has no instance scope to open.
+- **Top 10 instances by load / slowest instances / instances by success rate** — the service's instances ranked by `otlp_service_instance_cpm`, `otlp_service_instance_resp_time` and `otlp_service_instance_sla`. Instances exist only when the SDK's resource carries `service.instance.id`; a service whose SDK does not set it shows `no data` here and has no instance scope to open.
 
 ## Instance dashboard
 
-- **Service Instance Load** — server spans per minute reported by the selected instance (`otlp_instance_cpm`).
+- **Service Instance Load** — server spans per minute reported by the selected instance (`otlp_service_instance_cpm`).
 
-- **Service Instance Latency** — mean server span duration in ms (`otlp_instance_resp_time`).
+- **Service Instance Latency** — mean server span duration in ms (`otlp_service_instance_resp_time`).
 
-- **Service Instance Success Rate** — percent of the instance's server spans that did not end in ERROR (`otlp_instance_sla/100`).
+- **Service Instance Success Rate** — percent of the instance's server and consumer spans that did not fail, as in the service list (`otlp_service_instance_sla/100`).
 
 ## Endpoint dashboard
 
@@ -68,13 +68,13 @@ The primary drill-down for one selected service.
 
 - **Response Time** — mean duration in ms (`otlp_endpoint_resp_time`).
 
-- **Success Rate** — percent of the endpoint's spans that did not end in ERROR (`otlp_endpoint_sla/100`).
+- **Success Rate** — percent of the endpoint's spans that did not fail, as in the service list (`otlp_endpoint_sla/100`).
 
 - **Response Time Percentile** — p50 / p75 / p90 / p95 / p99 of the endpoint's latency (`otlp_endpoint_percentile`).
 
 ## Topology
 
-Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges are observed on the client side, from the caller's CLIENT and PRODUCER spans: **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_sla/100`). The only server-side edge metric is **RPM** (`otlp_service_relation_server_cpm`), which exists for the calls a root server span receives, drawn from the `User` node, and for the calls a consumer receives from its broker; an OTLP server span carries no caller identity, so no other edge has server-side numbers. The map also shows the conjectured peers the calls reach, databases, caches and brokers, which live in the OpenTelemetry virtual layers.
+Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges are observed on the client side, from the caller's CLIENT and PRODUCER spans: **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_call_sla/100`). The only server-side edge metric is **RPM** (`otlp_service_relation_server_cpm`), which exists for the calls a root server span receives, drawn from the `User` node, for the calls a consumer receives from its broker, and for the calls that reach a service through an uninstrumented gateway listed in `gateways.yml`; an OTLP server span carries no caller identity, so no other edge has server-side numbers. The map also shows the conjectured peers the calls reach, databases, caches and brokers, which live in the OpenTelemetry virtual layers.
 
 A peer that a client named by address, `cart:7070` or an IP, is folded onto the service that answers there once OAP has learned the address, from the server's own span or by pairing the two spans of one call; the first calls to a freshly seen address can appear on an address-named node for a minute.
 
@@ -88,7 +88,7 @@ The Logs tab is off in the bundled template. The OAP accepts OTLP logs and store
 
 The dashboard is a pure consumer of what OAP reports and invents no data. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, which produces:
 
-- **Service, instance and endpoint metrics** — the `otlp_service_*`, `otlp_instance_*` and `otlp_endpoint_*` families.
+- **Service, instance and endpoint metrics** — the `otlp_service_*`, `otlp_service_instance_*` and `otlp_endpoint_*` families.
 
 - **Relation metrics** — `otlp_service_relation_client_*` and `otlp_service_relation_server_cpm`, which back the topology.
 

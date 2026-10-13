@@ -21,7 +21,7 @@
       {
         "id": "traffic_line",
         "title": "Tráfego de acesso",
-        "tip": "Mensagens por minuto, contadas a partir dos spans de produtor e consumidor dos serviços OpenTelemetry que usam este broker."
+        "tip": "Mensagens por minuto, contadas a partir dos spans de cliente e produtor dos serviços OpenTelemetry que chamam este broker."
       },
       {
         "id": "resp_time_line",

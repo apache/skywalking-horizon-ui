@@ -49,4 +49,4 @@ The broker node is one row of the layer; the queues and topics the services publ
 
 ## Requirements
 
-The dashboard is a pure consumer of what OAP reports. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, and client spans that name the broker: `messaging.system` with `server.address` and `server.port`. A span that names the system but no address or peer produces no broker here. For the upstream setup see the [OpenTelemetry trace analysis documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/#layers).
+The dashboard is a pure consumer of what OAP reports. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, and client or producer spans that carry `messaging.system`. The broker is named by the span's peer name, or by `server.address` and `server.port`; a span that names no address or peer is filed under a broker named after its messaging system, such as `jms`. For the upstream setup see the [OpenTelemetry trace analysis documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/#layers).

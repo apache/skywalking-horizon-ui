@@ -21,7 +21,7 @@
       {
         "id": "traffic_line",
         "title": "访问流量",
-        "tip": "每分钟消息数，由使用该 broker 的 OpenTelemetry 服务的生产者与消费者 span 统计。"
+        "tip": "每分钟消息数，由调用该 broker 的 OpenTelemetry 服务的客户端与生产者 span 统计。"
       },
       {
         "id": "resp_time_line",

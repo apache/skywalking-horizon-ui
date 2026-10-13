@@ -119,48 +119,11 @@
       {
         "id": "sla",
         "label": "SLA",
-        "mqe": "otlp_service_relation_client_sla/100",
+        "mqe": "otlp_service_relation_client_call_sla/100",
         "unit": "%",
         "aggregation": "avg"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM",
-          "mqe": "otlp_instance_cpm",
-          "unit": "rpm",
-          "role": "center",
-          "aggregation": "avg"
-        },
-        {
-          "id": "sla",
-          "label": "SLA",
-          "mqe": "otlp_instance_sla/100",
-          "unit": "%",
-          "role": "ring",
-          "aggregation": "avg",
-          "thresholds": {
-            "invertHealth": true,
-            "invertBase": 100,
-            "ok": 0.1,
-            "warn": 1,
-            "danger": 5
-          }
-        },
-        {
-          "id": "respTime",
-          "label": "Latency",
-          "mqe": "otlp_instance_resp_time",
-          "unit": "ms",
-          "role": "secondary",
-          "aggregation": "avg"
-        }
-      ],
-      "linkServerMetrics": [],
-      "linkClientMetrics": []
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -202,7 +165,7 @@
       {
         "id": "err_line",
         "title": "Error Rate",
-        "tip": "Percent of server spans whose status is ERROR.",
+        "tip": "Percent of server and consumer spans that failed: status ERROR, or an HTTP status of 400 or above.",
         "type": "line",
         "unit": "%",
         "expressions": [
@@ -252,7 +215,7 @@
         "type": "top",
         "unit": "rpm",
         "expressions": [
-          "top_n(otlp_instance_cpm,10,des)"
+          "top_n(otlp_service_instance_cpm,10,des)"
         ],
         "span": 4,
         "rowSpan": 2
@@ -263,7 +226,7 @@
         "type": "top",
         "unit": "ms",
         "expressions": [
-          "top_n(otlp_instance_resp_time,10,des)"
+          "top_n(otlp_service_instance_resp_time,10,des)"
         ],
         "span": 4,
         "rowSpan": 2
@@ -274,7 +237,7 @@
         "type": "top",
         "unit": "%",
         "expressions": [
-          "top_n(otlp_instance_sla,10,asc)/100"
+          "top_n(otlp_service_instance_sla,10,asc)/100"
         ],
         "span": 4,
         "rowSpan": 2
@@ -286,9 +249,9 @@
         "title": "Service Instance Load",
         "tip": "Server spans per minute reported by the selected instance.",
         "type": "line",
-        "unit": "calls / min",
+        "unit": "rpm",
         "expressions": [
-          "otlp_instance_cpm"
+          "otlp_service_instance_cpm"
         ],
         "span": 4,
         "rowSpan": 2
@@ -299,7 +262,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": [
-          "otlp_instance_resp_time"
+          "otlp_service_instance_resp_time"
         ],
         "span": 4,
         "rowSpan": 2
@@ -310,7 +273,7 @@
         "type": "line",
         "unit": "%",
         "expressions": [
-          "otlp_instance_sla/100"
+          "otlp_service_instance_sla/100"
         ],
         "span": 4,
         "rowSpan": 2

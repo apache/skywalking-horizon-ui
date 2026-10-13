@@ -55,23 +55,7 @@
         "id": "sla",
         "label": "SLA"
       }
-    ],
-    "instanceTopology": {
-      "nodeMetrics": [
-        {
-          "id": "cpm",
-          "label": "RPM"
-        },
-        {
-          "id": "sla",
-          "label": "SLA"
-        },
-        {
-          "id": "respTime",
-          "label": "Latence"
-        }
-      ]
-    }
+    ]
   },
   "dashboards": {
     "service": [
@@ -93,7 +77,7 @@
       {
         "id": "err_line",
         "title": "Taux d'erreur",
-        "tip": "Pourcentage de spans serveur dont le statut est ERROR."
+        "tip": "Pourcentage de spans serveur et consommateur en échec : statut ERROR, ou statut HTTP de 400 ou plus."
       },
       {
         "id": "apdex_line",

@@ -21,7 +21,7 @@
       {
         "id": "traffic_line",
         "title": "Zugriffs-Traffic",
-        "tip": "Nachrichten pro Minute, gezählt aus den Producer- und Consumer-Spans der OpenTelemetry-Services, die diesen Broker nutzen."
+        "tip": "Nachrichten pro Minute, gezählt aus den Client- und Producer-Spans der OpenTelemetry-Services, die diesen Broker aufrufen."
       },
       {
         "id": "resp_time_line",
