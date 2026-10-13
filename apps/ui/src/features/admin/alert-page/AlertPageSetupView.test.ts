@@ -151,6 +151,11 @@ beforeEach(() => {
         rows = rows.map((r) => (r.name === body.name ? alertRow(r.key, contentOf(r), true) : r));
         return json(status());
       }
+      if (path === '/api/admin/templates/enable') {
+        const body = JSON.parse(String(init?.body)) as { name: string };
+        rows = rows.map((r) => (r.name === body.name ? alertRow(r.key, contentOf(r)) : r));
+        return json(status());
+      }
       if (path === '/api/alarms/services') {
         return json({ layer: url.searchParams.get('layer'), services: roster });
       }
@@ -691,6 +696,28 @@ describe('Alarm pages admin — delete', () => {
     expect(listLabels(w)).toContain('On-call');
     expect(statusLine(w)).toMatch(/^error: /);
     expect(w.find('.dap__in').exists()).toBe(true);
+  });
+});
+
+describe('Alarm pages admin — a record enabled from the banner', () => {
+  it('re-reads the stored settings and every reader of the pages, as a save does', async () => {
+    rows = rows.map((r) =>
+      r.key === 'default' ? alertRow('default', { ...DEFAULT_CONTENT, pinnedLayers: ['MESH'] }, true) : r,
+    );
+    const w = await mountView();
+    expect(pinnedCodes(w)).toEqual(['GENERAL']);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const disabled = w.find('[data-testid="disabled-templates"]');
+    await disabled.find('.dtb__head').trigger('click');
+    const row = disabled.findAll('.itb__row').find((r) => r.text().includes('horizon.alert.default'))!;
+    for (let i = 0; i < 2; i++) {
+      await row.findAll('button').find((b) => b.text() === 'Enable')!.trigger('click');
+      await flushPromises();
+    }
+
+    expect(pinnedCodes(w)).toEqual(['MESH']);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ALARM_PAGES_QUERY_KEY });
   });
 });
 

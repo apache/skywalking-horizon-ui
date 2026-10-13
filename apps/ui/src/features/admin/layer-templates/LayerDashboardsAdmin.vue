@@ -72,7 +72,6 @@ const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/adm
 // parent is the single caller; child components below receive these as props.
 const {
   sync,
-  sources,
   t,
   draft,
   selectedKey,
@@ -124,6 +123,7 @@ const {
   askConfirm,
   askDeleteLayer,
   askReactivateLayer,
+  afterStoredTemplateChange,
   activePage,
 } = useLayerTemplateStore();
 const { refused: refusedImportView, close: closeRefusedImport } = refusedImport;
@@ -472,7 +472,7 @@ const namingTest = computed<NamingTestResult>(() => {
     </header>
 
     <SyncStatusBanner :banner="layerSyncBanner" />
-    <StoredTemplatesBanner :owns="ownsLayerTemplate" :read-only="sync.readOnly.value" @changed="sources.refetch()" />
+    <StoredTemplatesBanner :owns="ownsLayerTemplate" :read-only="sync.readOnly.value" @changed="afterStoredTemplateChange" />
 
     <div v-if="error" class="banner err">{{ error }}</div>
     <div v-if="isLoading" class="empty">{{ t('Loading templates…') }}</div>

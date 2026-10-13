@@ -809,6 +809,18 @@ export function useLayerTemplateStore() {
     }
   }
 
+  /** The banner disabled or enabled the stored record `name`: every reader
+   *  follows it, and the selected layer's editor reseeds unless it holds
+   *  unsaved edits. */
+  async function afterStoredTemplateChange(name: string): Promise<void> {
+    try {
+      await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    } catch (err) {
+      saveMsg.value = err instanceof Error ? err.message : String(err);
+    }
+    if (name === editName.value && !dirty.value) syncDraft();
+  }
+
   const selectedTpl = computed(() => draft.template);
 
   return {
@@ -882,6 +894,7 @@ export function useLayerTemplateStore() {
     askConfirm,
     askDeleteLayer,
     askReactivateLayer,
+    afterStoredTemplateChange,
     doDeleteLayer,
     doReactivateLayer,
   };

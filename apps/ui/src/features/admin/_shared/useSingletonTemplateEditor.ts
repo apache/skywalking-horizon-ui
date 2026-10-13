@@ -97,7 +97,9 @@ export interface SingletonTemplateEditorReturn<T> {
   contentInvalid: ComputedRef<boolean>;
   /** An imported file the server refused, with its problems, until closed. */
   refusedImport: Ref<ProblemsView | null>;
-  /** Read the stored copy again — after it was disabled or enabled elsewhere. */
+  /** After the stored record was disabled or enabled elsewhere on the page:
+   *  every reader follows it, as after a publish, and the editor reseeds
+   *  unless it holds unsaved edits. */
   reload: () => Promise<void>;
   /** Bundled byte-equals OAP-live — resetting to bundled is then a no-op. */
   isSynced: ComputedRef<boolean>;
@@ -339,7 +341,15 @@ export function useSingletonTemplateEditor<T>(
     contentInvalid,
     refusedImport,
     reload: async () => {
-      await sources.refetch();
+      // Best-effort, as after a publish: the write itself has landed.
+      try {
+        await bff.templateSync.resync();
+        await Promise.all([sources.refetch(), refreshConfigBundle({ force: true })]);
+        await afterPush?.();
+      } catch (err) {
+        console.warn(`[${kind}] refresh after a disable or enable failed:`, err);
+      }
+      if (!dirty.value) syncDraft();
     },
     isSynced,
     dirty,

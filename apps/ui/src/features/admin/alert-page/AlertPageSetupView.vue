@@ -73,6 +73,11 @@ const isInvalidPage = (id: string): boolean => sync.badgeFor(alertRowName(id)) =
  *  a download and Disable are offered — never the editor. */
 const selectedInvalid = computed(() => isInvalidPage(ed.selectedId.value));
 const ownsAlertPage = (r: { kind: string; locale?: string }): boolean => r.kind === 'alert';
+/** The banner disabled or enabled a page's record: every reader of the pages
+ *  follows it, as after a save. Best-effort — the write itself has landed. */
+function onStoredTemplateChanged(): void {
+  void ed.afterWrite().catch(() => undefined);
+}
 
 const listItems = computed<AlertPageListItem[]>(() => {
   const items: AlertPageListItem[] = [
@@ -175,7 +180,7 @@ const statusText = computed<{ text: string; cls: string }>(() => {
     </header>
 
     <SyncStatusBanner :banner="sync.banner.value" />
-    <StoredTemplatesBanner :owns="ownsAlertPage" :read-only="sync.readOnly.value" @changed="ed.rowsQ.refetch()" />
+    <StoredTemplatesBanner :owns="ownsAlertPage" :read-only="sync.readOnly.value" @changed="onStoredTemplateChanged" />
 
     <div class="aps__body">
       <AlertPageList

@@ -495,6 +495,19 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 /** Force OAP re-read: invalidate the BFF's 30s sync cache + refetch
  *  everything the page consults. Used by the picker-bar button and as
  *  the tail of `pushToOap` after the propagation countdown. */
+/** The banner disabled or enabled a stored record: every reader follows it,
+ *  as after a publish — the selected dashboard's detail too, which reseeds
+ *  the editor unless it holds unsaved edits. */
+async function onStoredTemplateChanged(): Promise<void> {
+  try {
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), listQuery.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
+    reconcileLocalDrafts();
+  } catch (err) {
+    setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('refresh failed'));
+  }
+}
+
 async function refreshFromRemote(): Promise<void> {
   if (refreshingFromRemote.value) return;
   refreshingFromRemote.value = true;
@@ -806,7 +819,7 @@ function removeWidget(idx: number): void {
     <StoredTemplatesBanner
       :owns="ownsOverviewTemplate"
       :read-only="sync.readOnly.value"
-      @changed="refreshFromRemote"
+      @changed="onStoredTemplateChanged"
     />
 
     <div v-if="listQuery.isPending.value" class="ot__empty">{{ t('loading…') }}</div>
