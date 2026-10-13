@@ -1,0 +1,49 @@
+{
+  "alias": "MQ virtual OTLP",
+  "group": "OpenTelemetry",
+  "slots": {
+    "services": "Brokers"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acesso"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "Taxa de erros"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Tráfego de acesso",
+        "tip": "Mensagens por minuto, contadas a partir dos spans de cliente e produtor dos serviços OpenTelemetry que chamam este broker."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Tempo médio de resposta",
+        "tip": "Latência média dos spans de cliente dos chamadores, em ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Taxa de sucesso",
+        "tip": "Percentual de spans de cliente e produtor dos chamadores que não falharam: um span falha com status ERROR ou um status HTTP 400 ou superior."
+      },
+      {
+        "id": "top_destinations",
+        "title": "Top 20 destinos",
+        "tip": "As filas e tópicos nos quais os serviços OpenTelemetry publicaram neste broker, ordenados por mensagens por minuto, latência média ou menor taxa de sucesso. Cada destino é um endpoint do nó do broker, de modo que um broker cuja biblioteca cliente não informa endereço, como JMS, ainda é classificado pelo que transporta.",
+        "expressionLabels": [
+          "Tráfego",
+          "Lentas",
+          "Taxa de sucesso"
+        ]
+      }
+    ]
+  }
+}
