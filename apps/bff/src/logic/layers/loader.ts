@@ -224,9 +224,6 @@ export interface LayerTemplate {
    *  → "Istio"; so11y_* → "Self-Observability"). Layers without a
    *  group hang at the top level on their own. */
   group?: string;
-  /** Key of the layer whose sidebar entry lists this one, after its own
-   *  rows (OTLP Virtual Database under OTLP Service). One level deep. */
-  parent?: string;
   /** Sidebar placement — `public` (default) → regular Layers section;
    *  `operate` → operations section (e.g. self-observability layers). */
   visibility?: 'public' | 'operate';

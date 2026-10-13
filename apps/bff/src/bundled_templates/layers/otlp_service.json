@@ -1,6 +1,7 @@
 {
   "key": "OTLP_SERVICE",
   "alias": "OTLP Service",
+  "group": "OpenTelemetry",
   "color": "var(--sw-info)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/",
   "aliases": {
@@ -188,7 +189,7 @@
       {
         "id": "percentile_line",
         "title": "Response Time Percentile",
-        "tip": "p50 / p75 / p90 / p95 / p99 of the server span latency, from the rule's buckets.",
+        "tip": "p50 / p75 / p90 / p95 / p99 of the server and consumer span latency, from the rule's buckets.",
         "type": "line",
         "unit": "ms",
         "expressions": [
@@ -247,7 +248,7 @@
       {
         "id": "instance_cpm_line",
         "title": "Service Instance Load",
-        "tip": "Server spans per minute reported by the selected instance.",
+        "tip": "Server and consumer spans per minute reported by the selected instance.",
         "type": "line",
         "unit": "rpm",
         "expressions": [
@@ -316,7 +317,7 @@
       {
         "id": "endpoint_percentile_line",
         "title": "Response Time Percentile",
-        "tip": "p50 / p75 / p90 / p95 / p99 of the endpoint's server span latency.",
+        "tip": "p50 / p75 / p90 / p95 / p99 of the endpoint's server and consumer span latency.",
         "type": "line",
         "unit": "ms",
         "expressions": [

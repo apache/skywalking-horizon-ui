@@ -370,34 +370,6 @@ export function singletonPresenceIssues(root: string = BUNDLED_ROOT): TemplateFi
 /** Validate every bundled template — dashboards and singletons alike.
  *  Returns one finding per defect; an empty array means the bundle is
  *  clean. */
-/** `parent` nests a layer under another layer's sidebar entry. It must name a
- *  bundled layer other than itself, and that layer must not be nested in turn:
- *  the sidebar renders one level, so a deeper chain would have to pick which
- *  ancestor's accordion the row lives in. */
-function validateParents(layers: SourceFile[], layerKeys: Set<string>, findings: TemplateFinding[]): void {
-  const parentOf = new Map<string, string>();
-  const named: Array<{ src: SourceFile; key: string; parent: string }> = [];
-  for (const src of layers) {
-    const c = src.content;
-    if (!isRecord(c) || typeof c.key !== 'string' || typeof c.parent !== 'string') continue;
-    parentOf.set(c.key.toUpperCase(), c.parent.toUpperCase());
-    named.push({ src, key: c.key.toUpperCase(), parent: c.parent.toUpperCase() });
-  }
-  for (const { src, key, parent } of named) {
-    if (parent === key) {
-      findings.push({ file: src.label, path: 'parent', message: `"${parent}" names the layer itself` });
-    } else if (!layerKeys.has(parent)) {
-      findings.push({ file: src.label, path: 'parent', message: `"${parent}" is not a bundled layer` });
-    } else if (parentOf.has(parent)) {
-      findings.push({
-        file: src.label,
-        path: 'parent',
-        message: `"${parent}" is itself nested under "${parentOf.get(parent)}"; a layer nests one level deep`,
-      });
-    }
-  }
-}
-
 export function validateBundledTemplates(root: string = BUNDLED_ROOT): TemplateFinding[] {
   const findings: TemplateFinding[] = [];
   const layers = readSources(root, 'layers', findings);
@@ -408,7 +380,6 @@ export function validateBundledTemplates(root: string = BUNDLED_ROOT): TemplateF
       .filter((k): k is string => k !== null),
   );
   for (const src of layers) validateLayer(src, findings);
-  validateParents(layers, layerKeys, findings);
   for (const src of overviews) validateOverview(src, layerKeys, findings);
   validateSingletons(root, findings);
   return findings;

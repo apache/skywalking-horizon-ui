@@ -1,5 +1,6 @@
 {
   "alias": "OTLP 虚拟数据库",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "数据库"
   },
@@ -31,12 +32,12 @@
       {
         "id": "sla_line",
         "title": "成功率",
-        "tip": "调用方客户端 span 中状态不为 ERROR 的占比。"
+        "tip": "调用方客户端 span 中未失败的占比；状态为 ERROR，或 HTTP 状态码为 400 及以上，即视为失败。"
       },
       {
         "id": "slow_statements",
         "title": "慢语句",
-        "tip": "`otlp-slow-sql` 规则针对该数据库记录的最慢 20 条语句，单位 ms。每行为一次语句执行；点击可复制，或使用行首的追踪图标打开其追踪。"
+        "tip": "`otlp-slow-sql` 规则针对该数据库记录的最慢 20 条语句，单位 ms。每行为一次语句执行；点击可复制。"
       }
     ]
   }

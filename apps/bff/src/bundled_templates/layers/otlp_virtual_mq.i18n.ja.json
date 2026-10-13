@@ -1,5 +1,6 @@
 {
   "alias": "OTLP 仮想 MQ",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Broker"
   },
@@ -31,7 +32,7 @@
       {
         "id": "sla_line",
         "title": "成功率",
-        "tip": "呼び出し元のクライアントスパンのうち、ステータスが ERROR でないものの割合。"
+        "tip": "呼び出し元のクライアントスパンとプロデューサースパンのうち、失敗しなかったものの割合。ステータスが ERROR、または HTTP ステータスが 400 以上のスパンを失敗とみなします。"
       },
       {
         "id": "top_destinations",

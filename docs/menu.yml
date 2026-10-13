@@ -116,7 +116,7 @@ catalog:
             path: "/dashboards/general"
           - name: "Browser"
             path: "/dashboards/browser"
-      - name: "OTLP Service"
+      - name: "OpenTelemetry"
         catalog:
           - name: "OTLP Service"
             path: "/dashboards/otlp_service"

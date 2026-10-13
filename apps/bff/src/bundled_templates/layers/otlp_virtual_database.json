@@ -1,7 +1,7 @@
 {
   "key": "OTLP_VIRTUAL_DATABASE",
   "alias": "OTLP Virtual Database",
-  "parent": "OTLP_SERVICE",
+  "group": "OpenTelemetry",
   "color": "var(--sw-warn)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/#layers",
   "aliases": {
@@ -71,7 +71,7 @@
       {
         "id": "sla_line",
         "title": "Success Rate",
-        "tip": "Percent of the callers' client spans whose status is not ERROR.",
+        "tip": "Percent of the callers' client spans that did not fail: a span fails on status ERROR or an HTTP status of 400 or above.",
         "type": "line",
         "unit": "%",
         "expressions": [
@@ -83,7 +83,7 @@
       {
         "id": "slow_statements",
         "title": "Slow Statements",
-        "tip": "Top 20 slowest statements the `otlp-slow-sql` rule recorded against this database, in ms. Each row is one statement execution; click to copy it, or use the trace icon at the row head to open its trace.",
+        "tip": "Top 20 slowest statements the `otlp-slow-sql` rule recorded against this database, in ms. Each row is one statement execution; click to copy it.",
         "type": "record",
         "unit": "ms",
         "expressions": [

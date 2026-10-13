@@ -354,32 +354,3 @@ describe('menu — a documentLink that fails the link policy is not served', () 
     expect(layer?.documentLink).toBeUndefined();
   });
 });
-
-const layerCfgWithParent = (key: string, parent: string): string =>
-  serializeEnvelope(
-    buildEnvelope('layer', key, {
-      key,
-      alias: key,
-      slots: { services: 'Services' },
-      components: { service: true },
-      parent,
-    }),
-  );
-
-describe('menu — a template parent is served as the sidebar nesting key', () => {
-  beforeEach(() => invalidateSyncCache());
-  afterEach(() => invalidateSyncCache());
-
-  it('lowercases the parent like the entry keys', async () => {
-    const layer = await menuLayer(
-      [row('1', layerCfg('GENERAL', 'General')), row('2', layerCfgWithParent('VIRTUAL_DATABASE', 'GENERAL'))],
-      'virtual_database',
-    );
-    expect(layer?.parent).toBe('general');
-  });
-
-  it('serves no parent when the template names none', async () => {
-    const layer = await menuLayer([row('1', layerCfg('GENERAL', 'General'))], 'general');
-    expect(layer?.parent).toBeUndefined();
-  });
-});

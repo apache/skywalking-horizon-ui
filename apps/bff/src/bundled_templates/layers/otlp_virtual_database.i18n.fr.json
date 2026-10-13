@@ -1,5 +1,6 @@
 {
   "alias": "Base de données virtuelle OTLP",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Bases de données"
   },
@@ -31,12 +32,12 @@
       {
         "id": "sla_line",
         "title": "Taux de succès",
-        "tip": "Pourcentage de spans client des appelants dont le statut n'est pas ERROR."
+        "tip": "Pourcentage de spans client des appelants qui n'ont pas échoué : un span échoue sur un statut ERROR ou un statut HTTP de 400 ou plus."
       },
       {
         "id": "slow_statements",
         "title": "Requêtes lentes",
-        "tip": "Les 20 instructions les plus lentes que la règle `otlp-slow-sql` a enregistrées pour cette base de données, en ms. Chaque ligne est une exécution d'instruction ; cliquez pour la copier, ou utilisez l'icône de trace en tête de ligne pour ouvrir sa trace."
+        "tip": "Les 20 instructions les plus lentes que la règle `otlp-slow-sql` a enregistrées pour cette base de données, en ms. Chaque ligne est une exécution d'instruction ; cliquez pour la copier."
       }
     ]
   }

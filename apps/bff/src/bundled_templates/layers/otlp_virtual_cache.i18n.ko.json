@@ -1,5 +1,6 @@
 {
   "alias": "OTLP 가상 캐시",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "캐시"
   },
@@ -31,7 +32,7 @@
       {
         "id": "sla_line",
         "title": "성공률",
-        "tip": "호출자 클라이언트 스팬 중 상태가 ERROR가 아닌 비율입니다."
+        "tip": "호출자 클라이언트 스팬 중 실패하지 않은 비율입니다. 상태가 ERROR이거나 HTTP 상태가 400 이상이면 실패로 셉니다."
       }
     ]
   }

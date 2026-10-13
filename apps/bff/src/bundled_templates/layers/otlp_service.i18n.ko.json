@@ -1,5 +1,6 @@
 {
   "alias": "OTLP 서비스",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "서비스",
     "instances": "인스턴스",
@@ -87,7 +88,7 @@
       {
         "id": "percentile_line",
         "title": "응답 시간 백분위",
-        "tip": "규칙의 버킷에서 구한 서버 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
+        "tip": "규칙의 버킷에서 구한 서버 스팬과 컨슈머 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
       },
       {
         "id": "resp_time_line",
@@ -123,14 +124,14 @@
       {
         "id": "endpoint_percentile_line",
         "title": "응답 시간 백분위",
-        "tip": "엔드포인트 서버 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
+        "tip": "엔드포인트 서버 스팬과 컨슈머 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
       }
     ],
     "instance": [
       {
         "id": "instance_cpm_line",
         "title": "서비스 인스턴스 부하",
-        "tip": "선택한 인스턴스가 보고한 분당 서버 스팬 수입니다."
+        "tip": "선택한 인스턴스가 보고한 분당 서버 스팬과 컨슈머 스팬 수입니다."
       },
       {
         "id": "instance_resp_line",

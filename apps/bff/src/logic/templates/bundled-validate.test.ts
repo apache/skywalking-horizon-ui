@@ -522,33 +522,3 @@ describe('singletonPresenceIssues — the four files the runtime loads by exact 
     expect(singletonPresenceIssues(root)).toEqual([]);
   });
 });
-
-describe('validateBundledTemplates — parent', () => {
-  it('accepts a parent that names another bundled layer', () => {
-    expect(
-      run({ layers: { demo: layer(), child: layer({ key: 'CHILD', parent: 'DEMO' }) }, overviews: { demo: overview() } }),
-    ).toEqual([]);
-  });
-
-  it('rejects a parent that names no bundled layer', () => {
-    const findings = run({ layers: { demo: layer(), child: layer({ key: 'CHILD', parent: 'NOPE' }) }, overviews: { demo: overview() } });
-    expect(findings).toHaveLength(1);
-    expect(findings[0]).toMatchObject({ path: 'parent', message: '"NOPE" is not a bundled layer' });
-  });
-
-  it('rejects a layer that names itself', () => {
-    const findings = run({ layers: { demo: layer(), child: layer({ key: 'CHILD', parent: 'CHILD' }) }, overviews: { demo: overview() } });
-    expect(findings).toHaveLength(1);
-    expect(findings[0]).toMatchObject({ path: 'parent', message: '"CHILD" names the layer itself' });
-  });
-
-  it('rejects a parent that is itself nested', () => {
-    const findings = run({
-      layers: { demo: layer(), mid: layer({ key: 'MID', parent: 'DEMO' }), leaf: layer({ key: 'LEAF', parent: 'MID' }) },
-      overviews: { demo: overview() },
-    });
-    expect(findings).toHaveLength(1);
-    expect(findings[0]).toMatchObject({ path: 'parent' });
-    expect(findings[0]?.message).toContain('"MID" is itself nested under "DEMO"');
-  });
-});

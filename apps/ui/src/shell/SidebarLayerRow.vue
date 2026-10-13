@@ -34,9 +34,7 @@ import { entryOf, layerPath } from '@/utils/layerRoute';
 const props = defineProps<{
   layer: LayerDef;
   expanded: boolean;
-  /** `nested` is a layer listed under another layer's rows; its indent and
-   *  size come from the parent list, so it needs no class of its own. */
-  variant: 'grouped' | 'ungrouped' | 'nested';
+  variant: 'grouped' | 'ungrouped';
   /** The template OAP stores for this layer differs from the shipped one. */
   diverged?: boolean;
 }>();

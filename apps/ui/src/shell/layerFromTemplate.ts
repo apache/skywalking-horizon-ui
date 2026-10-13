@@ -33,7 +33,6 @@ export interface LayerTemplateContent {
   alias?: string;
   color?: string;
   group?: string;
-  parent?: string;
   visibility?: 'public' | 'operate';
   documentLink?: string;
   components?: Record<string, boolean | undefined>;
@@ -129,7 +128,6 @@ export function layerContentToDef(t: LayerTemplateContent): LayerDef {
     active: false,
     level: null,
     group: t.group,
-    parent: t.parent ? t.parent.toLowerCase() : undefined,
     visibility: t.visibility,
     normal: null,
     documentLink: t.documentLink,

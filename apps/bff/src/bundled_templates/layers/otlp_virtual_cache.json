@@ -1,7 +1,7 @@
 {
   "key": "OTLP_VIRTUAL_CACHE",
   "alias": "OTLP Virtual Cache",
-  "parent": "OTLP_SERVICE",
+  "group": "OpenTelemetry",
   "color": "var(--sw-warn)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/#layers",
   "aliases": {
@@ -71,7 +71,7 @@
       {
         "id": "sla_line",
         "title": "Success Rate",
-        "tip": "Percent of the callers' client spans whose status is not ERROR.",
+        "tip": "Percent of the callers' client spans that did not fail: a span fails on status ERROR or an HTTP status of 400 or above.",
         "type": "line",
         "unit": "%",
         "expressions": [

@@ -1,5 +1,6 @@
 {
   "alias": "Servicio OTLP",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Servicios",
     "instances": "Instancias",
@@ -87,7 +88,7 @@
       {
         "id": "percentile_line",
         "title": "Percentil de tiempo de respuesta",
-        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor, a partir de los buckets de la regla."
+        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor y consumidor, a partir de los buckets de la regla."
       },
       {
         "id": "resp_time_line",
@@ -123,14 +124,14 @@
       {
         "id": "endpoint_percentile_line",
         "title": "Percentil de tiempo de respuesta",
-        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor del endpoint."
+        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor y consumidor del endpoint."
       }
     ],
     "instance": [
       {
         "id": "instance_cpm_line",
         "title": "Carga de instancia de servicio",
-        "tip": "Spans de servidor por minuto reportados por la instancia seleccionada."
+        "tip": "Spans de servidor y consumidor por minuto reportados por la instancia seleccionada."
       },
       {
         "id": "instance_resp_line",

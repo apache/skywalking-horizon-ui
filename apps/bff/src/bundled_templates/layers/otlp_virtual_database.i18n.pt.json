@@ -1,5 +1,6 @@
 {
   "alias": "Banco de dados virtual OTLP",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Bancos de dados"
   },
@@ -31,12 +32,12 @@
       {
         "id": "sla_line",
         "title": "Taxa de sucesso",
-        "tip": "Percentual de spans de cliente dos chamadores cujo status não é ERROR."
+        "tip": "Percentual de spans de cliente dos chamadores que não falharam: um span falha com status ERROR ou um status HTTP 400 ou superior."
       },
       {
         "id": "slow_statements",
         "title": "Statements lentos",
-        "tip": "As 20 instruções mais lentas que a regra `otlp-slow-sql` registrou para este banco de dados, em ms. Cada linha é uma execução de instrução; clique para copiá-la ou use o ícone de trace no início da linha para abrir seu trace."
+        "tip": "As 20 instruções mais lentas que a regra `otlp-slow-sql` registrou para este banco de dados, em ms. Cada linha é uma execução de instrução; clique para copiá-la."
       }
     ]
   }

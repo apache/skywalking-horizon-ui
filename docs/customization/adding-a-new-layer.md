@@ -63,7 +63,6 @@ Minimum edits:
 Optional:
 
 - `group`: sidebar grouping label.
-- `parent`: key of the layer whose sidebar entry should list this one, after its own rows.
 - `visibility`: set `operate` if this is a self-observability layer.
 - `documentLink`: external docs URL.
 - `traces.sources`: the trace stores this layer exposes — `native`, `zipkin`, `traceql-native`, `traceql-zipkin`. Omit it and the layer shows the native row; `[]` gives it no trace rows at all.

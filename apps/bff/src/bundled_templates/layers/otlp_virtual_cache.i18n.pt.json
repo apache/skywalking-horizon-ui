@@ -1,5 +1,6 @@
 {
   "alias": "Cache virtual OTLP",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Caches"
   },
@@ -31,7 +32,7 @@
       {
         "id": "sla_line",
         "title": "Taxa de sucesso",
-        "tip": "Percentual de spans de cliente dos chamadores cujo status não é ERROR."
+        "tip": "Percentual de spans de cliente dos chamadores que não falharam: um span falha com status ERROR ou um status HTTP 400 ou superior."
       }
     ]
   }

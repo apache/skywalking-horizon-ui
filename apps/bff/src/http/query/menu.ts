@@ -330,8 +330,6 @@ function buildLayerDef(
       level,
       normal,
       group: tpl.group,
-      // Lowercased like `key`: the sidebar matches it against entry keys.
-      parent: tpl.parent ? tpl.parent.toLowerCase() : undefined,
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
       // A bundled file's `aliases` becomes `slots` when it is loaded; a row

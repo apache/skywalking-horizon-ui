@@ -16,9 +16,9 @@ limitations under the License.
 -->
 # OTLP Service
 
-The **OTLP_SERVICE** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP registers a service here from the `service.name` of every OTLP span it receives, derives the metrics below from the spans themselves, and draws the topology from each span's peer. Nothing needs to be enabled on the OAP side beyond the OTLP trace receiver: the shipped TAL rule file produces all of it. These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
+The **OTLP_SERVICE** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP registers a service here from the `service.name` of every OTLP span it receives, derives the metrics below from the spans themselves, and draws the topology from each span's peer. The OTLP trace receiver and the shipped TAL rule file produce the metrics and the topology; the Traces tab also needs OAP's TraceQL module, see [Requirements](#requirements). These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
 
-In Horizon's sidebar the layer is named **OTLP Service** and sits in the Layers section; the OTLP Virtual Database, OTLP Virtual MQ and OTLP Virtual Cache layers are nested under its entry, after its own rows. It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off in the bundled template; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
+In Horizon's sidebar the layer is named **OTLP Service** (grouped under **OpenTelemetry**, with the OTLP Virtual Database, OTLP Virtual Cache and OTLP Virtual MQ layers). It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off in the bundled template; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
 
 This page is the **operator reference** for the bundled OTLP Service dashboard: what you see on each scope and what each widget means.
 
@@ -32,7 +32,7 @@ Before opening a service, the layer landing page lists every OpenTelemetry servi
 
 - **Apdex** — the Apdex score computed from the span latencies against the service's threshold in `service-apdex-threshold.yml` (`otlp_service_apdex/10000`).
 
-- **Latency** — average server span duration in ms (`otlp_service_resp_time`).
+- **Latency** — average server and consumer span duration in ms (`otlp_service_resp_time`).
 
 - **Error Rate** — percent of server and consumer spans that failed: status ERROR, or an HTTP status of 400 or above (`100 - otlp_service_sla/100`).
 
@@ -48,23 +48,23 @@ The primary drill-down for one selected service.
 
 - **Apdex** — the Apdex score over the window (`otlp_service_apdex/10000`).
 
-- **Response Time Percentile** — p50 / p75 / p90 / p95 / p99 of the server span latency, from the buckets the rule declares (`otlp_service_percentile`).
+- **Response Time Percentile** — p50 / p75 / p90 / p95 / p99 of the server and consumer span latency, from the buckets the rule declares (`otlp_service_percentile`).
 
-- **Avg Response Time** — mean server span duration in ms (`otlp_service_resp_time`).
+- **Avg Response Time** — mean server and consumer span duration in ms (`otlp_service_resp_time`).
 
 - **Top 10 instances by load / slowest instances / instances by success rate** — the service's instances ranked by `otlp_service_instance_cpm`, `otlp_service_instance_resp_time` and `otlp_service_instance_sla`. Instances exist only when the SDK's resource carries `service.instance.id`; a service whose SDK does not set it shows `no data` here and has no instance scope to open.
 
 ## Instance dashboard
 
-- **Service Instance Load** — server spans per minute reported by the selected instance (`otlp_service_instance_cpm`).
+- **Service Instance Load** — server and consumer spans per minute reported by the selected instance (`otlp_service_instance_cpm`).
 
-- **Service Instance Latency** — mean server span duration in ms (`otlp_service_instance_resp_time`).
+- **Service Instance Latency** — mean server and consumer span duration in ms (`otlp_service_instance_resp_time`).
 
 - **Service Instance Success Rate** — percent of the instance's server and consumer spans that did not fail, as in the service list (`otlp_service_instance_sla/100`).
 
 ## Endpoint dashboard
 
-- **Traffic** — server spans per minute on the selected endpoint (`otlp_endpoint_cpm`).
+- **Traffic** — server and consumer spans per minute on the selected endpoint (`otlp_endpoint_cpm`).
 
 - **Response Time** — mean duration in ms (`otlp_endpoint_resp_time`).
 
@@ -80,16 +80,18 @@ A peer that a client named by address, `cart:7070` or an IP, is folded onto the 
 
 ## Traces and logs
 
-The Traces tab reads the native OTLP store through its TraceQL endpoint, which is where the receiver keeps spans in its default `otlp` storage mode. A deployment that runs the receiver in its `zipkin` conversion mode stores no native spans, so switch the layer's trace source to Zipkin in **Dashboard setup → Layer dashboards** there.
+The Traces tab reads the native OTLP store through OAP's TraceQL endpoint, which is where the receiver keeps spans in its default `otlp` storage mode. OAP ships that endpoint off; [Requirements](#requirements) lists what turns it on. A deployment that runs the receiver in its `zipkin` conversion mode stores no native spans, so switch the layer's trace source to Zipkin in **Dashboard setup → Layer dashboards** there.
 
 The Logs tab is off in the bundled template. The OAP accepts OTLP logs and stores them by `service.name`, so once a collector exports logs to the OAP, enabling the `logs` component on this layer shows them for the matching service.
 
 ## Requirements
 
-The dashboard is a pure consumer of what OAP reports and invents no data. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, which produces:
+The dashboard is a pure consumer of what OAP reports and invents no data. It needs OAP 11.1.0 or later. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, which produces:
 
 - **Service, instance and endpoint metrics** — the `otlp_service_*`, `otlp_service_instance_*` and `otlp_endpoint_*` families.
 
 - **Relation metrics** — `otlp_service_relation_client_*` and `otlp_service_relation_server_cpm`, which back the topology.
+
+The Traces tab needs more, since OAP ships the TraceQL module and its OTLP datasource off: set `SW_TRACEQL=default` and `SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true` on OAP, and point Horizon's `oap.traceql` settings at it, see [OAP Connection → TraceQL trace stores](../setup/oap.md#traceql-trace-stores-oaptraceql).
 
 Each metric is queried at its own OAP scope. For the upstream setup — the rule file, its settings and the conventions it reads — see the [OpenTelemetry trace analysis documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/).

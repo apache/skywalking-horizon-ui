@@ -18,7 +18,7 @@ limitations under the License.
 
 The **OTLP_VIRTUAL_MQ** layer holds the brokers that OpenTelemetry-instrumented services call, reconstructed from the callers' spans. A broker appears here when a CLIENT or PRODUCER span of an **OpenTelemetry Service** names it, through `messaging.system` and the peer address or peer name the span carries; the broker itself reports nothing, so every figure describes it as its clients see it. The layer is kept apart from the agent path's Virtual MQ layer because its metrics come from a different engine under their own `otlp_*` names.
 
-In Horizon's sidebar this layer is nested under the **OTLP Service** entry and is named **OTLP Virtual MQ**. Each broker is listed as one of the **Brokers**. It is a virtual-target layer with a single scope: only the **Service** scope is enabled; there is no instance or endpoint scope, no topology, and no traces or logs tabs. The broker does appear as a node on the OpenTelemetry Service layer's topology, where the edges into it carry the calls.
+In Horizon's sidebar this layer is named **OTLP Virtual MQ** (grouped under **OpenTelemetry**, with the OTLP Service layer). Each broker is listed as one of the **Brokers**. It is a virtual-target layer with a single scope: only the **Service** scope is enabled; there is no instance or endpoint scope, no topology, and no traces or logs tabs. The broker does appear as a node on the OpenTelemetry Service layer's topology, where the edges into it carry the calls.
 
 This page is the **operator reference** for the bundled OTLP Virtual MQ dashboard.
 
@@ -32,7 +32,7 @@ The landing page lists every broker with three sortable columns, sorted by **Acc
 
 - **Latency** — average duration of those spans in ms (`otlp_mq_access_resp_time`).
 
-- **Error Rate** — percent of them whose status is ERROR (`100 - otlp_mq_access_sla/100`).
+- **Error Rate** — percent of them that failed: status ERROR, or an HTTP status of 400 or above (`100 - otlp_mq_access_sla/100`).
 
 ## Service dashboard
 
@@ -40,7 +40,7 @@ The landing page lists every broker with three sortable columns, sorted by **Acc
 
 - **Avg Response Time** — mean latency of the callers' spans in ms (`otlp_mq_access_resp_time`).
 
-- **Success Rate** — percent of the callers' spans that did not end in ERROR (`otlp_mq_access_sla/100`).
+- **Success Rate** — percent of the callers' spans that did not fail, as in the list (`otlp_mq_access_sla/100`).
 
 
 ## Destinations

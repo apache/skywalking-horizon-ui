@@ -1,5 +1,6 @@
 {
   "alias": "OTLP 服务",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "服务",
     "instances": "实例",
@@ -87,7 +88,7 @@
       {
         "id": "percentile_line",
         "title": "响应时间分位",
-        "tip": "服务端 span 延迟的 p50 / p75 / p90 / p95 / p99，来自规则的分桶。"
+        "tip": "服务端与消费者 span 延迟的 p50 / p75 / p90 / p95 / p99，来自规则的分桶。"
       },
       {
         "id": "resp_time_line",
@@ -123,14 +124,14 @@
       {
         "id": "endpoint_percentile_line",
         "title": "响应时间分位",
-        "tip": "该端点服务端 span 延迟的 p50 / p75 / p90 / p95 / p99。"
+        "tip": "该端点服务端与消费者 span 延迟的 p50 / p75 / p90 / p95 / p99。"
       }
     ],
     "instance": [
       {
         "id": "instance_cpm_line",
         "title": "服务实例负载",
-        "tip": "所选实例上报的每分钟服务端 span 数。"
+        "tip": "所选实例上报的每分钟服务端与消费者 span 数。"
       },
       {
         "id": "instance_resp_line",

@@ -178,10 +178,6 @@ export interface LayerDef {
    *  sidebar (e.g. `Istio` aggregates mesh / mesh_cp / mesh_dp). When
    *  absent the layer renders at the top level on its own. */
   group?: string;
-  /** Lowercased key of the layer whose sidebar entry lists this one, after
-   *  that layer's own rows — from the template's `parent`. Absent for a
-   *  top-level layer. */
-  parent?: string;
   /** When this layer is split by service group (template
    *  `splitByServiceGroup`), the OAP `Service.group` this menu entry is
    *  scoped to — `''` for the services with no group; every entry of the

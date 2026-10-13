@@ -1,5 +1,6 @@
 {
   "alias": "Virtueller OTLP-Cache",
+  "group": "OpenTelemetry",
   "slots": {
     "services": "Caches"
   },
@@ -31,7 +32,7 @@
       {
         "id": "sla_line",
         "title": "Erfolgsrate",
-        "tip": "Anteil der Client-Spans der Aufrufer, deren Status nicht ERROR ist, in Prozent."
+        "tip": "Anteil der Client-Spans der Aufrufer, die nicht fehlgeschlagen sind, in Prozent. Ein Span schlägt bei Status ERROR oder einem HTTP-Status von 400 oder höher fehl."
       }
     ]
   }
