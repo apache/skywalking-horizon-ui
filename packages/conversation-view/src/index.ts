@@ -60,7 +60,7 @@ export { makeFormatter, EN_US_FORMATTER } from './format.js';
 export type { ViewStrings } from './strings.js';
 export { ENGLISH } from './strings.js';
 export * from './types.js';
-export type { StoredFile, PromptManifest } from './prompt/store.js';
+export type { StoredFile, KeptBytes, PromptManifest } from './prompt/store.js';
 
 /** The reader's position, as a host keeps it in its URL. */
 export interface PublicState {
