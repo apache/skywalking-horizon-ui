@@ -2,7 +2,7 @@
 
 ## The short answer
 
-- **OAP 11.x** — everything works. This is what Horizon is built against, and what to run.
+- **OAP 11.x** — everything works; the OpenTelemetry trace layers need 11.1.0. This is what Horizon is built against, and what to run.
 - **OAP 10.3 / 10.4** — you can upgrade Horizon on its own, without touching OAP. Set `templates.mode: readonly` and the observability pages work; the admin-port features do not exist on that OAP, so those pages stay hidden.
 - **Anything older** — upgrade OAP. Horizon assumes the layer concept, the MQE baseline and a native trace detail that settled in 10.3.
 
@@ -18,6 +18,7 @@ The rest of this page is the detail behind those three lines.
 | Alarms (read) | ✓ — falls back to legacy `getAlarm` when `queryAlarms` is absent | ✓ — uses `queryAlarms` (server-side layer filter) |
 | Traces (native + Zipkin), Logs, Topology | ✓ | ✓ |
 | **Traces over TraceQL** (the Tempo API) | ✗ — the `traceQL` module is not there | ✓ — turn the module on and point Horizon at the datasources you enabled |
+| **OpenTelemetry trace layers** (OTLP Service and its virtual database, cache and MQ layers) | ✗ — the trace analyzer is not there | ✓ from 11.1.0, which adds the trace analyzer; an earlier 11.x reports no OTLP layers, so they stay out of the sidebar |
 | Profiling (trace / async / pprof / eBPF) | ✓ — per the profiling modules you've turned on | ✓ |
 | Cluster Status — Query pane | ✓ | ✓ |
 | MQE execution / metric reads | ✓ | ✓ |

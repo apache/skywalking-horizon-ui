@@ -1,0 +1,44 @@
+{
+  "alias": "OTLP 仮想データベース",
+  "group": "OpenTelemetry",
+  "slots": {
+    "services": "データベース"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "アクセス RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "アクセストラフィック",
+        "tip": "1 分あたりのクエリ数。このデータベースを呼び出す OpenTelemetry サービスのクライアントスパンから数えます。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均応答時間",
+        "tip": "呼び出し元のクライアントスパンの平均レイテンシ (ms)。"
+      },
+      {
+        "id": "sla_line",
+        "title": "成功率",
+        "tip": "呼び出し元のクライアントスパンのうち、失敗しなかったものの割合。ステータスが ERROR、または HTTP ステータスが 400 以上のスパンを失敗とみなします。"
+      },
+      {
+        "id": "slow_statements",
+        "title": "低速ステートメント",
+        "tip": "`otlp-slow-sql` ルールがこのデータベースに対して記録した最も遅い 20 ステートメント (ms)。各行は 1 回のステートメント実行です。クリックするとコピーできます。"
+      }
+    ]
+  }
+}

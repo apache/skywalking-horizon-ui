@@ -1,0 +1,100 @@
+{
+  "key": "OTLP_VIRTUAL_MQ",
+  "alias": "OTLP Virtual MQ",
+  "group": "OpenTelemetry",
+  "color": "var(--sw-warn)",
+  "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/#layers",
+  "aliases": {
+    "services": "Brokers"
+  },
+  "components": {
+    "service": true,
+    "instances": false,
+    "endpoints": false,
+    "endpointDependency": false,
+    "topology": false,
+    "traces": false,
+    "logs": false
+  },
+  "layer-header": {
+    "orderBy": "cpm",
+    "columns": [
+      {
+        "metric": "cpm",
+        "label": "Access RPM",
+        "unit": "rpm",
+        "mqe": "otlp_mq_access_cpm",
+        "aggregation": "sum"
+      },
+      {
+        "metric": "respTime",
+        "label": "Latency",
+        "unit": "ms",
+        "mqe": "otlp_mq_access_resp_time",
+        "aggregation": "avg"
+      },
+      {
+        "metric": "err",
+        "label": "Error Rate",
+        "unit": "%",
+        "mqe": "100 - otlp_mq_access_sla/100",
+        "aggregation": "avg"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Access Traffic",
+        "tip": "Messages per minute, counted from the client and producer spans of the OpenTelemetry services that call this broker.",
+        "type": "line",
+        "unit": "rpm",
+        "expressions": [
+          "otlp_mq_access_cpm"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Avg Response Time",
+        "tip": "Mean latency of the callers' client spans, in ms.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "otlp_mq_access_resp_time"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "sla_line",
+        "title": "Success Rate",
+        "tip": "Percent of the callers' client and producer spans that did not fail: a span fails on status ERROR or an HTTP status of 400 or above.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "otlp_mq_access_sla/100"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "top_destinations",
+        "title": "Top 20 destinations",
+        "tip": "The queues and topics the OpenTelemetry services published to on this broker, ranked by messages per minute, mean latency or lowest success rate. Each destination is an endpoint of the broker node, so a broker whose client library reports no address, such as JMS, is still ranked by what it carries.",
+        "type": "top",
+        "expressions": [
+          "top_n(otlp_mq_destination_cpm,20,des)",
+          "top_n(otlp_mq_destination_resp_time,20,des)",
+          "top_n(otlp_mq_destination_sla,20,asc)/100"
+        ],
+        "expressionLabels": ["Traffic", "Slow", "Successful Rate"],
+        "expressionUnits": ["rpm", "ms", "%"],
+        "span": 12,
+        "rowSpan": 3
+      }
+    ]
+  }
+}

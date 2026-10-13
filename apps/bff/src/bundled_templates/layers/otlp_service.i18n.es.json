@@ -1,0 +1,146 @@
+{
+  "alias": "Servicio OTLP",
+  "group": "OpenTelemetry",
+  "slots": {
+    "services": "Servicios",
+    "instances": "Instancias",
+    "endpoints": "Endpoints"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "Tiempo medio de respuesta"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "top_endpoints",
+        "title": "Top 20 endpoints",
+        "expressionLabels": [
+          "Tráfico",
+          "Lentas",
+          "Tasa de éxito"
+        ],
+        "tip": "Endpoints principales del servicio seleccionado, nombrados `<method> <route>` para spans HTTP y por el nombre del span en los demás casos. Cambie de pestaña para reordenar por tráfico, tiempo de respuesta o peor tasa de éxito."
+      },
+      {
+        "id": "traffic_line",
+        "title": "Tráfico",
+        "tip": "Spans de servidor y de consumidor por minuto, contados por la regla TAL antes del muestreo propio del receptor."
+      },
+      {
+        "id": "err_line",
+        "title": "Tasa de errores",
+        "tip": "Porcentaje de spans de servidor y consumidor que fallaron: estado ERROR o un estado HTTP de 400 o superior."
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "Apdex a partir de las latencias de los spans, con el umbral que `service-apdex-threshold.yml` asigna a este servicio."
+      },
+      {
+        "id": "percentile_line",
+        "title": "Percentil de tiempo de respuesta",
+        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor y consumidor, a partir de los buckets de la regla."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Tiempo medio de respuesta"
+      },
+      {
+        "id": "top_instances_load",
+        "title": "Top 10 instancias por carga",
+        "tip": "Las instancias solo existen cuando el recurso lleva `service.instance.id`."
+      },
+      {
+        "id": "top_instances_slow",
+        "title": "Top 10 instancias más lentas"
+      },
+      {
+        "id": "top_instances_sla",
+        "title": "Top 10 instancias por tasa de éxito"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm_line",
+        "title": "Tráfico"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "Tiempo de respuesta"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "Tasa de éxito"
+      },
+      {
+        "id": "endpoint_percentile_line",
+        "title": "Percentil de tiempo de respuesta",
+        "tip": "p50 / p75 / p90 / p95 / p99 de la latencia de los spans de servidor y consumidor del endpoint."
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm_line",
+        "title": "Carga de instancia de servicio",
+        "tip": "Spans de servidor y consumidor por minuto reportados por la instancia seleccionada."
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "Latencia de instancia de servicio"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "Tasa de éxito de instancia de servicio"
+      }
+    ]
+  }
+}

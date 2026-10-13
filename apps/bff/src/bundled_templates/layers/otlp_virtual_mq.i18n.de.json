@@ -1,0 +1,49 @@
+{
+  "alias": "Virtuelle OTLP-MQ",
+  "group": "OpenTelemetry",
+  "slots": {
+    "services": "Broker"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Zugriffs-RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Zugriffs-Traffic",
+        "tip": "Nachrichten pro Minute, gezählt aus den Client- und Producer-Spans der OpenTelemetry-Services, die diesen Broker aufrufen."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit",
+        "tip": "Mittlere Latenz der Client-Spans der Aufrufer, in ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Erfolgsrate",
+        "tip": "Anteil der Client- und Producer-Spans der Aufrufer, die nicht fehlgeschlagen sind, in Prozent. Ein Span schlägt bei Status ERROR oder einem HTTP-Status von 400 oder höher fehl."
+      },
+      {
+        "id": "top_destinations",
+        "title": "Top 20 Ziele",
+        "tip": "Die Queues und Topics, in die die OpenTelemetry-Services auf diesem Broker veröffentlicht haben, nach Nachrichten pro Minute, mittlerer Latenz oder niedrigster Erfolgsrate. Jedes Ziel ist ein Endpunkt des Broker-Knotens, sodass ein Broker, dessen Client-Bibliothek keine Adresse meldet, etwa JMS, dennoch nach dem bewertet wird, was er transportiert.",
+        "expressionLabels": [
+          "Traffic",
+          "Langsam",
+          "Erfolgsrate"
+        ]
+      }
+    ]
+  }
+}
