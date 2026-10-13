@@ -273,6 +273,9 @@ export interface ViewStrings {
   promptNoRequest: string;
   promptNoResponse: string;
   promptRebuildFailed: string;
+  promptRemoved: string;
+  promptBuiltFromRemoved: string;
+  promptTooLarge: string;
   promptRequestModes: string;
   promptWholeRequest: string;
   promptWholeBody: string;
@@ -598,6 +601,9 @@ export const ENGLISH: ViewStrings = {
   promptNoRequest: 'The request of this call was not captured.',
   promptNoResponse: 'The response of this call was not captured.',
   promptRebuildFailed: 'This body did not come back whole.',
+  promptRemoved: 'Retention removed this body from the stored files. Only a receiver that accepted it still has it.',
+  promptBuiltFromRemoved: 'Retention removed a body or piece this body is built from, and kept no copy, so it cannot be rebuilt here.',
+  promptTooLarge: 'A piece of this body was too large to be stored, so the body cannot be rebuilt from the stored files.',
   promptRequestModes: 'How much of the request to show',
   promptWholeRequest: 'Whole request',
   promptWholeBody: 'The body',

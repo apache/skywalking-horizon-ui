@@ -298,6 +298,9 @@ export interface AszFile {
   digest: string;
   from_time: number | null;
   through_time: number | null;
+  /** `removed` for a landed file retention removed from the Sessionizer's own root: a skeleton keeps
+   *  its place, and `lines`, `bytes` and `digest` are the file's as it landed. Absent otherwise. */
+  state?: string;
 }
 
 export interface AszRelation {
