@@ -1,0 +1,161 @@
+{
+  "alias": "OTLP-Dienst",
+  "slots": {
+    "services": "Services",
+    "instances": "Instanzen",
+    "endpoints": "Endpoints"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "Latenz"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "Latenz"
+        }
+      ]
+    }
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "top_endpoints",
+        "title": "Top 20 Endpoints",
+        "expressionLabels": [
+          "Traffic",
+          "Langsam",
+          "Erfolgsrate"
+        ],
+        "tip": "Top-Endpunkte des ausgewählten Service, für HTTP-Spans als `<method> <route>` benannt, sonst nach dem Span-Namen. Über die Tabs nach Traffic, Antwortzeit oder schlechtester Erfolgsrate neu sortieren."
+      },
+      {
+        "id": "traffic_line",
+        "title": "Traffic",
+        "tip": "Server- und Consumer-Spans pro Minute, von der TAL-Regel gezählt, bevor der Receiver selbst sampelt."
+      },
+      {
+        "id": "err_line",
+        "title": "Fehlerrate",
+        "tip": "Anteil der Server-Spans mit Status ERROR in Prozent."
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "Apdex aus den Span-Latenzen, mit dem Schwellenwert, den `service-apdex-threshold.yml` diesem Service zuweist."
+      },
+      {
+        "id": "percentile_line",
+        "title": "Antwortzeit-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 der Server-Span-Latenz, aus den Buckets der Regel."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit"
+      },
+      {
+        "id": "top_instances_load",
+        "title": "Top 10 Instanzen nach Last",
+        "tip": "Instanzen gibt es nur, wenn die Resource `service.instance.id` trägt."
+      },
+      {
+        "id": "top_instances_slow",
+        "title": "Top 10 langsamste Instanzen"
+      },
+      {
+        "id": "top_instances_sla",
+        "title": "Top 10 Instanzen nach Erfolgsrate"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm_line",
+        "title": "Traffic"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "Antwortzeit"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "Erfolgsrate"
+      },
+      {
+        "id": "endpoint_percentile_line",
+        "title": "Antwortzeit-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 der Server-Span-Latenz des Endpunkts."
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm_line",
+        "title": "Service-Instanz-Last",
+        "tip": "Server-Spans pro Minute, gemeldet von der ausgewählten Instanz."
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "Service-Instanz-Latenz"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "Service-Instanz-Erfolgsrate"
+      }
+    ]
+  }
+}

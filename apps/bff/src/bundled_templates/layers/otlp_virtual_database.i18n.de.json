@@ -1,0 +1,43 @@
+{
+  "alias": "Virtuelle OTLP-Datenbank",
+  "slots": {
+    "services": "Datenbanken"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Zugriffs-RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Zugriffs-Traffic",
+        "tip": "Abfragen pro Minute, gezählt aus den Client-Spans der OpenTelemetry-Services, die diese Datenbank aufrufen."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit",
+        "tip": "Mittlere Latenz der Client-Spans der Aufrufer, in ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Erfolgsrate",
+        "tip": "Anteil der Client-Spans der Aufrufer, deren Status nicht ERROR ist, in Prozent."
+      },
+      {
+        "id": "slow_statements",
+        "title": "Langsame Anweisungen",
+        "tip": "Die 20 langsamsten Statements, die die Regel `otlp-slow-sql` für diese Datenbank aufgezeichnet hat, in ms. Jede Zeile ist eine Statement-Ausführung; zum Kopieren anklicken oder über das Trace-Symbol am Zeilenanfang den Trace öffnen."
+      }
+    ]
+  }
+}

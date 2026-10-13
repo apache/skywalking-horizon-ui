@@ -453,6 +453,12 @@ function buildLayerSchemas(complete: boolean) {
       alias: text.optional(),
       splitByServiceGroup: z.boolean().optional(),
       group: text.optional(),
+      // Key of the layer whose sidebar entry lists this one, after that
+      // layer's own rows. Checked against the bundle (exists, not itself,
+      // one level deep) by the bundled validator; the push boundary sees
+      // one template at a time, and the sidebar keeps a child whose parent
+      // is not shown at the top level.
+      parent: z.string().regex(/^[A-Z0-9_]+$/, 'must be UPPER_SNAKE (a layer key)').optional(),
       visibility: z.enum(['public', 'operate']).optional(),
       color: text.optional(),
       // Rendered straight into the layer header's `<a href>`, so the scheme

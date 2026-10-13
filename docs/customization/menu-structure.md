@@ -72,6 +72,8 @@ service -> instance -> endpoint -> topology -> deployment -> dependency
 
 Each entity component's extension pages follow that component. A layer with a Service page called *Resource usage* reads `Service → Resource usage → Instance → …`.
 
+A layer template can also name a `parent` layer. The sidebar then lists that layer under the parent's entry, after the parent's own rows, as a nested layer with its own pages: the bundled OTLP Service layer carries the OTLP Virtual Database, OTLP Virtual MQ and OTLP Virtual Cache layers this way. A nested layer that has no services reporting is hidden like any other, and one whose parent is not shown moves back to the top level.
+
 Clicking the layer itself opens its **first** row. That is usually Service, but not always: a layer with the service component turned off (a sidecar-only or per-agent layer) opens on its instance list instead.
 
 Some layers are rendered as a direct link rather than an expandable section — a layer that resolves to a single row, and whose only enabled component is one that never carried sub-rows, gets no accordion, because it would only ever reveal the page the layer row already points at. A layer built on the entity components keeps its expandable section even when only one row resolves today, so a row appearing later does not change how the layer is reached.
@@ -102,6 +104,7 @@ Disable unsupported tabs in the layer template. For example, a layer without tra
 | Rename a layer | Layer template `alias`. |
 | Change a layer color | Layer template `color`. |
 | Group related layers | Same layer template `group` value on each layer. |
+| Nest a layer under another layer's entry | Layer template `parent` on the nested layer, naming the other layer's key. |
 | Move a layer to Operate | Layer template `visibility: operate`. |
 | Hide a tab | Layer template `components`. |
 | Reorder the rows under one layer | **Rearrange menu** in the layer's Setup tab. |

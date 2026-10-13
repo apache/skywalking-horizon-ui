@@ -1,0 +1,38 @@
+{
+  "alias": "OTLP 仮想キャッシュ",
+  "slots": {
+    "services": "キャッシュ"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "アクセス RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "アクセストラフィック",
+        "tip": "1 分あたりのコマンド数。このキャッシュを呼び出す OpenTelemetry サービスのクライアントスパンから数えます。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均応答時間",
+        "tip": "呼び出し元のクライアントスパンの平均レイテンシ (ms)。"
+      },
+      {
+        "id": "sla_line",
+        "title": "成功率",
+        "tip": "呼び出し元のクライアントスパンのうち、ステータスが ERROR でないものの割合。"
+      }
+    ]
+  }
+}

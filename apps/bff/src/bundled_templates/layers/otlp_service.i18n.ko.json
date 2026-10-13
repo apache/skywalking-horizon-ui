@@ -1,0 +1,161 @@
+{
+  "alias": "OTLP 서비스",
+  "slots": {
+    "services": "서비스",
+    "instances": "인스턴스",
+    "endpoints": "엔드포인트"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "지연 시간"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "평균 응답 시간"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "지연 시간"
+        }
+      ]
+    }
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "top_endpoints",
+        "title": "상위 20 엔드포인트",
+        "expressionLabels": [
+          "트래픽",
+          "느린 요청",
+          "성공률"
+        ],
+        "tip": "선택한 서비스의 상위 엔드포인트입니다. HTTP 스팬은 `<method> <route>`로, 그 외에는 스팬 이름으로 표시됩니다. 탭을 전환하면 트래픽, 응답 시간, 최저 성공률 기준으로 다시 정렬됩니다."
+      },
+      {
+        "id": "traffic_line",
+        "title": "트래픽",
+        "tip": "분당 서버 스팬과 컨슈머 스팬 수로, 리시버 자체 샘플링 이전에 TAL 규칙이 집계합니다."
+      },
+      {
+        "id": "err_line",
+        "title": "오류율",
+        "tip": "상태가 ERROR인 서버 스팬의 비율입니다."
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "스팬 지연 시간으로 계산한 Apdex이며, 임계값은 `service-apdex-threshold.yml`이 이 서비스에 지정한 값입니다."
+      },
+      {
+        "id": "percentile_line",
+        "title": "응답 시간 백분위",
+        "tip": "규칙의 버킷에서 구한 서버 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "평균 응답 시간"
+      },
+      {
+        "id": "top_instances_load",
+        "title": "부하 기준 상위 10 인스턴스",
+        "tip": "인스턴스는 리소스에 `service.instance.id`가 있을 때만 존재합니다."
+      },
+      {
+        "id": "top_instances_slow",
+        "title": "가장 느린 인스턴스 10개"
+      },
+      {
+        "id": "top_instances_sla",
+        "title": "성공률 기준 상위 10 인스턴스"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm_line",
+        "title": "트래픽"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "응답 시간"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "성공률"
+      },
+      {
+        "id": "endpoint_percentile_line",
+        "title": "응답 시간 백분위",
+        "tip": "엔드포인트 서버 스팬 지연 시간의 p50 / p75 / p90 / p95 / p99입니다."
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm_line",
+        "title": "서비스 인스턴스 부하",
+        "tip": "선택한 인스턴스가 보고한 분당 서버 스팬 수입니다."
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "서비스 인스턴스 지연 시간"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "서비스 인스턴스 성공률"
+      }
+    ]
+  }
+}

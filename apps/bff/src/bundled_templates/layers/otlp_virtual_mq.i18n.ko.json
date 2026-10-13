@@ -1,0 +1,48 @@
+{
+  "alias": "OTLP 가상 MQ",
+  "slots": {
+    "services": "Broker"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "접근 RPM"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "접근 트래픽",
+        "tip": "분당 메시지 수로, 이 브로커를 사용하는 OpenTelemetry 서비스의 프로듀서 스팬과 컨슈머 스팬에서 집계합니다."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "평균 응답 시간",
+        "tip": "호출자 클라이언트 스팬의 평균 지연 시간(ms)입니다."
+      },
+      {
+        "id": "sla_line",
+        "title": "성공률",
+        "tip": "호출자 클라이언트 스팬 중 상태가 ERROR가 아닌 비율입니다."
+      },
+      {
+        "id": "top_destinations",
+        "title": "상위 20개 대상",
+        "tip": "이 브로커에 OpenTelemetry 서비스가 발행한 큐와 토픽을 분당 메시지 수, 평균 지연 시간 또는 최저 성공률 기준으로 정렬한 목록입니다. 각 대상은 브로커 노드의 엔드포인트이므로, JMS처럼 클라이언트 라이브러리가 주소를 보고하지 않는 브로커도 전달하는 내용으로 순위가 매겨집니다.",
+        "expressionLabels": [
+          "트래픽",
+          "느린 요청",
+          "성공률"
+        ]
+      }
+    ]
+  }
+}

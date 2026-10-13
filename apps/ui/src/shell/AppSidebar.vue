@@ -66,7 +66,8 @@ import SidebarLayerRow from './SidebarLayerRow.vue';
 import SidebarLayerChildren from './SidebarLayerChildren.vue';
 import { useSidebarActive } from './useSidebarActive';
 import { useSidebarMenu } from './useSidebarMenu';
-import { buildSidebarEntries } from './sidebarEntries';
+import { buildSidebarEntries, nestChildLayers } from './sidebarEntries';
+import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { useSidebarGroups } from './useSidebarGroups';
 import { parseEntryKey } from '@/utils/layerRoute';
 
@@ -85,7 +86,19 @@ const publicLayers = computed(() =>
 const operateLayers = computed(() =>
   availableLayers.value.filter((L) => L.visibility === 'operate'),
 );
-const sidebarEntries = computed(() => buildSidebarEntries(publicLayers.value));
+const nested = computed(() => nestChildLayers(publicLayers.value));
+const sidebarEntries = computed(() => buildSidebarEntries(nested.value.top));
+function childLayersOf(key: string): LayerDef[] {
+  return nested.value.childrenByParent.get(key) ?? [];
+}
+// A parent stays open while one of its nested layers is the expanded one;
+// otherwise clicking a child would collapse the list it sits in.
+function isExpanded(L: LayerDef): boolean {
+  return expandedLayer.value === L.key || childLayersOf(L.key).some((c) => c.key === expandedLayer.value);
+}
+function showsChildren(L: LayerDef): boolean {
+  return (!isSingleFeatureLayer(L) || childLayersOf(L.key).length > 0) && isExpanded(L);
+}
 const { isGroupOpen, toggleGroup } = useSidebarGroups(sidebarEntries);
 
 const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMenu();
@@ -217,14 +230,18 @@ function isLayerDiverged(key: string): boolean {
               <SidebarLayerRow
                 :layer="L"
                 variant="grouped"
-                :expanded="expandedLayer === L.key"
+                :expanded="isExpanded(L)"
                 :diverged="isLayerDiverged(L.key)"
                 @toggle="toggleLayer"
               />
               <SidebarLayerChildren
-                v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
+                v-if="showsChildren(L)"
                 :layer="L"
                 in-group
+                :child-layers="childLayersOf(L.key)"
+                :expanded-layer="expandedLayer"
+                :is-diverged="isLayerDiverged"
+                @toggle="toggleLayer"
               />
             </template>
           </div>
@@ -235,13 +252,17 @@ function isLayerDiverged(key: string): boolean {
           v-else
           :layer="E.layer"
           variant="ungrouped"
-          :expanded="expandedLayer === E.layer.key"
+          :expanded="isExpanded(E.layer)"
           :diverged="isLayerDiverged(E.layer.key)"
           @toggle="toggleLayer"
         />
         <SidebarLayerChildren
-          v-if="E.kind === 'single' && !isSingleFeatureLayer(E.layer) && expandedLayer === E.layer.key"
+          v-if="E.kind === 'single' && showsChildren(E.layer)"
           :layer="E.layer"
+          :child-layers="childLayersOf(E.layer.key)"
+          :expanded-layer="expandedLayer"
+          :is-diverged="isLayerDiverged"
+          @toggle="toggleLayer"
         />
       </template>
 

@@ -28,6 +28,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import SidebarLayerRow from './SidebarLayerRow.vue';
+import { isSingleFeatureLayer } from '@/shell/useLayers';
 import { useI18n } from 'vue-i18n';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
@@ -36,7 +38,15 @@ import { useActiveEntry } from '@/shell/useLayerEntry';
 import { useAuthStore } from '@/state/auth';
 import { entryOf, layerPath } from '@/utils/layerRoute';
 
-const props = defineProps<{ layer: LayerDef; inGroup?: boolean }>();
+const props = defineProps<{
+  layer: LayerDef;
+  inGroup?: boolean;
+  /** Layers whose template names this one as `parent`; listed after the rows. */
+  childLayers?: LayerDef[];
+  expandedLayer?: string | null;
+  isDiverged?: (key: string) => boolean;
+}>();
+defineEmits<{ toggle: [key: string] }>();
 
 const { t } = useI18n({ useScope: 'global' });
 const { isRowActive } = useActiveEntry();
@@ -105,6 +115,23 @@ const firstRow = computed(() => rows.value[0]?.path ?? '');
       <Icon :name="row.icon" /><span>{{ row.label }}</span>
       <span v-if="row.path === 'service'" class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
     </RouterLink>
+    <template v-for="C in childLayers ?? []" :key="`child:${C.key}`">
+      <div class="child-layer">
+        <SidebarLayerRow
+          :layer="C"
+          variant="nested"
+          :expanded="expandedLayer === C.key"
+          :diverged="isDiverged?.(C.key)"
+          @toggle="(key: string) => $emit('toggle', key)"
+        />
+      </div>
+      <SidebarLayerChildren
+        v-if="!isSingleFeatureLayer(C) && expandedLayer === C.key"
+        :layer="C"
+        :in-group="inGroup"
+        class="nested"
+      />
+    </template>
   </div>
 </template>
 
@@ -174,6 +201,45 @@ const firstRow = computed(() => rows.value[0]?.path ?? '');
 }
 .layer-children .sw-nav-item.is-active :deep(svg) {
   color: var(--sw-accent);
+}
+/* A nested layer: a layer row sized like the rows around it, with the same
+ * rail tick, and its own rows one level further in when expanded. */
+.layer-children .child-layer {
+  position: relative;
+  margin: 1px 0 1px 18px;
+}
+.layer-children .child-layer::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--sw-line-2);
+}
+.layer-children .child-layer:last-child::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: calc(50% + 1px);
+  bottom: -4px;
+  width: 2px;
+  background: var(--sw-bg-1);
+}
+.layer-children .child-layer :deep(.layer-row) {
+  margin: 0;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.layer-children .child-layer :deep(.layer-row svg:not(.caret svg)) {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+.layer-children.nested {
+  margin-left: 18px;
 }
 /* Move the child rows and their rail with the grouped layer's inset. */
 .layer-children.in-group {

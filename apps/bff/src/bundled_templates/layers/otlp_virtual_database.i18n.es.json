@@ -1,0 +1,43 @@
+{
+  "alias": "Base de datos virtual OTLP",
+  "slots": {
+    "services": "Bases de datos"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acceso"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Tráfico de acceso",
+        "tip": "Consultas por minuto, contadas a partir de los spans de cliente de los servicios OpenTelemetry que llaman a esta base de datos."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Tiempo medio de respuesta",
+        "tip": "Latencia media de los spans de cliente de los llamadores, en ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Tasa de éxito",
+        "tip": "Porcentaje de spans de cliente de los llamadores cuyo estado no es ERROR."
+      },
+      {
+        "id": "slow_statements",
+        "title": "Statements lentos",
+        "tip": "Las 20 sentencias más lentas que la regla `otlp-slow-sql` registró contra esta base de datos, en ms. Cada fila es una ejecución de sentencia; haga clic para copiarla o use el icono de traza al inicio de la fila para abrir su traza."
+      }
+    ]
+  }
+}

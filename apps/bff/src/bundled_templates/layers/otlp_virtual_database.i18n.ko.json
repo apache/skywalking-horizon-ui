@@ -1,0 +1,43 @@
+{
+  "alias": "OTLP 가상 데이터베이스",
+  "slots": {
+    "services": "데이터베이스"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "접근 RPM"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "접근 트래픽",
+        "tip": "분당 쿼리 수로, 이 데이터베이스를 호출하는 OpenTelemetry 서비스의 클라이언트 스팬에서 집계합니다."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "평균 응답 시간",
+        "tip": "호출자 클라이언트 스팬의 평균 지연 시간(ms)입니다."
+      },
+      {
+        "id": "sla_line",
+        "title": "성공률",
+        "tip": "호출자 클라이언트 스팬 중 상태가 ERROR가 아닌 비율입니다."
+      },
+      {
+        "id": "slow_statements",
+        "title": "느린 구문",
+        "tip": "`otlp-slow-sql` 규칙이 이 데이터베이스에 대해 기록한 가장 느린 20개 구문(ms)입니다. 각 행은 구문 실행 1회이며, 클릭하면 복사되고 행 머리의 트레이스 아이콘으로 해당 트레이스를 열 수 있습니다."
+      }
+    ]
+  }
+}

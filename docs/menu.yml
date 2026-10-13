@@ -116,6 +116,16 @@ catalog:
             path: "/dashboards/general"
           - name: "Browser"
             path: "/dashboards/browser"
+      - name: "OTLP Service"
+        catalog:
+          - name: "OTLP Service"
+            path: "/dashboards/otlp_service"
+          - name: "OTLP Virtual Database"
+            path: "/dashboards/otlp_virtual_database"
+          - name: "OTLP Virtual MQ"
+            path: "/dashboards/otlp_virtual_mq"
+          - name: "OTLP Virtual Cache"
+            path: "/dashboards/otlp_virtual_cache"
       - name: "AI Agents"
         catalog:
           - name: "AI Agents"

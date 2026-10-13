@@ -1,0 +1,161 @@
+{
+  "alias": "OTLP サービス",
+  "slots": {
+    "services": "サービス",
+    "instances": "インスタンス",
+    "endpoints": "エンドポイント"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均応答時間"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "レイテンシ"
+        }
+      ]
+    }
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "top_endpoints",
+        "title": "上位 20 エンドポイント",
+        "expressionLabels": [
+          "トラフィック",
+          "低速",
+          "成功率"
+        ],
+        "tip": "選択したサービスの上位エンドポイント。HTTP スパンは `<method> <route>`、それ以外はスパン名で命名されます。タブを切り替えると、トラフィック、応答時間、最も低い成功率で並べ替えられます。"
+      },
+      {
+        "id": "traffic_line",
+        "title": "トラフィック",
+        "tip": "1 分あたりのサーバースパンとコンシューマースパンの数。レシーバー自身のサンプリングより前に TAL ルールが数えます。"
+      },
+      {
+        "id": "err_line",
+        "title": "エラー率",
+        "tip": "ステータスが ERROR のサーバースパンの割合。"
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "スパンのレイテンシから算出した Apdex。しきい値は `service-apdex-threshold.yml` がこのサービスに与えるものです。"
+      },
+      {
+        "id": "percentile_line",
+        "title": "応答時間パーセンタイル",
+        "tip": "ルールのバケットから求めたサーバースパンのレイテンシの p50 / p75 / p90 / p95 / p99。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均応答時間"
+      },
+      {
+        "id": "top_instances_load",
+        "title": "負荷別上位 10 インスタンス",
+        "tip": "インスタンスはリソースが `service.instance.id` を持つ場合にのみ存在します。"
+      },
+      {
+        "id": "top_instances_slow",
+        "title": "上位 10 低速インスタンス"
+      },
+      {
+        "id": "top_instances_sla",
+        "title": "成功率別上位 10 インスタンス"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm_line",
+        "title": "トラフィック"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "応答時間"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "成功率"
+      },
+      {
+        "id": "endpoint_percentile_line",
+        "title": "応答時間パーセンタイル",
+        "tip": "エンドポイントのサーバースパンのレイテンシの p50 / p75 / p90 / p95 / p99。"
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm_line",
+        "title": "サービスインスタンス負荷",
+        "tip": "選択したインスタンスが報告した 1 分あたりのサーバースパン数。"
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "サービスインスタンスレイテンシ"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "サービスインスタンス成功率"
+      }
+    ]
+  }
+}

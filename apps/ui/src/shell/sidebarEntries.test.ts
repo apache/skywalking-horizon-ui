@@ -17,13 +17,14 @@
 
 import { describe, expect, it } from 'vitest';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
-import { buildSidebarEntries } from './sidebarEntries';
+import { buildSidebarEntries, nestChildLayers } from './sidebarEntries';
 
-function layer(key: string, name: string, group?: string): LayerDef {
+function layer(key: string, name: string, group?: string, parent?: string): LayerDef {
   return {
     key,
     name,
     group,
+    parent,
     color: '#fff',
     serviceCount: 1,
     active: true,
@@ -100,5 +101,44 @@ describe('buildSidebarEntries', () => {
       { kind: 'single', layer: browser },
     ]);
     expect(buildSidebarEntries([])).toEqual([]);
+  });
+});
+
+describe('nestChildLayers', () => {
+  it('moves a layer under the parent its template names and keeps the rest at the top level', () => {
+    const otlp = layer('otlp_service', 'OTLP Service');
+    const db = layer('otlp_virtual_database', 'OTLP Virtual Database', undefined, 'otlp_service');
+    const mq = layer('otlp_virtual_mq', 'OTLP Virtual MQ', undefined, 'otlp_service');
+    const general = layer('general', 'General Service');
+
+    const nested = nestChildLayers([general, otlp, db, mq]);
+
+    expect(nested.top).toEqual([general, otlp]);
+    expect(nested.childrenByParent.get('otlp_service')).toEqual([db, mq]);
+    expect(buildSidebarEntries(nested.top)).toEqual([
+      { kind: 'single', layer: general },
+      { kind: 'single', layer: otlp },
+    ]);
+  });
+
+  it('keeps a child at the top level when its parent is not shown, or names itself', () => {
+    const orphan = layer('otlp_virtual_mq', 'OTLP Virtual MQ', undefined, 'otlp_service');
+    const self = layer('loop', 'Loop', undefined, 'loop');
+
+    const nested = nestChildLayers([orphan, self]);
+
+    expect(nested.top).toEqual([orphan, self]);
+    expect(nested.childrenByParent.size).toBe(0);
+  });
+
+  it('nests a grouped layer\'s children by the same rule', () => {
+    const mesh = layer('mesh', 'Istio Managed SVCs', 'Istio');
+    const cp = layer('mesh_cp', 'Istio Control Plane', 'Istio');
+    const child = layer('mesh_child', 'Mesh child', undefined, 'mesh');
+
+    const nested = nestChildLayers([mesh, cp, child]);
+
+    expect(nested.top).toEqual([mesh, cp]);
+    expect(nested.childrenByParent.get('mesh')).toEqual([child]);
   });
 });

@@ -1,0 +1,38 @@
+{
+  "alias": "Virtueller OTLP-Cache",
+  "slots": {
+    "services": "Caches"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Zugriffs-RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Zugriffs-Traffic",
+        "tip": "Befehle pro Minute, gezählt aus den Client-Spans der OpenTelemetry-Services, die diesen Cache aufrufen."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Mittlere Antwortzeit",
+        "tip": "Mittlere Latenz der Client-Spans der Aufrufer, in ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Erfolgsrate",
+        "tip": "Anteil der Client-Spans der Aufrufer, deren Status nicht ERROR ist, in Prozent."
+      }
+    ]
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "alias": "OTLP 服务",
+  "slots": {
+    "services": "服务",
+    "instances": "实例",
+    "endpoints": "端点"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "错误率"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      },
+      {
+        "id": "respTime",
+        "label": "延迟"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "id": "cpm",
+        "label": "RPM"
+      },
+      {
+        "id": "respTime",
+        "label": "平均响应时间"
+      },
+      {
+        "id": "sla",
+        "label": "SLA"
+      }
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        {
+          "id": "cpm",
+          "label": "RPM"
+        },
+        {
+          "id": "sla",
+          "label": "SLA"
+        },
+        {
+          "id": "respTime",
+          "label": "延迟"
+        }
+      ]
+    }
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "top_endpoints",
+        "title": "前 20 端点",
+        "expressionLabels": [
+          "流量",
+          "慢请求",
+          "成功率"
+        ],
+        "tip": "所选服务的热门端点：HTTP span 命名为 `<method> <route>`，其余按 span 名称命名。切换标签页可按流量、响应时间或最差成功率重新排序。"
+      },
+      {
+        "id": "traffic_line",
+        "title": "流量",
+        "tip": "每分钟的服务端与消费者 span 数，由 TAL 规则在接收器自身采样之前统计。"
+      },
+      {
+        "id": "err_line",
+        "title": "错误率",
+        "tip": "状态为 ERROR 的服务端 span 占比。"
+      },
+      {
+        "id": "apdex_line",
+        "title": "Apdex",
+        "tip": "根据 span 延迟计算的 Apdex，阈值取自 `service-apdex-threshold.yml` 为该服务设定的值。"
+      },
+      {
+        "id": "percentile_line",
+        "title": "响应时间分位",
+        "tip": "服务端 span 延迟的 p50 / p75 / p90 / p95 / p99，来自规则的分桶。"
+      },
+      {
+        "id": "resp_time_line",
+        "title": "平均响应时间"
+      },
+      {
+        "id": "top_instances_load",
+        "title": "按负载排名的前 10 实例",
+        "tip": "仅当资源带有 `service.instance.id` 时才存在实例。"
+      },
+      {
+        "id": "top_instances_slow",
+        "title": "前 10 最慢实例"
+      },
+      {
+        "id": "top_instances_sla",
+        "title": "按成功率排名的前 10 实例"
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm_line",
+        "title": "流量"
+      },
+      {
+        "id": "endpoint_resp_line",
+        "title": "响应时间"
+      },
+      {
+        "id": "endpoint_sla_line",
+        "title": "成功率"
+      },
+      {
+        "id": "endpoint_percentile_line",
+        "title": "响应时间分位",
+        "tip": "该端点服务端 span 延迟的 p50 / p75 / p90 / p95 / p99。"
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm_line",
+        "title": "服务实例负载",
+        "tip": "所选实例上报的每分钟服务端 span 数。"
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "服务实例延迟"
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "服务实例成功率"
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "alias": "Cache virtuel OTLP",
+  "slots": {
+    "services": "Caches"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM d'accès"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "Taux d'erreur"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "traffic_line",
+        "title": "Trafic d'accès",
+        "tip": "Commandes par minute, comptées à partir des spans client des services OpenTelemetry qui appellent ce cache."
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Temps de réponse moyen",
+        "tip": "Latence moyenne des spans client des appelants, en ms."
+      },
+      {
+        "id": "sla_line",
+        "title": "Taux de succès",
+        "tip": "Pourcentage de spans client des appelants dont le statut n'est pas ERROR."
+      }
+    ]
+  }
+}
