@@ -41,7 +41,7 @@ import {
   type ReadRequest,
   type ReadResponse,
 } from '../prompt/messages.js';
-import { PromptError, ROLE_REQUEST, ROLE_RESPONSE, type PromptManifest } from '../prompt/store.js';
+import { PromptError, ROLE_REQUEST, ROLE_RESPONSE, STATE_REMOVED, STATE_TOO_LARGE, type PromptManifest } from '../prompt/store.js';
 import type { ViewContext } from './context.js';
 import { copyButton, copyField } from './structured.js';
 
@@ -128,6 +128,7 @@ export function drawPrompt(ctx: ViewContext, body: HTMLElement, e: Step): void {
   let read: ReadBody | null = null;
   let manifest: PromptManifest | null = null;
   let failure = '';
+  let notice = '';
   let bytes = 0;
   if (ref) {
     manifest = store.manifestAt(ref.seq, ref.row);
@@ -137,6 +138,12 @@ export function drawPrompt(ctx: ViewContext, body: HTMLElement, e: Step): void {
       read = readBody(raw, role);
     } catch (err) {
       failure = err instanceof PromptError ? err.message : String(err);
+      // A body that is no fault to miss says why in the reader's words, and not as a failure: a piece
+      // of it too large to land, or a removal that took it out of the host's own root.
+      if (err instanceof PromptError && err.reason === STATE_REMOVED) {
+        notice = store.removedAt(ref.seq, ref.row) ? s.promptRemoved : s.promptBuiltFromRemoved;
+      }
+      if (err instanceof PromptError && err.reason === STATE_TOO_LARGE) notice = s.promptTooLarge;
     }
   }
 
@@ -158,7 +165,7 @@ export function drawPrompt(ctx: ViewContext, body: HTMLElement, e: Step): void {
 
   let panel: string;
   try {
-    panel = drawSide(ctx, e, read, sides, store, ref, failure);
+    panel = notice ? `<div class="acv-warning">${esc(notice)}</div>` : drawSide(ctx, e, read, sides, store, ref, failure);
   } catch (err) {
     // A body that verified can still be one this panel cannot draw - nested past what JSON.stringify
     // will walk, say. It says so, rather than leaving the tab empty.

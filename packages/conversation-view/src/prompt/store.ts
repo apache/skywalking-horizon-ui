@@ -29,6 +29,13 @@
  * Bytes are kept as bytes. A part's `data` is the source's own JSON, byte for byte, so it is taken from
  * the record line verbatim rather than decoded and printed again, which would change escapes, spacing
  * and number spelling and break both the piece lookup and the digest.
+ *
+ * A part can hold no bytes and still be a piece: one too large to land, and one a removal took out of
+ * the Sessionizer's own root, keep the sha256 of the piece. A record can be the skeleton a removal
+ * left: its manifest keeps every segment but the literal strings, and no part keeps bytes. Such a
+ * record takes its body's place, as the Sessionizer's own session takes it, so a body that landed
+ * after the removal refers to it as before. The bytes of a removed body or piece come from the host,
+ * when the host kept them.
  */
 
 import { sha256Hex } from './sha256.js';
@@ -80,6 +87,9 @@ interface Part {
   /** The part's `data` as the record line spells it, or null when it has none. */
   raw: string | null;
   encoding?: string;
+  /** Why the part holds no bytes: `too_large` or `removed`, and the sha256 of what it held. */
+  state?: string;
+  sha256?: string;
 }
 
 export interface PromptRecord {
@@ -88,7 +98,13 @@ export interface PromptRecord {
   row: number;
   parts: Part[];
   manifest: PromptManifest;
+  /** The record is a skeleton: it keeps its body's place and none of its bytes. */
+  removed: boolean;
 }
+
+/** A part too large to land, and a part a removal took out, as the Sessionizer names their states. */
+export const STATE_TOO_LARGE = 'too_large';
+export const STATE_REMOVED = 'removed';
 
 export const PROMPT_SCHEMA = 'provider_body/1';
 
@@ -103,6 +119,14 @@ export interface StoredFile {
   seq: number;
   file: string;
   bytes: Uint8Array;
+  /** For a skeleton, the bytes its host kept of what the removal took out: the body of a record, by
+   *  its id, and a piece, by its sha256. A host that keeps none leaves it out. */
+  kept?: KeptBytes;
+}
+
+export interface KeptBytes {
+  bodies?: Record<string, Uint8Array>;
+  pieces?: Record<string, Uint8Array>;
 }
 
 /**
@@ -142,6 +166,8 @@ function readRecord(seq: number, row: number, node: Record<string, unknown>, lin
     kind: typeof p['k'] === 'string' ? (p['k'] as string) : '',
     raw: raws[i] ?? null,
     encoding: typeof p['encoding'] === 'string' ? (p['encoding'] as string) : undefined,
+    state: typeof p['state'] === 'string' ? (p['state'] as string) : undefined,
+    sha256: typeof p['sha256'] === 'string' ? (p['sha256'] as string) : undefined,
   }));
   const last = read[read.length - 1]!;
   if (last.kind !== 'data' || last.raw === null) return null;
@@ -154,7 +180,7 @@ function readRecord(seq: number, row: number, node: Record<string, unknown>, lin
   if (!wellFormed(manifest)) return null;
   const id = typeof node['id'] === 'string' ? (node['id'] as string) : '';
   if (!id) return null;
-  return { id, seq, row, parts: read, manifest };
+  return { id, seq, row, parts: read, manifest, removed: last.state === STATE_REMOVED };
 }
 
 /**
@@ -187,8 +213,16 @@ function wellFormed(m: PromptManifest | null): boolean {
   return true;
 }
 
-/** Why a body could not be rebuilt, in the reader's words. */
-export class PromptError extends Error {}
+/** Why a body could not be rebuilt, in the reader's words. `reason` says when it is no fault: a piece
+ *  of it was too large to land, or a removal took it out and the host kept no copy. */
+export class PromptError extends Error {
+  constructor(
+    message: string,
+    readonly reason?: typeof STATE_TOO_LARGE | typeof STATE_REMOVED,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * What happened to one record. `unresolved` is the one that can change: the record refers to another
@@ -209,6 +243,9 @@ export class PromptStore {
   private readonly cache = new Map<string, Uint8Array>();
   private readonly cacheOrder: string[] = [];
   private cacheBytes = 0;
+  /** What hosts kept of removed bodies, by record id, and of removed pieces, by sha256. */
+  private readonly keptBodies = new Map<string, Uint8Array>();
+  private readonly keptPieces = new Map<string, Uint8Array>();
   /** The seqs whose files were added, so a reader knows what it still needs. */
   readonly loaded = new Set<number>();
 
@@ -225,12 +262,19 @@ export class PromptStore {
    * reading the earlier file later must bring this one back, and it cannot if the file is held.
    */
   addFile(file: StoredFile): void {
+    for (const [id, bytes] of Object.entries(file.kept?.bodies ?? {})) this.keptBodies.set(id, bytes);
+    for (const [sha, bytes] of Object.entries(file.kept?.pieces ?? {})) this.keptPieces.set(sha, bytes);
     let waiting = false;
     for (const record of readProviderFile(file.seq, file.bytes)) {
       if (this.add(record) === 'unresolved') waiting = true;
     }
     if (waiting) this.loaded.delete(file.seq);
     else this.loaded.add(file.seq);
+  }
+
+  /** Whether the record at a landed position is a skeleton: its body was removed. */
+  removedAt(seq: number, row: number): boolean {
+    return this.byPosition.get(`${seq}/${row}`)?.removed ?? false;
   }
 
   /** The manifest of the body at a landed position, or null when it is not held. */
@@ -251,9 +295,32 @@ export class PromptStore {
     if (held) return held;
     const record = this.records.get(id);
     if (!record) throw new PromptError(`no body ${id}`);
-    const bytes = this.rebuild(record);
+    const bytes = record.removed ? this.removedBody(record) : this.rebuild(record);
     this.remember(id, bytes);
     return bytes;
+  }
+
+  /**
+   * A removed body, from what the host kept of it, checked against its digest. One the host did not
+   * keep and that holds or cites a piece too large to land could not be rebuilt before its removal
+   * either; any other was removed.
+   */
+  private removedBody(record: PromptRecord): Uint8Array {
+    const kept = this.keptBodies.get(record.id);
+    if (kept) {
+      if (sha256Hex(kept) !== record.manifest.sha256) throw new PromptError(`the kept bytes of ${record.id} do not match its digest`);
+      return kept;
+    }
+    for (const seg of record.manifest.segments ?? []) {
+      let part: Part | undefined;
+      if (seg.part != null) part = record.parts[seg.part];
+      else if (seg.piece) {
+        const at = this.pieces.get(seg.piece);
+        part = at ? this.records.get(at.id)?.parts[at.part] : undefined;
+      }
+      if (part?.state === STATE_TOO_LARGE) throw tooLarge();
+    }
+    throw new PromptError(`${record.id} was removed by retention`, STATE_REMOVED);
   }
 
   /** The record a response with that provider request id carries, or null. */
@@ -286,12 +353,16 @@ export class PromptStore {
     const already = this.records.get(record.id);
     if (already) {
       // A record landed twice by an interrupted pass is one body. Both must say the same thing, and
-      // the one arriving now is rebuilt to prove it: a digest it claims is not evidence of itself.
+      // the one arriving now is rebuilt to prove it: a digest it claims is not evidence of itself. A
+      // skeleton holds nothing to rebuild, so its digest is all it says, and one that cannot be
+      // rebuilt for a piece too large to land or removed is still the same body.
       if (already.manifest.sha256 !== m.sha256 || already.manifest.bytes !== m.bytes) return 'refused';
-      try {
-        if (sha256Hex(this.rebuild(record)) !== m.sha256) return 'refused';
-      } catch {
-        return 'refused';
+      if (!record.removed) {
+        try {
+          if (sha256Hex(this.rebuild(record)) !== m.sha256) return 'refused';
+        } catch (err) {
+          if (!(err instanceof PromptError && err.reason)) return 'refused';
+        }
       }
       this.byPosition.set(`${record.seq}/${record.row}`, already);
       return 'added';
@@ -300,9 +371,17 @@ export class PromptStore {
     this.byPosition.set(`${record.seq}/${record.row}`, record);
     for (let i = 0; i < own; i++) {
       const part = record.parts[i]!;
-      if (part.kind !== 'data' || part.raw === null) continue;
-      const d = sha256Hex(encoder.encode(part.raw));
-      if (!this.pieces.has(d)) this.pieces.set(d, { id: record.id, part: i });
+      if (part.kind !== 'data') continue;
+      // A piece too large to land, or removed, is still a piece: its sha256 is the one the part keeps,
+      // and a later body refers to it as to any other.
+      const held = part.raw !== null && part.state !== STATE_TOO_LARGE && part.state !== STATE_REMOVED;
+      const d = held ? sha256Hex(encoder.encode(part.raw!)) : part.sha256;
+      if (!d) continue;
+      // The piece is the first landed record's that holds it, as the Sessionizer cut it, whatever
+      // order the files arrived in: a record that waited on an earlier file is added after records
+      // that landed after it.
+      const at = this.pieces.get(d);
+      if (!at || landedBefore(record, this.records.get(at.id)!)) this.pieces.set(d, { id: record.id, part: i });
     }
     return 'added';
   }
@@ -324,11 +403,11 @@ export class PromptStore {
         if (seg.part < 0 || seg.part >= record.parts.length - 1) {
           throw new PromptError(`${record.id} names part ${seg.part} it does not have`);
         }
-        take(partBytes(record.parts[seg.part]!));
+        take(this.partBytes(record.parts[seg.part]!));
       } else if (seg.piece) {
         const at2 = this.pieces.get(seg.piece);
         if (!at2) throw new PromptError(`${record.id} names a piece no earlier record holds`);
-        take(partBytes(this.records.get(at2.id)!.parts[at2.part]!));
+        take(this.partBytes(this.records.get(at2.id)!.parts[at2.part]!));
       } else if (seg.copy) {
         const base = this.body(seg.copy.from);
         if (seg.copy.len < 0 || seg.copy.len > base.length) {
@@ -353,6 +432,27 @@ export class PromptStore {
       this.cache.delete(old);
     }
   }
+
+  /** A part's bytes: its data as the line spells it, an unknown part's own bytes, or what the host kept
+   *  of a removed piece, checked against its sha256. */
+  private partBytes(part: Part): Uint8Array {
+    if (part.state === STATE_TOO_LARGE) throw tooLarge();
+    if (part.state === STATE_REMOVED) {
+      const kept = part.sha256 ? this.keptPieces.get(part.sha256) : undefined;
+      if (!kept) throw new PromptError('a piece it is built from was removed by retention', STATE_REMOVED);
+      if (sha256Hex(kept) !== part.sha256) throw new PromptError('the kept bytes of a removed piece do not match its digest');
+      return kept;
+    }
+    return partBytes(part);
+  }
+}
+
+function landedBefore(a: PromptRecord, b: PromptRecord): boolean {
+  return a.seq < b.seq || (a.seq === b.seq && a.row < b.row);
+}
+
+function tooLarge(): PromptError {
+  return new PromptError('a piece it is built from was too large to land', STATE_TOO_LARGE);
 }
 
 /** A part's bytes: its data as the line spells it, or an unknown part's own bytes. */
