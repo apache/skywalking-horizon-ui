@@ -60,9 +60,11 @@ The page lists **Alarms (default)** first, then the named pages. Select one to e
 - **Default time window** — the window the page opens on: 20 minutes, 2 hours or 4 hours. A named page can also take the default page's.
 - **Overview alarms widget** — default page only: the **Fetch cap**, how many alarms an overview **Alarms** widget reads.
 
-**+ New page** asks for an id and a title. The id becomes the page's address, `/alarms/<id>`: lowercase letters, digits, `-` and `_`, and neither `default` nor `page-setup`. **Delete** removes a named page from every reader's sidebar; its id cannot be given to a new page afterwards. The default page cannot be deleted.
+**+ New page** asks for an id and a title. The id becomes the page's address, `/alarms/<id>`: lowercase letters, digits, `-` and `_`, and neither `default` nor `page-setup`. **Delete** removes a named page from every reader's sidebar. It is listed under the page's disabled templates, where **Enable** brings it back as it was; its id can also be given to a new page, which then takes over that address. The default page cannot be deleted.
 
 The default page's window also sets the window of the alarm count in the sidebar and the top bar.
+
+A page whose stored content is invalid — written to OAP by something other than this page — is tagged **invalid** and listed in the banner at the top of the page. It is served to nobody and opens no editor until it is disabled; an invalid default page leaves the built-in layout in place. See [Invalid Stored Templates](invalid-templates.md).
 
 ## Stored format
 

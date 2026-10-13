@@ -186,7 +186,9 @@ OAP, or the bundled default when OAP has none — as a JSON file, for backup,
 sharing, or moving it to another OAP. **Import** reads a configuration JSON
 file and loads it as a local draft; preview it, then **Check diff & push**
 to publish. Import never writes OAP directly, and a file that isn't a valid
-3D-map configuration is rejected with a message.
+3D-map configuration is not imported: its problems are shown on the file
+itself. A configuration stored on OAP that is invalid is not drawn; see
+[Invalid Stored Templates](../customization/invalid-templates.md).
 
 ### Tuning the metric fan-out
 

@@ -51,7 +51,9 @@ import type { TemplateKind, TemplateStatus } from '@/api/scopes/configs';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { useTemplateSync, type SyncBanner } from '@/features/admin/_shared/useTemplateSync';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
-import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { buildExportEnvelope, downloadJson, pickJsonFile } from '@/features/admin/_shared/templatePortability';
+import { checkImportedFile } from '@/features/admin/_shared/importCheck';
+import type { ProblemsView } from '@/features/admin/_shared/storedRecordView';
 import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { stableStringify } from '@/utils/stableJson';
@@ -88,6 +90,15 @@ export interface SingletonTemplateEditorReturn<T> {
   hasRemote: ComputedRef<boolean>;
   /** Per-row sync badge (synced / diverged / …) for the source pill. */
   badge: ComputedRef<TemplateStatus | null>;
+  /** The stored copy is enabled and invalid: the page offers only its
+   *  problems, a download and Disable — never the editor. */
+  invalid: ComputedRef<boolean>;
+  /** The stored content is invalid, enabled or disabled — for the badge. */
+  contentInvalid: ComputedRef<boolean>;
+  /** An imported file the server refused, with its problems, until closed. */
+  refusedImport: Ref<ProblemsView | null>;
+  /** Read the stored copy again — after it was disabled or enabled elsewhere. */
+  reload: () => Promise<void>;
   /** Bundled byte-equals OAP-live — resetting to bundled is then a no-op. */
   isSynced: ComputedRef<boolean>;
   /** Editor diverges from its baseline — drives the Save button. */
@@ -139,6 +150,9 @@ export function useSingletonTemplateEditor<T>(
   const hasLocalDraft = computed(() => localEdits.has(name));
   const hasRemote = computed(() => sources.hasRemote(name));
   const badge = computed(() => sync.badgeFor(name));
+  const invalid = computed(() => badge.value === 'invalid');
+  const contentInvalid = computed(() => sync.invalidFor(name));
+  const refusedImport = ref<ProblemsView | null>(null);
   const isSynced = computed(() => badge.value === 'synced');
 
   /** Cloned + normalized — used as a comparison baseline so an old-shape
@@ -290,9 +304,16 @@ export function useSingletonTemplateEditor<T>(
   async function onImportFile(): Promise<void> {
     const text = await pickJsonFile();
     if (text === null) return;
-    const res = validateImport(kind, text);
+    let res;
+    try {
+      res = await checkImportedFile(kind, text);
+    } catch (err) {
+      pushErr.value = pushErrorLines(err);
+      importMsg.value = null;
+      return;
+    }
     if (!res.ok) {
-      pushErr.value = [res.error];
+      refusedImport.value = res.view;
       importMsg.value = null;
       return;
     }
@@ -314,6 +335,12 @@ export function useSingletonTemplateEditor<T>(
     hasLocalDraft,
     hasRemote,
     badge,
+    invalid,
+    contentInvalid,
+    refusedImport,
+    reload: async () => {
+      await sources.refetch();
+    },
     isSynced,
     dirty,
     banner: sync.banner,

@@ -31,7 +31,7 @@
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import { getSyncStatus, type SyncStatus } from '../templates/sync.js';
 import { iterateBundledTemplates } from '../templates/aggregator.js';
-import { parseEnvelope } from '../templates/names.js';
+import { formatName, parseEnvelope } from '../templates/names.js';
 import { canonicalLayerKey } from '../templates/identity.js';
 import { logger } from '../../logger.js';
 
@@ -49,6 +49,19 @@ export function classifySnapshot(sync: SyncStatus): LayerClassification {
   const known = new Set<string>();
   for (const row of sync.rows) {
     if (row.kind !== 'layer' || row.locale !== undefined) continue;
+    // An invalid template — enabled or disabled — still stands for this layer:
+    // it counts as operate unless it plainly says otherwise, since the field it
+    // would say so in may be the part that is broken. (A row filed under the
+    // wrong name says nothing about this layer, so it is not read here.)
+    if (row.status === 'invalid' || row.problems) {
+      const key = canonicalLayerKey(row.key);
+      // Only the row the layer is read from stands for it.
+      if (row.name !== formatName('layer', key)) continue;
+      const visibility = row.remote ? visibilityOf(parseEnvelope(row.remote.configuration)?.content) : undefined;
+      known.add(key);
+      if (visibility !== 'public') operate.add(key);
+      continue;
+    }
     // A disabled row still says what the layer is: disabling hides a layer
     // from the menu, it does not make its data an ordinary layer's.
     if (!row.remote || (row.effective !== 'remote' && row.status !== 'disabled')) continue;
@@ -68,6 +81,14 @@ export function classifySnapshot(sync: SyncStatus): LayerClassification {
       return operate.has(key) || !known.has(key);
     },
   };
+}
+
+/** `'public'` only when a template's content plainly is public — an object
+ *  whose `visibility` is absent or `"public"`; `undefined` otherwise. */
+function visibilityOf(content: unknown): 'public' | undefined {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return undefined;
+  const visibility = (content as { visibility?: unknown }).visibility;
+  return visibility === undefined || visibility === 'public' ? 'public' : undefined;
 }
 
 export async function classifyLayers(

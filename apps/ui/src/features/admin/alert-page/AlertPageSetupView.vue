@@ -29,6 +29,7 @@ import { ALARMS_WINDOW_OPTIONS } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { canonicalLayerKey } from '@/state/verbGrammar';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import AlertPageList from './AlertPageList.vue';
@@ -67,6 +68,11 @@ const unreadable = computed<Set<string>>(
 function notServed(p: NamedAlertPage): boolean {
   return pageNotServed(p) || unreadable.value.has(alertRowName(p.id));
 }
+const isInvalidPage = (id: string): boolean => sync.badgeFor(alertRowName(id)) === 'invalid';
+/** The selected page's stored copy is enabled and invalid: only its problems,
+ *  a download and Disable are offered — never the editor. */
+const selectedInvalid = computed(() => isInvalidPage(ed.selectedId.value));
+const ownsAlertPage = (r: { kind: string; locale?: string }): boolean => r.kind === 'alert';
 
 const listItems = computed<AlertPageListItem[]>(() => {
   const items: AlertPageListItem[] = [
@@ -83,7 +89,7 @@ const listItems = computed<AlertPageListItem[]>(() => {
       id: p.id,
       label: p.title.trim() || p.id,
       path: `/alarms/${p.id}`,
-      tag: notServed(p) ? t('not served') : null,
+      tag: isInvalidPage(p.id) ? t('invalid') : notServed(p) ? t('not served') : null,
       dirty: ed.isDirty(p.id),
     });
   }
@@ -169,6 +175,7 @@ const statusText = computed<{ text: string; cls: string }>(() => {
     </header>
 
     <SyncStatusBanner :banner="sync.banner.value" />
+    <StoredTemplatesBanner :owns="ownsAlertPage" :read-only="sync.readOnly.value" @changed="ed.rowsQ.refetch()" />
 
     <div class="aps__body">
       <AlertPageList
@@ -183,6 +190,9 @@ const statusText = computed<{ text: string; cls: string }>(() => {
       <div class="aps__main">
         <SyncStatusBanner v-if="conflictBanner" :banner="conflictBanner" />
         <div v-if="loading" class="aps__empty">{{ t('loading…') }}</div>
+        <div v-else-if="selectedInvalid" class="aps__empty aps__invalid" data-testid="invalid-selected">
+          {{ t('The copy of this alarm page stored on OAP is invalid, so nobody is served it. Check its problems or disable it in the list above before configuring a new one.') }}
+        </div>
         <div v-else-if="!ed.draft.value" class="aps__empty">{{ t('This page is no longer stored on OAP.') }}</div>
         <AlertPageEditor
           v-else
@@ -198,7 +208,7 @@ const statusText = computed<{ text: string; cls: string }>(() => {
           @update="ed.update"
         />
 
-        <div class="aps__actions">
+        <div v-if="!selectedInvalid" class="aps__actions">
           <span :class="statusText.cls">{{ statusText.text }}</span>
           <button
             v-if="ed.isPending.value"
@@ -317,6 +327,13 @@ const statusText = computed<{ text: string; cls: string }>(() => {
 }
 .aps__main {
   min-width: 0;
+}
+.aps__empty.aps__invalid {
+  text-align: left;
+  color: var(--sw-err);
+  border: 1px solid var(--sw-err);
+  border-radius: 6px;
+  background: var(--sw-err-soft);
 }
 .aps__empty {
   padding: 24px;

@@ -75,6 +75,10 @@ export type EffectiveLayerReason =
   | 'store-unreachable'
   /** An administrator disabled this layer's row. Deliberate, one layer. */
   | 'layer-disabled'
+  /** This layer's stored template fails the read check. Blocked, never
+   *  replaced by defaults: the stored record is the operator's, and it is
+   *  listed for repair on the Layer dashboards page. One layer. */
+  | 'template-invalid'
   /** Reachable, but nothing readable for this layer — unsynced, identity-
    *  invalid or unparseable. One layer; routes use in-code defaults. */
   | 'no-remote-row'
@@ -87,9 +91,10 @@ export interface EffectiveLayer {
   /** Remote OAP row content to render, or `null` (use in-code defaults
    *  when `blocked` is false, render nothing when `blocked` is true). */
   template: LayerTemplate | null;
-  /** Template store unreachable OR this layer's row disabled — block the
-   *  feature (no defaults, no bundled). Equivalent to `reason` being
-   *  `store-unreachable` or `layer-disabled`. */
+  /** Template store unreachable, this layer's row disabled, or its template
+   *  invalid — block the feature (no defaults, no bundled). Equivalent to
+   *  `reason` being `store-unreachable`, `layer-disabled` or
+   *  `template-invalid`. */
   blocked: boolean;
   /** The distinction `blocked` discards. */
   reason: EffectiveLayerReason;
@@ -117,6 +122,8 @@ export async function resolveEffectiveLayer(
     // administrator's decision and stays decided whether or not the store can
     // be read right now.
     if (row?.status === 'disabled') return { template: null, blocked: true, reason: 'layer-disabled' };
+    // Retained rows keep their status, so this holds through an outage too.
+    if (row?.status === 'invalid') return { template: null, blocked: true, reason: 'template-invalid' };
     // A REMOTE row renders — including one retained from the last successful
     // read while the store is unreachable. That is the operator's own
     // published configuration, not the disk bundle: `sync` marks bundled rows
@@ -165,14 +172,16 @@ export async function resolveEffectiveLayerTemplate(
 /**
  * The blocked reason as the graph routes report it.
  *
- * Only two of the resolver's reasons BLOCK, and only those two are worth
- * naming on the wire: a store that could not be read, and a template an
- * administrator disabled. Anything else is not a block, so it contributes
- * nothing and the field stays absent.
+ * Only three of the resolver's reasons BLOCK, and only those are worth naming
+ * on the wire: a store that could not be read, a template an administrator
+ * disabled, and a template that cannot be served. Anything else is not a
+ * block, so it contributes nothing and the field stays absent.
  */
 export function blockedReason(
   reason: EffectiveLayerReason,
-): { blocked?: 'store-unreachable' | 'layer-disabled' } {
-  if (reason === 'store-unreachable' || reason === 'layer-disabled') return { blocked: reason };
+): { blocked?: 'store-unreachable' | 'layer-disabled' | 'template-invalid' } {
+  if (reason === 'store-unreachable' || reason === 'layer-disabled' || reason === 'template-invalid') {
+    return { blocked: reason };
+  }
   return {};
 }

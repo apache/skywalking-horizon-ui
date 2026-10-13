@@ -77,16 +77,19 @@ import {
 import {
   createAndConfirm,
   updateAndConfirm,
+  updateEnabledAndConfirm,
   disableAndConfirm,
   WriteNotVisibleError,
   getSyncStatus,
   resync,
   type SyncStatus,
+  type TemplateProblem,
 } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import {
   buildEnvelope,
   buildOverlayEnvelope,
+  formatName,
   formatOverlayName,
   parseEnvelope,
   parseName,
@@ -94,7 +97,7 @@ import {
   type TemplateKind,
 } from '../../logic/templates/names.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
-import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import { infra3dConfigIssues } from '../../logic/infra-3d/validate.js';
 import { linkDomainIssue } from '../../util/link-policy.js';
 import {
   alertTemplateSchemaFor,
@@ -253,13 +256,19 @@ export function registerTemplateSyncAdminRoutes(
       // unconditionally; the bundle's 30s cache is usually warm and the
       // operator can hit the refresh button if they need fresher state.
       let oap: unknown = null;
+      // An invalid overlay is not handed to the editor as a draft to build on:
+      // the page lists its problems instead, and it is disabled before the
+      // locale is edited again.
+      let oapProblems: TemplateProblem[] | undefined;
       try {
         const status = await loadStatus(deps);
         const overlayName = formatOverlayName(parsed.kind as TemplateKind, parsed.key, locale);
         const row = status.rows.find(
           (r) => r.name === overlayName && r.remote && !r.remote.disabled,
         );
-        if (row?.remote) {
+        if (row?.status === 'invalid') {
+          oapProblems = row.problems ?? [];
+        } else if (row?.remote) {
           const env = parseEnvelope(row.remote.configuration);
           if (env) oap = env.content;
         }
@@ -267,7 +276,7 @@ export function registerTemplateSyncAdminRoutes(
         logger.warn({ err: errMsg(err), name, locale }, 'failed to read OAP overlay row');
       }
 
-      return reply.send({ disk, oap });
+      return reply.send({ disk, oap, ...(oapProblems ? { oapProblems } : {}) });
     },
   );
 
@@ -338,11 +347,12 @@ export function registerTemplateSyncAdminRoutes(
       });
     }
     const envelope = buildOverlayEnvelope(parsed.kind as TemplateKind, parsed.key, locale, content);
+    if (refuseOverInvalid(status, envelope.name, reply)) return;
     const configuration = serializeEnvelope(envelope);
     const existing = status.rows.find((r) => r.name === envelope.name);
     try {
       if (existing?.remote) {
-        await updateAndConfirm(deps.uiTemplateClient(), existing.remote.id, configuration, logger);
+        await updateEnabledAndConfirm(deps.uiTemplateClient(), existing.remote.id, configuration, logger);
       } else {
         await createAndConfirm(deps.uiTemplateClient(), configuration, logger);
       }
@@ -465,6 +475,7 @@ export function registerTemplateSyncAdminRoutes(
           enabledIds: pushConflict.enabledIds,
         });
       }
+      if (refuseOverInvalid(status, name, reply)) return;
       const row = status.rows.find((r) => r.name === name);
       if (!row?.bundled) {
         return reply.code(404).send({
@@ -478,7 +489,7 @@ export function registerTemplateSyncAdminRoutes(
       }
       try {
         if (row.remote) {
-          await updateAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled.configuration, logger);
+          await updateEnabledAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled.configuration, logger);
         } else {
           await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
         }
@@ -612,14 +623,14 @@ export function registerTemplateSyncAdminRoutes(
     // Identity + per-kind content validation. The envelope machinery is
     // content-opaque, so this is the only place a stored row is held to the
     // shape (and the name) its readers depend on.
-    const issues = publishIssues(
+    const problems = publishProblems(
       parsed.kind as TemplateKind,
       parsed.key,
       content,
       deps.config.current.security.trustedLinkDomains,
     );
-    if (issues) {
-      return reply.code(400).send({ code: 'invalid_content', issues });
+    if (problems.length > 0) {
+      return reply.code(400).send({ code: 'invalid_content', issues: problems.map(formatProblem), problems });
     }
     // The 3D-map's metric fan-out moved to horizon.yaml
     // (performance.bulk.infra3d) and the config endpoint injects the live value
@@ -638,12 +649,13 @@ export function registerTemplateSyncAdminRoutes(
         message: 'OAP admin port unreachable — templates are read-only',
       });
     }
+    if (refuseOverInvalid(status, name, reply)) return;
     const envelope = buildEnvelope(parsed.kind as TemplateKind, parsed.key, content);
     const configuration = serializeEnvelope(envelope);
     const existing = status.rows.find((r) => r.name === name);
     try {
       if (existing?.remote) {
-        await updateAndConfirm(deps.uiTemplateClient(), existing.remote.id, configuration, logger);
+        await updateEnabledAndConfirm(deps.uiTemplateClient(), existing.remote.id, configuration, logger);
       } else {
         await createAndConfirm(deps.uiTemplateClient(), configuration, logger);
       }
@@ -667,11 +679,60 @@ export function registerTemplateSyncAdminRoutes(
     }
   });
 
+  /* POST /api/admin/templates/validate — the checks a save runs, without
+   * saving: `{ name, content }` → `{ problems }`. Import calls it before it
+   * stages a file, so a file that could not be published is refused when it
+   * is opened rather than at the end of an editing session. An overlay name is
+   * checked against the source row it would merge into, as save-translation
+   * checks it. Gated like the save it stands in for. */
+  app.post<{ Body: { name?: string; content?: unknown } }>(
+    '/api/admin/templates/validate',
+    { preHandler: auth },
+    async (req, reply) => {
+      const { name, content } = req.body ?? {};
+      if (typeof name !== 'string' || content === undefined) {
+        return reply.code(400).send({
+          code: 'invalid_validate_body',
+          message: 'body must be { name: string, content: object }',
+        });
+      }
+      const parsed = parseName(name);
+      if (!parsed) {
+        return reply.code(400).send({
+          code: 'invalid_template_name',
+          message: `expected horizon.<kind>.<key>[.i18n.<locale>], got ${JSON.stringify(name)}`,
+        });
+      }
+      if (denyRow(req, reply, parsed, 'write')) return;
+      const kind = parsed.kind as TemplateKind;
+      if (parsed.locale === undefined) {
+        const problems = publishProblems(kind, parsed.key, content, deps.config.current.security.trustedLinkDomains);
+        return reply.send({ problems });
+      }
+      const status = await loadStatus(deps);
+      const sourceName = formatName(kind, parsed.key);
+      const sourceRow = status.rows.find((r) => r.name === sourceName && r.locale === undefined);
+      const sourceCfg = sourceRow?.remote?.configuration ?? sourceRow?.bundled?.configuration ?? null;
+      const sourceEnv = sourceCfg ? parseEnvelope(sourceCfg) : null;
+      if (!sourceEnv) {
+        return reply.code(409).send({
+          code: 'source_template_unreadable',
+          message: `no readable source template for ${sourceName}; an overlay cannot be validated without it`,
+        });
+      }
+      const problems: TemplateProblem[] = overlayFindings(sourceEnv.content, content).map((f) => ({
+        path: dottedPath(f.path),
+        message: f.message,
+      }));
+      return reply.send({ problems });
+    },
+  );
+
   /* POST /api/admin/templates/disable — "delete" a template. OAP has no
    * hard DELETE, so deletion is a soft `disable` of the remote UI-template
    * (a disabled row is dropped from the bundle, so the template vanishes
-   * from the UI). Irreversible from the UI by design — there is no
-   * re-enable entrance.
+   * from the UI). The record keeps its content, and
+   * `/api/admin/templates/enable` turns it back on.
    *
    *   - remote present       → disable that row.
    *   - bundled, no remote    → create a remote from the bundled config
@@ -757,6 +818,77 @@ export function registerTemplateSyncAdminRoutes(
       }
     },
   );
+  /* POST /api/admin/templates/enable — turn a disabled record back on, with
+   * the content it holds. Whether that content is valid is a separate
+   * question: an invalid record comes back invalid and is reported as such,
+   * exactly as before it was disabled. Nothing is checked or rewritten. */
+  app.post<{ Body: { name?: string } }>(
+    '/api/admin/templates/enable',
+    { preHandler: auth },
+    async (req, reply) => {
+      const { name } = req.body ?? {};
+      if (typeof name !== 'string') {
+        return reply.code(400).send({
+          code: 'invalid_enable_body',
+          message: 'body must be { name: string }',
+        });
+      }
+      const parsed = parseName(name);
+      if (!parsed) {
+        return reply.code(400).send({
+          code: 'invalid_template_name',
+          message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
+        });
+      }
+      if (denyRow(req, reply, parsed, 'write')) return;
+      resync();
+      const status = await loadStatus(deps);
+      if (status.unreachable) {
+        return reply.code(409).send({
+          code: 'oap_unreachable',
+          message: 'OAP admin port unreachable — templates are read-only',
+        });
+      }
+      // A name resolves to an enabled record whenever it has one, so a row
+      // that is not disabled has nothing to turn on.
+      const row = status.rows.find((r) => r.name === name);
+      if (!row?.remote?.disabled) {
+        return reply.send(filterStatusToReadable(status, readableRow(req)));
+      }
+      try {
+        await updateEnabledAndConfirm(deps.uiTemplateClient(), row.remote.id, row.remote.configuration, logger);
+        resync();
+        return reply.send(filterStatusToReadable(await loadStatus(deps), readableRow(req)));
+      } catch (err) {
+        if (err instanceof WriteNotVisibleError) {
+          logger.warn({ name, id: err.id }, 'enable propagation timeout');
+          return reply.code(504).send({
+            code: 'oap_propagation_timeout',
+            message: err.message,
+            id: err.id,
+          });
+        }
+        logger.warn({ err: errMsg(err), name }, 'enable on OAP failed');
+        return reply.code(502).send({ code: 'oap_write_failed', message: errMsg(err) });
+      }
+    },
+  );
+}
+
+/**
+ * An enabled invalid template is checked or disabled — never written over. A
+ * write would replace the record an operator has not yet looked at, and a
+ * stale page that still offers the write must not be able to. Answers 409 and
+ * returns true when `name` is held by an invalid row.
+ */
+function refuseOverInvalid(status: SyncStatus, name: string, reply: FastifyReply): boolean {
+  const row = status.rows.find((r) => r.name === name);
+  if (row?.status !== 'invalid') return false;
+  void reply.code(409).send({
+    code: 'template_invalid',
+    message: `"${name}" is stored on OAP as an invalid template. Check its problems or disable it before configuring a new one.`,
+  });
+  return true;
 }
 
 /**
@@ -778,48 +910,66 @@ export function registerTemplateSyncAdminRoutes(
  *      alarm page the default page's or a named page's schema, by key. Each
  *      rejects MALFORMED content, never merely incomplete content.
  */
-function publishIssues(
+function publishProblems(
   kind: TemplateKind,
   key: string,
   content: unknown,
   trustedLinkDomains: readonly string[],
-): string[] | null {
+): TemplateProblem[] {
   const identity = templateIdentityIssue(kind, key, content);
-  if (identity) return [`${identity.path}: ${identity.message}`];
+  if (identity) {
+    return [
+      identity.path === 'name'
+        ? { path: ['name'], record: true, message: identity.message }
+        : { path: [identity.path], message: identity.message },
+    ];
+  }
   if (kind === 'layer') {
     const v = layerTemplatePushSchema.safeParse(content);
-    if (!v.success) return zodIssues(v.error);
-    const issues = layerCrossRefIssues(v.data, { complete: false }).map(
-      (i) => `${i.path}: ${i.message}`,
-    );
+    if (!v.success) return zodProblems(v.error);
+    const problems: TemplateProblem[] = layerCrossRefIssues(v.data, { complete: false }).map((i) => ({
+      path: dottedPath(i.path),
+      message: i.message,
+    }));
     // The domain half of the link policy needs config, so it cannot live in
     // the schema. Applying it HERE too means a publish is refused with the
     // reason instead of succeeding and then vanishing on the read path.
     const link = v.data.documentLink;
     if (link) {
       const linkIssue = linkDomainIssue(link, trustedLinkDomains);
-      if (linkIssue) issues.push(`documentLink: ${linkIssue}`);
+      if (linkIssue) problems.push({ path: ['documentLink'], message: linkIssue });
     }
-    return issues.length > 0 ? issues : null;
+    return problems;
   }
   if (kind === 'overview') {
     const v = overviewTemplatePushSchema.safeParse(content);
-    return v.success ? null : zodIssues(v.error);
+    return v.success ? [] : zodProblems(v.error);
   }
   if (kind === 'infra-3d') {
-    const v = validateInfra3dConfig(content);
-    return v.ok ? null : v.issues;
+    return infra3dConfigIssues(content).map((i) => ({ path: [...i.path], message: i.message }));
   }
   if (kind === 'alert') {
     const v = alertTemplateSchemaFor(key).safeParse(content);
-    return v.success ? null : zodIssues(v.error);
+    return v.success ? [] : zodProblems(v.error);
   }
   const singleton = SINGLETON_SCHEMAS[kind];
   if (singleton) {
     const v = singleton.safeParse(content);
-    return v.success ? null : zodIssues(v.error);
+    return v.success ? [] : zodProblems(v.error);
   }
-  return null;
+  return [];
+}
+
+/** {@link publishProblems} in the `<path>: <message>` form every publish route
+ *  answers 400 `invalid_content` with, or `null` when the content publishes. */
+function publishIssues(
+  kind: TemplateKind,
+  key: string,
+  content: unknown,
+  trustedLinkDomains: readonly string[],
+): string[] | null {
+  const problems = publishProblems(kind, key, content, trustedLinkDomains);
+  return problems.length > 0 ? problems.map(formatProblem) : null;
 }
 
 /** Every kind not handled above. Typed as a TOTAL record minus the ones with
@@ -833,8 +983,17 @@ const SINGLETON_SCHEMAS: Record<Exclude<TemplateKind, 'layer' | 'overview' | 'in
     'time-defaults': timeDefaultsTemplateSchema,
   };
 
-function zodIssues(err: ZodError): string[] {
-  return err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+function zodProblems(err: ZodError): TemplateProblem[] {
+  return err.issues.map((i) => ({ path: [...i.path], message: i.message }));
+}
+
+function formatProblem(p: TemplateProblem): string {
+  return `${p.path.join('.') || '(root)'}: ${p.message}`;
+}
+
+function dottedPath(dotted: string): Array<string | number> {
+  if (!dotted) return [];
+  return dotted.split('.').map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
 }
 
 /** Same check for a bundled row on its way out (reset-to-bundled / sync-all):

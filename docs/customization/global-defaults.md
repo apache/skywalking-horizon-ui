@@ -22,7 +22,7 @@ Three tiers, top wins:
 
 1. **Your personal pick** — set from the topbar theme chip, stored in this browser only.
 2. **The org default** — set by an admin on the Global defaults page, stored on OAP, shared by everyone.
-3. **The shipped default** — Horizon, used when neither of the above is set or reachable.
+3. **The shipped default** — Horizon, used when neither of the above is set or reachable, or when the org default stored on OAP is invalid (see [Invalid Stored Templates](invalid-templates.md)).
 
 ## Picking your own theme
 

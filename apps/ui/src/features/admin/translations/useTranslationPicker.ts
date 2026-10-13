@@ -64,6 +64,7 @@ export function useTranslationPicker(selectedKind: Ref<'overview' | 'layer'>): U
 
   function metaFor(name: string, kind: 'overview' | 'layer'): {
     syncBadge: ReturnType<typeof layerSync.badgeFor>;
+    invalid: boolean;
     hasLocalDraft: boolean;
     isDiverged: boolean;
     localeBadges: TemplatePickerEntry['localeBadges'];
@@ -83,6 +84,7 @@ export function useTranslationPicker(selectedKind: Ref<'overview' | 'layer'>): U
     });
     return {
       syncBadge: badge,
+      invalid: sync.invalidFor(name),
       // Picker chip lights up when ANY locale has an unstaged draft for
       // this template.
       hasLocalDraft: localEdits.localesFor(name).length > 0,

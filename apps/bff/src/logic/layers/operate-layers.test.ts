@@ -67,3 +67,47 @@ describe('operate-layer classification', () => {
     expect(c.isOperate('MYSQL')).toBe(true);
   });
 });
+
+describe('operate-layer classification — an invalid template', () => {
+  const invalid: Partial<TemplateRow> = {
+    status: 'invalid',
+    effective: null,
+    problems: [{ path: ['components'], message: 'Required' }],
+  };
+
+  it('stays operate when it says so, though nothing renders it', () => {
+    const c = classifySnapshot(sync([row('SO11Y_OAP', { key: 'SO11Y_OAP', visibility: 'operate' }, invalid)]));
+    expect(c.isOperate('SO11Y_OAP')).toBe(true);
+  });
+
+  it('counts as operate when its visibility cannot be read as public', () => {
+    const c = classifySnapshot(sync([row('SO11Y_OAP', { key: 'SO11Y_OAP', visibility: 42 }, invalid)]));
+    expect(c.isOperate('SO11Y_OAP')).toBe(true);
+    const unparseable = row('SO11Y_JAVA', {}, { ...invalid, remote: { id: 'x', configuration: '{"name":', disabled: false } });
+    expect(classifySnapshot(sync([unparseable])).isOperate('SO11Y_JAVA')).toBe(true);
+  });
+
+  it('stays ordinary when it plainly is', () => {
+    const c = classifySnapshot(sync([row('GENERAL', { key: 'GENERAL' }, invalid)]));
+    expect(c.isOperate('GENERAL')).toBe(false);
+  });
+
+  it('keeps that verdict after it is removed', () => {
+    const removed = row('SO11Y_JAVA', {}, {
+      status: 'disabled',
+      effective: null,
+      problems: [{ path: [], message: 'not valid JSON' }],
+      remote: { id: 'x', configuration: '{"name":', disabled: true },
+    });
+    expect(classifySnapshot(sync([removed])).isOperate('SO11Y_JAVA')).toBe(true);
+  });
+
+  it('reads nothing from a broken record under a name the layer is not read from', () => {
+    const misnamed = row('SO11Y_OAP', {}, {
+      ...invalid,
+      name: 'horizon.layer.so11y_oap',
+      remote: { id: 'horizon.layer.so11y_oap', configuration: '{"name":', disabled: false },
+    });
+    expect(classifySnapshot(sync([misnamed, row('SO11Y_OAP', { key: 'SO11Y_OAP' })])).isOperate('SO11Y_OAP')).toBe(false);
+  });
+});

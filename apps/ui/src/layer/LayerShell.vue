@@ -192,7 +192,7 @@ const layerMissing = computed<boolean>(() => {
 // plain not-found card until it reloads.
 const { bundle } = useConfigBundle();
 const missingReason = computed<LayerMissingReason>(() =>
-  layerMissingReason(bundle.value?.syncStatus.conflicts, entry.value.ref.layer),
+  layerMissingReason(bundle.value?.syncStatus.conflicts, entry.value.ref.layer, bundle.value?.syncStatus.invalid),
 );
 // The duplicate is resolved on the template admin page; link there only for
 // operators who may open it (the route itself requires `layer-template:read`).
@@ -200,7 +200,7 @@ const canOpenLayerTemplates = computed<boolean>(() => auth.hasVerb('layer-templa
 // Held back until the roster answers, so a layer the caller may not open never
 // flashes "Layer not found" before the refusal lands.
 const accessPending = computed<boolean>(
-  () => layerMissing.value && missingReason.value !== 'duplicated' && rosterLoading.value,
+  () => layerMissing.value && missingReason.value === 'unknown' && rosterLoading.value,
 );
 const canReadEvents = computed<boolean>(
   () => !!layer.value && auth.hasVerbOnLayer('events:read', layer.value.key, layer.value.visibility === 'operate'),
@@ -813,6 +813,25 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
             {{ t('More than one enabled OAP record holds the dashboard template for') }} <code>{{ entryLayerLabel }}</code>.
             {{ t('Which definition to render is ambiguous, so Horizon hides the layer and changes nothing on its own. Retire the extra record on OAP to bring it back.') }}
           </p>
+          <p class="missing-links">
+            <RouterLink v-if="canOpenLayerTemplates" to="/admin/layer-dashboards">
+              {{ t('Dashboard setup → Layer dashboards') }}
+            </RouterLink>
+            <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>
+          </p>
+        </div>
+      </div>
+      <div v-else-if="missingReason === 'invalid'" class="sw-card missing-card">
+        <Icon name="alert" :size="18" />
+        <div>
+          <h2>{{ t('Layer dashboard template is invalid') }}</h2>
+          <i18n-t
+            keypath="The dashboard template stored on OAP for {layer} would break the pages built from it, so Horizon serves it to nobody and changes nothing on its own. Check its problems, or disable it before configuring a new one."
+            tag="p"
+            scope="global"
+          >
+            <template #layer><code>{{ entryLayerLabel }}</code></template>
+          </i18n-t>
           <p class="missing-links">
             <RouterLink v-if="canOpenLayerTemplates" to="/admin/layer-dashboards">
               {{ t('Dashboard setup → Layer dashboards') }}

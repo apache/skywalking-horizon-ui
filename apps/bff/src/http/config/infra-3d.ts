@@ -57,6 +57,15 @@ export function registerInfra3dConfigRoutes(
     { preHandler: auth },
     async (_req: FastifyRequest, reply: FastifyReply) => {
       const cfg = await resolveEffectiveConfig(deps);
+      // The stored config is the operator's and it cannot be served: say so,
+      // rather than calling it an unreachable store.
+      if (cfg === 'invalid') {
+        return reply.code(409).send({
+          error: 'template_invalid',
+          reason:
+            'The 3D map configuration stored on OAP is invalid, so it is not served. An administrator sees each problem, and removes it before configuring a new one, under Dashboard setup → 3D Infra Map.',
+        });
+      }
       // Live + ui_template store unreachable → block, exactly like every other
       // surface (the UI renders its connectivity-empty state). The 3D map used
       // to be the lone exception that silently served the bundle here.
@@ -93,12 +102,12 @@ export function registerInfra3dConfigRoutes(
  * supplies that row — a real OAP row in live mode, the synthetic bundled row in
  * readonly — so readonly renders the bundle through the SAME remote path.
  *
- * Returns null (→ the route blocks with 503) when there is no usable remote
- * row: the store is unreachable, the row is absent / not-yet-seeded / disabled,
- * or the remote envelope is invalid. A live ui_template outage must surface as
+ * Returns `'invalid'` (→ 409) when the stored config fails the read check, and
+ * null (→ the route blocks with 503) when there is no usable remote row: the
+ * store is unreachable, or the row is absent / not-yet-seeded / disabled. A live ui_template outage must surface as
  * a block like every other surface, not a silent stale bundle.
  */
-async function resolveEffectiveConfig(deps: Infra3dConfigRouteDeps): Promise<Infra3dConfig | null> {
+async function resolveEffectiveConfig(deps: Infra3dConfigRouteDeps): Promise<Infra3dConfig | 'invalid' | null> {
   try {
     const sync = await getSyncStatus({
       client: deps.uiTemplateClient(),
@@ -108,6 +117,7 @@ async function resolveEffectiveConfig(deps: Infra3dConfigRouteDeps): Promise<Inf
     if (sync.unreachable) return null;
     const name = formatName('infra-3d', INFRA3D_CONFIG_KEY);
     const row = sync.rows.find((r) => r.name === name);
+    if (row?.status === 'invalid') return 'invalid';
     if (row && row.status !== 'disabled' && row.effective === 'remote' && row.remote) {
       const env = parseEnvelope(row.remote.configuration);
       if (env) {

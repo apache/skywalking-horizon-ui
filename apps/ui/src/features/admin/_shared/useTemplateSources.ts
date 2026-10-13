@@ -54,15 +54,18 @@ export function useTemplateSources(kind: TemplateKind) {
     staleTime: 30_000,
   });
 
-  /** Source rows only (no overlay siblings). Indexed by name. */
+  /** Source rows only (no overlay siblings). Indexed by name. A stored copy
+   *  with problems — enabled or disabled — counts as no remote content at
+   *  all: no draft or diff is ever built on content nobody can render. */
   const rowsByName = computed(() => {
-    const m = new Map<string, { bundled: string | null; remote: string | null }>();
+    const m = new Map<string, { bundled: string | null; remote: string | null; stored: boolean }>();
     for (const r of q.data.value?.rows ?? []) {
       if (r.kind !== kind) continue;
       if (r.locale) continue;
       m.set(r.name, {
         bundled: r.bundled?.configuration ?? null,
-        remote: r.remote?.configuration ?? null,
+        remote: r.problems?.length ? null : (r.remote?.configuration ?? null),
+        stored: !!r.remote,
       });
     }
     return m;
@@ -99,12 +102,14 @@ export function useTemplateSources(kind: TemplateKind) {
     hasRemote(name: string): boolean {
       return !!rowsByName.value.get(name)?.remote;
     },
-    /** Names of every template OAP currently serves (this kind). Lets an
+    /** Names of every template OAP holds a record of (this kind). Lets an
      *  admin page surface remote-only templates — ones that exist on OAP
-     *  with no bundled/disk base, e.g. a dashboard created + pushed here. */
+     *  with no bundled/disk base, e.g. a dashboard created + pushed here.
+     *  A record with problems is included, so the template stays reachable
+     *  for its repair, although {@link remote} offers none of its content. */
     remoteNames(): string[] {
       const out: string[] = [];
-      for (const [name, row] of rowsByName.value) if (row.remote) out.push(name);
+      for (const [name, row] of rowsByName.value) if (row.stored) out.push(name);
       return out;
     },
     /** True when this template ships a bundled (built-in) default. Such a

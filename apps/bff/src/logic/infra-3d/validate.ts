@@ -247,3 +247,10 @@ export function validateInfra3dConfig(input: unknown): ValidationResult {
   );
   return { ok: false, issues };
 }
+
+/** The same verdict as {@link validateInfra3dConfig}, with each defect's path
+ *  kept as a path rather than flattened into its message. */
+export function infra3dConfigIssues(input: unknown): z.ZodIssue[] {
+  const parsed = configSchema.safeParse(stripCommentKeys(input));
+  return parsed.success ? [] : parsed.error.issues;
+}

@@ -302,9 +302,12 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // The rest address a row (or every row), so the verb follows the row's KIND
   // and is enforced in the handler — see rbac/template-verbs.ts.
   'POST /api/admin/templates/disable':             'auth',
+  'POST /api/admin/templates/enable':              'auth',
   'POST /api/admin/templates/:name/push-bundled':  'auth',
   'POST /api/admin/templates/sync-all':            'auth',
   'POST /api/admin/templates/save':                'auth',
+  // A dry run of `save` for Import; verb by the row's kind, in the handler.
+  'POST /api/admin/templates/validate':            'auth',
 
   'GET /api/rule':                                 'rule:read',
   'GET /api/rule/status':                          'rule:read',

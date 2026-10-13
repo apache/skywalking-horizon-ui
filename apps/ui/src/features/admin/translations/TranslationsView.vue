@@ -31,7 +31,7 @@
   diff modal (remote vs local) and publishes via templateSync.save.
 -->
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   buildOverlayExportEnvelope,
@@ -40,6 +40,8 @@ import {
   pickJsonFile,
 } from '@/features/admin/_shared/templatePortability';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
+import { serverRefusal, syntaxRefusal, useRefusedImport } from '@/features/admin/_shared/importCheck';
 import LayerDashboardCanvas from '@/features/admin/_shared/LayerDashboardCanvas.vue';
 import OverviewDashboardCanvas from '@/features/admin/_shared/OverviewDashboardCanvas.vue';
 import TemplatePicker from '@/features/admin/_shared/TemplatePicker.vue';
@@ -50,7 +52,7 @@ import TranslationFieldPanel from './TranslationFieldPanel.vue';
 import { useTranslationPicker } from './useTranslationPicker';
 import { useTranslationDraft, type EffectiveSource } from './useTranslationDraft';
 import { useLocalTranslationEdits } from '@/controls/localTranslationEdits';
-import { refreshConfigBundle } from '@/controls/configBundle';
+import { refreshConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { bff, BffApiError } from '@/api/client';
 import { stableStringify } from '@/utils/stableJson';
 import { type TranslatableField } from '@/features/admin/_shared/translatableFields';
@@ -62,6 +64,7 @@ import type {
   DashboardWidget,
   DashboardScope,
 } from '@skywalking-horizon-ui/api-client';
+const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/admin/_shared/TemplateProblemsDialog.vue'));
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -217,7 +220,7 @@ function openPanel(fields: TranslatableField[], label: string, el: HTMLElement, 
   // Leftover entries block editing for the same reason they block the push:
   // whatever is typed here can only leave the browser through a push, and a
   // push would take the leftovers with it.
-  if (staleBlocked.value) return;
+  if (localeBlocked.value) return;
   // Widgets with no translatable text (e.g. a topology widget that
   // only carries `layer`) shouldn't open an empty panel.
   if (fields.length === 0) return;
@@ -376,8 +379,21 @@ function prettyJson(o: unknown): string {
  * through every future edit.
  */
 const staleBlocked = computed<boolean>(() => staleOverlayForTarget.value.length > 0);
+
+/** The translation stored for this language is invalid. It is checked or
+ *  removed before the language is edited again — so, like leftovers, it makes
+ *  the language read-only, and unlike them nothing here publishes over it. */
+const { bundle: configBundle } = useConfigBundle();
+const invalidBlocked = computed<boolean>(() => {
+  const name = `${selectedName.value}.i18n.${target.value}`;
+  return (configBundle.value?.syncStatus?.invalid ?? []).some((r) => r.name === name);
+});
+const localeBlocked = computed<boolean>(() => staleBlocked.value || invalidBlocked.value);
+const ownsOverlay = (r: { kind: string; locale?: string }): boolean => r.locale !== undefined;
 const blockedHint = computed<string>(() =>
-  t('Remove the leftover entries first — this language is read-only until then.'),
+  invalidBlocked.value
+    ? t('Disable the invalid translation first — this language is read-only until then.')
+    : t('Remove the leftover entries first — this language is read-only until then.'),
 );
 
 /**
@@ -393,7 +409,7 @@ const blockedHint = computed<string>(() =>
 // A refetch can introduce leftovers while the panel is open. The gate is
 // on opening, so without this the operator keeps typing into a language
 // that can no longer accept it.
-watch(staleBlocked, (blocked) => {
+watch(localeBlocked, (blocked) => {
   if (blocked) closePanel();
 });
 
@@ -497,8 +513,27 @@ async function writeOverlay(name: string, loc: Locale, overlay: Record<string, u
   fetchedOverlays.value = next;
 }
 
+/** The banner disabled or enabled a translation record: the snapshot this
+ *  page holds for that language is stale, and an open language would keep
+ *  editing against it — a translation enabled again would read as absent,
+ *  and the next publish would drop what it holds. Read it again. */
+async function onStoredTemplateChanged(recordName: string): Promise<void> {
+  const m = /^(.+)\.i18n\.([^.]+)$/.exec(recordName);
+  if (m) {
+    const name = m[1]!;
+    const loc = m[2]!;
+    const next = { ...fetchedOverlays.value };
+    delete next[overlayKey(name, loc)];
+    fetchedOverlays.value = next;
+    if (name === selectedName.value && loc !== 'en' && (SUPPORTED_LOCALES as readonly string[]).includes(loc)) {
+      await ensureOverlayFor(loc as Locale);
+    }
+  }
+  await onRefreshTemplates();
+}
+
 async function pushToOap(): Promise<void> {
-  if (staleBlocked.value) return; // the sweep is the only push allowed here
+  if (localeBlocked.value) return; // the sweep is the only push allowed here
   await publishOverlay();
 }
 
@@ -599,13 +634,19 @@ function onExport(): void {
 // Import stages a translation file as a LOCAL draft. A Horizon overlay
 // envelope targets its own (template, locale) — switching the picker to
 // it; a bare overlay object goes into the current selection.
+const refusedImport = useRefusedImport();
 async function onImportFile(): Promise<void> {
-  if (readOnly.value || staleBlocked.value) return;
+  if (readOnly.value || localeBlocked.value) return;
   const text = await pickJsonFile();
   if (text === null) return;
+  const syntax = syntaxRefusal(text);
+  if (syntax) {
+    refusedImport.refused.value = syntax;
+    return;
+  }
   const res = parseOverlayImport(text);
   if (!res.ok) {
-    flashMsg(t('Import failed: {error}', { error: res.error }));
+    refusedImport.refused.value = { text, problems: [{ path: [], message: res.error }] };
     return;
   }
   const kind = res.kind ?? selectedKind.value;
@@ -622,13 +663,34 @@ async function onImportFile(): Promise<void> {
       flashMsg(t('Template {name} is not loaded on this deployment.', { name }));
       return;
     }
-    selectedKind.value = kind;
-    selectedName.value = name;
   }
+  // Checked against the source it would merge into, as publishing it would
+  // be — a file that cannot be published is refused before it is staged.
+  // The page is switched to the file's template only afterwards, and back to
+  // it if the selection moved while the check ran, so the draft is built from
+  // the template the file belongs to.
+  const overlayName = `${name}.i18n.${loc}`;
+  if ((configBundle.value?.syncStatus?.invalid ?? []).some((r) => r.name === overlayName)) {
+    flashMsg(t('Disable the invalid translation first — this language is read-only until then.'));
+    return;
+  }
+  let refused;
+  try {
+    refused = await serverRefusal(overlayName, text, res.content);
+  } catch (err) {
+    flashMsg(t('Import failed: {error}', { error: err instanceof Error ? err.message : String(err) }));
+    return;
+  }
+  if (refused) {
+    refusedImport.refused.value = refused;
+    return;
+  }
+  selectedKind.value = kind;
+  selectedName.value = name;
   target.value = loc;
   await nextTick();
   const eff = effective.value;
-  if (!eff) {
+  if (!eff || selectedName.value !== name) {
     flashMsg(t('Could not load the target template.'));
     return;
   }
@@ -662,6 +724,13 @@ async function onImportFile(): Promise<void> {
     </header>
 
     <SyncStatusBanner :banner="banner" />
+    <StoredTemplatesBanner :owns="ownsOverlay" :read-only="readOnly" @changed="onStoredTemplateChanged" />
+    <div v-if="invalidBlocked" class="tv__stale" data-testid="invalid-selected">
+      <span class="tv__stale-tag">{{ t('Invalid') }}</span>
+      <span class="tv__stale-text">{{
+        t('The translation stored on OAP for this language is invalid, so it is not applied — this language shows in English. Check its problems or disable it in the list above before translating it again.')
+      }}</span>
+    </div>
 
     <!-- Translations for widgets, pages or scopes the template no longer
          has. This language is read-only until they go: see `staleBlocked`
@@ -673,7 +742,7 @@ async function onImportFile(): Promise<void> {
       <span class="tv__stale-text">{{
         t('This language stores translations for widgets or pages this template no longer has. Editing and publishing are blocked until they are removed — a push rebuilds the whole row, so it would drop them without saying so.')
       }}</span>
-      <button type="button" class="sw-btn xs is-primary" :disabled="readOnly || saving" @click="openSweep">
+      <button type="button" class="sw-btn xs is-primary" :disabled="readOnly || saving || invalidBlocked" @click="openSweep">
         {{ saving ? t('Removing…') : t('Remove them') }}
       </button>
       <details class="tv__stale-list">
@@ -778,8 +847,8 @@ async function onImportFile(): Promise<void> {
         <button
           type="button"
           class="sw-btn"
-          :disabled="staleBlocked || readOnly"
-          :title="staleBlocked ? blockedHint : t('Import a translation JSON file as a local draft — review, then publish.')"
+          :disabled="localeBlocked || readOnly"
+          :title="localeBlocked ? blockedHint : t('Import a translation JSON file as a local draft — review, then publish.')"
           @click="onImportFile"
         >{{ t('Import') }}</button>
         <!-- Reset to ▾ dropdown — matches the layer / overview
@@ -789,8 +858,8 @@ async function onImportFile(): Promise<void> {
           <button
             type="button"
             class="sw-btn"
-            :disabled="readOnly || !selectedName || staleBlocked"
-            :title="staleBlocked ? blockedHint : undefined"
+            :disabled="readOnly || !selectedName || localeBlocked"
+            :title="localeBlocked ? blockedHint : undefined"
             @click="resetDropdownOpen = !resetDropdownOpen"
           >
             {{ t('reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -823,15 +892,15 @@ async function onImportFile(): Promise<void> {
         <button
           type="button"
           class="sw-btn"
-          :disabled="!dirty || saving || staleBlocked || readOnly"
-          :title="staleBlocked ? blockedHint : undefined"
+          :disabled="!dirty || saving || localeBlocked || readOnly"
+          :title="localeBlocked ? blockedHint : undefined"
           @click="stageLocal"
         >{{ t('Stage local') }}</button>
         <button
           type="button"
           class="sw-btn is-primary"
-          :disabled="!dirty || saving || staleBlocked || readOnly"
-          :title="staleBlocked ? blockedHint : undefined"
+          :disabled="!dirty || saving || localeBlocked || readOnly"
+          :title="localeBlocked ? blockedHint : undefined"
           @click="pushOpen = true"
         >{{ t('Check diff & push') }}</button>
       </div>
@@ -942,6 +1011,14 @@ async function onImportFile(): Promise<void> {
         </button>
       </template>
     </Modal>
+    <TemplateProblemsDialog
+      v-if="refusedImport.refused.value"
+      :open="true"
+      :title="t('This file cannot be imported')"
+      :text="refusedImport.refused.value.text"
+      :problems="refusedImport.refused.value.problems"
+      @close="refusedImport.close"
+    />
   </div>
 </template>
 

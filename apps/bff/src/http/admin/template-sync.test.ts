@@ -110,8 +110,12 @@ function makeStore() {
       return reply({ id, status: true, message: '' });
     }
     const body = JSON.parse(String(init?.body ?? '{}')) as { id: string; configuration: string };
+    // BanyanDB, OAP's default storage: create is a whole-record upsert (it
+    // enables), update patches the configuration alone (it does not).
     if (method === 'POST') {
-      rows.push({ id: body.id, configuration: body.configuration, disabled: false });
+      const existing = rows.find((r) => r.id === body.id);
+      if (existing) Object.assign(existing, { configuration: body.configuration, disabled: false });
+      else rows.push({ id: body.id, configuration: body.configuration, disabled: false });
       writes.push({ op: 'create', id: body.id });
       return reply({ id: body.id, status: true, message: '' });
     }
@@ -1232,6 +1236,180 @@ describe('POST /api/admin/templates/save — documentLink link policy', () => {
 
     expect(res.statusCode).toBe(200);
     expect(store.writes.length).toBe(1);
+    await app.close();
+  });
+});
+
+describe('an invalid stored template — checked or disabled, never written over', () => {
+  beforeEach(() => resync());
+
+  /** GENERAL stored without `components`: valid JSON, but no page can be built from it. */
+  function storeWithInvalidGeneral() {
+    const store = makeStore();
+    const broken = { ...validLayer('GENERAL') };
+    delete broken.components;
+    store.rows.push({
+      id: 'horizon.layer.GENERAL',
+      configuration: JSON.stringify({ name: 'horizon.layer.GENERAL', kind: 'layer', version: 1, content: broken }),
+      disabled: false,
+    });
+    return store;
+  }
+
+  it('lists it on the sync status with its problems', async () => {
+    const store = storeWithInvalidGeneral();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await app.inject({ method: 'GET', url: '/api/admin/templates/sync-status?force=true', headers: { cookie: c } });
+    const row = (res.json() as { rows: Array<{ name: string; status: string; problems?: unknown }> }).rows.find(
+      (r) => r.name === 'horizon.layer.GENERAL',
+    );
+    expect(row).toMatchObject({ status: 'invalid', problems: [{ path: ['components'], message: 'Required' }] });
+    await app.close();
+  });
+
+  it('refuses a save over it', async () => {
+    const store = storeWithInvalidGeneral();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/save', c, { name: 'horizon.layer.GENERAL', content: validLayer('GENERAL') });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { code: string }).code).toBe('template_invalid');
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a reset to the shipped default over it', async () => {
+    const store = storeWithInvalidGeneral();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/horizon.layer.GENERAL/push-bundled', c);
+    expect(res.statusCode).toBe(409);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('disables it, after which a new one is configured — and enabled', async () => {
+    const store = storeWithInvalidGeneral();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const disabled = await post(app, '/api/admin/templates/disable', c, { name: 'horizon.layer.GENERAL' });
+    expect(disabled.statusCode).toBe(200);
+    const saved = await post(app, '/api/admin/templates/save', c, { name: 'horizon.layer.GENERAL', content: validLayer('GENERAL') });
+
+    expect(saved.statusCode).toBe(200);
+    // The update leaves a BanyanDB record disabled; create re-enables it.
+    expect(store.writes.map((w) => w.op)).toEqual(['disable', 'update', 'create']);
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]!.disabled).toBe(false);
+    await app.close();
+  });
+});
+
+describe('POST /api/admin/templates/enable — a disabled record comes back as it was stored', () => {
+  beforeEach(() => resync());
+
+  const stored = (key: string, content: Json, disabled: boolean) => ({
+    id: `horizon.layer.${key}`,
+    configuration: JSON.stringify({ name: `horizon.layer.${key}`, kind: 'layer', version: 1, content }),
+    disabled,
+  });
+
+  it('turns it back on with the content it holds', async () => {
+    const store = makeStore();
+    const row = stored('GENERAL', { ...validLayer('GENERAL'), alias: 'Edited before it was disabled' }, true);
+    store.rows.push(row);
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/enable', c, { name: 'horizon.layer.GENERAL' });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.rows).toEqual([{ ...row, disabled: false }]);
+    // The update leaves a BanyanDB record disabled; create re-enables it.
+    expect(store.writes.map((w) => w.op)).toEqual(['update', 'create']);
+    await app.close();
+  });
+
+  it('turns an invalid record back on as it is — and it is invalid again', async () => {
+    const store = makeStore();
+    const broken = { ...validLayer('GENERAL') };
+    delete broken.components;
+    const row = stored('GENERAL', broken, true);
+    store.rows.push(row);
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/enable', c, { name: 'horizon.layer.GENERAL' });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.rows).toEqual([{ ...row, disabled: false }]);
+    const after = (res.json() as { rows: Array<{ name: string; status: string }> }).rows.find(
+      (r) => r.name === 'horizon.layer.GENERAL',
+    );
+    expect(after?.status).toBe('invalid');
+    await app.close();
+  });
+
+  it('writes nothing for a record that is not disabled', async () => {
+    const store = makeStore();
+    store.rows.push(stored('GENERAL', validLayer('GENERAL'), false));
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/enable', c, { name: 'horizon.layer.GENERAL' });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('needs the write verb of the kind it turns on', async () => {
+    const store = makeStore();
+    store.rows.push(stored('GENERAL', validLayer('GENERAL'), true));
+    const { app, cookie: c } = await buildAppAs(store.fetchImpl, ['layer-template:read']);
+
+    const res = await post(app, '/api/admin/templates/enable', c, { name: 'horizon.layer.GENERAL' });
+
+    expect(res.statusCode).toBe(403);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+});
+
+describe('POST /api/admin/templates/validate — the save checks, without saving', () => {
+  beforeEach(() => resync());
+
+  it('answers the problems a save would refuse, with their paths', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    ((broken.dashboards as Json).service as Json[])[0].span = '';
+
+    const res = await post(app, '/api/admin/templates/validate', c, { name: 'horizon.layer.GENERAL', content: broken });
+
+    expect(res.statusCode).toBe(200);
+    const { problems } = res.json() as { problems: Array<{ path: Array<string | number> }> };
+    expect(problems.map((p) => p.path.join('.'))).toContain('dashboards.service.0.span');
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('answers no problems for content a save accepts', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/validate', c, { name: 'horizon.layer.GENERAL', content: validLayer('GENERAL') });
+    expect(res.json()).toEqual({ problems: [] });
+    await app.close();
+  });
+
+  it('names a content that is another template, as the save does', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/validate', c, { name: 'horizon.layer.GENERAL', content: validLayer('MESH') });
+    expect((res.json() as { problems: Array<{ path: string[] }> }).problems.map((p) => p.path)).toEqual([['key']]);
+    await app.close();
+  });
+
+  it('is refused to a caller who could not save the template', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildAppAs(store.fetchImpl, ['layer-template:read']);
+    const res = await post(app, '/api/admin/templates/validate', c, { name: 'horizon.layer.GENERAL', content: validLayer('GENERAL') });
+    expect(res.statusCode).toBe(403);
     await app.close();
   });
 });

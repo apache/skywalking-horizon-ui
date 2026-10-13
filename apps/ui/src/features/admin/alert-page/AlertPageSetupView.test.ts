@@ -252,15 +252,16 @@ describe('Alarm pages admin — new page', () => {
     return w.findAll('.nap__err').map((e) => e.text());
   }
 
-  it('refuses a malformed, reserved or already stored id — a disabled row included', async () => {
+  it('refuses a malformed, reserved or already stored id — a deleted page’s id is free again', async () => {
     const w = await mountView();
     await w.find('.apl__new').trigger('click');
     expect((await typeId(w, 'Payments'))[0]).toMatch(/lower-case letters/);
     expect((await typeId(w, 'default'))[0]).toMatch(/reserved/);
     expect((await typeId(w, 'page-setup'))[0]).toMatch(/reserved/);
-    expect((await typeId(w, 'retired'))[0]).toMatch(/already stored on OAP/);
     expect((await typeId(w, 'oncall'))[0]).toMatch(/already stored on OAP/);
     expect(listLabels(w)).not.toContain('Payments');
+    expect(await typeId(w, 'retired')).toEqual([]);
+    expect(listLabels(w)).toContain('Payments');
   });
 
   it('opens a valid new page unsaved, and saves it only once it has a pin', async () => {
@@ -283,10 +284,9 @@ describe('Alarm pages admin — new page', () => {
   });
 
   // The modal checked the id when the page was named; a save is what writes
-  // it, so the check is made again then. A row stored under the id since —
-  // disabled, or someone else's page — must not be written into.
+  // it, so the check is made again then. Someone else's page stored under the
+  // id since must not be written into; a deleted one may, which turns it back on.
   it.each([
-    ['a disabled row', alertRow('payments', { id: 'payments', title: 'Payments', pinnedLayers: ['GENERAL'] }, true)],
     ['another page', alertRow('payments', { id: 'payments', title: 'Theirs', pinnedLayers: ['MESH'] })],
   ])('refuses at save time an id stored since it was named — %s — and keeps the page unsaved', async (_, taken) => {
     const w = await mountView();

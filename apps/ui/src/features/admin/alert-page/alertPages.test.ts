@@ -72,8 +72,8 @@ describe('namedPagesFromRows', () => {
     expect(byId.get('moved')?.mismatched).toBe(true);
   });
 
-  it('counts every alert row as a taken id, disabled ones included', () => {
-    expect([...takenPageIds(rows)].sort()).toEqual(['a', 'b', 'default', 'first', 'gone', 'moved', 'page-setup', 'zeta']);
+  it('counts every enabled alert row as a taken id — a deleted page’s id is free again', () => {
+    expect([...takenPageIds(rows)].sort()).toEqual(['a', 'b', 'default', 'first', 'moved', 'page-setup', 'zeta']);
   });
 
   it('reads the content of an enabled row only', () => {

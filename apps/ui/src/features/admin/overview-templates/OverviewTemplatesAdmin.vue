@@ -36,7 +36,7 @@
   decisions, not config tweaks.
 -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
@@ -46,7 +46,9 @@ import type { OverviewTemplateSummary } from '@/api/scopes/overview';
 import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplateEdits';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
-import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { buildExportEnvelope, downloadJson, pickJsonFile } from '@/features/admin/_shared/templatePortability';
+import { checkImportedFile, useRefusedImport } from '@/features/admin/_shared/importCheck';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { useLayers } from '@/shell/useLayers';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
@@ -60,6 +62,7 @@ import OverviewEditCanvas from './OverviewEditCanvas.vue';
 import OverviewWidgetDrawer from './OverviewWidgetDrawer.vue';
 import NewOverviewDashboardModal from './NewOverviewDashboardModal.vue';
 import { overviewLayerOptions } from './layerOptions';
+const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/admin/_shared/TemplateProblemsDialog.vue'));
 
 // OAP UI-template sync status for the Overview kind. Drives the
 // page-level banner + read-only mode + per-row badge lookup.
@@ -185,6 +188,7 @@ const pickerEntries = computed<TemplatePickerEntry[]>(() =>
     label: d.title,
     key: d.id,
     syncBadge: sync.badgeFor(`horizon.overview.${d.id}`),
+    invalid: sync.invalidFor(`horizon.overview.${d.id}`),
     hasLocalDraft: hasLocalDraftFor(d.id),
     isDiverged: isDivergedRow(d.id),
     conflictIds: sync.conflictFor(`horizon.overview.${d.id}`)?.enabledIds ?? null,
@@ -303,8 +307,8 @@ onMounted(() => void refreshConfigBundle({ force: true }));
 // A local-only draft (never pushed) is truly removed from the browser —
 // a real hard delete, it was never on OAP. Anything on OAP (bundled or
 // remote-only) is soft-disabled, because OAP has no hard DELETE; a
-// disabled template drops out of the bundle, so it vanishes from the UI.
-// Either way it's irreversible from the UI (no re-enable entrance).
+// disabled template drops out of the bundle, so it vanishes from the UI
+// until it is enabled again from the page's disabled templates.
 // Styled confirm (replaces window.confirm — native box breaks the dark
 // design). `askDeleteDash` opens it with the right copy; `confirmDeleteDash`
 // runs the actual delete/disable.
@@ -323,11 +327,11 @@ function askDeleteDash(): void {
     deleteConfirmLabel.value = t('Delete draft');
   } else if (bundledExists.value) {
     deleteTitle.value = t('Disable built-in dashboard?');
-    deleteMessage.value = t('Disable the built-in dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. This can\'t be undone from the UI.', { id });
+    deleteMessage.value = t('Disable the built-in dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. It can be enabled again from the disabled templates on this page.', { id });
     deleteConfirmLabel.value = t('Disable');
   } else {
     deleteTitle.value = t('Delete dashboard?');
-    deleteMessage.value = t('Delete the dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. This can\'t be undone from the UI.', { id });
+    deleteMessage.value = t('Delete the dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. It can be enabled again from the disabled templates on this page.', { id });
     deleteConfirmLabel.value = t('Delete');
   }
   deleteOpen.value = true;
@@ -356,12 +360,21 @@ async function confirmDeleteDash(): Promise<void> {
   }
 }
 
+/** The selected dashboard's stored copy is enabled and invalid: the page offers
+ *  only its problems, a download and Disable — never the editor, and no draft
+ *  of it. */
+const selectedInvalid = computed(
+  () => !!selectedId.value && sync.badgeFor(`horizon.overview.${selectedId.value}`) === 'invalid',
+);
+const ownsOverviewTemplate = (r: { kind: string; locale?: string }): boolean =>
+  r.kind === 'overview' && r.locale === undefined;
+
 const detailQuery = useQuery({
   queryKey: computed(() => ['admin/overview-templates', selectedId.value]),
   queryFn: () => bff.overview.adminGet(selectedId.value),
   // Don't fetch detail for a local-only draft — there's no server copy
   // (it would 404); the editor loads it straight from the local draft.
-  enabled: computed(() => selectedId.value.length > 0 && isServerBacked.value),
+  enabled: computed(() => selectedId.value.length > 0 && isServerBacked.value && !selectedInvalid.value),
   staleTime: 60_000,
 });
 
@@ -723,13 +736,20 @@ function onExport(): void {
 // matters: set the draft first so `localOnlyDrafts` sees a new id before
 // the auto-select watchEffect runs, then select + force-load local so an
 // unsaved-but-dirty editor doesn't suppress the seed watcher.
+const refusedImport = useRefusedImport();
 async function onImportFile(): Promise<void> {
   if (sync.readOnly.value) return;
   const text = await pickJsonFile();
   if (text === null) return;
-  const res = validateImport('overview', text);
+  let res;
+  try {
+    res = await checkImportedFile('overview', text);
+  } catch (err) {
+    setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : String(err));
+    return;
+  }
   if (!res.ok) {
-    setFlash(res.error);
+    refusedImport.refused.value = res.view;
     return;
   }
   const id = res.key;
@@ -783,6 +803,11 @@ function removeWidget(idx: number): void {
     </header>
 
     <SyncStatusBanner :banner="sync.banner.value" />
+    <StoredTemplatesBanner
+      :owns="ownsOverviewTemplate"
+      :read-only="sync.readOnly.value"
+      @changed="refreshFromRemote"
+    />
 
     <div v-if="listQuery.isPending.value" class="ot__empty">{{ t('loading…') }}</div>
 
@@ -816,7 +841,10 @@ function removeWidget(idx: number): void {
              decision Horizon never takes. -->
         <SyncStatusBanner v-if="selectedConflictBanner" :banner="selectedConflictBanner" />
 
-        <div v-if="detailQuery.isPending.value && !draft" class="ot__empty">{{ t('loading…') }}</div>
+        <div v-if="selectedInvalid" class="ot__empty ot__invalid" data-testid="invalid-selected">
+          {{ t('The copy of this dashboard stored on OAP is invalid, so nobody is served it. Check its problems or disable it in the list above before configuring a new one.') }}
+        </div>
+        <div v-else-if="detailQuery.isPending.value && !draft" class="ot__empty">{{ t('loading…') }}</div>
         <!-- Overview selected but no working copy: no local draft, no OAP
              row. We do NOT auto-load the bundled default (seed/reset source
              only); the operator adopts it explicitly. -->
@@ -841,7 +869,7 @@ function removeWidget(idx: number): void {
             <span v-else class="ot__clean">{{ t('saved') }}</span>
             <!-- Delete. A local-only draft is removed from the browser; a
                  dashboard on OAP (bundled or remote-only) is soft-disabled
-                 (OAP has no hard delete). Irreversible from the UI. -->
+                 (OAP has no hard delete), and can be enabled again. -->
             <button
               type="button"
               class="ot__head-btn ot__head-btn--danger"
@@ -849,9 +877,9 @@ function removeWidget(idx: number): void {
               :title="sync.readOnly.value
                 ? readOnlyTitle
                 : bundledExists
-                  ? t('Disable built-in dashboard {id} (OAP has no hard delete — hidden, irreversible from the UI)', { id: draft.id })
+                  ? t('Disable built-in dashboard {id} (OAP has no hard delete — hidden until it is enabled again)', { id: draft.id })
                   : remoteAvailable
-                    ? t('Delete dashboard {id} (soft-disabled on OAP — irreversible from the UI)', { id: draft.id })
+                    ? t('Delete dashboard {id} (soft-disabled on OAP — it can be enabled again)', { id: draft.id })
                     : t('Delete local draft {id} (never published)', { id: draft.id })"
               @click="askDeleteDash"
             >{{ bundledExists ? t('disable') : t('delete') }}</button>
@@ -1033,6 +1061,15 @@ function removeWidget(idx: number): void {
       </template>
     </Modal>
 
+    <TemplateProblemsDialog
+      v-if="refusedImport.refused.value"
+      :open="true"
+      :title="t('This file cannot be imported')"
+      :text="refusedImport.refused.value.text"
+      :problems="refusedImport.refused.value.problems"
+      @close="refusedImport.close"
+    />
+
     <!-- Delete / disable confirm — styled (not the native confirm box). -->
     <Modal :open="deleteOpen" :title="deleteTitle" width="min(520px, 92vw)" @close="deleteOpen = false">
       <p class="ot__confirm-msg">{{ deleteMessage }}</p>
@@ -1100,6 +1137,7 @@ function removeWidget(idx: number): void {
 }
 .ot__empty { padding: 32px; text-align: center; color: var(--sw-fg-3); font-size: 12px; }
 .ot__no-remote { text-align: left; max-width: 600px; padding: 24px; }
+.ot__empty.ot__invalid { text-align: left; color: var(--sw-err); border: 1px solid var(--sw-err); border-radius: 6px; background: var(--sw-err-soft); padding: 12px 14px; }
 .ot__no-remote h3 { margin: 0 0 8px; font-size: 14px; color: var(--sw-fg-0); }
 .ot__no-remote p { margin: 0 0 16px; font-size: 12px; line-height: 1.6; color: var(--sw-fg-2); }
 

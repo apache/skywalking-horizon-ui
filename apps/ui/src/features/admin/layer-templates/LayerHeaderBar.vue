@@ -37,6 +37,8 @@ type EditorSource = 'local' | 'bundled' | 'remote';
 const props = defineProps<{
   selectedTpl: AdminLayerTemplate;
   badge: TemplateStatus | null;
+  /** The stored content is invalid, enabled or disabled. */
+  invalid: boolean;
   readOnly: boolean;
   hasLocalDraft: boolean;
   isLayerDisabled: boolean;
@@ -102,7 +104,7 @@ function preview(src: EditorSource): void {
             ? t('Unpublished local draft in this browser — not shown while read-only.')
             : t('Unpublished local draft in this browser')"
         >{{ t('local') }}</span>
-        <TemplateStatusBadge :status="badge" />
+        <TemplateStatusBadge :status="badge" :invalid="invalid" />
       </div>
       <!-- Disable / Reactivate. Sits by the title, away from the
            save/push cluster. OAP deletes no template: a disabled layer

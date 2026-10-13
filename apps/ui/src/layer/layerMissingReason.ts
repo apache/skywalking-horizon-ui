@@ -28,6 +28,10 @@ export type LayerMissingReason =
   /** The layer's own dashboard template sits on more than one enabled OAP
    *  record with differing content, so the BFF hides it from the menu. */
   | 'duplicated'
+  /** The layer's stored dashboard template is invalid, so the BFF hides it.
+   *  Only a reader of layer templates learns this — the bundle reports it to
+   *  nobody else, and they get `unknown`. */
+  | 'invalid'
   /** Everything else: OAP doesn't report the layer, it is admin-disabled,
    *  config-excluded, or the key is a typo. */
   | 'unknown';
@@ -44,9 +48,12 @@ export type LayerMissingReason =
 export function layerMissingReason(
   conflicts: TemplateConflict[] | null | undefined,
   layerKey: string,
+  invalid?: ReadonlyArray<{ name: string }> | null,
 ): LayerMissingReason {
-  if (!conflicts || !layerKey) return 'unknown';
+  if (!layerKey) return 'unknown';
   const name = `horizon.layer.${layerKey.toUpperCase()}`;
+  if (invalid?.some((r) => r.name === name)) return 'invalid';
+  if (!conflicts) return 'unknown';
   const hit = conflicts.some(
     (c) => c.kind === 'layer' && c.name === name && c.identical !== true,
   );

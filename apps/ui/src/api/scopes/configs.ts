@@ -47,6 +47,9 @@ export type TemplateKind =
  *  - `bundled-fallback` — bundled present, remote absent. NOT a render
  *                          source: the entry is dropped from the bundle and
  *                          the page falls to its in-code default
+ *  - `invalid`          — remote enabled, but its content would break the
+ *                          pages built from it, so nothing renders it; listed
+ *                          with its {@link TemplateProblem}s for repair
  *  - `unknown`          — defensive; shouldn't appear */
 export type TemplateStatus =
   | 'synced'
@@ -54,13 +57,30 @@ export type TemplateStatus =
   | 'disabled'
   | 'remote-only'
   | 'bundled-fallback'
+  | 'invalid'
   | 'unknown';
+
+/** One reason a stored template cannot be served (or a file cannot be
+ *  imported). Not translated: it names JSON fields and template names. */
+export interface TemplateProblem {
+  /** From the root of the template's `content`, or of the whole stored
+   *  record when `record` is set. */
+  path: Array<string | number>;
+  message: string;
+  /** The record around the content is the problem (not a template envelope). */
+  record?: true;
+  /** For text that is not valid JSON: where it fails. */
+  offset?: number;
+}
 
 export interface TemplateBadge {
   name: string;
   kind: TemplateKind;
   key: string;
   status: TemplateStatus;
+  /** The stored content is invalid — whether the record is enabled
+   *  (`status: 'invalid'`) or `disabled`, which says nothing about content. */
+  invalid?: true;
 }
 
 /** A template name where OAP has >1 enabled row. The BFF renders the
@@ -116,6 +136,10 @@ export interface BundleSyncStatus {
   conflicts: TemplateConflict[];
   /** Absent on a bundle cached by an older Horizon — read as "none reported". */
   unreadable?: UnreadableTemplateRow[];
+  /** Stored templates — translation overlays included — that are served to
+   *  nobody because their content would break the pages built from them.
+   *  Only the kinds this user may read. Absent on an older cached bundle. */
+  invalid?: Array<{ name: string; kind: TemplateKind; key: string; locale?: string }>;
 }
 
 /** Extension-page widget sets for one layer, keyed `<component>/<pageId>`. */
