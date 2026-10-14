@@ -26,7 +26,7 @@
  */
 
 import { spanOutcome } from '@skywalking-horizon-ui/api-client';
-import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
+import type { TraceQLDatasource, TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 
 const SERVICE_PALETTE = [
   'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
@@ -165,6 +165,19 @@ export function latencyColor(durationUs: number): string {
  * the timestamp hint the popout needs for an old id.
  */
 export const TRACEQL_POPOUT_QUERY = 'traceqlId';
+/** The store the trace in {@link TRACEQL_POPOUT_QUERY} is read from. */
+export const TRACEQL_DS_QUERY = 'ds';
+
+/** The store a layer's TraceQL row reads — each store has its own row — or
+ *  null for a row that is not a TraceQL one. */
+export function traceqlRowDatasource(row: string | undefined): TraceQLDatasource | null {
+  switch (row) {
+    case 'traceql-native-trace': return 'native';
+    case 'traceql-zipkin-trace': return 'zipkin';
+    case 'traceql-otlp-trace': return 'otlp';
+    default: return null;
+  }
+}
 
 export interface SpanTreeRow {
   span: TraceQLSpan;

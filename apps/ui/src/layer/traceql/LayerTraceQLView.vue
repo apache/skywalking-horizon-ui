@@ -40,7 +40,7 @@ import TraceQLEditor from './TraceQLEditor.vue';
 import TraceQLSchemaPanel from './TraceQLSchemaPanel.vue';
 import TraceQLWindowFields from './TraceQLWindowFields.vue';
 import { buildTraceQL, lintTraceQL, serviceInExpression, type BuilderRows } from './traceqlLint';
-import { TRACEQL_POPOUT_QUERY } from './traceqlDetailShared';
+import { TRACEQL_DS_QUERY, TRACEQL_POPOUT_QUERY, traceqlRowDatasource } from './traceqlDetailShared';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { TRACEQL_STATUS_VALUES } from '@/monaco/traceql-grammar';
 import {
@@ -65,11 +65,7 @@ const time = useTimeRangeStore();
 
 const layerKey = computed(() => routeEntryKey.value);
 /** The row decides the store — each store has its own row. */
-const ds = computed<TraceQLDatasource>(() =>
-  routeRow(route) === 'traceql-zipkin-trace' ? 'zipkin'
-    : routeRow(route) === 'traceql-otlp-trace' ? 'otlp'
-      : 'native',
-);
+const ds = computed<TraceQLDatasource>(() => traceqlRowDatasource(routeRow(route)) ?? 'native');
 
 const { statusOf } = useTraceQLSources();
 const status = computed(() => statusOf(ds.value));
@@ -232,15 +228,20 @@ const byId = useTraceQLTraceIds(ds, submittedIds);
  *  does. The overlay below is a different thing: a trace arrived at by URL,
  *  where there is no list for a card to sit beside. */
 const openTraceId = ref<string | null>(null);
+/** Only a trace of THIS row's store: one asked for in another store is the
+ *  global popout's to open, from the store it names. */
 const urlTraceId = computed(() => {
   const raw = route.query[TRACEQL_POPOUT_QUERY];
+  const asked = route.query[TRACEQL_DS_QUERY];
+  if (asked !== undefined && asked !== ds.value) return null;
   return typeof raw === 'string' && raw ? raw : null;
 });
-/** Clears only ITS key: wiping the whole query took the datasource and every
- *  other page parameter with it. */
+/** Clears only ITS keys — the id and the store it names: wiping the whole
+ *  query took every other page parameter with it. */
 function closeUrlTrace(): void {
   const query = { ...route.query };
   delete query[TRACEQL_POPOUT_QUERY];
+  delete query[TRACEQL_DS_QUERY];
   void router.replace({ query });
 }
 // Escape closes it, as it does the native trace popout. The shared helper
@@ -873,7 +874,8 @@ const issueText: Record<string, string> = {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 40;
+  /* With the native and Zipkin popouts, above the AI drawer (420). */
+  z-index: 999;
   display: flex;
   align-items: flex-start;
   justify-content: center;

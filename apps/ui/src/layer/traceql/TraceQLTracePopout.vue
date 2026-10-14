@@ -40,7 +40,8 @@ useEscapeToClose(() => open.value !== null, closeTrace);
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 40;
+  /* With the native and Zipkin popouts, above the AI drawer (420). */
+  z-index: 999;
   display: flex;
   align-items: flex-start;
   justify-content: center;
