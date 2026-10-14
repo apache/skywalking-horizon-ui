@@ -45,11 +45,13 @@ const props = defineProps<{ layerKey?: string; readOnly?: boolean }>();
  *  is edited as the one list it means — and the first edit writes that form
  *  out, as the trace-store checklist does. */
 function ensure(): ProcessTopologyConfig & { edgeMetrics: EdgeMetric[] } {
-  if (!config.value) config.value = {};
-  if (!config.value.edgeMetrics) {
-    config.value = { edgeMetrics: resolveEdgeMetrics(config.value) };
-  }
-  return config.value as ProcessTopologyConfig & { edgeMetrics: EdgeMetric[] };
+  // Returns the block it creates: a model write reaches the parent and comes
+  // back a tick later, so `config.value` still reads undefined here.
+  const current = config.value;
+  if (current?.edgeMetrics) return current as ProcessTopologyConfig & { edgeMetrics: EdgeMetric[] };
+  const c = { edgeMetrics: resolveEdgeMetrics(current) };
+  config.value = c;
+  return c;
 }
 const edgeMetrics = computed<EdgeMetric[]>(() => config.value?.edgeMetrics ?? resolveEdgeMetrics(config.value));
 
@@ -63,8 +65,9 @@ watch(
   // resolver's copies and every edit would land on a clone.
   [config, () => props.readOnly] as const,
   ([c, ro]) => {
-    if (ro) return;
-    if (!c || !c.edgeMetrics) ensure();
+    // A layer with no block is left without one: viewing the tab is no edit.
+    if (ro || !c) return;
+    if (!c.edgeMetrics) ensure();
   },
   { immediate: true },
 );

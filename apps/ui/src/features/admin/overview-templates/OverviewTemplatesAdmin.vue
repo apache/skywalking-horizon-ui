@@ -62,6 +62,8 @@ import OverviewEditCanvas from './OverviewEditCanvas.vue';
 import OverviewWidgetDrawer from './OverviewWidgetDrawer.vue';
 import NewOverviewDashboardModal from './NewOverviewDashboardModal.vue';
 import { overviewLayerOptions } from './layerOptions';
+import { cleanOverview } from './cleanOverview';
+import { setOptionalText } from './widgetEdits';
 const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/admin/_shared/TemplateProblemsDialog.vue'));
 
 // OAP UI-template sync status for the Overview kind. Drives the
@@ -441,16 +443,19 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
   editorSource.value = src;
 }
 
-/** Write the editor content to the local draft (cleared if it equals
- *  remote). Drives hasLocalDraft / localDiffersFromRemote reactively. */
-function persistLocal(content: OverviewDashboard): void {
+/** Write the editor content, cleaned, to the local draft (cleared if it
+ *  equals remote) and return what was written. Drives hasLocalDraft /
+ *  localDiffersFromRemote reactively. */
+function persistLocal(content: OverviewDashboard): OverviewDashboard {
+  const clean = cleanOverview(content);
   const remote = sources.remote<OverviewDashboard>(editName.value);
-  if (remote && stableStringify(content) === stableStringify(remote)) {
+  if (remote && stableStringify(clean) === stableStringify(remote)) {
     localEdits.remove(editName.value);
   } else {
-    localEdits.set(editName.value, JSON.parse(JSON.stringify(content)));
+    localEdits.set(editName.value, JSON.parse(JSON.stringify(clean)));
   }
-  loadedSnapshot.value = JSON.stringify(content);
+  loadedSnapshot.value = JSON.stringify(clean);
+  return clean;
 }
 
 // "Reset to ▾" dropdown — discard the current local draft and reload
@@ -660,7 +665,9 @@ watch(
 /** Save the editor to the browser local draft. Never writes OAP. */
 function onSave(): void {
   if (sync.readOnly.value || !draft.value || !editName.value) return;
-  persistLocal(draft.value);
+  // The editor shows what was saved, so it reads as clean and the next edit
+  // starts from the stored shape.
+  draft.value = persistLocal(draft.value);
   editorSource.value = 'local';
   setFlash(t('Saved to your browser (local). Publish with “Check diff & push”.'));
 }
@@ -672,12 +679,17 @@ const pushDiffOpen = ref(false);
 function prettyJson(o: unknown): string {
   return o ? stableStringify(o, 2) : '';
 }
-const localDiffersFromRemote = computed<boolean>(() => {
+/** The local draft as it would be pushed. Cleaned here as well as on save, so
+ *  a draft saved before the cleanup existed still publishes clean. */
+const pushContent = computed<OverviewDashboard | null>(() => {
   const local = localEdits.get<OverviewDashboard>(editName.value);
-  if (!local) return false;
-  return stableStringify(local) !== stableStringify(sources.remote<OverviewDashboard>(editName.value) ?? null);
+  return local ? cleanOverview(local) : null;
 });
-const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
+const localDiffersFromRemote = computed<boolean>(() => {
+  if (!pushContent.value) return false;
+  return stableStringify(pushContent.value) !== stableStringify(sources.remote<OverviewDashboard>(editName.value) ?? null);
+});
+const pushLocalPretty = computed(() => prettyJson(pushContent.value));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
 /** Publish the local draft to OAP. The BFF waits for the new row to
@@ -686,7 +698,7 @@ const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value
  *  client still refetches — the row may have propagated moments
  *  later. */
 async function pushToOap(): Promise<void> {
-  const local = localEdits.get<OverviewDashboard>(editName.value);
+  const local = pushContent.value;
   if (sync.readOnly.value || !local || saving.value) return;
   saving.value = true;
   flash.value = t('Saving to OAP…');
@@ -767,7 +779,8 @@ async function onImportFile(): Promise<void> {
   }
   const id = res.key;
   const existed = dashboards.value.some((d) => d.id === id);
-  localEdits.set(overviewEditName(id), res.content);
+  // The server checked it is an overview; stage it as a save would.
+  localEdits.set(overviewEditName(id), cleanOverview(res.content as OverviewDashboard));
   await nextTick();
   selectedId.value = id;
   selectedWidgetId.value = null;
@@ -1033,7 +1046,7 @@ function removeWidget(idx: number): void {
               @move="moveWidget"
               @remove="removeWidget"
               @update:title="(v) => { if (draft) draft.title = v; }"
-              @update:description="(v) => { if (draft) draft.description = v; }"
+              @update:description="(v) => { if (draft) setOptionalText(draft, 'description', v); }"
             />
             <OverviewEditCanvas
               :model-value="draft"

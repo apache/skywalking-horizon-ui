@@ -36,6 +36,7 @@ import { useI18n } from 'vue-i18n';
 import { isBuiltInOrder, pruneMenuOrder } from './menuOrder';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { AdminScope, ComponentKey, SlotKey } from './layer-dashboards.scopes';
+import { menuLabelsOf } from './layer-dashboards.scopes';
 import { resolveLayerMenuRows, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import { componentsToCaps } from '@/shell/layerFromTemplate';
 
@@ -177,6 +178,7 @@ const DESTRUCTIVE_OFF = new Set<ComponentKey>([
   'topology',
   'deployment',
   'endpointDependency',
+  'networkProfiling',
 ]);
 
 
@@ -222,7 +224,7 @@ const builtInOrder = computed<string[]>(() => {
   const tpl = template.value;
   return resolveLayerMenuRows({
     caps: componentsToCaps(tpl.components, tpl.topology, tpl.deployment),
-    slots: tpl.slots ?? {},
+    slots: menuLabelsOf(tpl),
     traces: tpl.traces,
     extPages: extPagesForPreview(tpl),
   }).map((r) => r.path);
@@ -232,7 +234,7 @@ const menuRows = computed(() => {
   const tpl = template.value;
   const rows = resolveLayerMenuRows({
     caps: componentsToCaps(tpl.components, tpl.topology, tpl.deployment),
-    slots: tpl.slots ?? {},
+    slots: menuLabelsOf(tpl),
     traces: tpl.traces,
     extPages: extPagesForPreview(tpl),
     menuOrder: tpl.menuOrder,
@@ -269,7 +271,7 @@ function extPagesForPreview(tpl: AdminLayerTemplate) {
 }
 
 function labelForRow(path: string): string {
-  const slots = template.value.slots ?? {};
+  const slots = menuLabelsOf(template.value);
   switch (path) {
     case 'service': return slots.services || t('Service');
     case 'instance': return slots.instances || t('Instance');
@@ -388,7 +390,9 @@ const visibleAliasFields = computed(() =>
   ),
 );
 function ensureSlots(): NonNullable<AdminLayerTemplate['slots']> {
-  if (!template.value.slots) (template.value as AdminLayerTemplate).slots = {};
+  // Starts from the labels in effect: a `slots` with one key would hide every
+  // other label still kept under `aliases`.
+  if (!template.value.slots) (template.value as AdminLayerTemplate).slots = { ...menuLabelsOf(template.value) };
   return template.value.slots;
 }
 /** Write a slot alias. `slots` is the canonical field the loader reads;
@@ -549,7 +553,7 @@ function setSlot(slot: SlotKey, value: string): void {
               <input
                 type="text"
                 class="alias-input sm"
-                :value="template.slots?.[f.slot] ?? ''"
+                :value="menuLabelsOf(template)[f.slot] ?? ''"
                 :placeholder="f.def"
                 spellcheck="false"
                 :disabled="readOnly"

@@ -34,10 +34,14 @@ import type { AdminLayerTemplate } from '@/api/client';
 export type EntityScope = 'service' | 'instance' | 'endpoint';
 
 /** Non-entity components own a configuration block each. */
-export const COMPONENT_OWNED_BLOCK: Record<string, 'topology' | 'deployment' | 'endpointDependency'> = {
+export const COMPONENT_OWNED_BLOCK: Record<
+  string,
+  'topology' | 'deployment' | 'endpointDependency' | 'processTopology'
+> = {
   topology: 'topology',
   deployment: 'deployment',
   endpointDependency: 'endpointDependency',
+  networkProfiling: 'processTopology',
 };
 
 /** Everything the component owns, counted for the confirmation so it can

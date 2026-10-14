@@ -320,7 +320,9 @@ export async function runWidgets(
             : s.label,
           data: s.data,
           ...(axis !== undefined ? { yAxisIndex: axis } : {}),
-          ...(unit !== undefined ? { unit } : {}),
+          // The editor pads units with "" to keep them aligned: "" means the
+          // widget's own unit, not none.
+          ...(unit ? { unit } : {}),
         });
       }
     });

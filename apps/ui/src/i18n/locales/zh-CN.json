@@ -3563,5 +3563,6 @@
   "Record trace": "记录追踪",
   "Trace store": "追踪存储",
   "none — the layer's trace popout": "无 — 该层的追踪弹窗",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "该部件的追踪 ID 所在的存储。行首的追踪图标会从该存储打开追踪，显示在当前页面之上。"
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "该部件的追踪 ID 所在的存储。行首的追踪图标会从该存储打开追踪，显示在当前页面之上。",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "未配置：使用内置的默认指标。在此做任何更改都会创建该 layer 自己的配置，并替换默认指标。"
 }

@@ -49,6 +49,7 @@ import {
   widgetGridStyle,
 } from '@/features/admin/layer-templates/layer-dashboards.geometry';
 import { nextFreeId } from './free-id';
+import { retypeWidget } from './retypeWidget';
 import { type AdminScope, scopeLabelOf } from './layer-dashboards.scopes';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
@@ -325,23 +326,16 @@ function onWidgetTypeChange(value: string): void {
   if (props.readOnly) return;
   const w = selectedWidget.value;
   if (!w) return;
-  w.type = value as DashboardWidget['type'];
-  if (w.type === 'tab') {
-    if (!w.tabs || w.tabs.length === 0) w.tabs = [{ name: 'Tab 1', widgets: [] }];
-    w.expressions = [];
-  } else {
-    if (!w.expressions || w.expressions.length === 0) w.expressions = [''];
-    // Leaving 'tab' — drop the now-orphaned panels (a non-tab widget must never
-    // carry `tabs`, or flattenTabWidgets would still expand them) and forget its
-    // inline active-tab index.
-    if (w.tabs) {
-      w.tabs = undefined;
-      if (w.id in activeTabByWidget.value) {
-        const next = { ...activeTabByWidget.value };
-        delete next[w.id];
-        activeTabByWidget.value = next;
-      }
-    }
+  // In place: the canvas, the selection and the tab bar all hold this object.
+  const next = retypeWidget(w, value as DashboardWidget['type']);
+  const fields = w as unknown as Record<string, unknown>;
+  for (const field of Object.keys(fields)) if (!(field in next)) delete fields[field];
+  Object.assign(w, next);
+  // Leaving 'tab' drops its panels, so forget its inline active-tab index.
+  if (w.type !== 'tab' && w.id in activeTabByWidget.value) {
+    const tabs = { ...activeTabByWidget.value };
+    delete tabs[w.id];
+    activeTabByWidget.value = tabs;
   }
 }
 
@@ -399,6 +393,11 @@ function setWidgetFormat(v: string): void {
   if (!w) return;
   if (v === 'int' || v === 'decimal' || v === 'compact' || v === 'duration' || v === 'enum') w.format = v;
   else delete w.format;
+  // Only an enum card reads its value map, and its editor shows only for enum.
+  if (w.format !== 'enum') {
+    delete w.valueMap;
+    delete w.valueColors;
+  }
 }
 
 function setWidgetTraceDrill(v: string): void {
@@ -567,9 +566,10 @@ function pickAddKind(type: DashboardWidget['type']): void {
 /** Label + unit only matter for tab-switching `top` widgets and
  *  multi-series `line` widgets; a single-expression card/line hides
  *  them to keep the row compact. */
+// A line reads its first label, unit and axis even with one series.
 const showExprMeta = computed(() => {
   const w = editingWidget.value;
-  return !!w && (w.type === 'top' || (w.expressions?.length ?? 0) > 1);
+  return !!w && (w.type === 'top' || w.type === 'line' || (w.expressions?.length ?? 0) > 1);
 });
 function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
   const a = [...(arr ?? [])];
@@ -650,9 +650,14 @@ function visibleWhenHint(scope: AdminScope): string {
   return base + entity;
 }
 
+// The old free-text predicate reads as no gate, as the BFF reads it.
+function gateOf(w: DashboardWidget | null): DashboardWidget['visibleWhen'] {
+  const vw = w?.visibleWhen;
+  return vw && typeof vw === 'object' ? vw : undefined;
+}
 const vwKindModel = computed<VwKind>({
   get() {
-    const vw = editingWidget.value?.visibleWhen;
+    const vw = gateOf(editingWidget.value);
     if (!vw) return 'none';
     return vw.kind === 'entity' ? 'entity' : 'mqe';
   },
@@ -666,12 +671,12 @@ const vwKindModel = computed<VwKind>({
 });
 const vwTarget = computed<string>({
   get() {
-    const vw = editingWidget.value?.visibleWhen;
+    const vw = gateOf(editingWidget.value);
     if (!vw) return '';
     return vw.kind === 'mqe' ? vw.expression : vw.attribute;
   },
   set(v) {
-    const vw = editingWidget.value?.visibleWhen;
+    const vw = gateOf(editingWidget.value);
     if (!vw || props.readOnly) return;
     if (vw.kind === 'mqe') vw.expression = v;
     else vw.attribute = v;
@@ -679,11 +684,11 @@ const vwTarget = computed<string>({
 });
 const vwOp = computed<string>({
   get() {
-    return editingWidget.value?.visibleWhen?.op ?? 'exists';
+    return gateOf(editingWidget.value)?.op ?? 'exists';
   },
   set(op) {
     const w = editingWidget.value;
-    const vw = w?.visibleWhen;
+    const vw = gateOf(w);
     if (!w || !vw || props.readOnly) return;
     if (vw.kind === 'mqe') {
       w.visibleWhen =
@@ -699,16 +704,16 @@ const vwOp = computed<string>({
   },
 });
 const vwNeedsValue = computed(() => {
-  const op = editingWidget.value?.visibleWhen?.op;
+  const op = gateOf(editingWidget.value)?.op;
   return op === 'gt' || op === 'lt' || op === 'eq';
 });
 const vwValue = computed<string>({
   get() {
-    const vw = editingWidget.value?.visibleWhen;
+    const vw = gateOf(editingWidget.value);
     return vw && 'value' in vw ? String(vw.value) : '';
   },
   set(v) {
-    const vw = editingWidget.value?.visibleWhen;
+    const vw = gateOf(editingWidget.value);
     if (!vw || !('value' in vw) || props.readOnly) return;
     if (vw.kind === 'mqe') vw.value = Number(v) || 0;
     else vw.value = v;
@@ -1196,12 +1201,13 @@ onBeforeUnmount(() => {
                     <span>{{ t('Mode') }}</span>
                     <select
                       :value="editingWidget.traceDrill?.mode ?? ''"
-                      :disabled="readOnly || !layerTracesEnabled"
+                      :disabled="readOnly || (!layerTracesEnabled && !editingWidget.traceDrill)"
                       @change="setWidgetTraceDrill(($event.target as HTMLSelectElement).value)"
                     >
+                      <!-- With traces off, a drill set earlier can still be cleared. -->
                       <option value="">{{ t('none') }}</option>
-                      <option value="latency">{{ t('latency → slow traces') }}</option>
-                      <option value="error">{{ t('error → error traces') }}</option>
+                      <option value="latency" :disabled="!layerTracesEnabled">{{ t('latency → slow traces') }}</option>
+                      <option value="error" :disabled="!layerTracesEnabled">{{ t('error → error traces') }}</option>
                     </select>
                   </label>
                 </div>

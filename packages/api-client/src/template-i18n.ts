@@ -146,7 +146,9 @@ export function mergeLocalizedNode(source: unknown, overlay: unknown): unknown {
     return out;
   }
   if (typeof source === 'string') {
-    if (typeof overlay === 'string' && overlay.length > 0) return overlay;
+    // An empty English string has nothing to translate: a translation left
+    // from before it was cleared must not bring the old text back.
+    if (source.length > 0 && typeof overlay === 'string' && overlay.length > 0) return overlay;
     return source;
   }
   return source;
