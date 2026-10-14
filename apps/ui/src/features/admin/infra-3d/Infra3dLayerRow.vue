@@ -49,8 +49,12 @@ const props = defineProps<{
   row: LayerRow;
   variant: 'tier' | 'unpinned';
   levels: InfraLevelSpec[];
-  /** Tier id this layer is explicitly pinned to, or '' when unpinned. */
+  /** Tier id the tier control shows: the pin, or the group's tier for a
+   *  grouped layer; '' when unpinned. */
   pinnedTier: string;
+  /** Label of the logic group the layer is in. The group decides its tier,
+   *  so the row's own tier controls are inert. */
+  group?: string;
   /** Unpinned variant only — how the layer resolves when no tier pins it. */
   resolved?: { levelId: string | null; via: LevelVia };
   /** Unpinned variant only — resolved level's display label (for the via tag). */
@@ -108,7 +112,8 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
     >
       {{ resolved?.via === 'filtered' ? t('filtered out') : '→ ' + (resolvedLabel ?? '—') }}
     </span>
-    <select class="inp tier-select" :value="pinnedTier" :disabled="readOnly" @change="emit('change-tier', $event)">
+    <span v-if="group" class="via-tag" data-via="group" :title="group">{{ t('group') }} · {{ group }}</span>
+    <select class="inp tier-select" :value="pinnedTier" :disabled="readOnly || !!group" @change="emit('change-tier', $event)">
       <option value="">{{ variant === 'tier' ? t('— unpinned —') : t('— pin to tier —') }}</option>
       <option v-for="tier in levels" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
     </select>
@@ -117,7 +122,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
       class="btn tiny ghost"
       type="button"
       :title="t('Remove from this tier (moves to Unpinned)')"
-      :disabled="readOnly"
+      :disabled="readOnly || !!group"
       @click="emit('remove')"
     >
       ×
@@ -169,6 +174,7 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
   white-space: nowrap;
 }
 .via-tag { font-size: 10px; color: var(--sw-fg-3); white-space: nowrap; flex: 0 0 auto; }
+.via-tag[data-via='group'] { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .via-tag[data-via='default'],
 .via-tag[data-via='filtered'] { color: #f0a04b; }
 .metric-mqe { flex: 0 1 200px; min-width: 110px; }

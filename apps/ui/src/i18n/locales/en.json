@@ -3563,5 +3563,6 @@
   "Record trace": "Record trace",
   "Trace store": "Trace store",
   "none — the layer's trace popout": "none — the layer's trace popout",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page."
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them."
 }

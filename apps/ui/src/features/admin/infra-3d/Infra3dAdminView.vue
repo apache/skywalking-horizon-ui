@@ -29,9 +29,10 @@
        remote, then publish).
     2. SyncStatusBanner — synced / diverged / OAP-unreachable state.
     3. Global filter — one regex (`filter.layer`).
-    4. Tiers & layers — per-tier cards: id / order / label + the layers
-       pinned to each tier (explicit `layers` lists are the only placement
-       mechanism). Anything unpinned falls to the failover tier.
+    4. Tiers & layers — per-tier cards: id / order / label + the layers the
+       map draws on each tier: its pins, and the members of groups on it
+       (a group decides its members' tier). Anything else falls to the
+       failover tier.
     5. Layers — color + traffic MQE per layer, with each layer's RESOLVED
        level shown read-only (assignment lives in Levels).
     6. Groups — logic-group cards (id / label / tier / color / icon +
@@ -42,7 +43,7 @@
   3D-map content before it reaches OAP); issues land in the push error list.
 -->
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, ref, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import {
@@ -52,7 +53,8 @@ import {
 } from '@/api/client';
 import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composables/useInfra3dConfig';
 import { useSingletonTemplateEditor } from '@/features/admin/_shared/useSingletonTemplateEditor';
-import { useInfra3dLevels, type ResolvedLevel } from './useInfra3dLevels';
+import { placeRowsByTier, useInfra3dLevels, type ResolvedLevel } from './useInfra3dLevels';
+import { addLayerToGroup, dropBlankMetrics, groupsByLayer, normalizeInfra3dDraft } from './infra3dDraft';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
@@ -72,28 +74,14 @@ const { t } = useI18n();
 // The 3D-map config is a singleton template kind — ONE row,
 // `horizon.infra-3d.config`. The shared editor owns the bundled →
 // local(browser) → remote(OAP) load/save/push/reset/import/export machine;
-// `normalizeSpecs` folds the legacy topology/load shapes into the single
-// `metric` the editor edits, and `afterPush` re-reads the live /3d/map view.
+// `normalizeInfra3dDraft` folds legacy shapes and drops what the map never
+// reads, and `afterPush` re-reads the live /3d/map view.
 const NAME = 'horizon.infra-3d.config';
-
-/** Collapse the deprecated `topology` / `load` shapes into the single
- *  `metric` the editor edits, so an OAP row saved before the single-metric
- *  change still shows its metric. Mutates in place. */
-function normalizeSpecs(cfg: Infra3dConfig): void {
-  for (const spec of Object.values(cfg.layers)) {
-    if (!spec.metric) {
-      const m = spec.topology?.server ?? spec.topology?.client ?? spec.load;
-      if (m) spec.metric = m;
-    }
-    delete spec.topology;
-    delete spec.load;
-  }
-}
 
 const editor = useSingletonTemplateEditor<Infra3dConfig>({
   kind: 'infra-3d',
   name: NAME,
-  normalize: normalizeSpecs,
+  normalize: normalizeInfra3dDraft,
   afterPush: () => refreshLiveInfraConfig().then(() => undefined),
   importedNote: () => t('Imported as a local draft — preview, then “Check diff & push”.'),
 });
@@ -130,14 +118,40 @@ const {
 
 const layerSearch = ref('');
 
-const { levelsSorted, addLevel, removeLevel, moveLevel, resolveLevel, levelLabel } =
+const { levelsSorted, addLevel, removeLevel, renameLevel, moveLevel, resolveLevel, levelLabel } =
   useInfra3dLevels(draft, readOnly);
+
+// Tier and group cards are keyed by object, not by their editable id: a key
+// that changes per keystroke remounts the card and drops the input's focus.
+const cardKeys = new WeakMap<object, number>();
+let lastCardKey = 0;
+function cardKey(o: object): number {
+  const raw = toRaw(o);
+  let k = cardKeys.get(raw);
+  if (k === undefined) cardKeys.set(raw, (k = ++lastCardKey));
+  return k;
+}
+
+/** Tier-id text renameLevel refused (empty, or another tier's id), held
+ *  until blur so the input keeps what was typed while the draft keeps the
+ *  last id it took. */
+const refusedTierId = ref<Record<number, string>>({});
+function onTierIdInput(lvl: { id: string }, e: Event): void {
+  const next = (e.target as HTMLInputElement).value;
+  const k = cardKey(lvl);
+  if (renameLevel(lvl.id, next)) delete refusedTierId.value[k];
+  else if (!readOnly.value) refusedTierId.value[k] = next;
+}
+function onTierIdBlur(lvl: { id: string }): void {
+  delete refusedTierId.value[cardKey(lvl)];
+}
 
 // A read-only session must not be able to stage a draft either — a local
 // draft it can never publish is a trap, and Import stages arbitrary content.
 // Export and the diff stay open: both only READ what the page already shows.
 function onSave(): void {
   if (readOnly.value) return;
+  if (draft.value) dropBlankMetrics(draft.value);
   save();
 }
 
@@ -221,30 +235,26 @@ const explicitTier = computed<Record<string, string>>(() => {
   return m;
 });
 
-/** Filtered layer rows grouped under their pinned tier. Every tier gets an
- *  entry (possibly empty) so the combined view renders one block per tier. */
-const layersByTier = computed<Record<string, LayerRow[]>>(() => {
-  const out: Record<string, LayerRow[]> = {};
-  for (const lvl of draft.value?.levels ?? []) out[lvl.id] = [];
-  for (const r of filteredLayerRows.value) {
-    // Filter-excluded layers are OFF the map — they belong in the Unpinned
-    // bucket (tagged "filtered out"), never under a tier even if pinned, so
-    // the editor matches what the scene renders.
-    if (resolvedLevels.value[r.key]?.via === 'filtered') continue;
-    const tierId = explicitTier.value[r.key];
-    if (tierId && out[tierId]) out[tierId].push(r);
-  }
-  return out;
-});
-
-/** Rows not shown under a tier: not pinned (→ failover) OR filter-excluded
- *  (→ off the map). The via tag distinguishes "→ <tier>" from "filtered out". */
-const unpinnedRows = computed<LayerRow[]>(() =>
-  filteredLayerRows.value.filter((r) => {
-    const via = resolvedLevels.value[r.key]?.via;
-    return via === 'filtered' || !explicitTier.value[r.key];
-  }),
+const groupOfLayer = computed<Record<string, InfraGroupSpec>>(() =>
+  draft.value ? groupsByLayer(draft.value) : {},
 );
+
+/** The tier the row's tier control shows: a grouped layer's is its group's. */
+function rowTier(key: string): string {
+  return groupOfLayer.value[key]?.level ?? explicitTier.value[key] ?? '';
+}
+
+/** Each tier lists the layers the map draws on it (group members on their
+ *  group's tier); the rest — failover and filtered out — are Unpinned. */
+const placement = computed(() =>
+  placeRowsByTier(
+    (draft.value?.levels ?? []).map((l) => l.id),
+    filteredLayerRows.value,
+    resolvedLevels.value,
+  ),
+);
+const layersByTier = computed<Record<string, LayerRow[]>>(() => placement.value.byTier);
+const unpinnedRows = computed<LayerRow[]>(() => placement.value.unplaced);
 
 /** A layer is "unclassified" when nothing places it — it lands on the
  *  failover tier (or is filtered out). Highlights the unpinned row so the
@@ -267,6 +277,8 @@ function ensureLayerSpec(key: string): InfraLayerSpec {
 function assignLayerToLevel(key: string, nextLevelId: string | null): void {
   if (!draft.value || readOnly.value) return;
   const u = key.toUpperCase();
+  // A grouped layer sits on its group's tier; a pin on it would never apply.
+  if (nextLevelId && groupOfLayer.value[u]) return;
   for (const lvl of draft.value.levels) {
     lvl.layers = lvl.layers.filter((k) => k.toUpperCase() !== u);
   }
@@ -356,17 +368,16 @@ function setGroupColor(g: InfraGroupSpec, color: string): void {
   if (readOnly.value) return;
   g.color = color;
 }
-function removeGroup(id: string): void {
+function removeGroup(g: InfraGroupSpec): void {
   if (!draft.value?.groups || readOnly.value) return;
-  draft.value.groups = draft.value.groups.filter((g) => g.id !== id);
+  draft.value.groups = draft.value.groups.filter((x) => toRaw(x) !== toRaw(g));
 }
 function onAddLayerToGroup(g: InfraGroupSpec, e: Event): void {
   const sel = e.target as HTMLSelectElement;
   const key = sel.value;
   sel.value = '';
-  if (readOnly.value) return;
-  const u = key.toUpperCase();
-  if (u && !g.layers.some((k) => k.toUpperCase() === u)) g.layers.push(u);
+  if (readOnly.value || !draft.value) return;
+  addLayerToGroup(draft.value, g, key);
 }
 function removeLayerFromGroup(g: InfraGroupSpec, key: string): void {
   if (readOnly.value) return;
@@ -375,7 +386,7 @@ function removeLayerFromGroup(g: InfraGroupSpec, key: string): void {
 }
 /** A group's add-picker candidates — every layer not already in ANY group
  *  (a layer belongs to at most one logic group; the validator rejects double
- *  membership). Group membership is independent of tier pinning. */
+ *  membership). A pinned layer may join; joining drops its pin. */
 function groupCandidates(_g: InfraGroupSpec): string[] {
   const inAnyGroup = new Set<string>();
   for (const gr of draft.value?.groups ?? []) {
@@ -522,16 +533,25 @@ const stats = computed(() => {
           <button type="button" class="btn small" :disabled="readOnly" @click="addLevel">{{ t('+ add tier') }}</button>
         </header>
         <div class="sect-body">
-          <article v-for="(lvl, idx) in levelsSorted" :key="lvl.id" class="tier-card">
+          <article v-for="(lvl, idx) in levelsSorted" :key="cardKey(lvl)" class="tier-card">
             <header class="lvl-head">
               <span class="lvl-order">#{{ lvl.order }}</span>
-              <input class="inp lvl-id mono" v-model="lvl.id" placeholder="apps" :disabled="readOnly" />
+              <input
+                class="inp lvl-id mono"
+                :class="{ refused: refusedTierId[cardKey(lvl)] !== undefined }"
+                :value="refusedTierId[cardKey(lvl)] ?? lvl.id"
+                placeholder="apps"
+                :disabled="readOnly"
+                @input="(e) => onTierIdInput(lvl, e)"
+                @blur="onTierIdBlur(lvl)"
+              />
+              <span v-if="refusedTierId[cardKey(lvl)]" class="id-refused">{{ t('duplicate') }}</span>
               <input class="inp lvl-label" v-model="lvl.label" placeholder="Apps" :disabled="readOnly" />
               <span class="tier-count">{{ t('{count} layers', { count: layersByTier[lvl.id]?.length ?? 0 }) }}</span>
               <div class="lvl-spacer" />
               <button type="button" class="btn tiny" :disabled="readOnly || idx === 0" @click="moveLevel(idx, -1)">↑</button>
               <button type="button" class="btn tiny" :disabled="readOnly || idx === levelsSorted.length - 1" @click="moveLevel(idx, 1)">↓</button>
-              <button type="button" class="btn tiny danger" :disabled="readOnly" @click="removeLevel(lvl.id)">{{ t('remove') }}</button>
+              <button type="button" class="btn tiny danger" :disabled="readOnly || levelsSorted.length <= 1" @click="removeLevel(lvl.id)">{{ t('remove') }}</button>
             </header>
             <div class="tier-body">
               <div class="layer-rows">
@@ -541,7 +561,8 @@ const stats = computed(() => {
                   :row="row"
                   variant="tier"
                   :levels="levelsSorted"
-                  :pinned-tier="explicitTier[row.key] ?? ''"
+                  :pinned-tier="rowTier(row.key)"
+                  :group="groupOfLayer[row.key]?.label || groupOfLayer[row.key]?.id"
                   :read-only="readOnly"
                   @set-color="(c) => setLayerColor(row.key, c)"
                   @update-metric="(f, v) => setMetricField(row.key, f, v)"
@@ -574,7 +595,8 @@ const stats = computed(() => {
               :row="row"
               variant="unpinned"
               :levels="levelsSorted"
-              :pinned-tier="explicitTier[row.key] ?? ''"
+              :pinned-tier="rowTier(row.key)"
+              :group="groupOfLayer[row.key]?.label || groupOfLayer[row.key]?.id"
               :resolved="resolvedLevels[row.key]"
               :resolved-label="levelLabel(resolvedLevels[row.key]?.levelId ?? null)"
               :unclassified="isUnclassified(row.key)"
@@ -599,7 +621,7 @@ const stats = computed(() => {
         </header>
         <div class="sect-body">
           <div class="groups-grid">
-            <article v-for="g in (draft.groups ?? [])" :key="g.id" class="group-card">
+            <article v-for="g in (draft.groups ?? [])" :key="cardKey(g)" class="group-card">
               <header class="group-head">
                 <input
                   type="color"
@@ -611,7 +633,7 @@ const stats = computed(() => {
                 <input class="inp group-id mono" v-model="g.id" placeholder="self-observability" :disabled="readOnly" />
                 <input class="inp group-label" v-model="g.label" placeholder="Self-Observability" :disabled="readOnly" />
                 <div class="lvl-spacer" />
-                <button type="button" class="btn tiny danger" :disabled="readOnly" @click="removeGroup(g.id)">{{ t('remove') }}</button>
+                <button type="button" class="btn tiny danger" :disabled="readOnly" @click="removeGroup(g)">{{ t('remove') }}</button>
               </header>
               <div class="group-body">
                 <div class="row-2">
@@ -904,6 +926,8 @@ export { parseHexColor };
 }
 .lvl-order { font-size: 10.5px; color: var(--sw-fg-3); width: 28px; font-family: var(--sw-mono, monospace); }
 .lvl-id    { width: 130px; }
+.lvl-id.refused { border-color: var(--sw-err); }
+.id-refused { font-size: 10.5px; color: var(--sw-err); white-space: nowrap; }
 .lvl-label { width: 170px; }
 .lvl-spacer { flex: 1; }
 .tier-count { font-size: 10.5px; color: var(--sw-fg-3); white-space: nowrap; }
