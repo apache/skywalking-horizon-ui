@@ -27,7 +27,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
-import { buildSpanTree, kindLabel, otlpKindName, rootSpanOf, spanStatus, statusColor } from './traceqlDetailShared';
+import { traceqlRowDatasource, buildSpanTree, kindLabel, otlpKindName, rootSpanOf, spanStatus, statusColor } from './traceqlDetailShared';
 
 function span(spanId: string, parentSpanId: string, startUs = 0, durationUs = 10): TraceQLSpan {
   return {
@@ -146,5 +146,15 @@ describe('the status a span is shown as', () => {
 
   it('does not let a marker overturn the span\'s own status', () => {
     expect(spanStatus(withAttrs('error', { 'http.status_code': '200' }))).toBe('error');
+  });
+});
+
+describe('traceqlRowDatasource', () => {
+  it('names the store of each TraceQL row, and none for any other row', () => {
+    expect(traceqlRowDatasource('traceql-native-trace')).toBe('native');
+    expect(traceqlRowDatasource('traceql-zipkin-trace')).toBe('zipkin');
+    expect(traceqlRowDatasource('traceql-otlp-trace')).toBe('otlp');
+    expect(traceqlRowDatasource('trace')).toBeNull();
+    expect(traceqlRowDatasource(undefined)).toBeNull();
   });
 });
