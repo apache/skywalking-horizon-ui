@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "Enable this record on OAP? It comes back invalid.",
   "Enable this record on OAP?": "Enable this record on OAP?",
   "Enable": "Enable",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid."
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.",
+  "Record trace": "Record trace",
+  "Trace store": "Trace store",
+  "none — the layer's trace popout": "none — the layer's trace popout",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page."
 }

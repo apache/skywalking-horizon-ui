@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "OAP에서 이 레코드를 활성화할까요? 잘못된 상태 그대로 돌아옵니다.",
   "Enable this record on OAP?": "OAP에서 이 레코드를 활성화할까요?",
   "Enable": "활성화",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP에 저장된 내용은 이를 기반으로 만든 페이지를 깨뜨립니다. 다시 활성화해도 잘못된 상태 그대로 돌아옵니다."
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP에 저장된 내용은 이를 기반으로 만든 페이지를 깨뜨립니다. 다시 활성화해도 잘못된 상태 그대로 돌아옵니다.",
+  "Record trace": "레코드 트레이스",
+  "Trace store": "트레이스 저장소",
+  "none — the layer's trace popout": "없음 — 레이어의 트레이스 팝아웃",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "이 위젯의 트레이스 ID가 저장된 저장소입니다. 행의 트레이스 아이콘은 이 저장소에서 트레이스를 페이지 위에 엽니다."
 }

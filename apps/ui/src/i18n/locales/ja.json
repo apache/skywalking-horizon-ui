@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "OAP 上のこのレコードを有効化しますか？ 内容は無効なまま戻ります。",
   "Enable this record on OAP?": "OAP 上のこのレコードを有効化しますか？",
   "Enable": "有効化",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP に保存された内容は、そこから作られるページを壊してしまいます。再度有効化しても、内容は無効なまま戻ります。"
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP に保存された内容は、そこから作られるページを壊してしまいます。再度有効化しても、内容は無効なまま戻ります。",
+  "Record trace": "レコードのトレース",
+  "Trace store": "トレースストア",
+  "none — the layer's trace popout": "なし — レイヤーのトレースポップアウト",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "このウィジェットのトレース ID が保存されているストア。行のトレースアイコンは、そこからトレースをページ上に開きます。"
 }

@@ -211,19 +211,24 @@ The data source returns a record set (rows × typed columns) rather than a numer
 
 ### Which store a record's trace opens in (`recordTrace`)
 
-A record's trace id belongs to whichever store kept the trace, and the widget cannot tell which one from the id. Without `recordTrace` the icon opens the native trace popout, which is right for records the SkyWalking agents produce. Records drawn from other spans name their store, with the store names of a layer's `traces.sources`:
+A record's trace id belongs to whichever store kept the trace, and the widget cannot tell which one from the id. Records the SkyWalking agents produce live in the native store; records drawn from other spans, such as the OTLP slow statements, live in another one, so the widget names it.
+
+**In the editor:** open the layer in **Dashboard setup → Layer dashboards**, select the `record` widget, and pick the store under **Record trace → Trace store**. The choices are the store names a layer lists in its trace stores:
+
+| Trace store | Where the trace opens |
+|---|---|
+| none | The layer's own trace popout: the native one, or the Zipkin one on a layer whose traces are Zipkin only. |
+| `native` | The native trace popout, whatever the layer's trace stores. |
+| `zipkin` | The Zipkin trace popout. |
+| `traceql-native`, `traceql-zipkin`, `traceql-otlp` | The TraceQL trace popout, reading that store. |
+
+Each popout opens over the dashboard and closes back to it, so the page and its menu stay where they are; the address carries the open trace, so it can be shared. A TraceQL store needs OAP's TraceQL module with that datasource on, and Horizon's `oap.traceql` pointing at it.
+
+**Stored format:** the choice is saved on the widget as `recordTrace`, absent for none:
 
 ```json
 "recordTrace": { "source": "traceql-otlp" }
 ```
-
-| `source` | Where the trace opens |
-|---|---|
-| `native` | The native trace popout. The same as leaving `recordTrace` out. |
-| `zipkin` | The Zipkin trace popout. |
-| `traceql-native`, `traceql-zipkin`, `traceql-otlp` | The TraceQL trace popout, reading that store. |
-
-Each popout opens over the dashboard and closes back to it, so the page and its menu stay where they are; the address carries the open trace, so it can be shared. A TraceQL store needs OAP's TraceQL module with that datasource on, and Horizon's `oap.traceql` pointing at it. The bundled template check reports a `recordTrace` on a widget that is not a `record`.
 
 ## `table`
 

@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "启用 OAP 上的这条记录？启用后它仍然无效。",
   "Enable this record on OAP?": "启用 OAP 上的这条记录？",
   "Enable": "启用",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP 中存储的内容会破坏据此生成的页面。重新启用后它仍然无效。"
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP 中存储的内容会破坏据此生成的页面。重新启用后它仍然无效。",
+  "Record trace": "记录追踪",
+  "Trace store": "追踪存储",
+  "none — the layer's trace popout": "无 — 该层的追踪弹窗",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "该部件的追踪 ID 所在的存储。行首的追踪图标会从该存储打开追踪，显示在当前页面之上。"
 }

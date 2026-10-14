@@ -221,7 +221,7 @@ A layer without an explicit `instance` widget set will reuse `service` widgets o
 | `format` | Value formatting: `int`, `decimal`, `compact` (K / M suffixes), `duration` (a seconds value rendered as a human time-ago), `enum` (a coded value mapped to a label via `valueMap`). |
 | `valueMap` / `valueColors` | Enum-card display maps — value → label, and value → status-chip color (`ok` / `warn` / `err` / `info` / `neutral`). See [Dashboard Widgets → Status chips](../components/dashboard-widgets.md#status-chips-valuecolors). |
 | `traceDrill` | `line` only — `{ "mode": "latency" \| "error" }` makes data points clickable, opening the layer's Traces tab pre-filtered to the slow or error traces around the clicked moment. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill). |
-| `recordTrace` | `record` only — `{ "source": "<trace store>" }` names the trace store a record's trace id lives in, with the store names of `traces.sources`. Absent, the trace icon opens the native popout. See [Dashboard Widgets → Which store a record's trace opens in](../components/dashboard-widgets.md#which-store-a-records-trace-opens-in-recordtrace). |
+| `recordTrace` | `record` only — `{ "source": "<trace store>" }` names the trace store a record's trace id lives in, with the store names of `traces.sources`; set in the editor under **Record trace → Trace store**. Absent, the trace icon opens the layer's own trace popout. See [Dashboard Widgets → Which store a record's trace opens in](../components/dashboard-widgets.md#which-store-a-records-trace-opens-in-recordtrace). |
 | `span` | Column span in the 12-col grid. Default 4 = three widgets per row. |
 | `rowSpan` | Vertical span. Default 1 (one 120 px row). |
 | `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` shows the widget only when the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` shows it only when the selected entity has that attribute — entity gates are Instance-scope only. |
@@ -705,6 +705,10 @@ The Logs tab disappears from the layer page nav. Existing direct-URL navigation 
 
 ### Open a record's trace in the store that holds it
 
+A `record` widget's trace icon opens the layer's own trace popout unless the widget names the store its trace ids live in. Select the widget and pick the store under **Record trace → Trace store**; the trace then opens in that store's popout over the dashboard, so the page and its menu stay where they are. The bundled OTLP Virtual Database layer has no Traces tab of its own, and its Slow Statements widget names `traceql-otlp`, reading its traces from the OTLP store through TraceQL. See [Dashboard Widgets → Which store a record's trace opens in](../components/dashboard-widgets.md#which-store-a-records-trace-opens-in-recordtrace).
+
+The stored widget, for reference:
+
 ```json
 {
   "id": "slow_statements",
@@ -715,5 +719,3 @@ The Logs tab disappears from the layer page nav. Existing direct-URL navigation 
   "recordTrace": { "source": "traceql-otlp" }
 }
 ```
-
-A `record` widget's trace icon opens the native trace popout unless `recordTrace` says otherwise. `source` takes the store names of `traces.sources`, and the trace opens in that store's popout over the dashboard, so the page and its menu stay where they are. The bundled OTLP Virtual Database layer has no Traces tab of its own, and its Slow Statements widget reads its traces from the OTLP store through TraceQL. See [Dashboard Widgets → Which store a record's trace opens in](../components/dashboard-widgets.md#which-store-a-records-trace-opens-in-recordtrace).

@@ -101,7 +101,7 @@ export type TraceDrill = { mode: 'off' | 'latency' | 'error' };
 /**
  * Where a `record` widget's trace ids live, named as in `traces.sources`. The
  * trace opens in that store's popout over the current page. Absent ⇒ the
- * native popout.
+ * layer's own popout: native, or Zipkin on a Zipkin-only layer.
  */
 export type RecordTrace = { source: TraceStore };
 

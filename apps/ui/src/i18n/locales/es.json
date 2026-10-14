@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "¿Habilitar este registro en OAP? Vuelve, pero sigue sin ser válido.",
   "Enable this record on OAP?": "¿Habilitar este registro en OAP?",
   "Enable": "Habilitar",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "El contenido almacenado en OAP rompería las páginas construidas a partir de él. Si vuelves a habilitar la plantilla, seguirá sin ser válida."
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "El contenido almacenado en OAP rompería las páginas construidas a partir de él. Si vuelves a habilitar la plantilla, seguirá sin ser válida.",
+  "Record trace": "Traza del registro",
+  "Trace store": "Almacén de trazas",
+  "none — the layer's trace popout": "ninguno — la ventana de traza de la capa",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "El almacén donde están los ids de traza de este widget. El icono de traza de una fila abre la traza desde él, sobre la página."
 }

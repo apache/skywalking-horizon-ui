@@ -3559,5 +3559,9 @@
   "Enable this record on OAP? It comes back invalid.": "Ativar este registro no OAP? Ele volta, mas continua inválido.",
   "Enable this record on OAP?": "Ativar este registro no OAP?",
   "Enable": "Ativar",
-  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "O conteúdo armazenado no OAP quebraria as páginas construídas a partir dele. Ao ativar o modelo novamente, ele continua inválido."
+  "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "O conteúdo armazenado no OAP quebraria as páginas construídas a partir dele. Ao ativar o modelo novamente, ele continua inválido.",
+  "Record trace": "Trace do registro",
+  "Trace store": "Armazenamento de traces",
+  "none — the layer's trace popout": "nenhum — o popout de trace da camada",
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "O armazenamento onde ficam os ids de trace deste widget. O ícone de trace de uma linha abre o trace a partir dele, sobre a página."
 }
