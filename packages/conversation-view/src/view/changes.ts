@@ -34,6 +34,7 @@ import {
   changeRoots,
   groupChanges,
   incompleteObservation,
+  countFiles,
   observationOf,
   tallyChanges,
   type Step,
@@ -120,7 +121,10 @@ function sizes(ctx: ViewContext, c: AszFileChange): string {
 function diffHtml(ctx: ViewContext, key: string, c: AszFileChange): string {
   const { s, f, state } = ctx;
   if (c.diff !== 'available') {
-    const why = c.diff === 'binary' ? s.diffBinary : c.diff === 'too_large' ? s.diffTooLarge : s.diffUnavailable;
+    // A diff taken out to fit its record keeps the file's line counts; one too large to compute has none.
+    const counted = c.additions != null || c.deletions != null;
+    const why =
+      c.diff === 'binary' ? s.diffBinary : c.diff === 'too_large' ? (counted ? s.diffTooLargeCounted : s.diffTooLarge) : s.diffUnavailable;
     const sha = (side: AszChangeSide): string =>
       side.sha256 ? `<span title="${esc(side.sha256)}">${esc(side.sha256.slice(0, 12))}…</span>` : '∅';
     return `<div class="acv-diff-note">${esc(why)}<span class="acv-hashes">sha256 ${sha(c.before)} → ${sha(c.after)}</span></div>`;
@@ -172,6 +176,10 @@ function observationNote(s: ViewStrings, r: AszWorkspaceChange): string {
     case 'none':
       return `<div class="acv-change-note">${esc(s.changedFilesNone)}</div>`;
     default:
+      // Files changed, and their list was taken out to fit the record in its stored file.
+      if (!(r.changes?.length ?? 0) && r.changed_files) {
+        return `<div class="acv-change-note">${esc(fill(s.changedFilesNotKept, { n: String(r.changed_files) }))}</div>`;
+      }
       return '';
   }
 }
@@ -323,36 +331,57 @@ export function drawChangesPanel(ctx: ViewContext): void {
   const { s, f, model: m } = ctx;
   const body = ctx.q('.acv-changes-body');
   const all = m.workspaceChanges;
-  const files = new Set<string>();
-  for (const r of all) for (const c of r.changes ?? []) files.add(`${r.root?.path ?? ''}|${c.path}`);
-  const floor = all.some(incompleteObservation) ? '+' : '';
-  ctx.q('.acv-changes-title').textContent = `${s.changesPanelTitle} · ${fill(s.recordsAndFiles, { records: f.number(all.length), files: `${f.number(files.size)}${floor}` })}`;
+  const counted = countFiles(all);
+  const floor = counted.floor || all.some(incompleteObservation) ? '+' : '';
+  ctx.q('.acv-changes-title').textContent = `${s.changesPanelTitle} · ${fill(s.recordsAndFiles, { records: f.number(all.length), files: `${f.number(counted.files)}${floor}` })}`;
   // What a tool made is listed under its root whether or not the fold knew
   // the step; only a record the plugin itself could not attribute goes below.
   const attributed = all
     .filter((r) => r.basis !== 'unattributed')
     .map((r) => ({ ...r, changes: (r.changes ?? []).filter((c) => c.attribution !== 'outside_any_window') }));
-  const entry = (r: AszWorkspaceChange, c: AszFileChange): string => {
+  const link = (r: AszWorkspaceChange): string => {
     const step = m.step(r.step);
     const when = Number.isFinite(Date.parse(r.time)) ? f.time(Date.parse(r.time)) : r.time;
     // A record whose step the fold does not know still names its tool; the
     // missing step is said, not implied by a label that cannot be clicked.
     const who = step ? (step.name ?? step.kind) : [r.tool_name, s.noStepForRecord].filter(Boolean).join(' · ');
     const label = `${who} · ${r.captured_by} · ${when}`;
-    const target = step
+    return step
       ? `<button type="button" class="acv-linkish" data-goto="${esc(step.id)}" title="${esc(s.goToStep)}">${esc(label)} →</button>`
       : `<span class="acv-faint">${esc(label)}</span>`;
-    return `<div class="acv-panel-entry">${target} ${counts(ctx, c.additions, c.deletions)}${marks(s, c)}</div>`;
   };
+  const entry = (r: AszWorkspaceChange, c: AszFileChange): string =>
+    `<div class="acv-panel-entry">${link(r)} ${counts(ctx, c.additions, c.deletions)}${marks(s, c)}</div>`;
+  // A record whose file list was taken out to fit its stored file names no file, so it is listed by
+  // its count, linked to its step, and never left out of the panel: under its root, or with what no
+  // observed window made when no window explains it.
+  const allListless = all.filter((r) => !(r.changes?.length ?? 0) && r.changed_files !== null && r.changed_files > 0);
+  const listless = allListless.filter((r) => r.basis !== 'unattributed');
+  const countOnly = (r: AszWorkspaceChange, prefix = ''): string =>
+    `<div class="acv-panel-file"><div class="acv-panel-file-head"><span class="acv-faint">${esc(prefix)}${esc(
+      fill(s.changedFilesNotKept, { n: String(r.changed_files) }),
+    )}</span></div><div class="acv-panel-entry">${link(r)}</div></div>`;
+  const shortened = (root: string): string =>
+    listless
+      .filter((r) => (r.root?.path ?? '') === root)
+      .map((r) => countOnly(r))
+      .join('');
+  const heading = (root: string): string => `<div class="acv-change-root">${esc(s.workspaceRoot)} <span class="mono">${esc(root || '—')}</span></div>`;
+  const drawn = new Set<string>();
   let html = attributed.some((r) => m.step(r.step)) ? `<div class="acv-panel-hint">${esc(s.changesPanelHint)}</div>` : '';
   for (const root of changeRoots(attributed)) {
-    html += `<div class="acv-change-root">${esc(s.workspaceRoot)} <span class="mono">${esc(root.root || '—')}</span></div>`;
+    drawn.add(root.root);
+    html += heading(root.root);
     for (const fl of root.files) {
       const op = fl.entries[fl.entries.length - 1]!.change.operation;
       html += `<div class="acv-panel-file"><div class="acv-panel-file-head"><span class="acv-op ${esc(op)}">${esc(op)}</span><span class="acv-file-path">${esc(fl.path)}</span></div>${fl.entries
         .map((e) => entry(e.record, e.change))
         .join('')}</div>`;
     }
+    html += shortened(root.root);
+  }
+  for (const root of new Set(listless.map((r) => r.root?.path ?? ''))) {
+    if (!drawn.has(root)) html += heading(root) + shortened(root);
   }
   const outside: Array<{ record: AszWorkspaceChange; change: AszFileChange }> = [];
   for (const r of all) {
@@ -360,13 +389,15 @@ export function drawChangesPanel(ctx: ViewContext): void {
       if (r.basis === 'unattributed' || c.attribution === 'outside_any_window') outside.push({ record: r, change: c });
     }
   }
-  if (outside.length) {
+  const outsideListless = allListless.filter((r) => r.basis === 'unattributed');
+  if (outside.length || outsideListless.length) {
     html += `<div class="acv-change-root acv-warn">${esc(s.outsideWindowsHeading)}</div><div class="acv-loose-note">${esc(s.outsideWindowsNote)}</div>`;
     for (const e of outside) {
       html += `<div class="acv-panel-file"><div class="acv-panel-file-head"><span class="acv-op ${esc(e.change.operation)}">${esc(e.change.operation)}</span><span class="acv-file-path">${esc(
         e.record.root?.path ? `${e.record.root.path}/` : '',
       )}${esc(e.change.path)}</span></div>${entry(e.record, e.change)}</div>`;
     }
+    for (const r of outsideListless) html += countOnly(r, r.root?.path ? `${r.root.path} · ` : '');
   }
   body.innerHTML = html || `<div class="acv-empty">—</div>`;
   body.querySelectorAll<HTMLElement>('[data-goto]').forEach(

@@ -214,3 +214,18 @@ describe('an MCP call on the page', () => {
     expect(root.querySelector<HTMLButtonElement>('[data-tab="execution"]')!.hidden).toBe(true);
   });
 });
+
+describe('an execution record retention removed', () => {
+  it('says it was removed, with the time and outcome it keeps, and never that the rest was not reported', () => {
+    const doc = JSON.parse(JSON.stringify(fixture)) as AszViewDocument;
+    const r = doc.tool_executions!.find((e) => e.step === LOOKUP)!;
+    Object.assign(r, { state: 'removed', observed_by: '', boundary: '', server: undefined, duration_ms: undefined, arguments: undefined, result: undefined });
+    const root = mount(doc);
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${LOOKUP}"] .acv-execution-pill`)!.click();
+    const body = root.querySelector('.acv-inspector-body')!.textContent!;
+    expect(body).toContain('Retention removed this record from the stored files; its time and outcome are kept.');
+    expect(body).toContain('returned');
+    expect(body).not.toContain('not reported');
+  });
+});

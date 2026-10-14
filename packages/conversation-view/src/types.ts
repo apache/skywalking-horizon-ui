@@ -152,6 +152,9 @@ export interface AszToolExecution {
   duration_ms?: number;
   /** `returned` | `failed` | `interrupted`. */
   outcome: string;
+  /** `removed` when the Sessionizer's retention removed the record from its own root, keeping its
+   *  id, tool, time and outcome; absent otherwise. */
+  state?: string;
   arguments?: AszExecutionValue;
   /** Only on a call that returned. */
   result?: AszExecutionValue;
@@ -244,6 +247,11 @@ export interface AszWorkspaceChange {
   /** Null is unknown, which is not zero. */
   changed_files: number | null;
   changes: AszFileChange[] | null;
+  /** `truncated` when the record was made smaller to fit its stored file: its hunks, or its file
+   *  list, were taken out, and `changed_files` stays. `removed` when the Sessionizer's retention
+   *  removed it from its own root, keeping each file's path, operation and line counts. Absent when
+   *  it landed whole. */
+  state?: string;
 }
 
 export interface AszOrigin {

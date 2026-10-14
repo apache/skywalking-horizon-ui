@@ -365,3 +365,64 @@ describe('the inspector', () => {
     expect(root.querySelector('[data-tab="details"]')!.getAttribute('aria-selected')).toBe('true');
   });
 });
+
+describe('a change record made smaller to fit its stored file', () => {
+  const truncated: AszWorkspaceChange = { ...bashRecord, changes: [], changed_files: 3, state: 'truncated' };
+
+  it('counts the files its list no longer names, and never says none changed', () => {
+    expect(observationOf(truncated)).toBe('files');
+    const t = tallyChanges([truncated]);
+    expect(t.files).toBe(3);
+    expect(t.observation).toBe('files');
+    const root = mount(withRecords(fixture, [truncated]));
+    openFold(root);
+    const pill = root.querySelector<HTMLButtonElement>(`[data-card="${BASH}"] .acv-change-pill`)!;
+    expect(pill.textContent).toContain('3 files');
+    expect(pill.textContent).not.toContain('no files changed');
+    pill.click();
+    expect(root.textContent).toContain('3 file(s) changed; the list was taken out to fit the record in its stored file');
+  });
+
+  it('counts a shortened record alone exactly, and beside another record as the least they changed', () => {
+    // Two producers saw the same two files. Shortening either, or both, cannot make them four.
+    const plugin: AszWorkspaceChange = { ...bashRecord, id: `${bashRecord.id}/plugin`, captured_by: 'asz-plugin' };
+    const short = (r: AszWorkspaceChange): AszWorkspaceChange => ({ ...r, changes: [], changed_files: r.changes!.length, state: 'truncated' });
+    expect(tallyChanges([bashRecord, plugin])).toMatchObject({ files: 2, incomplete: false });
+    expect(tallyChanges([short(bashRecord), plugin])).toMatchObject({ files: 2, incomplete: true });
+    expect(tallyChanges([short(bashRecord), short(plugin)])).toMatchObject({ files: 2, incomplete: true });
+    expect(tallyChanges([short(bashRecord)])).toMatchObject({ files: 2, incomplete: false });
+  });
+
+  it('lists a shortened record in the conversation panel by its count, linked to its step', () => {
+    const root = mount(withRecords(fixture, [truncated]));
+    root.querySelector<HTMLButtonElement>('.acv-changes-toggle')!.click();
+    const panel = root.querySelector('.acv-changes')!;
+    expect(root.querySelector('.acv-changes-title')!.textContent).toContain('1 records · 3 files');
+    expect(panel.textContent).toContain('3 file(s) changed; the list was taken out to fit the record in its stored file');
+    expect(panel.querySelector(`[data-goto="${BASH}"]`)).not.toBeNull();
+  });
+
+  it('lists a shortened record no window explains with what no window made, by its count', () => {
+    const unattributed: AszWorkspaceChange = { ...truncated, id: 'gap/r/1', step: '', tool: undefined, basis: 'unattributed' };
+    const root = mount(withRecords(fixture, [unattributed]));
+    root.querySelector<HTMLButtonElement>('.acv-changes-toggle')!.click();
+    const panel = root.querySelector('.acv-changes')!;
+    expect(root.querySelector('.acv-changes-title')!.textContent).toContain('1 records · 3 files');
+    expect(panel.textContent).toContain('outside observed tool windows');
+    expect(panel.textContent).toContain('3 file(s) changed; the list was taken out to fit the record in its stored file');
+  });
+
+  it('says a diff taken out kept its line counts, and one too large to compute did not', () => {
+    const counted = { ...bashRecord.changes![0]!, diff: 'too_large', hunks: undefined, additions: 4, deletions: 1 };
+    const uncounted = { ...bashRecord.changes![1]!, diff: 'too_large', hunks: undefined, additions: null, deletions: null };
+    const root = mount(withRecords(fixture, [{ ...bashRecord, changes: [counted, uncounted], state: 'truncated' }]));
+    openFold(root);
+    root.querySelector<HTMLButtonElement>(`[data-card="${BASH}"] .acv-change-pill`)!.click();
+    // Opening a file draws the panel again, so each row is found again before it is opened.
+    const keys = new Set([...root.querySelectorAll<HTMLButtonElement>('[data-change-file]')].map((b) => b.dataset.changeFile!));
+    for (const key of keys) [...root.querySelectorAll<HTMLButtonElement>('[data-change-file]')].find((b) => b.dataset.changeFile === key)!.click();
+    const text = root.textContent!;
+    expect(text).toContain('diff taken out to fit its stored file — line counts, path and hashes only');
+    expect(text).toContain('too large to diff — path and hashes only');
+  });
+});
