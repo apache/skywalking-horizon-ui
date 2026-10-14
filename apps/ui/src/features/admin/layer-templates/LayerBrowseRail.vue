@@ -53,6 +53,8 @@ const props = defineProps<{
   unconfiguredCount: number;
   refreshing: boolean;
   badgeFor: (name: string) => TemplateStatus | null;
+  /** The stored content is invalid, enabled or disabled. */
+  invalidFor: (name: string) => boolean;
   /** Enabled OAP record ids for a duplicated template name, else null —
    *  same `horizon.layer.<KEY>` argument as `badgeFor`. */
   conflictIdsFor: (name: string) => string[] | null;
@@ -70,6 +72,9 @@ const layerSearch = ref('');
 const divergedOnly = ref(false);
 const localOnly = ref(false);
 const unconfiguredOnly = ref(false);
+const invalidOnly = ref(false);
+const isInvalid = (key: string): boolean => props.invalidFor(`horizon.layer.${key}`);
+const invalidCount = computed(() => props.templates.filter((t) => isInvalid(t.key)).length);
 
 // Auto-uncheck the picker filter whenever its underlying set goes to
 // zero. Without this the operator can hit Reset / Push / Sync — which
@@ -80,6 +85,7 @@ const unconfiguredOnly = ref(false);
 watch(() => props.divergedCount, (n) => { if (n === 0) divergedOnly.value = false; });
 watch(() => props.localCount, (n) => { if (n === 0) localOnly.value = false; });
 watch(() => props.unconfiguredCount, (n) => { if (n === 0) unconfiguredOnly.value = false; });
+watch(invalidCount, (n) => { if (n === 0) invalidOnly.value = false; });
 
 const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
   const q = layerSearch.value.trim().toLowerCase();
@@ -87,6 +93,7 @@ const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
     if (divergedOnly.value && !props.isDiverged(t.key)) return false;
     if (localOnly.value && !props.hasLocalDraftFor(t.key)) return false;
     if (unconfiguredOnly.value && !props.isUnconfigured(t.key)) return false;
+    if (invalidOnly.value && !isInvalid(t.key)) return false;
     if (!q) return true;
     return (t.alias ?? '').toLowerCase().includes(q) || t.key.toLowerCase().includes(q);
   });
@@ -141,6 +148,10 @@ function pickFromDropdown(key: string): void {
       />
     </div>
     <div class="dd-filters">
+      <label class="diverged-filter invalid" :class="{ on: invalidOnly }" :title="invalidCount === 0 ? t('No layer template stored on OAP is invalid') : t('{n} layer templates stored on OAP are invalid', invalidCount, { named: { n: invalidCount } })">
+        <input v-model="invalidOnly" type="checkbox" :disabled="invalidCount === 0" />
+        {{ t('Invalid') }}<span v-if="invalidCount" class="diverged-count invalid">{{ invalidCount }}</span>
+      </label>
       <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? t('No layers differ from OAP') : t('{n} layer(s) differ from the OAP-stored copy', { n: divergedCount })">
         <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
         {{ t('Diverged') }}<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
@@ -165,7 +176,7 @@ function pickFromDropdown(key: string): void {
       <span class="name">{{ tpl.alias || tpl.key }}</span>
       <code v-if="tpl.alias && tpl.alias !== tpl.key" class="key-tag">{{ tpl.key }}</code>
       <span v-if="hasLocalDraftFor(tpl.key)" class="local-badge" :title="t('Unpublished local draft')">{{ t('local') }}</span>
-      <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
+      <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :invalid="invalidFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
     </button>
     <p v-if="filteredTemplates.length === 0" class="list-empty">
       {{ divergedOnly && !layerSearch.trim() ? t('No layers differ from OAP.') : t('No layers match “{q}”.', { q: layerSearch }) }}
@@ -186,7 +197,7 @@ function pickFromDropdown(key: string): void {
         <span class="layer-dd-name">{{ selectedTpl.alias || selectedTpl.key }}</span>
         <code v-if="selectedTpl.alias && selectedTpl.alias !== selectedTpl.key" class="key-tag">{{ selectedTpl.key }}</code>
         <span v-if="hasLocalDraftFor(selectedTpl.key)" class="local-badge" :title="t('Unpublished local draft in this browser')">{{ t('local') }}</span>
-        <TemplateStatusBadge :status="badgeFor(`horizon.layer.${selectedTpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${selectedTpl.key}`)" />
+        <TemplateStatusBadge :status="badgeFor(`horizon.layer.${selectedTpl.key}`)" :invalid="invalidFor(`horizon.layer.${selectedTpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${selectedTpl.key}`)" />
         <span class="caret dd-caret" :class="{ open: layerDropdownOpen }">›</span>
       </button>
       <template v-if="layerDropdownOpen">
@@ -203,6 +214,10 @@ function pickFromDropdown(key: string): void {
             />
           </div>
           <div class="dd-filters">
+            <label class="diverged-filter invalid" :class="{ on: invalidOnly }" :title="invalidCount === 0 ? t('No layer template stored on OAP is invalid') : t('{n} layer templates stored on OAP are invalid', invalidCount, { named: { n: invalidCount } })">
+              <input v-model="invalidOnly" type="checkbox" :disabled="invalidCount === 0" />
+              {{ t('Invalid') }}<span v-if="invalidCount" class="diverged-count invalid">{{ invalidCount }}</span>
+            </label>
             <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? t('No layers differ from OAP') : t('{n} layer(s) differ from the OAP-stored copy', { n: divergedCount })">
               <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
               {{ t('Diverged') }}<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
@@ -228,7 +243,7 @@ function pickFromDropdown(key: string): void {
               <span class="name">{{ tpl.alias || tpl.key }}</span>
               <code v-if="tpl.alias && tpl.alias !== tpl.key" class="key-tag">{{ tpl.key }}</code>
               <span v-if="hasLocalDraftFor(tpl.key)" class="local-badge" :title="t('Unpublished local draft')">{{ t('local') }}</span>
-              <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
+              <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :invalid="invalidFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
             </button>
             <p v-if="filteredTemplates.length === 0" class="list-empty">
               {{ divergedOnly && !layerSearch.trim() ? t('No layers differ from OAP.') : t('No layers match “{q}”.', { q: layerSearch }) }}
@@ -448,6 +463,9 @@ function pickFromDropdown(key: string): void {
   color: #1a1a1a;
   font-size: 10px;
   font-weight: 700;
+}
+.diverged-count.invalid {
+  background: var(--sw-err);
 }
 .list-empty {
   padding: 8px 10px;

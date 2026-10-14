@@ -44,6 +44,15 @@ describe('layerMissingReason', () => {
     expect(layerMissingReason([{ ...differing, identical: true }], 'general')).toBe('unknown');
   });
 
+  it('names an invalid stored template — to a reader the bundle reports it to', () => {
+    const invalid = [{ name: 'horizon.layer.GENERAL' }];
+    expect(layerMissingReason([], 'general', invalid)).toBe('invalid');
+    expect(layerMissingReason(null, 'general', invalid)).toBe('invalid');
+    expect(layerMissingReason([], 'mesh', invalid)).toBe('unknown');
+    // Anyone the bundle does not tell gets the plain answer.
+    expect(layerMissingReason([], 'general', undefined)).toBe('unknown');
+  });
+
   it('does not claim duplication for another layer’s conflict', () => {
     expect(layerMissingReason([differing], 'mesh')).toBe('unknown');
   });

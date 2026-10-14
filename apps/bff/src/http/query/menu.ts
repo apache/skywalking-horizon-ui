@@ -68,6 +68,10 @@ interface LayerSyncSnapshot {
    *  reported duplicate, not an ambiguity, and stay in the menu.
    *  Detection only — Horizon never retires a record. */
   conflicted: Set<string>;
+  /** Canonical layer keys whose stored template fails the read check. Hidden
+   *  the way a conflicted one is — NOT treated as a layer with no template,
+   *  which would bring it back from `listLayers` on the in-code defaults. */
+  invalid: Set<string>;
   /** Per-name layer rows for the live OAP UI-template state. Lets the
    *  menu prefer the operator's published edits (alias / components /
    *  slots / caps / colour / metrics / overview / log / traces /
@@ -93,6 +97,7 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
   const empty: LayerSyncSnapshot = {
     disabled: new Set(),
     conflicted: new Set(),
+    invalid: new Set(),
     layerRowsByName: new Map(),
     rows: [],
   };
@@ -103,23 +108,31 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
       bundled: () => iterateBundledTemplates(),
       logger,
     });
-    if (sync.unreachable) return empty;
     const disabled = new Set<string>();
+    const invalid = new Set<string>();
     const layerRowsByName = new Map<string, TemplateRow>();
     for (const row of sync.rows) {
       if (row.kind !== 'layer') continue;
       if (row.locale !== undefined) continue; // skip i18n overlay rows
       layerRowsByName.set(row.name, row);
-      if (row.status === 'disabled') {
-        disabled.add(canonicalLayerKey(row.key));
-      }
+      // Only the row a layer is read from can hide it: a record under a name
+      // no reader computes (`horizon.layer.general`) says nothing about the
+      // canonical row beside it, which may be healthy and served.
+      const key = canonicalLayerKey(row.key);
+      if (row.name !== formatName('layer', key)) continue;
+      if (row.status === 'disabled') disabled.add(key);
+      if (row.status === 'invalid') invalid.add(key);
     }
+    // An outage serves the retained rows, and what they say stays hidden — a
+    // layer must not come back on the in-code defaults because the store that
+    // said "hide it" is briefly unreadable.
+    if (sync.unreachable) return { ...empty, disabled, invalid };
     const conflicted = new Set<string>();
     for (const c of ambiguousConflicts(sync, 'layer')) {
       conflicted.add(canonicalLayerKey(c.key));
     }
     warnConflictedLayersHidden(sync, conflicted);
-    return { disabled, conflicted, layerRowsByName, rows: sync.rows };
+    return { disabled, conflicted, invalid, layerRowsByName, rows: sync.rows };
   } catch {
     // Status unavailable — show every layer rather than hide wrongly.
   }
@@ -493,7 +506,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // bundle. The same snapshot also gives the disabled set + per-layer
       // remote content for deriveLayer. (Disk files reach OAP only via
       // boot-seed / admin reset; they're never read at render time.)
-      const { disabled, conflicted, layerRowsByName, rows } = await layerSyncSnapshot(deps);
+      const { disabled, conflicted, invalid, layerRowsByName, rows } = await layerSyncSnapshot(deps);
 
       // Order = the synced layer rows (sorted by key), then any OAP-active
       // layer with no synced template, appended so nothing disappears.
@@ -520,48 +533,67 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         ordered.push(k);
       }
 
+      const menuEntriesFor = (key: string): LayerDef[] => {
+        const base = deriveLayer(
+          key,
+          activeCanonical.has(key),
+          levelByCanonical.has(key) ? (levelByCanonical.get(key) ?? null) : null,
+          countByCanonical.get(key) ?? (activeCanonical.has(key) ? 0 : -1),
+          normalByCanonical.get(key) ?? null,
+          locale,
+          layerRowsByName,
+          oapOverlayContentFromRows(rows, 'layer', key, locale),
+        );
+        // Per-group menu split — opt-in per layer via the template. One
+        // level-0 entry per distinct OAP Service.group (sorted; '' =
+        // ungrouped → plain layer name). Every entry keeps the layer's key;
+        // `serviceGroup` tells a split layer's entries apart. Off ⇒ one
+        // combined entry.
+        const tpl = resolveLayerTemplate(key, layerRowsByName);
+        const groups = groupsByCanonical.get(key);
+        if (!tpl?.splitByServiceGroup || !groups || groups.size === 0) return [base];
+        return [...groups.keys()]
+          .sort((a, b) => a.localeCompare(b))
+          .map((g): LayerDef => ({
+            // The display NAME carries the group when split (`General
+            // Service · agent`), so every surface — sidebar, page header,
+            // landing KPI tile — reads the group, not just one sidebar
+            // tag. `serviceGroup` carries the raw value for ordering and
+            // data scoping; its reads send it as `?group=`.
+            ...base,
+            serviceGroup: g,
+            // Group FIRST so the distinguishing part survives sidebar
+            // truncation (`agent · General Ser…` rather than
+            // `General Service · …`).
+            name: g ? `${g} · ${base.name}` : base.name,
+            serviceCount: groups.get(g) ?? 0,
+          }));
+      };
+
       // Every layer OAP surfaces in `listLayers` is shown — including
       // ones with no Horizon template (they render with default caps, a
       // bare Service page). Dropped only when admin-disabled (soft-deleted,
       // like disabled overviews), duplicated on OAP (ambiguous definition —
-      // see `conflicted`), or config-excluded (`layers.excluded`).
+      // see `conflicted`), its template invalid, or config-excluded
+      // (`layers.excluded`).
       const layers = ordered
-        .filter((key) => !disabled.has(key) && !conflicted.has(key) && !excludedLayers.has(key.toUpperCase()))
+        .filter(
+          (key) =>
+            !disabled.has(key) && !conflicted.has(key) && !invalid.has(key) && !excludedLayers.has(key.toUpperCase()),
+        )
         .flatMap((key): LayerDef[] => {
-          const base = deriveLayer(
-            key,
-            activeCanonical.has(key),
-            levelByCanonical.has(key) ? (levelByCanonical.get(key) ?? null) : null,
-            countByCanonical.get(key) ?? (activeCanonical.has(key) ? 0 : -1),
-            normalByCanonical.get(key) ?? null,
-            locale,
-            layerRowsByName,
-            oapOverlayContentFromRows(rows, 'layer', key, locale),
-          );
-          // Per-group menu split — opt-in per layer via the template. One
-          // level-0 entry per distinct OAP Service.group (sorted; '' =
-          // ungrouped → plain layer name). Every entry keeps the layer's key;
-          // `serviceGroup` tells a split layer's entries apart. Off ⇒ one
-          // combined entry.
-          const tpl = resolveLayerTemplate(key, layerRowsByName);
-          const groups = groupsByCanonical.get(key);
-          if (!tpl?.splitByServiceGroup || !groups || groups.size === 0) return [base];
-          return [...groups.keys()]
-            .sort((a, b) => a.localeCompare(b))
-            .map((g): LayerDef => ({
-              // The display NAME carries the group when split (`General
-              // Service · agent`), so every surface — sidebar, page header,
-              // landing KPI tile — reads the group, not just one sidebar
-              // tag. `serviceGroup` carries the raw value for ordering and
-              // data scoping; its reads send it as `?group=`.
-              ...base,
-              serviceGroup: g,
-              // Group FIRST so the distinguishing part survives sidebar
-              // truncation (`agent · General Ser…` rather than
-              // `General Service · …`).
-              name: g ? `${g} · ${base.name}` : base.name,
-              serviceCount: groups.get(g) ?? 0,
-            }));
+          // A layer the read check let through that still cannot be built
+          // loses its own entry, not the whole menu — the catch below would
+          // report "OAP unreachable", which is not what happened.
+          try {
+            return menuEntriesFor(key);
+          } catch (err) {
+            logger.error(
+              { layer: key, err: err instanceof Error ? err.message : String(err) },
+              'layer left out of the menu: its template could not be built into an entry',
+            );
+            return [];
+          }
         });
 
       const alarmLayers = alarmLayersFor(layers, req.access);

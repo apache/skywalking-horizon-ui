@@ -323,6 +323,7 @@ export function useAlertPageEditor(readOnly: Ref<boolean>) {
   }
 
   return {
+    afterWrite,
     configQ,
     rowsQ,
     named,

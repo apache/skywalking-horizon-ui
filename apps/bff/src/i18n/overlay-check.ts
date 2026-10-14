@@ -33,6 +33,11 @@ export interface Finding {
   file: string;
   path: string;
   message: string;
+  /** The overlay sets a value outside the allowlist, which the runtime merger
+   *  would apply — structure or a query rather than wording. The read side
+   *  refuses an overlay for these alone; the rest describe drift the merger
+   *  already ignores. */
+  rewrites?: true;
 }
 
 const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group', 'name']);
@@ -275,6 +280,7 @@ export function walk(
           file,
           path: [...path, k].join('.'),
           message: `field "${k}" is not in the translatable allowlist`,
+          rewrites: true,
         });
         continue;
       }
@@ -291,6 +297,7 @@ export function walk(
     file,
     path: path.join('.'),
     message: `"${path[path.length - 1] ?? '(root)'}" is not in the translatable allowlist`,
+    rewrites: true,
   });
 }
 

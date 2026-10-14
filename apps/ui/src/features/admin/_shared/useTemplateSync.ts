@@ -114,6 +114,7 @@ export interface UseTemplateSyncReturn {
   lacksWriteVerb: ComputedRef<boolean>;
   banner: ComputedRef<SyncBanner>;
   badgeFor: (name: string) => TemplateStatus | null;
+  invalidFor: (name: string) => boolean;
   /** The duplicate row for `name`, or `null` when OAP has a single
    *  enabled record for it. Drives the picker's duplicate chip. */
   conflictFor: (name: string) => TemplateConflict | null;
@@ -231,7 +232,9 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
       };
     }
     const counts: Partial<Record<TemplateStatus, number>> = {};
-    for (const b of ownBadges.value) counts[b.status] = (counts[b.status] ?? 0) + 1;
+    for (const b of ownBadges.value) {
+      counts[b.status] = (counts[b.status] ?? 0) + 1;
+    }
 
     if (lacksWriteVerb.value) {
       return {
@@ -361,9 +364,18 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     for (const b of ownBadges.value) m.set(b.name, b.status);
     return m;
   });
+  const invalidIndex = computed<Set<string>>(
+    () => new Set(ownBadges.value.filter((b) => b.invalid).map((b) => b.name)),
+  );
 
   function badgeFor(name: string): TemplateStatus | null {
     return badgeIndex.value.get(name) ?? null;
+  }
+
+  /** The stored content is invalid, enabled or not — the second dimension
+   *  beside `badgeFor`'s state. */
+  function invalidFor(name: string): boolean {
+    return invalidIndex.value.has(name);
   }
 
   function conflictFor(name: string): TemplateConflict | null {
@@ -375,5 +387,5 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return c ? buildConflictBanner(c, translate) : null;
   }
 
-  return { readOnly, lacksWriteVerb, banner, badgeFor, conflictFor, conflictBannerFor, status };
+  return { readOnly, lacksWriteVerb, banner, badgeFor, invalidFor, conflictFor, conflictBannerFor, status };
 }

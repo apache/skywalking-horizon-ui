@@ -49,7 +49,7 @@ const armed = computed<boolean>(() => typed.value.trim() === props.pageId);
 <template>
   <Modal :open="open" :title="t('Delete alarm page?')" width="min(520px, 92vw)" @close="emit('close')">
     <p class="dap__msg">
-      {{ t('Delete the alarm page “{title}” ({id})? OAP has no hard delete, so the page is disabled: it leaves the sidebar for everyone, and its id cannot be used again. This cannot be undone from the UI.', { title, id: pageId }) }}
+      {{ t('Delete the alarm page “{title}” ({id})? OAP has no hard delete, so the page is disabled: it leaves the sidebar for everyone. It can be enabled again from the disabled templates on this page, and a new page may take its id.', { title, id: pageId }) }}
     </p>
     <label class="dap__confirm">
       <i18n-t keypath="Type {id} to confirm:" tag="span" scope="global">

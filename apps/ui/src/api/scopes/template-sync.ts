@@ -24,7 +24,7 @@
  */
 
 import type { BffClient } from '../client';
-import type { TemplateKind, TemplateStatus } from './configs';
+import type { TemplateKind, TemplateProblem, TemplateStatus } from './configs';
 
 export interface TemplateSyncRow {
   name: string;
@@ -41,6 +41,10 @@ export interface TemplateSyncRow {
    *  admin banner names it — these rows are the editor's content sources and
    *  carry their `remote` either way, so it can diff and push over it). */
   effective: 'remote' | 'bundled' | null;
+  /** Why the stored content cannot be served. Set with status `invalid`, and
+   *  on a disabled row whose content would fail too — turning that row back on
+   *  must start from the shipped default, never from its own content. */
+  problems?: TemplateProblem[];
   remote: { id: string; configuration: string; disabled: boolean } | null;
   bundled: { configuration: string } | null;
 }
@@ -77,11 +81,23 @@ export class TemplateSyncApi {
    *             `<name>.i18n.<locale>`, written by previous operator
    *             pushes. `null` when no operator has pushed yet.
    *   Both are `null` for English or unknown templates. */
-  overlay(name: string, locale: string): Promise<{ disk: unknown; oap: unknown }> {
-    return this.bff.request<{ disk: unknown; oap: unknown }>(
+  overlay(
+    name: string,
+    locale: string,
+  ): Promise<{ disk: unknown; oap: unknown; oapProblems?: TemplateProblem[] }> {
+    return this.bff.request<{ disk: unknown; oap: unknown; oapProblems?: TemplateProblem[] }>(
       'GET',
       `/api/admin/templates/${encodeURIComponent(name)}/i18n/${encodeURIComponent(locale)}`,
     );
+  }
+
+  /** The checks a save would run, without saving. An overlay name
+   *  (`<name>.i18n.<locale>`) is checked against its source template. */
+  validate(name: string, content: unknown): Promise<{ problems: TemplateProblem[] }> {
+    return this.bff.request<{ problems: TemplateProblem[] }>('POST', '/api/admin/templates/validate', {
+      name,
+      content,
+    });
   }
 
   /** Push the operator's translation overlay for ONE locale to OAP as a
@@ -122,6 +138,14 @@ export class TemplateSyncApi {
    *  are genuinely removable. Returns the fresh sync status. */
   disable(name: string): Promise<TemplateSyncStatus> {
     return this.bff.request<TemplateSyncStatus>('POST', '/api/admin/templates/disable', {
+      name,
+    });
+  }
+
+  /** Turn a disabled record back on with the content it holds — valid or
+   *  not. Returns the fresh sync status. */
+  enable(name: string): Promise<TemplateSyncStatus> {
+    return this.bff.request<TemplateSyncStatus>('POST', '/api/admin/templates/enable', {
       name,
     });
   }

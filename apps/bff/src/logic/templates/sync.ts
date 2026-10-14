@@ -43,14 +43,24 @@ import {
   ALERT_RETIRED_KEY,
   buildEnvelope,
   buildOverlayEnvelope,
+  formatName,
   isOverlayName,
   parseEnvelope,
+  parseName,
   serializeEnvelope,
   TEMPLATE_KINDS,
   type TemplateKind,
 } from './names.js';
 import { iterateBundledOverlays } from './aggregator.js';
 import { templateIdentityIssue } from './identity.js';
+import {
+  envelopeProblem,
+  overlayReadProblems,
+  templateReadProblems,
+  type TemplateProblem,
+} from './read-check.js';
+
+export type { TemplateProblem } from './read-check.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
@@ -66,6 +76,7 @@ export type TemplateStatus =
   | 'disabled'         // remote present but disabled — UI hides, no render
   | 'remote-only'      // remote present, no bundled match (operator added or Horizon dropped it)
   | 'bundled-fallback' // bundled present, remote absent at runtime (NOT seeded post-boot)
+  | 'invalid'          // remote enabled but its content fails the read check — served to nobody
   | 'unknown';         // shouldn't happen — defensive
 
 export interface TemplateRow {
@@ -87,6 +98,10 @@ export interface TemplateRow {
    *  rule's single reason (see {@link UnreadableRow}). Set only on enabled
    *  source rows; forces `effective: null`. */
   unreadable?: string;
+  /** Why the stored content cannot be served (see `read-check.ts`). Set with
+   *  status `invalid`, and on a disabled row whose content would fail too, so
+   *  turning it back on never restores a template nobody can render. */
+  problems?: TemplateProblem[];
   /** Remote-side detail. `null` when remote-absent. */
   remote: { id: string; configuration: string; disabled: boolean } | null;
   /** Bundled-side serialized envelope. `null` when bundled-absent (`remote-only`). */
@@ -474,9 +489,9 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
     const overlaySeedCount = await seedMissingOverlays(deps, parsedRemote.byName);
     // Duplicates are REPORTED at boot, never resolved here. Retiring a row is
-    // irreversible for that copy's CONTENT (OAP has no delete, only disable;
-    // the admin Reactivate control re-enables a name from the bundled default,
-    // it does not bring a disabled copy's content back), and the rule reads an
+    // irreversible for that copy's CONTENT (OAP has no delete, only disable,
+    // and a disabled copy is hidden behind the enabled one sharing its name,
+    // so nothing in Horizon can turn it back on), and the rule reads an
     // operator edit from a pristine seed — so two instances on different
     // Horizon versions, mid rolling-upgrade, can each judge the other's
     // survivor to be the loser and between them disable every row for a name.
@@ -524,13 +539,18 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
  *  never used for a write (writes are denied in readonly). */
 function readonlyRows(bundled: Map<string, BundledRow>, overlays: BundledOverlay[]): TemplateRow[] {
   const out: TemplateRow[] = [];
+  // The bundled directory is documented as replaceable, so what this mode
+  // serves is read-checked exactly like a stored row.
   for (const b of bundled.values()) {
+    const problems = sourceProblems(b.kind, b.key, b.configuration, b.content);
+    const invalid = problems.length > 0;
     out.push({
       name: b.name,
       kind: b.kind,
       key: b.key,
-      status: 'synced',
-      effective: 'remote',
+      status: invalid ? 'invalid' : 'synced',
+      effective: invalid ? null : 'remote',
+      ...(invalid ? { problems } : {}),
       remote: { id: `bundled:${b.name}`, configuration: b.configuration, disabled: false },
       bundled: { configuration: b.configuration },
     });
@@ -538,13 +558,17 @@ function readonlyRows(bundled: Map<string, BundledRow>, overlays: BundledOverlay
   for (const ov of overlays) {
     const env = buildOverlayEnvelope(ov.kind, ov.key, ov.locale, ov.content);
     const configuration = serializeEnvelope(env);
+    const source = bundled.get(formatName(ov.kind, ov.key));
+    const problems = source ? overlayProblems(source.configuration, configuration, source.content, ov.content) : [];
+    const invalid = problems.length > 0;
     out.push({
       name: env.name,
       kind: ov.kind,
       key: ov.key,
       locale: ov.locale,
-      status: 'synced',
-      effective: 'remote',
+      status: invalid ? 'invalid' : 'synced',
+      effective: invalid ? null : 'remote',
+      ...(invalid ? { problems } : {}),
       remote: { id: `bundled:${env.name}`, configuration, disabled: false },
       bundled: { configuration },
     });
@@ -647,6 +671,39 @@ export async function updateAndConfirm(
 }
 
 /**
+ * Write `configuration` to an existing record and leave it ENABLED — how a
+ * disabled template is turned back on, or configured again.
+ *
+ * OAP's update does not mean the same thing on every storage. On BanyanDB it
+ * patches the configuration alone and a disabled record stays disabled, while
+ * ElasticSearch and JDBC rewrite the whole record, enabling it; OAP's create is
+ * the mirror image (a whole-record upsert on BanyanDB, refused for an existing
+ * record elsewhere). So the update goes first, and a record that still reads
+ * back disabled is written again through create.
+ */
+export async function updateEnabledAndConfirm(
+  client: UITemplateClient,
+  id: string,
+  configuration: string,
+  logger: Logger,
+): Promise<void> {
+  await updateAndConfirm(client, id, configuration, logger);
+  if (!(await client.list()).find((r) => r.id === id)?.disabled) return;
+  const ack = await client.create(id, configuration);
+  if (!ack.status) {
+    throw new Error(`OAP did not re-enable ${id}: ${ack.message || 'no message'}`);
+  }
+  // The record OAP acknowledges, as `createAndConfirm` follows it: should it
+  // be a new one, the disabled record stays behind it under the same name.
+  const enabledId = ack.id || id;
+  const hit = await pollUntilVisible(async () => {
+    const found = (await client.list()).find((r) => r.id === enabledId);
+    return found && !found.disabled && found.configuration === configuration ? enabledId : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('update', enabledId, WRITE_VISIBILITY_TIMEOUT_MS);
+}
+
+/**
  * Disable + wait for `disabled: true` to become visible to
  * `client.list()`. Same read-after-write guard as the other write
  * helpers — keeps subsequent decisions (e.g. reactivate flow,
@@ -706,6 +763,8 @@ interface RemoteRow {
    *  as. Carried per row (not per name): duplicates are resolved content-blind,
    *  so one twin can be readable while the other is not. */
   unreadable?: string;
+  /** Read-check problems; see {@link TemplateRow.problems}. */
+  problems?: TemplateProblem[];
 }
 
 function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, BundledRow> {
@@ -731,6 +790,56 @@ interface ParsedRemote {
   unreadable: UnreadableRow[];
 }
 
+/**
+ * Read-check results by stored text. The store is re-read every 30s and a row
+ * almost never changes in between, so an unchanged row is not checked twice.
+ * Keyed by the text itself, never a concatenation, so a key costs no copy of a
+ * large row; a source's text also fixes its kind and key (the name is in it).
+ */
+const sourceProblemCache = new Map<string, TemplateProblem[]>();
+const overlayProblemCache = new Map<string, Map<string, TemplateProblem[]>>();
+let overlayProblemCount = 0;
+const PROBLEM_CACHE_LIMIT = 4096;
+
+function sourceProblems(
+  kind: TemplateKind,
+  key: string,
+  configuration: string,
+  content: unknown,
+): TemplateProblem[] {
+  const hit = sourceProblemCache.get(configuration);
+  if (hit) return hit;
+  if (sourceProblemCache.size >= PROBLEM_CACHE_LIMIT) sourceProblemCache.clear();
+  const problems = templateReadProblems(kind, key, content);
+  sourceProblemCache.set(configuration, problems);
+  return problems;
+}
+
+function overlayProblems(
+  sourceConfiguration: string,
+  overlayConfiguration: string,
+  sourceContent: unknown,
+  overlay: unknown,
+): TemplateProblem[] {
+  const hit = overlayProblemCache.get(sourceConfiguration)?.get(overlayConfiguration);
+  if (hit) return hit;
+  // Bounded by every entry, not by sources: edits to one translation pile up
+  // under an unchanged source.
+  if (overlayProblemCount >= PROBLEM_CACHE_LIMIT) {
+    overlayProblemCache.clear();
+    overlayProblemCount = 0;
+  }
+  let bySource = overlayProblemCache.get(sourceConfiguration);
+  if (!bySource) {
+    bySource = new Map();
+    overlayProblemCache.set(sourceConfiguration, bySource);
+  }
+  const problems = overlayReadProblems(sourceContent, overlay);
+  bySource.set(overlayConfiguration, problems);
+  overlayProblemCount += 1;
+  return problems;
+}
+
 function parseRemoteRows(
   rows: Array<{ id: string; configuration: string; disabled: boolean }>,
   logger: Logger,
@@ -746,10 +855,32 @@ function parseRemoteRows(
   const groups = new Map<string, Array<RemoteRow>>();
   const unreadable: UnreadableRow[] = [];
   let skipped = 0;
+  const push = (row: RemoteRow): void => {
+    const list = groups.get(row.name) ?? [];
+    list.push(row);
+    groups.set(row.name, list);
+  };
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
     if (!env) {
-      skipped++;
+      // A record under a Horizon template name that does not hold a template
+      // is still that template's record — reported, not skipped, or its page
+      // would show the template as never published at all.
+      const named = parseName(r.id);
+      if (!named || (named.kind === 'alert' && named.key === ALERT_RETIRED_KEY)) {
+        skipped++;
+        continue;
+      }
+      push({
+        name: r.id,
+        kind: named.kind,
+        key: named.key,
+        locale: named.locale,
+        id: r.id,
+        configuration: r.configuration,
+        disabled: r.disabled,
+        problems: [envelopeProblem(r.configuration)],
+      });
       continue;
     }
     // For source rows the OAP "key" is whatever the envelope name had
@@ -774,7 +905,11 @@ function parseRemoteRows(
       !r.disabled && env.locale === undefined
         ? templateIdentityIssue(env.kind, key, env.content)
         : null;
-    const row: RemoteRow = {
+    // A disabled row is checked too: turning it back on must not restore
+    // content nobody can render.
+    const problems =
+      !issue && env.locale === undefined ? sourceProblems(env.kind, key, r.configuration, env.content) : [];
+    push({
       name: env.name,
       kind: env.kind,
       key,
@@ -783,10 +918,8 @@ function parseRemoteRows(
       configuration: r.configuration,
       disabled: r.disabled,
       ...(issue ? { unreadable: issue.message } : {}),
-    };
-    const list = groups.get(env.name) ?? [];
-    list.push(row);
-    groups.set(env.name, list);
+      ...(problems.length > 0 ? { problems } : {}),
+    });
     if (issue) {
       unreadable.push({ id: r.id, name: env.name, kind: env.kind, reason: issue.message });
     }
@@ -808,6 +941,26 @@ function parseRemoteRows(
       });
     }
   }
+  // An overlay is checked against the source it merges into, so only once the
+  // source rows are resolved.
+  for (const row of out.values()) {
+    if (row.locale === undefined || row.problems) continue;
+    const source = out.get(formatName(row.kind, row.key));
+    const sourceContent = source ? parseEnvelope(source.configuration)?.content : undefined;
+    const overlay = parseEnvelope(row.configuration)?.content;
+    if (sourceContent === undefined || overlay === undefined) continue;
+    const problems = overlayProblems(source!.configuration, row.configuration, sourceContent, overlay);
+    if (problems.length > 0) row.problems = problems;
+  }
+  const invalid = [...out.values()].filter((r) => r.problems && !r.disabled);
+  if (invalid.length > 0) {
+    logger.warn(
+      { rows: invalid.map((r) => ({ name: r.name, id: r.id, problems: r.problems!.length })) },
+      'OAP UI-template rows Horizon cannot serve: their stored content would break the pages built from it. ' +
+        'They render for nobody and are listed, with each problem, on their Dashboard setup page. Disable each ' +
+        'one there before configuring it again; Horizon changes nothing on its own.',
+    );
+  }
   if (skipped > 0) {
     logger.debug(
       { skipped },
@@ -818,7 +971,7 @@ function parseRemoteRows(
     logger.warn(
       { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds, identical: c.identical })) },
       'OAP UI-template name conflicts (>1 enabled row) — Horizon renders the lowest-id row and changes NOTHING on its own. ' +
-        'Retiring a row does not bring its content back (OAP soft-disables; the admin Reactivate control restores the bundled default, not the disabled copy), so clean this up on OAP ' +
+        'Retiring a row does not bring its content back (OAP soft-disables, and Horizon cannot turn back on a copy hidden behind an enabled one), so clean this up on OAP ' +
         'once you have confirmed which copy you want to keep.',
     );
   }
@@ -914,12 +1067,13 @@ function mergeRows(
         key: b.key,
         status: 'disabled',
         effective: null,
+        ...(r.problems ? { problems: r.problems } : {}),
         remote: { id: r.id, configuration: r.configuration, disabled: true },
         bundled: { configuration: b.configuration },
       });
       continue;
     }
-    const status = r.configuration === b.configuration ? 'synced' : 'diverged';
+    const status = r.problems ? 'invalid' : r.configuration === b.configuration ? 'synced' : 'diverged';
     out.push({
       name,
       kind: b.kind,
@@ -927,8 +1081,9 @@ function mergeRows(
       status,
       // An identity-invalid row keeps its bundled-vs-remote status — that is
       // what the admin diffs and pushes over to repair it — but serves no one.
-      effective: r.unreadable ? null : 'remote',
+      effective: r.unreadable || r.problems ? null : 'remote',
       ...(r.unreadable ? { unreadable: r.unreadable } : {}),
+      ...(r.problems ? { problems: r.problems } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: false },
       bundled: { configuration: b.configuration },
     });
@@ -941,9 +1096,10 @@ function mergeRows(
       kind: r.kind,
       key: r.key,
       locale: r.locale,
-      status: r.disabled ? 'disabled' : 'remote-only',
-      effective: r.disabled || r.unreadable ? null : 'remote',
+      status: r.disabled ? 'disabled' : r.problems ? 'invalid' : 'remote-only',
+      effective: r.disabled || r.unreadable || r.problems ? null : 'remote',
       ...(r.unreadable ? { unreadable: r.unreadable } : {}),
+      ...(r.problems ? { problems: r.problems } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: r.disabled },
       bundled: null,
     });
@@ -985,7 +1141,7 @@ export function findOverlayRow(
   locale: string,
 ): TemplateRow | null {
   for (const r of status.rows) {
-    if (r.locale === locale && r.kind === kind && r.key === key && !!r.remote && !r.remote.disabled) {
+    if (r.locale === locale && r.kind === kind && r.key === key && r.effective === 'remote' && !!r.remote) {
       return r;
     }
   }

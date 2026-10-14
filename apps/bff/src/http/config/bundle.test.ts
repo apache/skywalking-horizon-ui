@@ -271,3 +271,31 @@ describe('config bundle — a record that is not the template it is stored as se
     expect(widgetIds(bundle, 'k8s')).toEqual(['w-k8s']);
   });
 });
+
+describe('config bundle — an invalid stored template', () => {
+  beforeEach(() => invalidateSyncCache());
+  afterEach(() => invalidateSyncCache());
+
+  /** GENERAL stored without `components` — no page can be built from it. */
+  const brokenGeneral = serializeEnvelope(buildEnvelope('layer', 'GENERAL', { key: 'GENERAL', alias: 'Broken' }));
+
+  it('leaves out that layer, keeps the rest, and lists it as invalid', async () => {
+    const b = await bundleOf([row('general', brokenGeneral), row('mesh', layerCfg('MESH', 'Service Mesh'))]);
+    expect(layerKeys(b)).toEqual(['mesh']);
+    expect(b.syncStatus.invalid).toEqual([{ name: 'horizon.layer.GENERAL', kind: 'layer', key: 'GENERAL' }]);
+    expect(b.syncStatus.badges.find((x) => x.name === 'horizon.layer.GENERAL')).toMatchObject({
+      status: 'invalid',
+      invalid: true,
+    });
+  });
+
+  it('keeps disabled and invalid apart: a disabled record is disabled whatever it holds', async () => {
+    const b = await bundleOf([row('general', brokenGeneral, true), row('mesh', layerCfg('MESH', 'Service Mesh'), true)]);
+    const badge = (name: string) => b.syncStatus.badges.find((x) => x.name === name);
+    expect(badge('horizon.layer.GENERAL')).toMatchObject({ status: 'disabled', invalid: true });
+    expect(badge('horizon.layer.MESH')).toMatchObject({ status: 'disabled' });
+    expect(badge('horizon.layer.MESH')?.invalid).toBeUndefined();
+    // Only an enabled invalid template asks for attention.
+    expect(b.syncStatus.invalid).toEqual([]);
+  });
+});

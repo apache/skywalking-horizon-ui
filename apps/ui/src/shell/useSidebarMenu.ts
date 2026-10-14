@@ -27,6 +27,8 @@ export interface NavRow {
   label: string;
   to: string;
   badge?: { text: string; kind?: 'ok' | 'warn' | 'err' | 'info' };
+  /** Templates this setup page owns that are stored invalid on OAP. */
+  invalidCount?: number;
   /** Custom active-match; defaults to exact `path === to`. */
   activeWhen?: (path: string) => boolean;
   /** Present ⇒ row renders as an L1 expandable with these as L2. */
@@ -154,6 +156,22 @@ export function useSidebarMenu() {
     return badges.filter((b) => b.kind === kind && b.status === 'diverged').length;
   }
 
+  /** Which stored templates each Dashboard setup row owns. */
+  const INVALID_OWNER: Record<string, (r: { kind: string; locale?: string }) => boolean> = {
+    '/admin/overview-templates': (r) => r.kind === 'overview' && r.locale === undefined,
+    '/admin/layer-dashboards': (r) => r.kind === 'layer' && r.locale === undefined,
+    '/admin/translations': (r) => r.locale !== undefined,
+    '/admin/alert-page-setup': (r) => r.kind === 'alert',
+    '/admin/3d-map': (r) => r.kind === 'infra-3d',
+    '/admin/global-defaults': (r) => r.kind === 'theme' || r.kind === 'time-defaults',
+  };
+
+  function invalidCountFor(to: string): number {
+    const owns = INVALID_OWNER[to];
+    if (!owns) return 0;
+    return (bundle.value?.syncStatus?.invalid ?? []).filter(owns).length;
+  }
+
   /** Per-route warn badge for the template-admin rows. */
   function syncBadgeFor(to: string): NavRow['badge'] | undefined {
     const kind = to === '/admin/layer-dashboards' ? 'layer' : to === '/admin/overview-templates' ? 'overview' : null;
@@ -178,11 +196,17 @@ export function useSidebarMenu() {
         .filter((r) => !r.verb || auth.hasVerb(r.verb))
         .map((r) => {
           const badge = syncBadgeFor(r.to);
+          const invalidCount = invalidCountFor(r.to);
           // L2 rows render inside the open L1 with no gate of their own, so
           // the filter has to reach them here.
           const children = r.children?.filter((c) => !c.verb || auth.hasVerb(c.verb));
-          if (!badge && !children) return r;
-          return { ...r, ...(badge ? { badge } : {}), ...(children ? { children } : {}) };
+          if (!badge && !children && invalidCount === 0) return r;
+          return {
+            ...r,
+            ...(badge ? { badge } : {}),
+            ...(invalidCount > 0 ? { invalidCount } : {}),
+            ...(children ? { children } : {}),
+          };
         });
       if (links.length === 0) continue;
       out.push({ kind: sec.kind, kicker: sec.kicker, links });

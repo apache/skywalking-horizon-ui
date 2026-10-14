@@ -134,6 +134,11 @@ describe('resolveEffectiveLayer — a reachable store decides per row', () => {
     expect(eff).toEqual({ template: null, blocked: true, reason: 'layer-disabled' });
   });
 
+  it('blocks a layer whose stored template is invalid — never the in-code defaults', async () => {
+    const eff = await resolveEffectiveLayer(templateClient([layerRow('GENERAL', { key: 'GENERAL' })]), 'general');
+    expect(eff).toEqual({ template: null, blocked: true, reason: 'template-invalid' });
+  });
+
   it('falls to in-code defaults when the store answers but holds no row for the layer', async () => {
     // The store is readable and simply has nothing for GENERAL (seed never
     // landed). That is a `bundled-fallback` row on the sync status — its
@@ -214,7 +219,7 @@ describe('resolveEffectiveLayer — a store that was readable before', () => {
       }) as unknown as UITemplateClient;
   }
 
-  const published = { key: 'GENERAL', alias: 'Edited by the operator' };
+  const published = { key: 'GENERAL', alias: 'Edited by the operator', components: { service: true } };
 
   it('keeps serving the last read rows when the store goes away', async () => {
     const store: { current: Store } = { current: [layerRow('GENERAL', published)] };
@@ -314,7 +319,7 @@ describe('templateStoreStatus — what the operator is shown', () => {
 
   it('counts what is being served from OAP, and when it was read', async () => {
     const store: { current: Store } = {
-      current: [layerRow('GENERAL', { key: 'GENERAL' }), layerRow('MESH', { key: 'MESH' })],
+      current: [layerRow('GENERAL', { key: 'GENERAL', components: { service: true } }), layerRow('MESH', { key: 'MESH', components: { service: true } })],
     };
     await resolveEffectiveLayer(flipping(store), 'GENERAL');
 
@@ -326,7 +331,7 @@ describe('templateStoreStatus — what the operator is shown', () => {
   });
 
   it('keeps the failure’s own words, and says it is still serving', async () => {
-    const store: { current: Store } = { current: [layerRow('GENERAL', { key: 'GENERAL' })] };
+    const store: { current: Store } = { current: [layerRow('GENERAL', { key: 'GENERAL', components: { service: true } })] };
     const client = flipping(store);
     await resolveEffectiveLayer(client, 'GENERAL');
 
@@ -347,7 +352,7 @@ describe('templateStoreStatus — what the operator is shown', () => {
     await resolveEffectiveLayer(client, 'GENERAL');
     expect(templateStoreStatus().lastError).not.toBeNull();
 
-    store.current = [layerRow('GENERAL', { key: 'GENERAL' })];
+    store.current = [layerRow('GENERAL', { key: 'GENERAL', components: { service: true } })];
     invalidateSyncCache();
     await resolveEffectiveLayer(client, 'GENERAL');
 

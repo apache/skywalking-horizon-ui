@@ -38,7 +38,8 @@ import { useLayers } from '@/shell/useLayers';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { composeLayerPickerList } from './layerPickerList';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
-import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { buildExportEnvelope, downloadJson, pickJsonFile } from '@/features/admin/_shared/templatePortability';
+import { checkImportedFile, useRefusedImport } from '@/features/admin/_shared/importCheck';
 import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { stableStringify } from '@/utils/stableJson';
@@ -660,13 +661,20 @@ export function useLayerTemplateStore() {
   // Import stages a file as a local draft for the layer the file names. Layer
   // keys are a closed enum — you can't invent a layer here — so the target
   // KEY must already be loaded on this deployment; otherwise reject.
+  const refusedImport = useRefusedImport();
   async function onImportFile(): Promise<void> {
     if (sync.readOnly.value) return;
     const text = await pickJsonFile();
     if (text === null) return;
-    const res = validateImport('layer', text);
+    let res;
+    try {
+      res = await checkImportedFile('layer', text);
+    } catch (err) {
+      flashMsg(err instanceof Error ? err.message : String(err));
+      return;
+    }
     if (!res.ok) {
-      flashMsg(res.error);
+      refusedImport.refused.value = res.view;
       return;
     }
     const key = res.key; // already upper-cased by the validator
@@ -683,13 +691,15 @@ export function useLayerTemplateStore() {
   // Disable / reactivate — OAP has no hard DELETE.
   // Disabling soft-disables the layer on OAP: a disabled template drops out
   // of the bundle AND the menu, so the layer disappears from the sidebar.
-  // Reactivating re-pushes the bundled default to OAP, which clears the
-  // disabled flag and the layer reappears. A purely local draft (no OAP
-  // presence) is just removed from the browser.
+  // Reactivating turns the same record back on with the content it holds.
+  // A purely local draft (no OAP presence) is just removed from the browser.
   //
   // Styled confirm (replaces window.confirm — native box breaks the dark
   // design). One modal serves both actions via a stored `confirmFn`.
   const isLayerDisabled = computed(() => sync.badgeFor(editName.value) === 'disabled');
+  /** The selected layer's stored template is enabled and invalid: the page
+   *  offers only its problems, a download and Disable — never the editor. */
+  const selectedInvalid = computed(() => sync.badgeFor(editName.value) === 'invalid');
   const deleteOpen = ref(false);
   const confirmTitle = ref('');
   const confirmMessage = ref('');
@@ -780,20 +790,13 @@ export function useLayerTemplateStore() {
     const key = selectedKey.value;
     const name = editName.value;
     if (!key || !name) return;
-    // Restore what this layer HAD. OAP keeps a disabled row's configuration —
-    // `disabled` is only a flag on it — so re-pushing the bundled default
-    // instead would silently discard every edit the layer carried before it
-    // was disabled, and reactivating is not the moment to be asked to accept
-    // that. Resetting to the shipped default is its own control.
-    //
-    // Bundled is the fallback for the one case with nothing to restore: a
-    // built-in layer disabled while it had never diverged from the bundle.
-    const content = sourceContent('remote') ?? bundledContent();
-    if (!content) return;
+    // Restore what this layer HAD: the stored record, untouched. Whether its
+    // content is valid is a separate question — an invalid one comes back
+    // invalid and is reported, as it was before it was disabled.
     isSaving.value = true;
     saveMsg.value = null;
     try {
-      await bff.templateSync.save(name, content);
+      await bff.templateSync.enable(name);
       localEdits.remove(name);
       await Promise.all([sources.refetch(), refreshConfigBundle()]);
       loadFrom('remote');
@@ -804,6 +807,18 @@ export function useLayerTemplateStore() {
     } finally {
       isSaving.value = false;
     }
+  }
+
+  /** The banner disabled or enabled the stored record `name`: every reader
+   *  follows it, and the selected layer's editor reseeds unless it holds
+   *  unsaved edits. */
+  async function afterStoredTemplateChange(name: string): Promise<void> {
+    try {
+      await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    } catch (err) {
+      saveMsg.value = err instanceof Error ? err.message : String(err);
+    }
+    if (name === editName.value && !dirty.value) syncDraft();
   }
 
   const selectedTpl = computed(() => draft.template);
@@ -867,7 +882,9 @@ export function useLayerTemplateStore() {
     flashMsg,
     onExport,
     onImportFile,
+    refusedImport,
     isLayerDisabled,
+    selectedInvalid,
     deleteOpen,
     confirmTitle,
     confirmMessage,
@@ -877,6 +894,7 @@ export function useLayerTemplateStore() {
     askConfirm,
     askDeleteLayer,
     askReactivateLayer,
+    afterStoredTemplateChange,
     doDeleteLayer,
     doReactivateLayer,
   };

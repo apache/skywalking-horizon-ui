@@ -23,6 +23,12 @@
     remote-only       blue chip — operator added remote with no bundled
     bundled-fallback  gray chip — remote absent (OAP unreachable or row
                                    never synced)
+    invalid           solid red chip — stored content would break its pages;
+                                   served to nobody
+
+  `invalid` (the prop) is the other dimension: whether the stored content
+  is invalid says nothing about whether the record is enabled. A disabled
+  record holding invalid content shows DISABLED beside an INVALID chip.
 
   `conflictIds` is orthogonal to all five: it renders an extra solid red
   DUPLICATE chip when OAP stores the same template name on more than one
@@ -36,6 +42,8 @@ import type { TemplateStatus } from '@/api/scopes/configs';
 
 defineProps<{
   status: TemplateStatus | null;
+  /** The stored content is invalid, whatever `status` says. */
+  invalid?: boolean;
   /** Every enabled OAP record id for this name, when there is more than
    *  one. Omitted / empty for the normal single-record case. */
   conflictIds?: string[] | null;
@@ -48,6 +56,11 @@ const { t } = useI18n({ useScope: 'global' });
   <span v-if="status" class="tsb" :class="`tsb--${status}`" :title="title(status)">
     {{ label(status) }}
   </span>
+  <span
+    v-if="invalid && status !== 'invalid'"
+    class="tsb tsb--invalid"
+    :title="t('The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.')"
+  >{{ t('invalid') }}</span>
   <span
     v-if="conflictIds && conflictIds.length > 0"
     class="tsb tsb--conflict"
@@ -63,6 +76,7 @@ function label(s: TemplateStatus): string {
     case 'disabled': return 'disabled';
     case 'remote-only': return 'remote-only';
     case 'bundled-fallback': return 'bundled';
+    case 'invalid': return 'invalid';
     default: return '?';
   }
 }
@@ -73,6 +87,7 @@ function title(s: TemplateStatus): string {
     case 'disabled': return 'Template is disabled on OAP. Hidden from render until re-enabled.';
     case 'remote-only': return 'OAP has this template but bundled does not. OAP is the only source.';
     case 'bundled-fallback': return 'Shipped with Horizon but not synced to OAP yet. It is NOT rendered as-is — push it (or let boot-seed run) to publish; until then the page uses built-in defaults, and blocks if OAP’s template store is unreachable.';
+    case 'invalid': return 'The copy stored on OAP would break the pages built from it, so nobody is served it. Check its problems or disable it before configuring a new one.';
     default: return '';
   }
 }
@@ -115,6 +130,11 @@ export default { label, title };
 }
 .tsb--bundled-fallback {
   color: var(--sw-fg-3, #8a93a0);
+}
+.tsb--invalid {
+  color: var(--sw-bg-0, #0b0d10);
+  border-color: var(--sw-err, #c0392b);
+  background: var(--sw-err, #c0392b);
 }
 /* Solid, not outlined — the other five chips report a state the operator
  * chose; this one reports an ambiguity they have to go fix on OAP, and

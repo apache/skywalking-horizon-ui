@@ -19,12 +19,14 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { UITemplateClient, UITemplateRow } from '@skywalking-horizon-ui/api-client';
 import {
   ambiguousConflicts,
+  findOverlayRow,
   getSyncStatus,
   bootSeed,
   setTemplateReadOnly,
   invalidateSyncCache,
   createAndConfirm,
   updateAndConfirm,
+  updateEnabledAndConfirm,
   disableAndConfirm,
   WriteNotVisibleError,
   type BundledTemplate,
@@ -89,9 +91,21 @@ describe('sync — readonly mode renders from the disk bundle', () => {
  * operator dashboards.
  * ------------------------------------------------------------------ */
 
-const LAYER: BundledTemplate = { kind: 'layer', key: 'GENERAL', content: { key: 'GENERAL', tabs: [] } };
-const OVERVIEW: BundledTemplate = { kind: 'overview', key: 'services', content: { id: 'services', widgets: [] } };
-const ALERT: BundledTemplate = { kind: 'alert', key: 'default', content: { columns: [] } };
+const LAYER: BundledTemplate = {
+  kind: 'layer',
+  key: 'GENERAL',
+  content: { key: 'GENERAL', components: { service: true }, tabs: [] },
+};
+const OVERVIEW: BundledTemplate = {
+  kind: 'overview',
+  key: 'services',
+  content: { id: 'services', title: 'Services', widgets: [] },
+};
+const ALERT: BundledTemplate = {
+  kind: 'alert',
+  key: 'default',
+  content: { pinnedLayers: [], defaultWindowMs: 1_200_000, overviewAlarmsLimit: 100 },
+};
 const BUNDLED: BundledTemplate[] = [LAYER, OVERVIEW, ALERT];
 
 const ZH_OVERLAY: BundledOverlay = { kind: 'layer', key: 'GENERAL', locale: 'zh-CN', content: { title: '通用' } };
@@ -107,7 +121,11 @@ const overlayNameOf = (o: BundledOverlay): string =>
 const overlayCfgOf = (o: BundledOverlay): string =>
   serializeEnvelope(buildOverlayEnvelope(o.kind, o.key, o.locale, o.content));
 
-const EDITED_GENERAL = editedCfgOf(LAYER, { key: 'GENERAL', tabs: [{ title: 'operator tab' }] });
+const EDITED_GENERAL = editedCfgOf(LAYER, {
+  key: 'GENERAL',
+  components: { service: true },
+  tabs: [{ title: 'operator tab' }],
+});
 
 const remoteRow = (id: string, configuration: string, disabled = false): UITemplateRow =>
   ({ id, configuration, disabled });
@@ -171,11 +189,18 @@ function fakeOap(opts: FakeOapOptions = {}) {
       if (opts.createThrowsFor?.includes(id)) throw new Error(`OAP refused create ${id}`);
       if (opts.createNacksFor?.includes(id)) return { id, status: false, message: 'duplicate name' };
       const storedId = opts.assignsId?.[id] ?? id;
-      commit(() => rows.push({ id: storedId, configuration, disabled: false }));
+      // ...and create is a whole-record upsert, which enables it.
+      commit(() => {
+        const existing = rows.find((x) => x.id === storedId);
+        if (existing) Object.assign(existing, { configuration, disabled: false });
+        else rows.push({ id: storedId, configuration, disabled: false });
+      });
       return { id: storedId, status: true, message: '' };
     },
     update: async (id: string, configuration: string) => {
       calls.push(`update:${id}`);
+      // BanyanDB, OAP's default storage: the update patches the configuration
+      // alone, so a disabled record stays disabled.
       commit(() => {
         const r = rows.find((x) => x.id === id);
         if (r) r.configuration = configuration;
@@ -849,7 +874,7 @@ describe('unreadable rows — not readable as the template they are stored as', 
         ...alreadySeeded(),
         remoteRow('retired-key', rawEnvelope('horizon.alert.page-setup', 'alert', { pinnedLayers: ['GENERAL'] })),
         remoteRow('misfiled-page', rawEnvelope('horizon.alert.payments', 'alert', { id: 'risk', title: 'Risk' })),
-        remoteRow('page', rawEnvelope('horizon.alert.risk', 'alert', { id: 'risk', title: 'Risk' })),
+        remoteRow('page', rawEnvelope('horizon.alert.risk', 'alert', { id: 'risk', title: 'Risk', pinnedLayers: ['GENERAL'] })),
       ],
     });
 
@@ -931,5 +956,117 @@ describe('unreadable rows — not readable as the template they are stored as', 
     const status = await getSyncStatus(depsFor(oap.client));
 
     expect(status.unreadable).toEqual([]);
+  });
+});
+
+describe('invalid rows — stored content that would break the pages built from it', () => {
+  beforeEach(() => {
+    invalidateSyncCache();
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    setTemplateReadOnly(false);
+    invalidateSyncCache();
+    vi.restoreAllMocks();
+  });
+
+  const BROKEN_GENERAL = editedCfgOf(LAYER, { key: 'GENERAL', tabs: [] });
+
+  it('keeps the record, serves it to nobody, and says why', async () => {
+    const oap = fakeOap({ rows: [...seededExceptLayer(), remoteRow('broken', BROKEN_GENERAL)] });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    const general = rowOf(status, nameOf(LAYER));
+    expect(general).toMatchObject({ status: 'invalid', effective: null });
+    expect(general.problems).toEqual([{ path: ['components'], message: 'Required' }]);
+    // Kept exactly as stored — the record is the operator's to look at.
+    expect(general.remote).toEqual({ id: 'broken', configuration: BROKEN_GENERAL, disabled: false });
+    expect(rowOf(status, nameOf(OVERVIEW)).effective).toBe('remote');
+    expect(warnings().join(' ')).toMatch(/cannot serve/);
+    expect(writes(oap.calls)).toEqual([]);
+  });
+
+  it('does not re-seed a name an invalid row holds', async () => {
+    const oap = fakeOap({ rows: [...seededExceptLayer(), remoteRow('broken', BROKEN_GENERAL)] });
+    await bootSeed(depsFor(oap.client));
+    expect(writes(oap.calls)).toEqual([]);
+  });
+
+  it('reports a record under a Horizon name that is not a template at all', async () => {
+    const text = cfgOf(LAYER).slice(0, -5);
+    const oap = fakeOap({ rows: [...seededExceptLayer(), remoteRow(nameOf(LAYER), text)] });
+
+    const general = rowOf(await getSyncStatus(depsFor(oap.client)), nameOf(LAYER));
+
+    expect(general.status).toBe('invalid');
+    expect(general.problems).toHaveLength(1);
+    expect(general.problems![0]).toMatchObject({ path: [], record: true, offset: text.length });
+    expect(general.remote?.configuration).toBe(text);
+  });
+
+  it('still ignores a record that is not Horizon’s', async () => {
+    const oap = fakeOap({ rows: [...alreadySeeded(), remoteRow('3f2c-uuid', '{"not":"ours"')] });
+    const status = await getSyncStatus(depsFor(oap.client));
+    expect(status.rows.filter((r) => r.status === 'invalid')).toEqual([]);
+  });
+
+  it('marks a disabled invalid row, so turning it back on cannot restore it', async () => {
+    const oap = fakeOap({ rows: [...seededExceptLayer(), remoteRow('broken', BROKEN_GENERAL, true)] });
+    const general = rowOf(await getSyncStatus(depsFor(oap.client)), nameOf(LAYER));
+    expect(general.status).toBe('disabled');
+    expect(general.problems).toEqual([{ path: ['components'], message: 'Required' }]);
+  });
+
+  it('does not apply an overlay that would rewrite a value outside the allowlist', async () => {
+    const rewriting = serializeEnvelope(buildOverlayEnvelope('layer', 'GENERAL', 'zh-CN', { key: 'MESH' }));
+    const oap = fakeOap({ rows: [...alreadySeeded(), remoteRow(overlayNameOf(ZH_OVERLAY), rewriting)] });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(rowOf(status, overlayNameOf(ZH_OVERLAY))).toMatchObject({ status: 'invalid', effective: null });
+    expect(findOverlayRow(status, 'layer', 'GENERAL', 'zh-CN')).toBeNull();
+  });
+
+  it('checks the disk bundle in readonly mode too', async () => {
+    setTemplateReadOnly(true);
+    const broken: BundledTemplate = { kind: 'layer', key: 'GENERAL', content: { key: 'GENERAL' } };
+    const status = await getSyncStatus(depsFor(fakeOap().client, { bundled: () => [broken, OVERVIEW] }));
+    expect(rowOf(status, nameOf(broken))).toMatchObject({ status: 'invalid', effective: null });
+    expect(rowOf(status, nameOf(OVERVIEW))).toMatchObject({ status: 'synced', effective: 'remote' });
+  });
+
+  it('keeps an invalid row through an outage, as it keeps every retained row', async () => {
+    const oap = fakeOap({ rows: [...seededExceptLayer(), remoteRow('broken', BROKEN_GENERAL)] });
+    await getSyncStatus(depsFor(oap.client));
+    invalidateSyncCache();
+    const down = fakeOap({ listThrows: true });
+
+    const status = await getSyncStatus(depsFor(down.client));
+
+    expect(status.unreachable).toBe(true);
+    expect(rowOf(status, nameOf(LAYER)).status).toBe('invalid');
+  });
+
+  it('follows the record OAP acknowledges when its create stores a new one', async () => {
+    const oap = fakeOap({
+      rows: [remoteRow('disabled', cfgOf(LAYER), true)],
+      assignsId: { disabled: 'assigned' },
+    });
+    await updateEnabledAndConfirm(oap.client, 'disabled', cfgOf(LAYER), logger);
+    expect(oap.rows).toContainEqual({ id: 'assigned', configuration: cfgOf(LAYER), disabled: false });
+  });
+
+  it('configures a disabled invalid record again — and leaves it enabled', async () => {
+    const oap = fakeOap({ rows: [remoteRow('disabled', BROKEN_GENERAL, true)] });
+    await updateEnabledAndConfirm(oap.client, 'disabled', cfgOf(LAYER), logger);
+    expect(oap.rows).toEqual([{ id: 'disabled', configuration: cfgOf(LAYER), disabled: false }]);
+    expect(writes(oap.calls)).toEqual(['update:disabled', 'create:disabled']);
+  });
+
+  it('needs no second write where the update already enabled it', async () => {
+    const oap = fakeOap({ rows: [remoteRow('live', BROKEN_GENERAL)] });
+    await updateEnabledAndConfirm(oap.client, 'live', cfgOf(LAYER), logger);
+    expect(writes(oap.calls)).toEqual(['update:live']);
   });
 });

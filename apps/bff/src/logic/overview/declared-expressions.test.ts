@@ -25,10 +25,10 @@ const overview = {
   id: 'services',
   title: 'Services',
   widgets: [
-    { id: 'w1', type: 'metric', layer: 'GENERAL', mqe: 'avg(top_n(service_cpm,{{topn}},DES))' },
-    { id: 'w2', type: 'kpi-tile', layer: 'general', kpis: [{ label: 'SLA', mqe: 'avg(top_n(service_sla,{{topn}},DES))' }] },
-    { id: 'w3', type: 'metric', layer: 'MESH', mqe: 'avg(top_n(service_resp_time,{{topn}},DES))' },
-    { id: 'w4', type: 'metric', layer: 'GENERAL[payments]', mqe: 'avg(top_n(service_apdex,{{topn}},DES))' },
+    { id: 'w1', title: 'Load', type: 'metric', layer: 'GENERAL', mqe: 'avg(top_n(service_cpm,{{topn}},DES))' },
+    { id: 'w2', title: 'SLA', type: 'kpi-tile', layer: 'general', kpis: [{ label: 'SLA', mqe: 'avg(top_n(service_sla,{{topn}},DES))' }] },
+    { id: 'w3', title: 'Latency', type: 'metric', layer: 'MESH', mqe: 'avg(top_n(service_resp_time,{{topn}},DES))' },
+    { id: 'w4', title: 'Apdex', type: 'metric', layer: 'GENERAL[payments]', mqe: 'avg(top_n(service_apdex,{{topn}},DES))' },
   ],
 };
 

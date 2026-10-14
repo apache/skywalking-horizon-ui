@@ -157,11 +157,11 @@ export function namedPagesFromRows(rows: readonly TemplateSyncRow[]): NamedAlert
     .sort(comparePages);
 }
 
-/** Every key an `alert` row holds, disabled ones included: a disabled row
- *  keeps its name on OAP, and a save under that name would land in it and
- *  stay hidden. */
+/** Every key an enabled `alert` row holds. A deleted (disabled) page's id is
+ *  free again: a new page saved under it is written into that record and
+ *  turned back on, so it is served rather than landing in a hidden record. */
 export function takenPageIds(rows: readonly TemplateSyncRow[]): Set<string> {
-  return new Set(rows.filter(isAlertSourceRow).map((r) => r.key));
+  return new Set(rows.filter((r) => isAlertSourceRow(r) && !r.remote?.disabled).map((r) => r.key));
 }
 
 export type PageIdProblem = 'format' | 'reserved' | 'taken';

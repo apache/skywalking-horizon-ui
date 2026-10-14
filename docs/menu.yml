@@ -265,6 +265,8 @@ catalog:
         path: "/customization/i18n"
       - name: "Themes and Global Defaults"
         path: "/customization/global-defaults"
+      - name: "Invalid Stored Templates"
+        path: "/customization/invalid-templates"
 
   - name: "Reference"
     catalog:

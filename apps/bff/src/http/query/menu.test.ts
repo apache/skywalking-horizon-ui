@@ -354,3 +354,51 @@ describe('menu — a documentLink that fails the link policy is not served', () 
     expect(layer?.documentLink).toBeUndefined();
   });
 });
+
+describe('menu — a layer whose stored template is invalid', () => {
+  beforeEach(() => {
+    invalidateSyncCache();
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    invalidateSyncCache();
+    vi.restoreAllMocks();
+  });
+
+  /** A GENERAL record that would break the menu build: no `components`. */
+  const brokenGeneral = serializeEnvelope(buildEnvelope('layer', 'GENERAL', { key: 'GENERAL', alias: 'Broken' }));
+
+  it('leaves out that layer and serves the rest, without reporting OAP unreachable', async () => {
+    // menuKeys asserts `oap.reachable` — the menu is NOT the OAP-down skeleton.
+    const keys = await menuKeys([row('general', brokenGeneral), row('mesh-1', layerCfg('MESH', 'Service Mesh'))]);
+    expect(keys).not.toContain('general');
+    expect(keys).toContain('mesh');
+  });
+
+  it('does not bring it back from listLayers on the in-code defaults', async () => {
+    // GENERAL is active on OAP's query port; a layer with NO template would be
+    // appended from there. An invalid one is the operator's and stays hidden.
+    const layer = await menuLayer([row('general', brokenGeneral), row('mesh-1', layerCfg('MESH', 'Service Mesh'))], 'general');
+    expect(layer).toBeUndefined();
+  });
+
+  it('serves it again once the record is valid', async () => {
+    const keys = await menuKeys([
+      row('general', layerCfg('GENERAL', 'General Service')),
+      row('mesh-1', layerCfg('MESH', 'Service Mesh')),
+    ]);
+    expect(keys).toContain('general');
+    expect(keys).toContain('mesh');
+  });
+
+  it('is not hidden by a broken record stored under a name no reader computes', async () => {
+    // `horizon.layer.general` is not the name GENERAL is read from; its own
+    // record is healthy and served, so the layer stays.
+    const keys = await menuKeys([
+      row('horizon.layer.general', '{"name":"horizon.layer.general","kind":"layer",'),
+      row('general', layerCfg('GENERAL', 'General Service')),
+      row('mesh-1', layerCfg('MESH', 'Service Mesh')),
+    ]);
+    expect(keys).toContain('general');
+  });
+});

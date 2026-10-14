@@ -44,6 +44,8 @@ export interface TemplatePickerEntry {
   color?: string;
   /** Sync state — drives the SYNCED / DIVERGED / DISABLED / … badge. */
   syncBadge?: TemplateStatus | null;
+  /** The stored content is invalid, whether the record is enabled or not. */
+  invalid?: boolean;
   /** True when the operator has an unpublished local draft for this entry. */
   hasLocalDraft?: boolean;
   /** True when the entry's content differs from the live OAP version. */
@@ -80,6 +82,7 @@ const open = ref(false);
 const search = ref('');
 const divergedOnly = ref(false);
 const localOnly = ref(false);
+const invalidOnly = ref(false);
 const root = ref<HTMLElement | null>(null);
 const searchEl = ref<HTMLInputElement | null>(null);
 
@@ -89,12 +92,21 @@ const selected = computed<TemplatePickerEntry | null>(() => {
 
 const divergedCount = computed<number>(() => props.entries.filter((e) => e.isDiverged).length);
 const localCount = computed<number>(() => props.entries.filter((e) => e.hasLocalDraft).length);
+// On Translations an entry is invalid through any of its languages, too.
+function isInvalid(e: TemplatePickerEntry): boolean {
+  return !!e.invalid || e.syncBadge === 'invalid' || (e.localeBadges ?? []).some((l) => l.status === 'invalid');
+}
+const invalidCount = computed<number>(() => props.entries.filter(isInvalid).length);
+watch(invalidCount, (n) => {
+  if (n === 0) invalidOnly.value = false;
+});
 
 const filtered = computed<TemplatePickerEntry[]>(() => {
   const q = search.value.trim().toLowerCase();
   return props.entries.filter((e) => {
     if (divergedOnly.value && !e.isDiverged) return false;
     if (localOnly.value && !e.hasLocalDraft) return false;
+    if (invalidOnly.value && !isInvalid(e)) return false;
     if (!q) return true;
     return e.label.toLowerCase().includes(q) || e.key.toLowerCase().includes(q);
   });
@@ -150,6 +162,7 @@ watch(open, (v) => {
       <TemplateStatusBadge
         v-if="selected"
         :status="selected.syncBadge ?? null"
+        :invalid="selected.invalid"
         :conflict-ids="selected.conflictIds"
       />
       <span v-if="selected?.localeBadges?.length" class="tp-locales">
@@ -178,6 +191,16 @@ watch(open, (v) => {
           />
         </div>
         <div class="tp-filters">
+          <label
+            class="tp-filter invalid"
+            :class="{ on: invalidOnly }"
+            :title="invalidCount === 0
+              ? t('No {kind} stored on OAP are invalid', { kind: kindLabel })
+              : t('{n} {kind} stored on OAP are invalid', { n: invalidCount, kind: kindLabel })"
+          >
+            <input v-model="invalidOnly" type="checkbox" :disabled="invalidCount === 0" />
+            {{ t('Invalid') }}<span v-if="invalidCount" class="tp-filter-count invalid">{{ invalidCount }}</span>
+          </label>
           <label
             class="tp-filter"
             :class="{ on: divergedOnly }"
@@ -211,7 +234,7 @@ watch(open, (v) => {
             <span class="tp-name">{{ e.label }}</span>
             <code v-if="e.key && e.key !== e.label" class="tp-key">{{ e.key }}</code>
             <span v-if="e.hasLocalDraft" class="tp-local" :title="t('Unpublished local draft')">{{ t('local') }}</span>
-            <TemplateStatusBadge :status="e.syncBadge ?? null" :conflict-ids="e.conflictIds" />
+            <TemplateStatusBadge :status="e.syncBadge ?? null" :invalid="e.invalid" :conflict-ids="e.conflictIds" />
             <span v-if="e.localeBadges?.length" class="tp-locales">
               <span
                 v-for="lb in e.localeBadges"
@@ -333,6 +356,9 @@ watch(open, (v) => {
   color: #1a1a1a;
   font-size: 10px; font-weight: 700;
 }
+.tp-filter-count.invalid {
+  background: var(--sw-err);
+}
 
 .tp-list {
   overflow-y: auto;
@@ -417,6 +443,11 @@ watch(open, (v) => {
   background: var(--sw-bg-2);
   color: var(--sw-fg-3);
   border-color: var(--sw-line);
+}
+.tp-loc--invalid {
+  background: var(--sw-err);
+  color: var(--sw-bg-0);
+  border-color: transparent;
 }
 .tp-loc--local {
   background: var(--sw-warn, #f59e0b);

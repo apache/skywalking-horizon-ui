@@ -45,11 +45,15 @@ export function contextTools(ctx: ToolContext): StructuredToolInterface[] {
       const rows = await Promise.all(
         layers.map(async (layer) => {
           const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+          // The sidebar hides a disabled layer and one whose template is
+          // invalid; so does this list. An unreachable store hides nothing —
+          // it affects every layer alike.
+          if (eff.reason === 'layer-disabled' || eff.reason === 'template-invalid') return null;
           const services = readableRows(ctx, LAYER_PAGE_VERBS, layer, cat.byLayer.get(layer) ?? []).length;
           return { layer, alias: eff.template?.alias, services };
         }),
       );
-      return JSON.stringify(rows);
+      return JSON.stringify(rows.filter((r) => r !== null));
     },
     {
       name: 'list_layers',

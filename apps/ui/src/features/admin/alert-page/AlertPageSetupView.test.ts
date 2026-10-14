@@ -151,6 +151,11 @@ beforeEach(() => {
         rows = rows.map((r) => (r.name === body.name ? alertRow(r.key, contentOf(r), true) : r));
         return json(status());
       }
+      if (path === '/api/admin/templates/enable') {
+        const body = JSON.parse(String(init?.body)) as { name: string };
+        rows = rows.map((r) => (r.name === body.name ? alertRow(r.key, contentOf(r)) : r));
+        return json(status());
+      }
       if (path === '/api/alarms/services') {
         return json({ layer: url.searchParams.get('layer'), services: roster });
       }
@@ -252,15 +257,16 @@ describe('Alarm pages admin — new page', () => {
     return w.findAll('.nap__err').map((e) => e.text());
   }
 
-  it('refuses a malformed, reserved or already stored id — a disabled row included', async () => {
+  it('refuses a malformed, reserved or already stored id — a deleted page’s id is free again', async () => {
     const w = await mountView();
     await w.find('.apl__new').trigger('click');
     expect((await typeId(w, 'Payments'))[0]).toMatch(/lower-case letters/);
     expect((await typeId(w, 'default'))[0]).toMatch(/reserved/);
     expect((await typeId(w, 'page-setup'))[0]).toMatch(/reserved/);
-    expect((await typeId(w, 'retired'))[0]).toMatch(/already stored on OAP/);
     expect((await typeId(w, 'oncall'))[0]).toMatch(/already stored on OAP/);
     expect(listLabels(w)).not.toContain('Payments');
+    expect(await typeId(w, 'retired')).toEqual([]);
+    expect(listLabels(w)).toContain('Payments');
   });
 
   it('opens a valid new page unsaved, and saves it only once it has a pin', async () => {
@@ -283,10 +289,9 @@ describe('Alarm pages admin — new page', () => {
   });
 
   // The modal checked the id when the page was named; a save is what writes
-  // it, so the check is made again then. A row stored under the id since —
-  // disabled, or someone else's page — must not be written into.
+  // it, so the check is made again then. Someone else's page stored under the
+  // id since must not be written into; a deleted one may, which turns it back on.
   it.each([
-    ['a disabled row', alertRow('payments', { id: 'payments', title: 'Payments', pinnedLayers: ['GENERAL'] }, true)],
     ['another page', alertRow('payments', { id: 'payments', title: 'Theirs', pinnedLayers: ['MESH'] })],
   ])('refuses at save time an id stored since it was named — %s — and keeps the page unsaved', async (_, taken) => {
     const w = await mountView();
@@ -691,6 +696,28 @@ describe('Alarm pages admin — delete', () => {
     expect(listLabels(w)).toContain('On-call');
     expect(statusLine(w)).toMatch(/^error: /);
     expect(w.find('.dap__in').exists()).toBe(true);
+  });
+});
+
+describe('Alarm pages admin — a record enabled from the banner', () => {
+  it('re-reads the stored settings and every reader of the pages, as a save does', async () => {
+    rows = rows.map((r) =>
+      r.key === 'default' ? alertRow('default', { ...DEFAULT_CONTENT, pinnedLayers: ['MESH'] }, true) : r,
+    );
+    const w = await mountView();
+    expect(pinnedCodes(w)).toEqual(['GENERAL']);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const disabled = w.find('[data-testid="disabled-templates"]');
+    await disabled.find('.dtb__head').trigger('click');
+    const row = disabled.findAll('.itb__row').find((r) => r.text().includes('horizon.alert.default'))!;
+    for (let i = 0; i < 2; i++) {
+      await row.findAll('button').find((b) => b.text() === 'Enable')!.trigger('click');
+      await flushPromises();
+    }
+
+    expect(pinnedCodes(w)).toEqual(['MESH']);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ALARM_PAGES_QUERY_KEY });
   });
 });
 

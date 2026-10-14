@@ -42,7 +42,7 @@
   3D-map content before it reaches OAP); issues land in the push error list.
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import {
@@ -54,11 +54,13 @@ import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composabl
 import { useSingletonTemplateEditor } from '@/features/admin/_shared/useSingletonTemplateEditor';
 import { useInfra3dLevels, type ResolvedLevel } from './useInfra3dLevels';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
 import Infra3dLayerRow, { type LayerRow } from './Infra3dLayerRow.vue';
 import Modal from '@/components/primitives/Modal.vue';
 import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import { entryOf } from '@/utils/layerRoute';
+const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/admin/_shared/TemplateProblemsDialog.vue'));
 
 // We hydrate the Layers section from the catalog union'd with config
 // keys, so an OAP layer the admin hasn't classified yet shows up here
@@ -104,6 +106,10 @@ const {
   hasLocalDraft,
   hasRemote,
   badge,
+  invalid,
+  contentInvalid,
+  refusedImport,
+  reload,
   isSynced,
   dirty,
   banner,
@@ -406,7 +412,7 @@ const stats = computed(() => {
           </i18n-t>
         </p>
       </div>
-      <div class="hd-actions">
+      <div v-if="!invalid" class="hd-actions">
         <!-- A read-only session is shown the OAP-live (or bundled) config,
              not the draft — this says the draft is there but hidden, since
              nothing on the page can reload or discard it. -->
@@ -418,7 +424,7 @@ const stats = computed(() => {
         >{{ t('local') }}</span>
         <span class="src-pill" :data-src="editorSource">
           {{ t('editing: {source}', { source: editorSource }) }}
-          <TemplateStatusBadge v-if="badge" :status="badge" />
+          <TemplateStatusBadge v-if="badge" :status="badge" :invalid="contentInvalid" />
         </span>
         <div class="reset-wrap">
           <button class="btn" :disabled="pushing || readOnly" @click="resetMenuOpen = !resetMenuOpen">{{ t('Reset to') }} ▾</button>
@@ -469,6 +475,7 @@ const stats = computed(() => {
     </header>
 
     <SyncStatusBanner :banner="banner" />
+    <StoredTemplatesBanner :owns="(r) => r.kind === 'infra-3d'" :read-only="readOnly" @changed="reload" />
     <ul v-if="pushErr && pushErr.length" class="issues">
       <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
     </ul>
@@ -476,6 +483,9 @@ const stats = computed(() => {
 
     <div v-if="loadError" class="loading">
       {{ t('Couldn\'t load the 3D-map config — the BFF may be unreachable. Refresh the page to retry.') }}
+    </div>
+    <div v-else-if="invalid" class="loading invalid" data-testid="invalid-selected">
+      {{ t('The 3D map configuration stored on OAP is invalid, so the map is not served. Check its problems or disable it in the list above before configuring a new one.') }}
     </div>
     <div v-else-if="!ready" class="loading">{{ t('Loading config…') }}</div>
     <template v-else-if="draft">
@@ -690,6 +700,14 @@ const stats = computed(() => {
         </button>
       </template>
     </Modal>
+    <TemplateProblemsDialog
+      v-if="refusedImport"
+      :open="true"
+      :title="t('This file cannot be imported')"
+      :text="refusedImport.text"
+      :problems="refusedImport.problems"
+      @close="refusedImport = null"
+    />
   </div>
 </template>
 
@@ -826,6 +844,7 @@ export { parseHexColor };
   color: var(--sw-fg-2);
 }
 .loading { padding: 20px; color: var(--sw-fg-3); font-size: 12px; }
+.loading.invalid { margin: 12px 20px; color: var(--sw-err); border: 1px solid var(--sw-err); border-radius: 6px; background: var(--sw-err-soft); }
 
 .sect {
   margin: 12px 20px;

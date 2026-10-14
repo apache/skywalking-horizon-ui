@@ -40,6 +40,7 @@ import {
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { AVAILABLE_THEMES, useThemeStore } from '@/state/theme';
 import { configLayer, useInfra3dConfig } from './composables/useInfra3dConfig';
+import { BffApiError } from '@/api/client';
 import { useInfra3dLoader } from './composables/useInfra3dLoader';
 
 // The shipped logo is white-fill; a light theme gets the blue one, as the topbar does.
@@ -118,6 +119,9 @@ const namingReady = computed(() => menuLayers.value.length > 0);
 // `infra-3d:read`). Without this the page sat on "Loading…" forever —
 // the operator couldn't tell a slow load from a hard failure.
 const configError = ref<string | null>(null);
+/** The configuration OAP stores is invalid — not a connectivity or access
+ *  problem, so the reachability hint would send the reader the wrong way. */
+const configInvalid = ref(false);
 
 // Resolver + plane order are bound to the loaded config; both are
 // passed into the Scene AND used to build the local placement copy
@@ -338,7 +342,13 @@ onMounted(async () => {
   try {
     await ensureLoaded();
   } catch (err) {
-    configError.value = err instanceof Error ? err.message : String(err);
+    configInvalid.value =
+      err instanceof BffApiError && (err.body as { error?: unknown } | null)?.error === 'template_invalid';
+    configError.value = configInvalid.value
+      ? t('The 3D map configuration stored on OAP is invalid, so the map is not shown. An administrator can see its problems under Dashboard setup → 3D Infra Map.')
+      : err instanceof Error
+        ? err.message
+        : String(err);
     return;
   }
   // Wait for the layer menu too — it carries the per-layer naming rules
@@ -417,7 +427,7 @@ function onPanelZoneFocus(zoneKey: string): void {
       <div v-if="configError" class="cfg-error">
         <strong>{{ t('Couldn’t load the 3D map.') }}</strong>
         <span class="cfg-error__detail">{{ configError }}</span>
-        <i18n-t keypath="Check that OAP is reachable and your role has 3D Infra Map access ({verb})." tag="span" class="cfg-error__hint" scope="global">
+        <i18n-t v-if="!configInvalid" keypath="Check that OAP is reachable and your role has 3D Infra Map access ({verb})." tag="span" class="cfg-error__hint" scope="global">
           <template #verb><code>infra-3d:read</code></template>
         </i18n-t>
         <router-link class="cfg-error__back" to="/">{{ t('← Back') }}</router-link>

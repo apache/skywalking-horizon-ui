@@ -68,9 +68,11 @@ export function composeLayerPickerList(
     const key = layerKeyFromEditName(name);
     if (!key || present.has(key.toUpperCase())) continue;
     const content = remoteContent(name);
-    if (!content?.key) continue;
     present.add(key.toUpperCase());
-    stored.push(content);
+    // A record whose content cannot be read (an invalid template, enabled
+    // or disabled) keeps its layer in the list as a blank: it is configured
+    // again from scratch, never from that content.
+    stored.push(content?.key ? content : blankFor(key.toUpperCase(), key.toUpperCase()));
   }
   stored.sort((a, b) => a.key.localeCompare(b.key));
   const synthesized = roster

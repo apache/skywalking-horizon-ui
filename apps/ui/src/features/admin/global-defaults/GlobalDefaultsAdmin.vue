@@ -33,6 +33,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
 import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
@@ -51,15 +52,20 @@ const themeStoreRef = useThemeStore();
 const themeSync = useTemplateSync({ kind: 'theme' });
 const timeSync = useTemplateSync({ kind: 'time-defaults' });
 
-// Per-section: the reachability half is global, but the write verb is
-// per-kind, so each section binds its own flag. The footer's Save writes both
-// rows, so it needs both.
-const themeReadOnly = computed<boolean>(() => themeSync.readOnly.value);
-const timeReadOnly = computed<boolean>(() => timeSync.readOnly.value);
-const readOnly = computed<boolean>(() => themeReadOnly.value || timeReadOnly.value);
-
 const themeStatus = computed(() => themeSync.badgeFor('horizon.theme.active'));
 const timeStatus = computed(() => timeSync.badgeFor('horizon.time-defaults.global'));
+// An enabled invalid copy is checked or disabled before it is configured again,
+// so its section takes no edits until then; the other section still does.
+const themeInvalid = computed(() => themeStatus.value === 'invalid');
+const timeInvalid = computed(() => timeStatus.value === 'invalid');
+
+// Per-section: the reachability half is global, but the write verb is
+// per-kind, so each section binds its own flag. The footer's Save writes both
+// rows, so it needs both — but only a section that can change is ever dirty,
+// so an invalid one does not lock the other.
+const themeReadOnly = computed<boolean>(() => themeSync.readOnly.value || themeInvalid.value);
+const timeReadOnly = computed<boolean>(() => timeSync.readOnly.value || timeInvalid.value);
+const readOnly = computed<boolean>(() => themeSync.readOnly.value || timeSync.readOnly.value);
 const themeDiverged = computed(() => themeStatus.value === 'diverged');
 const timeDiverged = computed(() => timeStatus.value === 'diverged');
 
@@ -235,6 +241,11 @@ async function onDiffReset(): Promise<void> {
     </header>
 
     <SyncStatusBanner :banner="themeSync.banner.value" />
+    <StoredTemplatesBanner
+      :owns="(r) => r.kind === 'theme' || r.kind === 'time-defaults'"
+      :read-only="readOnly"
+      @changed="loadFromOap"
+    />
 
     <div v-if="loading" class="gd__empty">{{ t('Loading from OAP…') }}</div>
     <div v-else-if="loadError" class="gd__err">{{ loadError }}</div>
@@ -243,7 +254,7 @@ async function onDiffReset(): Promise<void> {
       <section class="gd__section">
         <header class="gd__sec-head">
           <h2>{{ t('Theme') }}</h2>
-          <TemplateStatusBadge :status="themeStatus" />
+          <TemplateStatusBadge :status="themeStatus" :invalid="themeSync.invalidFor('horizon.theme.active')" />
           <button
             v-if="themeDiverged"
             type="button"
@@ -251,6 +262,9 @@ async function onDiffReset(): Promise<void> {
             @click="themeDiffOpen = true"
           >{{ t('show diff & reset') }}</button>
         </header>
+        <p v-if="themeInvalid" class="gd__err" data-testid="invalid-selected">
+          {{ t('The theme stored on OAP is invalid, so everyone gets the built-in default. Check its problems or disable it in the list above before choosing a new one.') }}
+        </p>
         <p class="gd__sec-lede">
           {{ t('Five bundled themes ship with Horizon. The org default is the starting theme every user sees on first visit. Each user can override locally via the topbar theme chip (stored in {key}).', { key: "localStorage['horizon:theme:user']" }) }}
         </p>
@@ -270,7 +284,7 @@ async function onDiffReset(): Promise<void> {
       <section class="gd__section">
         <header class="gd__sec-head">
           <h2>{{ t('Default time window') }}</h2>
-          <TemplateStatusBadge :status="timeStatus" />
+          <TemplateStatusBadge :status="timeStatus" :invalid="timeSync.invalidFor('horizon.time-defaults.global')" />
           <button
             v-if="timeDiverged"
             type="button"
@@ -278,6 +292,9 @@ async function onDiffReset(): Promise<void> {
             @click="timeDiffOpen = true"
           >{{ t('show diff & reset') }}</button>
         </header>
+        <p v-if="timeInvalid" class="gd__err" data-testid="invalid-selected">
+          {{ t('The default time window stored on OAP is invalid, so everyone gets the built-in default. Check its problems or disable it in the list above before choosing a new one.') }}
+        </p>
         <p class="gd__sec-lede">
           <i18n-t keypath="Default window for the topbar time picker, which feeds {scope}. The OAP {step} precision is derived from the window — you don't pick it separately:" tag="span">
             <template #scope><strong>{{ t('dashboards and overviews only') }}</strong></template>

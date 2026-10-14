@@ -110,6 +110,10 @@ export interface BundleSyncStatus {
     kind: TemplateKind;
     key: string;
     status: TemplateRow['status'];
+    /** The stored content is invalid. Independent of `status`: a disabled
+     *  record can hold invalid content too, and comes back invalid when it is
+     *  enabled. */
+    invalid?: true;
   }>;
   /** Names where >1 enabled OAP record exists. Empty when clean.
    *  Admin pages render a banner so the operator can disable extras
@@ -132,6 +136,16 @@ export interface BundleSyncStatus {
     name: string;
     kind: TemplateKind;
     reason: string;
+  }>;
+  /** Stored templates — translation overlays included, which `badges` leaves
+   *  out — that fail the read check and are served to nobody. What the
+   *  sidebar counts its warning on each Dashboard setup row from; the
+   *  problems themselves are on the admin sync status. */
+  invalid: Array<{
+    name: string;
+    kind: TemplateKind;
+    key: string;
+    locale?: string;
   }>;
 }
 
@@ -229,13 +243,25 @@ async function buildBundle(
     layers[key] = scopes;
     if (Object.keys(pages).length > 0) layerExtPages[key] = pages;
   };
+  // A layer the read check let through that still cannot be sliced loses its
+  // own entry, not the bundle — a 500 here blanks every layer and overview.
+  const addLayerOrSkip = (picked: LayerTemplate): void => {
+    try {
+      addLayer(picked);
+    } catch (err) {
+      logger.error(
+        { layer: picked.key, err: err instanceof Error ? err.message : String(err) },
+        'layer left out of the config bundle: its template could not be built into dashboards',
+      );
+    }
+  };
   if (preferLocal) {
     // Preview (`?prefer=local`): the disk-bundled copy is the thing being
     // previewed for diverged rows, so reading disk here is the allowed
     // preview path.
     for (const tpl of allLayerTemplates()) {
       const picked = pickLayerContent(tpl, remoteByName, true);
-      if (picked) addLayer(picked);
+      if (picked) addLayerOrSkip(picked);
     }
   } else {
     // Normal runtime: enumerate the REMOTE layer rows only — never the disk
@@ -248,7 +274,7 @@ async function buildBundle(
     for (const row of sync.rows) {
       if (row.kind !== 'layer' || row.effective !== 'remote' || !row.remote || row.locale !== undefined) continue;
       const env = parseEnvelope(row.remote.configuration);
-      if (env && isLayerLike(env.content)) addLayer(env.content as LayerTemplate);
+      if (env && isLayerLike(env.content)) addLayerOrSkip(env.content as LayerTemplate);
     }
   }
 
@@ -300,9 +326,13 @@ async function buildBundle(
         kind: r.kind,
         key: r.key,
         status: r.status,
+        ...(r.problems?.length ? { invalid: true as const } : {}),
       })),
     conflicts: (sync.conflicts ?? []).filter(readable),
     unreadable: (sync.unreadable ?? []).filter(readable),
+    invalid: sync.rows
+      .filter((r) => r.status === 'invalid' && readable(r))
+      .map((r) => ({ name: r.name, kind: r.kind, key: r.key, ...(r.locale !== undefined ? { locale: r.locale } : {}) })),
   };
 
   const body = {

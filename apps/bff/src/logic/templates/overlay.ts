@@ -38,8 +38,8 @@ import { logger } from '../../logger.js';
 
 /** Sync variant — for callers that already hold the sync rows (e.g. the
  *  menu's `layerSyncSnapshot`), so they don't re-hit `getSyncStatus`.
- *  Mirrors `findOverlayRow`: the live per-locale overlay row, not
- *  disabled. */
+ *  Mirrors `findOverlayRow`: the live per-locale overlay row — neither
+ *  disabled nor refused by the read check. */
 export function oapOverlayContentFromRows(
   rows: TemplateRow[],
   kind: TemplateKind,
@@ -48,7 +48,7 @@ export function oapOverlayContentFromRows(
 ): unknown {
   if (locale === 'en') return null;
   for (const r of rows) {
-    if (r.locale === locale && r.kind === kind && r.key === key && !!r.remote && !r.remote.disabled) {
+    if (r.locale === locale && r.kind === kind && r.key === key && r.effective === 'remote' && !!r.remote) {
       const env = parseEnvelope(r.remote.configuration);
       return env?.content ?? null;
     }

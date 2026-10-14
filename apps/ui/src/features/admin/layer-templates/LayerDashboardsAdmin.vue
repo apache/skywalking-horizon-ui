@@ -30,11 +30,12 @@
   (layer-dashboards.geometry.ts); MetricDefinitionRow + composables pending.
 -->
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { DashboardWidget, InstanceAttributePredicate, TracesConfig } from '@skywalking-horizon-ui/api-client';
 
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
 import Modal from '@/components/primitives/Modal.vue';
 import MonacoDiff from '@/components/primitives/MonacoDiff.vue';
 import DependencyConfigSection from './DependencyConfigSection.vue';
@@ -65,6 +66,7 @@ import {
   scopeLabelOf,
 } from './layer-dashboards.scopes';
 import { useLayerTemplateStore } from './useLayerTemplateStore';
+const TemplateProblemsDialog = defineAsyncComponent(() => import('@/features/admin/_shared/TemplateProblemsDialog.vue'));
 
 // Template-store spine + lifecycle (draft, sources, save/push/disable). The
 // parent is the single caller; child components below receive these as props.
@@ -109,7 +111,9 @@ const {
   pushRemotePretty,
   onExport,
   onImportFile,
+  refusedImport,
   isLayerDisabled,
+  selectedInvalid,
   deleteOpen,
   confirmTitle,
   confirmMessage,
@@ -119,8 +123,11 @@ const {
   askConfirm,
   askDeleteLayer,
   askReactivateLayer,
+  afterStoredTemplateChange,
   activePage,
 } = useLayerTemplateStore();
+const { refused: refusedImportView, close: closeRefusedImport } = refusedImport;
+const ownsLayerTemplate = (r: { kind: string; locale?: string }): boolean => r.kind === 'layer' && r.locale === undefined;
 
 const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
 
@@ -465,6 +472,7 @@ const namingTest = computed<NamingTestResult>(() => {
     </header>
 
     <SyncStatusBanner :banner="layerSyncBanner" />
+    <StoredTemplatesBanner :owns="ownsLayerTemplate" :read-only="sync.readOnly.value" @changed="afterStoredTemplateChange" />
 
     <div v-if="error" class="banner err">{{ error }}</div>
     <div v-if="isLoading" class="empty">{{ t('Loading templates…') }}</div>
@@ -486,6 +494,7 @@ const namingTest = computed<NamingTestResult>(() => {
         :unconfigured-count="unconfiguredCount"
         :refreshing="refreshingFromRemote"
         :badge-for="sync.badgeFor"
+        :invalid-for="sync.invalidFor"
         :conflict-ids-for="conflictIdsFor"
         :is-diverged="isDivergedRow"
         :is-unconfigured="isUnconfiguredRow"
@@ -501,314 +510,320 @@ const namingTest = computed<NamingTestResult>(() => {
              decision Horizon never takes. -->
         <SyncStatusBanner v-if="selectedConflictBanner" :banner="selectedConflictBanner" />
 
-        <!-- Identity / action header: name + key + sync status, Disable /
-             Reactivate, source pill, Export / Import, Reset-to + Preview
-             dropdowns, Publish + Save, flash message, sidebar placement. -->
-        <LayerHeaderBar
-          :selected-tpl="selectedTpl"
-          :badge="sync.badgeFor(editName)"
-          :read-only="sync.readOnly.value"
-          :has-local-draft="hasLocalDraft"
-          :is-layer-disabled="isLayerDisabled"
-          :is-saving="isSaving"
-          :remote-available="remoteAvailable"
-          :bundled-exists="bundledExists"
-          :sources-ready="sourcesReady"
-          :editor-source="editorSource"
-          :can-export="canExport"
-          :is-synced="isSynced"
-          :local-differs-from-remote="localDiffersFromRemote"
-          :dirty="dirty"
-          :editor-differs-from-remote="editorDiffersFromRemote"
-          :save-msg="saveMsg"
-          @reactivate="askReactivateLayer"
-          @delete="askDeleteLayer"
-          @export="onExport"
-          @import="onImportFile"
-          @reset="resetTo"
-          @preview="previewLive"
-          @push="pushDiffOpen = true"
-          @save="save"
-          @set-visibility="setVisibility"
-        />
+        <div v-if="selectedInvalid" class="banner err" data-testid="invalid-selected">
+          {{ t('The template stored on OAP for this layer is invalid, so nobody is served it. Check its problems or disable it in the list above before configuring a new one.') }}
+        </div>
+        <template v-else>
+          <!-- Identity / action header: name + key + sync status, Disable /
+               Reactivate, source pill, Export / Import, Reset-to + Preview
+               dropdowns, Publish + Save, flash message, sidebar placement. -->
+          <LayerHeaderBar
+            :selected-tpl="selectedTpl"
+            :badge="sync.badgeFor(editName)"
+            :invalid="sync.invalidFor(editName)"
+            :read-only="sync.readOnly.value"
+            :has-local-draft="hasLocalDraft"
+            :is-layer-disabled="isLayerDisabled"
+            :is-saving="isSaving"
+            :remote-available="remoteAvailable"
+            :bundled-exists="bundledExists"
+            :sources-ready="sourcesReady"
+            :editor-source="editorSource"
+            :can-export="canExport"
+            :is-synced="isSynced"
+            :local-differs-from-remote="localDiffersFromRemote"
+            :dirty="dirty"
+            :editor-differs-from-remote="editorDiffersFromRemote"
+            :save-msg="saveMsg"
+            @reactivate="askReactivateLayer"
+            @delete="askDeleteLayer"
+            @export="onExport"
+            @import="onImportFile"
+            @reset="resetTo"
+            @preview="previewLive"
+            @push="pushDiffOpen = true"
+            @save="save"
+            @set-visibility="setVisibility"
+          />
 
-        <!-- Layer setup: live menu preview + alias + components + menu-label
-             editors. Clicking a preview item emits `jump`; the parent owns the
-             activeScope write + scroll via jumpToComponent. -->
-        <LayerSetupEditor
-          v-model:template="selectedTpl"
-          :read-only="readOnly"
-          :active-scope="activeScope"
-          :active-page="activePage"
-          :instance-topology-enabled="instanceTopologyEnabled"
-          @jump="jumpToComponent"
-          @confirm-disable="onConfirmDisable"
-        />
+          <!-- Layer setup: live menu preview + alias + components + menu-label
+               editors. Clicking a preview item emits `jump`; the parent owns the
+               activeScope write + scroll via jumpToComponent. -->
+          <LayerSetupEditor
+            v-model:template="selectedTpl"
+            :read-only="readOnly"
+            :active-scope="activeScope"
+            :active-page="activePage"
+            :instance-topology-enabled="instanceTopologyEnabled"
+            @jump="jumpToComponent"
+            @confirm-disable="onConfirmDisable"
+          />
 
 
-        <!-- Service-list metrics: the columns shown in the picker
-             zone's services table + the default sort. Used across
-             the per-layer page. -->
-        <ServiceListMetricsEditor
-          v-model:config="selectedTpl.metrics"
-          :service-label="serviceNoun"
-          :layer-key="selectedKey"
-          :read-only="readOnly"
-        />
+          <!-- Service-list metrics: the columns shown in the picker
+               zone's services table + the default sort. Used across
+               the per-layer page. -->
+          <ServiceListMetricsEditor
+            v-model:config="selectedTpl.metrics"
+            :service-label="serviceNoun"
+            :layer-key="selectedKey"
+            :read-only="readOnly"
+          />
 
-        <ScopeTabsBar
-          v-model:active-scope="activeScope"
-          :visible-scopes="visibleScopes"
-          :label-for="scopeLabel"
-          :widgets-for="widgetsFor"
-        />
+          <ScopeTabsBar
+            v-model:active-scope="activeScope"
+            :visible-scopes="visibleScopes"
+            :label-for="scopeLabel"
+            :widgets-for="widgetsFor"
+          />
 
-        <!-- Widget editor: canvas + drawer.
-             Canvas (left): 12-col grid background, widgets placed at
-             their span/rowSpan. Click selects, drag header reorders,
-             drag bottom-right corner resizes. Previews use mock data
-             so the layout reads as a real dashboard without firing
-             MQE per keystroke.
-             Drawer (right): config fields for the selected widget.
-             Hidden when nothing is selected so the canvas gets the
-             full width. -->
-        <!-- Topology cluster setup: a named-capture regex run against
-             every service name. The topology view buckets nodes by the
-             resolved cluster value (e.g. k8s namespace) and renders an
-             `<alias · value>` chip next to the service display label.
-             Distinct from the layer-agnostic OAP `<group>::<base>`
-             prefix convention, which is global and never produces a
-             topology cluster — clusters are explicit per-layer opt-in.
-             Live tester at the bottom evaluates the current draft
-             against a sample name so the operator can see the result
-             before saving. -->
-        <section
-          v-if="selectedTpl.components?.topology && activeScope === 'topology'"
-          class="sw-card components-card"
-        >
-          <div class="card-head">
-            <h4>{{ t('Topology cluster setup') }}</h4>
-            <span class="sub">{{ t('parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)') }}</span>
-            <button
-              v-if="!selectedTpl.naming"
-              class="sw-btn add"
-              type="button"
-              :disabled="readOnly"
-              @click="enableNaming"
-            >{{ t('＋ Enable rule') }}</button>
-            <button
-              v-else
-              class="sw-btn small ghost danger"
-              type="button"
-              :disabled="readOnly"
-              @click="disableNaming"
-            >{{ t('Remove rule') }}</button>
-          </div>
-          <div v-if="!selectedTpl.naming" class="topo-cfg-help" style="padding: 12px 16px;">
-            {{ t('No cluster rule configured — the topology view renders without cluster bounding boxes. Enable a rule for layers whose service names encode a cluster dimension (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.') }}
-          </div>
-          <div v-else class="naming-body">
-            <div class="naming-row">
-              <label class="mf mf-wide">
-                <span>{{ t('regex pattern') }}</span>
-                <input
-                  v-model="selectedTpl.naming.pattern"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
-                  :disabled="readOnly"
-                />
-              </label>
-              <label class="mf mf-narrow" :title="t('JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.')">
-                <span>{{ t('regex flags') }}</span>
-                <input
-                  v-model="selectedTpl.naming.flags"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  :placeholder="t('(empty)')"
-                  :disabled="readOnly"
-                />
-              </label>
+          <!-- Widget editor: canvas + drawer.
+               Canvas (left): 12-col grid background, widgets placed at
+               their span/rowSpan. Click selects, drag header reorders,
+               drag bottom-right corner resizes. Previews use mock data
+               so the layout reads as a real dashboard without firing
+               MQE per keystroke.
+               Drawer (right): config fields for the selected widget.
+               Hidden when nothing is selected so the canvas gets the
+               full width. -->
+          <!-- Topology cluster setup: a named-capture regex run against
+               every service name. The topology view buckets nodes by the
+               resolved cluster value (e.g. k8s namespace) and renders an
+               `<alias · value>` chip next to the service display label.
+               Distinct from the layer-agnostic OAP `<group>::<base>`
+               prefix convention, which is global and never produces a
+               topology cluster — clusters are explicit per-layer opt-in.
+               Live tester at the bottom evaluates the current draft
+               against a sample name so the operator can see the result
+               before saving. -->
+          <section
+            v-if="selectedTpl.components?.topology && activeScope === 'topology'"
+            class="sw-card components-card"
+          >
+            <div class="card-head">
+              <h4>{{ t('Topology cluster setup') }}</h4>
+              <span class="sub">{{ t('parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)') }}</span>
+              <button
+                v-if="!selectedTpl.naming"
+                class="sw-btn add"
+                type="button"
+                :disabled="readOnly"
+                @click="enableNaming"
+              >{{ t('＋ Enable rule') }}</button>
+              <button
+                v-else
+                class="sw-btn small ghost danger"
+                type="button"
+                :disabled="readOnly"
+                @click="disableNaming"
+              >{{ t('Remove rule') }}</button>
             </div>
-            <div class="naming-flags-hint">
-              <code>flags</code> {{ t('are passed as the second argument to') }} <code>new RegExp(pattern, flags)</code>{{ t('. Common values:') }} <code>i</code> {{ t('(case-insensitive),') }} <code>m</code> {{ t('(multiline). Leave empty for typical k8s/mesh service names.') }}
+            <div v-if="!selectedTpl.naming" class="topo-cfg-help" style="padding: 12px 16px;">
+              {{ t('No cluster rule configured — the topology view renders without cluster bounding boxes. Enable a rule for layers whose service names encode a cluster dimension (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.') }}
             </div>
-            <div class="naming-row">
-              <label class="mf">
-                <span>{{ t('display capture') }}</span>
-                <input
-                  v-model="selectedTpl.naming.displayGroup"
-                  class="mf-input mono"
-                  type="text"
-                  placeholder="service"
-                  :disabled="readOnly"
-                />
-              </label>
-              <label class="mf">
-                <span>{{ t('cluster capture') }}</span>
-                <input
-                  v-model="selectedTpl.naming.valueGroup"
-                  class="mf-input mono"
-                  type="text"
-                  placeholder="namespace"
-                  :disabled="readOnly"
-                />
-              </label>
-              <label class="mf">
-                <span>{{ t('alias (cluster label)') }}</span>
-                <input
-                  v-model="selectedTpl.naming.alias"
-                  class="mf-input"
-                  type="text"
-                  placeholder="namespace"
-                  :disabled="readOnly"
-                />
-              </label>
-            </div>
-            <div class="naming-test">
-              <label class="mf mf-wide">
-                <span>{{ t('test service name') }}</span>
-                <input
-                  v-model="namingSample"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="songs.sample"
-                />
-              </label>
-              <div class="naming-result" :class="{ ok: namingTest.ok, err: !namingTest.ok }">
-                <div v-if="namingTest.error" class="naming-error">
-                  <span class="naming-tag">{{ t('error') }}</span>
-                  <span>{{ namingTest.error }}</span>
+            <div v-else class="naming-body">
+              <div class="naming-row">
+                <label class="mf mf-wide">
+                  <span>{{ t('regex pattern') }}</span>
+                  <input
+                    v-model="selectedTpl.naming.pattern"
+                    class="mf-input mono"
+                    type="text"
+                    spellcheck="false"
+                    placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
+                    :disabled="readOnly"
+                  />
+                </label>
+                <label class="mf mf-narrow" :title="t('JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.')">
+                  <span>{{ t('regex flags') }}</span>
+                  <input
+                    v-model="selectedTpl.naming.flags"
+                    class="mf-input mono"
+                    type="text"
+                    spellcheck="false"
+                    :placeholder="t('(empty)')"
+                    :disabled="readOnly"
+                  />
+                </label>
+              </div>
+              <div class="naming-flags-hint">
+                <code>flags</code> {{ t('are passed as the second argument to') }} <code>new RegExp(pattern, flags)</code>{{ t('. Common values:') }} <code>i</code> {{ t('(case-insensitive),') }} <code>m</code> {{ t('(multiline). Leave empty for typical k8s/mesh service names.') }}
+              </div>
+              <div class="naming-row">
+                <label class="mf">
+                  <span>{{ t('display capture') }}</span>
+                  <input
+                    v-model="selectedTpl.naming.displayGroup"
+                    class="mf-input mono"
+                    type="text"
+                    placeholder="service"
+                    :disabled="readOnly"
+                  />
+                </label>
+                <label class="mf">
+                  <span>{{ t('cluster capture') }}</span>
+                  <input
+                    v-model="selectedTpl.naming.valueGroup"
+                    class="mf-input mono"
+                    type="text"
+                    placeholder="namespace"
+                    :disabled="readOnly"
+                  />
+                </label>
+                <label class="mf">
+                  <span>{{ t('alias (cluster label)') }}</span>
+                  <input
+                    v-model="selectedTpl.naming.alias"
+                    class="mf-input"
+                    type="text"
+                    placeholder="namespace"
+                    :disabled="readOnly"
+                  />
+                </label>
+              </div>
+              <div class="naming-test">
+                <label class="mf mf-wide">
+                  <span>{{ t('test service name') }}</span>
+                  <input
+                    v-model="namingSample"
+                    class="mf-input mono"
+                    type="text"
+                    spellcheck="false"
+                    placeholder="songs.sample"
+                  />
+                </label>
+                <div class="naming-result" :class="{ ok: namingTest.ok, err: !namingTest.ok }">
+                  <div v-if="namingTest.error" class="naming-error">
+                    <span class="naming-tag">{{ t('error') }}</span>
+                    <span>{{ namingTest.error }}</span>
+                  </div>
+                  <template v-else>
+                    <div class="naming-result-row">
+                      <span class="naming-tag">{{ t('display') }}</span>
+                      <span class="mono">{{ namingTest.display ?? '—' }}</span>
+                    </div>
+                    <div class="naming-result-row">
+                      <span class="naming-tag">{{ namingTest.alias ?? t('group') }}</span>
+                      <span class="mono accent">{{ namingTest.group ?? '—' }}</span>
+                    </div>
+                  </template>
                 </div>
-                <template v-else>
-                  <div class="naming-result-row">
-                    <span class="naming-tag">{{ t('display') }}</span>
-                    <span class="mono">{{ namingTest.display ?? '—' }}</span>
-                  </div>
-                  <div class="naming-result-row">
-                    <span class="naming-tag">{{ namingTest.alias ?? t('group') }}</span>
-                    <span class="mono accent">{{ namingTest.group ?? '—' }}</span>
-                  </div>
-                </template>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <!-- Topology + API dependency config editor — node + line
-             metric definitions, with optional 4-band thresholds.
-             Each metric edits id / label / MQE / unit / role /
-             aggregation; thresholds are a collapsible block. -->
-        <TopologyConfigEditor
-          v-if="activeScope === 'topology'"
-          v-model:config="selectedTpl.topology"
-          :service-noun="serviceNoun"
-          :instance-noun="instanceNoun"
-          :layer-key="selectedKey"
-          :read-only="readOnly"
-        />
-
-        <DeploymentConfigEditor
-          v-else-if="activeScope === 'deployment'"
-          v-model:config="selectedTpl.deployment"
-          :instance-noun="instanceNoun"
-          :layer-key="selectedKey"
-          :read-only="readOnly"
-        />
-
-        <DependencyConfigSection
-          v-else-if="activeScope === 'dependency'"
-          v-model:config="selectedTpl.endpointDependency"
-          :layer-key="selectedKey"
-          :read-only="readOnly"
-        />
-
-        <ProcessConfigEditor
-          v-else-if="activeScope === 'networkProfiling'"
-          v-model:config="selectedTpl.processTopology"
-          :layer-key="selectedKey"
-          :read-only="readOnly"
-        />
-
-        <!-- Trace + Logs are built-in views with no per-layer config
-             other than enable/disable, which is already handled via
-             the Components toggle in the right sidebar. -->
-        <section
-          v-else-if="activeScopeRuntimeOnly"
-          class="sw-card editor-card topo-cfg-card scope-titled"
-        >
-          <div class="card-head">
-            <h4>{{ t('{scope} tab', { scope: scopeLabel(activeScope) }) }}</h4>
-            <span class="sub">
-              {{ activeScope === 'trace'
-                ? t('which trace APIs this layer exposes — one sidebar row each')
-                : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
-            </span>
-          </div>
-          <div class="topo-cfg-body">
-            <TraceStoresEditor
-              v-if="activeScope === 'trace'"
-              :traces="draft.template?.traces"
-              :read-only="readOnly"
-              @update="setTraces"
-            />
-            <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">
-              <template #tab><b>{{ scopeLabel(activeScope) }}</b></template>
-            </i18n-t>
-          </div>
-        </section>
-
-        <div v-else class="canvas-with-pages">
-          <PageSelectorBar
-            v-if="pageableScope"
-            :pages="extPages.pages.value"
-            :active-page="activePage"
-            :can-add="extPages.canAddPage.value"
-            :scope-label="scopeLabel(activeScope)"
+          <!-- Topology + API dependency config editor — node + line
+               metric definitions, with optional 4-band thresholds.
+               Each metric edits id / label / MQE / unit / role /
+               aggregation; thresholds are a collapsible block. -->
+          <TopologyConfigEditor
+            v-if="activeScope === 'topology'"
+            v-model:config="selectedTpl.topology"
+            :service-noun="serviceNoun"
+            :instance-noun="instanceNoun"
+            :layer-key="selectedKey"
             :read-only="readOnly"
-            @select="activePage = $event"
-            @add="extPages.addPage($event.name, $event.id)"
-            @rename="extPages.renamePage($event.id, $event.name)"
-            @delete="confirmDeletePage($event)"
           />
-          <!-- The entity set this page shows, in its own zone: it is
-               configuration of a different kind from the page's identity
-               above it and the widgets below, and the rendered page shows
-               none of it. -->
-          <section v-if="activeFilter && filterMode" class="sw-card editor-card filter-card">
+
+          <DeploymentConfigEditor
+            v-else-if="activeScope === 'deployment'"
+            v-model:config="selectedTpl.deployment"
+            :instance-noun="instanceNoun"
+            :layer-key="selectedKey"
+            :read-only="readOnly"
+          />
+
+          <DependencyConfigSection
+            v-else-if="activeScope === 'dependency'"
+            v-model:config="selectedTpl.endpointDependency"
+            :layer-key="selectedKey"
+            :read-only="readOnly"
+          />
+
+          <ProcessConfigEditor
+            v-else-if="activeScope === 'networkProfiling'"
+            v-model:config="selectedTpl.processTopology"
+            :layer-key="selectedKey"
+            :read-only="readOnly"
+          />
+
+          <!-- Trace + Logs are built-in views with no per-layer config
+               other than enable/disable, which is already handled via
+               the Components toggle in the right sidebar. -->
+          <section
+            v-else-if="activeScopeRuntimeOnly"
+            class="sw-card editor-card topo-cfg-card scope-titled"
+          >
             <div class="card-head">
-              <h4>{{ filterMode === 'instance' ? t('Which instances this page shows') : t('Which services this page shows') }}</h4>
-              <span class="sub">{{ t('Authored here and nowhere else — the page itself shows the result and never the filter.') }}</span>
+              <h4>{{ t('{scope} tab', { scope: scopeLabel(activeScope) }) }}</h4>
+              <span class="sub">
+                {{ activeScope === 'trace'
+                  ? t('which trace APIs this layer exposes — one sidebar row each')
+                  : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
+              </span>
             </div>
-            <div class="filter-card-body">
-              <PageEntityFilter
-                :mode="filterMode"
-                :layer-key="selectedKey"
-                :alias="activePageAlias"
-                :show-alias="!!activePage"
-                :service-filter="activeFilter.serviceFilter ?? ''"
-                :instance-filter="activeFilter.instanceFilter"
-                :attributes="activeFilter.instanceAttributes"
-                :services="layerServices"
+            <div class="topo-cfg-body">
+              <TraceStoresEditor
+                v-if="activeScope === 'trace'"
+                :traces="draft.template?.traces"
                 :read-only="readOnly"
-                @update:alias="activePage && extPages.setPageAlias(activePage, $event)"
-                @update:service-filter="writeFilter('service', $event)"
-                @update:instance-filter="writeFilter('instance', $event)"
-                @update:attributes="writeAttributes($event)"
+                @update="setTraces"
               />
+              <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">
+                <template #tab><b>{{ scopeLabel(activeScope) }}</b></template>
+              </i18n-t>
             </div>
           </section>
-          <WidgetEditorCanvas
-            :draft="draft"
-            :active-scope="activeScope"
-            :read-only="readOnly"
-            :active-page="activePage"
-            @update:active-page="activePage = $event"
-          />
-        </div>
+
+          <div v-else class="canvas-with-pages">
+            <PageSelectorBar
+              v-if="pageableScope"
+              :pages="extPages.pages.value"
+              :active-page="activePage"
+              :can-add="extPages.canAddPage.value"
+              :scope-label="scopeLabel(activeScope)"
+              :read-only="readOnly"
+              @select="activePage = $event"
+              @add="extPages.addPage($event.name, $event.id)"
+              @rename="extPages.renamePage($event.id, $event.name)"
+              @delete="confirmDeletePage($event)"
+            />
+            <!-- The entity set this page shows, in its own zone: it is
+                 configuration of a different kind from the page's identity
+                 above it and the widgets below, and the rendered page shows
+                 none of it. -->
+            <section v-if="activeFilter && filterMode" class="sw-card editor-card filter-card">
+              <div class="card-head">
+                <h4>{{ filterMode === 'instance' ? t('Which instances this page shows') : t('Which services this page shows') }}</h4>
+                <span class="sub">{{ t('Authored here and nowhere else — the page itself shows the result and never the filter.') }}</span>
+              </div>
+              <div class="filter-card-body">
+                <PageEntityFilter
+                  :mode="filterMode"
+                  :layer-key="selectedKey"
+                  :alias="activePageAlias"
+                  :show-alias="!!activePage"
+                  :service-filter="activeFilter.serviceFilter ?? ''"
+                  :instance-filter="activeFilter.instanceFilter"
+                  :attributes="activeFilter.instanceAttributes"
+                  :services="layerServices"
+                  :read-only="readOnly"
+                  @update:alias="activePage && extPages.setPageAlias(activePage, $event)"
+                  @update:service-filter="writeFilter('service', $event)"
+                  @update:instance-filter="writeFilter('instance', $event)"
+                  @update:attributes="writeAttributes($event)"
+                />
+              </div>
+            </section>
+            <WidgetEditorCanvas
+              :draft="draft"
+              :active-scope="activeScope"
+              :read-only="readOnly"
+              :active-page="activePage"
+              @update:active-page="activePage = $event"
+            />
+          </div>
+        </template>
       </main>
 
     </div>
@@ -828,6 +843,15 @@ const namingTest = computed<NamingTestResult>(() => {
         </button>
       </template>
     </Modal>
+
+    <TemplateProblemsDialog
+      v-if="refusedImportView"
+      :open="true"
+      :title="t('This file cannot be imported')"
+      :text="refusedImportView.text"
+      :problems="refusedImportView.problems"
+      @close="closeRefusedImport"
+    />
 
     <!-- Disable / delete / reactivate confirm — styled (not native). -->
     <Modal :open="deleteOpen" :title="confirmTitle" width="min(520px, 92vw)" @close="deleteOpen = false">

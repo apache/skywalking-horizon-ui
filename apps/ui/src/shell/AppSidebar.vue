@@ -296,7 +296,17 @@ function isLayerDiverged(key: string): boolean {
             :class="{ 'is-active': row.activeWhen ? row.activeWhen(route.path) : isActiveExact(row.to) }"
           >
             <Icon :name="row.icon" /><span>{{ row.label }}</span>
-            <span v-if="row.badge" class="sw-badge" :class="row.badge.kind" style="margin-left: auto">
+            <span
+              v-if="row.invalidCount"
+              class="sw-badge err nav-invalid"
+              :title="t('{n} invalid templates stored on OAP', row.invalidCount, { named: { n: row.invalidCount } })"
+            ><Icon name="alert" :size="10" />{{ row.invalidCount }}</span>
+            <span
+              v-if="row.badge"
+              class="sw-badge"
+              :class="row.badge.kind"
+              :style="row.invalidCount ? '' : 'margin-left: auto'"
+            >
               {{ row.badge.text }}
             </span>
           </RouterLink>
@@ -684,6 +694,12 @@ function isLayerDiverged(key: string): boolean {
 }
 .sw-nav-item {
   text-decoration: none;
+}
+.sw-badge.nav-invalid {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 .sw-nav-section-count {
   color: var(--sw-fg-3);

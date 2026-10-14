@@ -46,6 +46,12 @@ export function explainEmptyCatalog(reason: EffectiveLayerReason, layer: string,
         `Deliberate and specific to this layer — other layers are unaffected. ` +
         `Say so rather than reporting the layer as empty; an administrator re-enables it in the Layer Dashboards admin page.`
       );
+    case 'template-invalid':
+      return (
+        `Cannot read metrics: the stored template for ${at} is invalid — its content would break the pages built from it, so Horizon serves it to nobody. ` +
+        `Specific to this layer — other layers are unaffected. ` +
+        `Say so rather than reporting the layer as empty; an administrator sees each problem, and removes the template before configuring it again, in the Layer Dashboards admin page.`
+      );
     case 'no-remote-row':
       return (
         `Cannot read metrics: no template is synced for ${at}. ` +

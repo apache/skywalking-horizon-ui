@@ -111,9 +111,13 @@ describe('the pages the store holds', () => {
     await read(store);
 
     expect(stored.pages.map((p) => p.id)).toEqual(['good']);
-    const calls = (warn.mock.calls as unknown[][]).filter((c) => String(c[1]).startsWith('Alarm pages not served'));
+    // The store read refuses them, so they are reported there — once per read
+    // of the store, not once per page view.
+    const calls = (warn.mock.calls as unknown[][]).filter((c) =>
+      String(c[1]).startsWith('OAP UI-template rows Horizon cannot serve'),
+    );
     expect(calls).toHaveLength(1);
-    const rows = (calls[0]![0] as { rows: Array<{ name: string; issues: string[] }> }).rows;
+    const rows = (calls[0]![0] as { rows: Array<{ name: string }> }).rows;
     expect(rows.map((r) => r.name).sort()).toEqual(['horizon.alert.bad-pin', 'horizon.alert.untitled']);
   });
 
