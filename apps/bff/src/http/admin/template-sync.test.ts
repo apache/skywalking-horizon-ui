@@ -1413,3 +1413,113 @@ describe('POST /api/admin/templates/validate — the save checks, without saving
     await app.close();
   });
 });
+
+describe('a record widget trace store reaching OAP', () => {
+  beforeEach(() => resync());
+
+  function withRecord(recordTrace: unknown, type = 'record'): Json {
+    const content = validLayer('GENERAL');
+    ((content.dashboards as Json).service as Json[]).push({
+      id: 'slow',
+      title: 'Slow statements',
+      type,
+      expressions: ['top_n(top_n_database_statement, 20, des)'],
+      span: 6,
+      rowSpan: 2,
+      recordTrace,
+    });
+    return content;
+  }
+
+  it('publishes a store on a record widget', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withRecord({ source: 'traceql-otlp' }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.layer.GENERAL' }]);
+    await app.close();
+  });
+
+  it('refuses a store on a widget that is not a record', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withRecord({ source: 'native' }, 'top'),
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues).toContain(
+      'dashboards.service.1.recordTrace: `recordTrace` applies to `record` widgets only',
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  // The read path takes it as absent, so storing it would publish a choice
+  // that never takes effect.
+  it('refuses a malformed store instead of storing it', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withRecord({ source: 'otlp' }),
+    });
+    expect(res.statusCode).toBe(400);
+    const issues = (res.json() as { issues: string[] }).issues;
+    expect(issues.some((i) => i.startsWith('dashboards.service.1.recordTrace: malformed `recordTrace`'))).toBe(true);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a malformed store on a widget inside a tab', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const content = validLayer('GENERAL');
+    ((content.dashboards as Json).service as Json[]).push({
+      id: 'w2',
+      title: 'Tabs',
+      type: 'tab',
+      expressions: [],
+      span: 6,
+      rowSpan: 4,
+      tabs: [
+        {
+          name: 'Slow',
+          widgets: [
+            {
+              id: 'w2_slow',
+              title: 'Slow statements',
+              type: 'record',
+              expressions: ['top_n(top_n_database_statement, 20, des)'],
+              span: 6,
+              rowSpan: 2,
+              recordTrace: 'traceql-otlp',
+            },
+          ],
+        },
+      ],
+    });
+    const res = await post(app, '/api/admin/templates/save', c, { name: 'horizon.layer.GENERAL', content });
+    expect(res.statusCode).toBe(400);
+    const issues = (res.json() as { issues: string[] }).issues;
+    expect(issues.some((i) => i.startsWith('dashboards.service.1.tabs.0.widgets.0.recordTrace: malformed'))).toBe(true);
+    await app.close();
+  });
+
+  it('answers the malformed store to an import check, with its path', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const res = await post(app, '/api/admin/templates/validate', c, {
+      name: 'horizon.layer.GENERAL',
+      content: withRecord({ source: 'otlp' }),
+    });
+    expect(res.statusCode).toBe(200);
+    const { problems } = res.json() as { problems: Array<{ path: Array<string | number> }> };
+    expect(problems.map((p) => p.path)).toEqual([['dashboards', 'service', 1, 'recordTrace']]);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+});

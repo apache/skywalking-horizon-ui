@@ -230,6 +230,8 @@ Each popout opens over the dashboard and closes back to it, so the page and its 
 "recordTrace": { "source": "traceql-otlp" }
 ```
 
+Publishing or importing a template refuses a `recordTrace` that names no known store, and one on a widget that is not a `record`. A template already stored with a bad value still loads; its trace icon opens the layer's own popout.
+
 ## `table`
 
 **Renders:** A key→value table for a **labeled** `latest(…)` metric — one row per label combination, one column per label dimension, plus an optional value column.

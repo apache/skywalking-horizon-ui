@@ -26,7 +26,6 @@
  *     catalog for its layer, or its cell can only ever be an em-dash.
  *   - a widget field the loader tolerates and drops is a defect in shipped
  *     config, however harmless it is in an operator's own dashboard.
- *   - `recordTrace` on a widget that is not a `record` does nothing.
  *   - an overview `rankBy.kpi` must index into that widget's `kpis`, and
  *     every referenced layer must have a bundled template.
  *   - a bundled overview's `id` must equal its filename stem: translation
@@ -237,45 +236,6 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
   }
 }
 
-/** Every widget of a raw layer file with its dotted path, tab panels and
- *  extension pages included. */
-function rawWidgets(raw: Record<string, unknown>): Array<{ path: string; w: Record<string, unknown> }> {
-  const out: Array<{ path: string; w: Record<string, unknown> }> = [];
-  const walk = (list: unknown, path: string): void => {
-    if (!Array.isArray(list)) return;
-    list.forEach((w, i) => {
-      if (!isRecord(w)) return;
-      out.push({ path: `${path}.${i}`, w });
-      if (Array.isArray(w.tabs)) {
-        w.tabs.forEach((tab, ti) => {
-          if (isRecord(tab)) walk(tab.widgets, `${path}.${i}.tabs.${ti}.widgets`);
-        });
-      }
-    });
-  };
-  const dashboards = isRecord(raw.dashboards) ? raw.dashboards : {};
-  for (const [scope, list] of Object.entries(dashboards)) walk(list, `dashboards.${scope}`);
-  const extPages = isRecord(raw.dashboardExtPages) ? raw.dashboardExtPages : {};
-  for (const [scope, pages] of Object.entries(extPages)) {
-    if (!Array.isArray(pages)) continue;
-    pages.forEach((page, pi) => {
-      if (isRecord(page)) walk(page.widgets, `dashboardExtPages.${scope}.${pi}.widgets`);
-    });
-  }
-  return out;
-}
-
-function validateRecordTraces(layers: readonly SourceFile[], findings: TemplateFinding[]): void {
-  for (const l of layers) {
-    if (!isRecord(l.content)) continue;
-    for (const { path, w } of rawWidgets(l.content)) {
-      if (w.recordTrace !== undefined && w.type !== 'record') {
-        findings.push({ file: l.label, path: `${path}.recordTrace`, message: '`recordTrace` applies to `record` widgets only' });
-      }
-    }
-  }
-}
-
 function validateOverview(
   src: SourceFile,
   layerKeys: ReadonlySet<string>,
@@ -420,7 +380,6 @@ export function validateBundledTemplates(root: string = BUNDLED_ROOT): TemplateF
       .filter((k): k is string => k !== null),
   );
   for (const src of layers) validateLayer(src, findings);
-  validateRecordTraces(layers, findings);
   for (const src of overviews) validateOverview(src, layerKeys, findings);
   validateSingletons(root, findings);
   return findings;

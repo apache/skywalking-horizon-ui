@@ -541,7 +541,7 @@ describe('validateBundledTemplates — record widget trace store', () => {
     expect(messages(findings)).toContain('`recordTrace` applies to `record` widgets only');
   });
 
-  it('flags an unknown store, tolerated at runtime as the native popout', () => {
+  it('flags an unknown store, tolerated at runtime as the layer\'s own popout', () => {
     const findings = run({ layers: { demo: recordLayer({ source: 'tempo' }) } });
     expect(messages(findings)).toContain('malformed `recordTrace`');
   });
