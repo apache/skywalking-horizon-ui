@@ -522,3 +522,27 @@ describe('singletonPresenceIssues — the four files the runtime loads by exact 
     expect(singletonPresenceIssues(root)).toEqual([]);
   });
 });
+
+describe('validateBundledTemplates — record widget trace store', () => {
+  function recordLayer(recordTrace: unknown, type = 'record'): Record<string, unknown> {
+    return layer({
+      dashboards: {
+        service: [{ id: 'slow', title: 'Slow', type, expressions: ['top_n(top_n_database_statement, 20, des)'], recordTrace }],
+      },
+    });
+  }
+
+  it('accepts a store on a record widget', () => {
+    expect(messages(run({ layers: { demo: recordLayer({ source: 'traceql-otlp' }) } }))).toBe('');
+  });
+
+  it('flags recordTrace on a widget that is not a record', () => {
+    const findings = run({ layers: { demo: recordLayer({ source: 'native' }, 'top') } });
+    expect(messages(findings)).toContain('`recordTrace` applies to `record` widgets only');
+  });
+
+  it('flags an unknown store, tolerated at runtime as the native popout', () => {
+    const findings = run({ layers: { demo: recordLayer({ source: 'tempo' }) } });
+    expect(messages(findings)).toContain('malformed `recordTrace`');
+  });
+});

@@ -37,7 +37,7 @@
       {
         "id": "slow_statements",
         "title": "Requêtes lentes",
-        "tip": "Les 20 instructions les plus lentes que la règle `otlp-slow-sql` a enregistrées pour cette base de données, en ms. Chaque ligne est une exécution d'instruction ; cliquez pour la copier."
+        "tip": "Les 20 instructions les plus lentes que la règle `otlp-slow-sql` a enregistrées pour cette base de données, en ms. Chaque ligne est une exécution d'instruction ; cliquez pour la copier, ou utilisez l'icône de trace en tête de ligne pour ouvrir sa trace."
       }
     ]
   }

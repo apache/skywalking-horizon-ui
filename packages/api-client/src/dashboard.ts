@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+import type { TraceStore } from './trace.js';
+
 /**
  * Per-layer dashboard wire types.
  *
@@ -95,6 +97,13 @@ export type VisibleWhen =
  * Absent ⇒ no drill.
  */
 export type TraceDrill = { mode: 'off' | 'latency' | 'error' };
+
+/**
+ * Where a `record` widget's trace ids live, named as in `traces.sources`. The
+ * trace opens in that store's popout over the current page. Absent ⇒ the
+ * native popout.
+ */
+export type RecordTrace = { source: TraceStore };
 
 /**
  * Per-entity dashboard scope. Each layer carries an independent widget
@@ -241,6 +250,8 @@ export interface DashboardWidget {
   topNOrder?: 'asc' | 'des';
   /** Optional metric→trace drill on a `line` widget — see {@link TraceDrill}. */
   traceDrill?: TraceDrill;
+  /** Which store a `record` widget's trace ids open in — see {@link RecordTrace}. */
+  recordTrace?: RecordTrace;
   /** Legacy 24-col grid coordinates — kept for back-compat during the
    *  span-based flow-layout migration. New widgets should leave these
    *  unset and use `span` / `rowSpan` instead. */

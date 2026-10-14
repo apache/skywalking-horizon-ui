@@ -37,7 +37,7 @@
       {
         "id": "slow_statements",
         "title": "Statements lentos",
-        "tip": "Las 20 sentencias más lentas que la regla `otlp-slow-sql` registró contra esta base de datos, en ms. Cada fila es una ejecución de sentencia; haga clic para copiarla."
+        "tip": "Las 20 sentencias más lentas que la regla `otlp-slow-sql` registró contra esta base de datos, en ms. Cada fila es una ejecución de sentencia; haga clic para copiarla o use el icono de traza al inicio de la fila para abrir su traza."
       }
     ]
   }

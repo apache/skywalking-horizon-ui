@@ -218,6 +218,7 @@ function loadingOrEmpty(w: DashboardWidget): string {
                 :items="resultOf(w)!.records!"
                 :unit="w.unit"
                 :color="host.widgetColor(w)"
+                :trace="w.recordTrace"
               />
               <span v-else class="muted">{{ loadingOrEmpty(w) }}</span>
             </template>

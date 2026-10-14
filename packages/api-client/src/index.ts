@@ -48,6 +48,7 @@ export type {
   DashboardWidget,
   DashboardWidgetResult,
   DashboardWidgetType,
+  RecordTrace,
   VisibleWhen,
 } from './dashboard.js';
 export { walkWidgets, findWidgetById, collectWidgetIds } from './dashboard.js';

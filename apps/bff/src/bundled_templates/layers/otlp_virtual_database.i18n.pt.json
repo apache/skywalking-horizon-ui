@@ -37,7 +37,7 @@
       {
         "id": "slow_statements",
         "title": "Statements lentos",
-        "tip": "As 20 instruções mais lentas que a regra `otlp-slow-sql` registrou para este banco de dados, em ms. Cada linha é uma execução de instrução; clique para copiá-la."
+        "tip": "As 20 instruções mais lentas que a regra `otlp-slow-sql` registrou para este banco de dados, em ms. Cada linha é uma execução de instrução; clique para copiá-la ou use o ícone de trace no início da linha para abrir seu trace."
       }
     ]
   }

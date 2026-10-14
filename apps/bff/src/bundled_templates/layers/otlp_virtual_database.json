@@ -83,9 +83,10 @@
       {
         "id": "slow_statements",
         "title": "Slow Statements",
-        "tip": "Top 20 slowest statements the `otlp-slow-sql` rule recorded against this database, in ms. Each row is one statement execution; click to copy it.",
+        "tip": "Top 20 slowest statements the `otlp-slow-sql` rule recorded against this database, in ms. Each row is one statement execution; click to copy it, or use the trace icon at the row head to open its trace.",
         "type": "record",
         "unit": "ms",
+        "recordTrace": { "source": "traceql-otlp" },
         "expressions": [
           "top_n(top_n_database_statement, 20, des)"
         ],

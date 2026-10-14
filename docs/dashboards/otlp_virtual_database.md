@@ -42,7 +42,7 @@ The landing page lists every database with three sortable columns, sorted by **A
 
 - **Success Rate** — percent of the callers' spans that did not fail, as in the list (`otlp_database_access_sla/100`).
 
-- **Slow Statements** — the top 20 slowest statements the shipped `otlp-slow-sql` rule recorded against this database, in ms, worst-first (`top_n(top_n_database_statement, 20, des)`). Each row is one statement execution; click a row to copy the statement. The rule records a statement at 200 ms or more by default; the threshold is in the rule file.
+- **Slow Statements** — the top 20 slowest statements the shipped `otlp-slow-sql` rule recorded against this database, in ms, worst-first (`top_n(top_n_database_statement, 20, des)`). Each row is one statement execution; click a row to copy the statement, or use the trace icon at the row head to open its trace from the OTLP trace store, over this page. The rule records a statement at 200 ms or more by default; the threshold is in the rule file.
 
 ## Databases without an address
 

@@ -78,6 +78,12 @@ const leafWidgetSchema = z.object({
     .object({ mode: z.enum(['off', 'latency', 'error']) })
     .optional()
     .catch(undefined),
+  // Which store a `record` widget's trace ids open in. Tolerant too: a bad
+  // value falls back to the native popout instead of failing the template.
+  recordTrace: z
+    .object({ source: z.enum(['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp']) })
+    .optional()
+    .catch(undefined),
   // Legacy x/y/w/h kept optional for back-compat.
   x: z.number().int().min(0).optional(),
   y: z.number().int().min(0).optional(),
