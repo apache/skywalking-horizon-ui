@@ -268,6 +268,7 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
           :items="result(widget.id)!.records!"
           :unit="widget.unit"
           :color="widgetColor(widget)"
+          :trace="widget.recordTrace"
         />
         <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !results.has(widget.id))) ? t('loading…') : t('no data') }}</span>
       </template>

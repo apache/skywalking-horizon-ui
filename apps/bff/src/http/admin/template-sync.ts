@@ -64,6 +64,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodError, ZodType } from 'zod';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
+import { TRACE_STORES } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
 import { sessionHasVerb } from '../../rbac/policy.js';
@@ -106,6 +107,7 @@ import {
   overviewTemplatePushSchema,
   themeTemplateSchema,
   timeDefaultsTemplateSchema,
+  widgetEntries,
 } from '../../logic/templates/bundled-schema.js';
 import { templateIdentityIssue } from '../../logic/templates/identity.js';
 import { logger } from '../../logger.js';
@@ -931,6 +933,7 @@ function publishProblems(
       path: dottedPath(i.path),
       message: i.message,
     }));
+    problems.push(...malformedRecordTraces(content, v.data));
     // The domain half of the link policy needs config, so it cannot live in
     // the schema. Applying it HERE too means a publish is refused with the
     // reason instead of succeeding and then vanishing on the read path.
@@ -958,6 +961,21 @@ function publishProblems(
     return v.success ? [] : zodProblems(v.error);
   }
   return [];
+}
+
+/**
+ * The widget schema reads a bad `recordTrace` as absent, so a stored one only
+ * falls back to the layer's own popout. Publishing it would store a choice
+ * that never takes effect, so compare each raw widget with its parsed one.
+ */
+function malformedRecordTraces(raw: unknown, parsed: unknown): TemplateProblem[] {
+  const parsedByPath = new Map(widgetEntries(parsed).map((e) => [e.path, e.w]));
+  return widgetEntries(raw)
+    .filter(({ path, w }) => w.recordTrace !== undefined && parsedByPath.get(path)?.recordTrace === undefined)
+    .map(({ path }) => ({
+      path: dottedPath(`${path}.recordTrace`),
+      message: `malformed \`recordTrace\` — expected { "source": "<trace store>" }, with ${TRACE_STORES.join(', ')}`,
+    }));
 }
 
 /** {@link publishProblems} in the `<path>: <message>` form every publish route

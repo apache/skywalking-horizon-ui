@@ -38,7 +38,7 @@ import type {
   DashboardWidget,
   DashboardTab,
 } from '@skywalking-horizon-ui/api-client';
-import { tracesInclude, collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import { TRACE_STORES, tracesInclude, collectWidgetIds } from '@skywalking-horizon-ui/api-client';
 import { useExtPages } from './useExtPages';
 import { useCanvasResize } from './useCanvasResize';
 import { useCanvasReorder } from './useCanvasReorder';
@@ -407,6 +407,15 @@ function setWidgetTraceDrill(v: string): void {
   if (!w) return;
   if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
   else delete w.traceDrill;
+}
+
+function setWidgetRecordTrace(v: string): void {
+  if (props.readOnly) return;
+  const w = editingWidget.value;
+  if (!w) return;
+  const store = TRACE_STORES.find((s) => s === v);
+  if (store) w.recordTrace = { source: store };
+  else delete w.recordTrace;
 }
 const layerTracesEnabled = computed<boolean>(() => {
   const tpl = props.draft.template;
@@ -1201,6 +1210,25 @@ onBeforeUnmount(() => {
                 </p>
                 <p v-else class="d-hint">
                   {{ t('Click a datapoint on this widget to open the pre-filtered Traces tab.') }} <code>latency</code> {{ t('⇒ slowest traces ≥ the clicked value;') }} <code>error</code> {{ t('⇒ error-status traces. Centered on the clicked time bucket.') }}
+                </p>
+              </div>
+              <div v-if="editingWidget.type === 'record'" class="d-section">
+                <span class="d-label">{{ t('Record trace') }}</span>
+                <div class="d-row">
+                  <label>
+                    <span>{{ t('Trace store') }}</span>
+                    <select
+                      :value="editingWidget.recordTrace?.source ?? ''"
+                      :disabled="readOnly"
+                      @change="setWidgetRecordTrace(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="">{{ t('none — the layer\'s trace popout') }}</option>
+                      <option v-for="store in TRACE_STORES" :key="store" :value="store">{{ store }}</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="d-hint">
+                  {{ t("The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.") }}
                 </p>
               </div>
               <div class="d-section">

@@ -112,6 +112,7 @@ const noValue = computed<boolean>(() => {
       v-else-if="spec.type === 'record'"
       :items="result.records ?? []"
       :unit="spec.unit"
+      :trace="spec.recordTrace"
     />
 
     <div v-else class="cwr-unsupported">{{ spec.title }}</div>

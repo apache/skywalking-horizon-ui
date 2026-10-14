@@ -29,6 +29,7 @@ Six widget types render on per-layer dashboards. Each `widget.type` you set in a
 | `valueMap` | `card` with `format: "enum"` — maps a coded metric value (or label value) to the display label. |
 | `valueColors` | `card` with `format: "enum"` — maps a value to a status-chip color: `ok`, `warn`, `err`, `info`, or `neutral`. See [Status chips](#status-chips-valuecolors). |
 | `traceDrill` | `line` only — `{ "mode": "latency" \| "error" }` links data points to the matching traces. See [Metric-to-trace drill](#metric-to-trace-drill-tracedrill). |
+| `recordTrace` | `record` only — `{ "source": "<trace store>" }` names the store a record's trace id opens in. See [Which store a record's trace opens in](#which-store-a-records-trace-opens-in-recordtrace). |
 | `tabs[]` | `tab` only — the named panels, each `{ "name": "…", "widgets": [ … ] }`. See [`tab`](#tab). |
 | `tableHeaders` | `table` only — `[, valueHeader]`; the value column's header. Label columns are headed by their dimension name. |
 | `showTableValues` | `table` only — show the value column. `false` for presence-only lists (e.g. node conditions). Default `true`. |
@@ -204,9 +205,32 @@ The data source returns a record set (rows × typed columns) rather than a numer
 
 ### Behavior
 
-- Each row is one sampled record: the statement / command text, its value (e.g. latency), and — when the sample carries a trace id — a jump-to-trace icon at the row head that opens the originating trace in the trace viewer.
+- Each row is one sampled record: the statement / command text, its value (e.g. latency), and — when the sample carries a trace id — a jump-to-trace icon at the row head that opens the originating trace.
 - Records are sampled, so a row's trace id can be absent; the jump-to-trace icon appears only when the sample has one.
 - Click a row's statement text to copy it to the clipboard.
+
+### Which store a record's trace opens in (`recordTrace`)
+
+A record's trace id belongs to whichever store kept the trace, and the widget cannot tell which one from the id. Records the SkyWalking agents produce live in the native store; records drawn from other spans, such as the OTLP slow statements, live in another one, so the widget names it.
+
+**In the editor:** open the layer in **Dashboard setup → Layer dashboards**, select the `record` widget, and pick the store under **Record trace → Trace store**. The choices are the store names a layer lists in its trace stores:
+
+| Trace store | Where the trace opens |
+|---|---|
+| none | The layer's own trace popout: the native one, or the Zipkin one on a layer whose traces are Zipkin only. |
+| `native` | The native trace popout, whatever the layer's trace stores. |
+| `zipkin` | The Zipkin trace popout. |
+| `traceql-native`, `traceql-zipkin`, `traceql-otlp` | The TraceQL trace popout, reading that store. |
+
+Each popout opens over the dashboard and closes back to it, so the page and its menu stay where they are; the address carries the open trace, so it can be shared. A TraceQL store needs OAP's TraceQL module with that datasource on, and Horizon's `oap.traceql` pointing at it.
+
+**Stored format:** the choice is saved on the widget as `recordTrace`, absent for none:
+
+```json
+"recordTrace": { "source": "traceql-otlp" }
+```
+
+Publishing or importing a template refuses a `recordTrace` that names no known store, and one on a widget that is not a `record`. A template already stored with a bad value still loads; its trace icon opens the layer's own popout.
 
 ## `table`
 

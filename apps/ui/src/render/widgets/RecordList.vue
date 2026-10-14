@@ -19,7 +19,9 @@
   widget). Each row is one sampled statement execution:
 
     - a jump-to-trace icon at the head, shown ONLY when the sample carries
-      a trace id (these are sampled, so the trace can be absent);
+      a trace id (these are sampled, so the trace can be absent). The
+      widget's `recordTrace` names the store the id lives in; absent, it is
+      the layer's own popout (native, or Zipkin on a Zipkin-only layer);
     - the statement text, click-to-copy;
     - the metric value (latency) + unit.
 
@@ -29,8 +31,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { RecordTrace, TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
+import { useTraceQLTracePopout } from '@/layer/traceql/useTraceQLTracePopout';
 import { fmtMetric } from '@/utils/formatters';
 
 interface RecordRow {
@@ -38,10 +43,29 @@ interface RecordRow {
   value?: number | null;
   traceId?: string;
 }
-defineProps<{ items: ReadonlyArray<RecordRow>; unit?: string; color?: string }>();
+const props = defineProps<{ items: ReadonlyArray<RecordRow>; unit?: string; color?: string; trace?: RecordTrace }>();
 
 const { t } = useI18n({ useScope: 'global' });
-const { openTrace } = useTracePopout();
+const { openTrace: openNativeTrace } = useTracePopout();
+const { openTrace: openZipkinTrace } = useZipkinTracePopout();
+const { openTrace: openTraceQLTrace } = useTraceQLTracePopout();
+
+const TRACEQL_DS: Record<string, TraceQLDatasource> = {
+  'traceql-native': 'native',
+  'traceql-zipkin': 'zipkin',
+  'traceql-otlp': 'otlp',
+};
+
+/** Every store opens its popout over this page, so the menu stays put. With
+ *  no store named, the layer's trace config picks the native or Zipkin popout,
+ *  as it always has; a named `native` says so outright. */
+function openTrace(id: string): void {
+  const source = props.trace?.source;
+  if (source === 'zipkin') openZipkinTrace(id);
+  else if (source && TRACEQL_DS[source]) openTraceQLTrace(id, TRACEQL_DS[source]);
+  else if (source === 'native') openNativeTrace(id, undefined, 'SKYWALKING_NATIVE');
+  else openNativeTrace(id);
+}
 
 const copiedIdx = ref<number | null>(null);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;

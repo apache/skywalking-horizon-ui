@@ -27,6 +27,7 @@ import PreviewModeBanner from './PreviewModeBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import EventsPopout from '@/features/events/EventsPopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
+import TraceQLTracePopout from '@/layer/traceql/TraceQLTracePopout.vue';
 import AiChatLauncher from '@/ai/AiChatLauncher.vue';
 import AiChatPanel from '@/ai/AiChatPanel.vue';
 import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
@@ -174,6 +175,8 @@ function startSidebarResize(e: PointerEvent): void {
     <!-- Shares `?traceId=`; native vs Zipkin self-select by ID shape
          (see isZipkinTraceId). -->
     <ZipkinTracePopout />
+    <!-- `?traceqlId=` + `?ds=`: a trace read through a TraceQL store, over any page. -->
+    <TraceQLTracePopout />
     <!-- Per-service events popout: a layer's service banner calls
          useEventsPopout().open(layer, service) to peek that service's
          instance events without leaving the page. -->

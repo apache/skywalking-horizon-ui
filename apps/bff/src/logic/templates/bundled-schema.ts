@@ -617,6 +617,7 @@ export function layerCrossRefIssues(tpl: PushLayer, opts: { complete: boolean })
   }
   checkWidgetIds(tpl.widgets as DashboardWidget[] | undefined, 'widgets', add);
   checkExtPages(tpl, add);
+  checkRecordTraces(tpl, add);
   checkDefaultFilters(tpl, add);
   checkMenuOrder(tpl, add);
 
@@ -904,6 +905,47 @@ function checkWidgetIds(
       });
     });
   });
+}
+
+/**
+ * Every widget of a layer template with its dotted path: the scope grids, the
+ * legacy flat list, the extension pages, and the children of each tab panel.
+ * Takes raw content as well as parsed, so a caller can pair the two by path.
+ */
+export function widgetEntries(tpl: unknown): Array<{ path: string; w: Record<string, unknown> }> {
+  const out: Array<{ path: string; w: Record<string, unknown> }> = [];
+  if (!isRecord(tpl)) return out;
+  const walk = (list: unknown, path: string): void => {
+    if (!Array.isArray(list)) return;
+    list.forEach((w, i) => {
+      if (!isRecord(w)) return;
+      out.push({ path: `${path}.${i}`, w });
+      if (!Array.isArray(w.tabs)) return;
+      w.tabs.forEach((tab, ti) => {
+        if (isRecord(tab)) walk(tab.widgets, `${path}.${i}.tabs.${ti}.widgets`);
+      });
+    });
+  };
+  const dashboards = isRecord(tpl.dashboards) ? tpl.dashboards : {};
+  for (const [scope, list] of Object.entries(dashboards)) walk(list, `dashboards.${scope}`);
+  walk(tpl.widgets, 'widgets');
+  const extPages = isRecord(tpl.dashboardExtPages) ? tpl.dashboardExtPages : {};
+  for (const [scope, pages] of Object.entries(extPages)) {
+    if (!Array.isArray(pages)) continue;
+    pages.forEach((page, pi) => {
+      if (isRecord(page)) walk(page.widgets, `dashboardExtPages.${scope}.${pi}.widgets`);
+    });
+  }
+  return out;
+}
+
+/** Only a `record` widget has trace ids for `recordTrace` to place. */
+function checkRecordTraces(tpl: PushLayer, add: (path: string, message: string) => void): void {
+  for (const { path, w } of widgetEntries(tpl)) {
+    if (w.recordTrace !== undefined && w.type !== 'record') {
+      add(`${path}.recordTrace`, '`recordTrace` applies to `record` widgets only');
+    }
+  }
 }
 
 function checkHeader(
