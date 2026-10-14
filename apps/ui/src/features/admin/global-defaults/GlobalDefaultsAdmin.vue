@@ -39,6 +39,7 @@ import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { AVAILABLE_THEMES, useThemeStore, type ThemeId } from '@/state/theme';
 import ThemePreviewCard from './ThemePreviewCard.vue';
+import { MAX_DEFAULT_WINDOW_MINUTES, planGlobalDefaultsSave, windowMinutesProblem } from './globalDefaults';
 
 const { t } = useI18n();
 
@@ -73,7 +74,8 @@ const timeDiverged = computed(() => timeStatus.value === 'diverged');
 // but not the value); call sync-status once on mount to get the live
 // values. After save, refetch.
 const themeDraft = ref<ThemeId>('horizon');
-const timeDraftMinutes = ref<number>(60);
+// `v-model.number` leaves '' in here once the custom input is cleared.
+const timeDraftMinutes = ref<number | string>(60);
 const orig = ref<{ themeId: ThemeId; minutes: number } | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
@@ -92,12 +94,8 @@ async function loadFromOap(): Promise<void> {
       AVAILABLE_THEMES.some((t) => t.id === themeContent.themeId)
         ? (themeContent.themeId as ThemeId)
         : 'horizon';
-    const tMin =
-      typeof timeContent?.defaultWindowMinutes === 'number' &&
-      Number.isInteger(timeContent.defaultWindowMinutes) &&
-      timeContent.defaultWindowMinutes > 0
-        ? timeContent.defaultWindowMinutes
-        : 60;
+    const storedMin = timeContent?.defaultWindowMinutes;
+    const tMin = typeof storedMin === 'number' && windowMinutesProblem(storedMin) === null ? storedMin : 60;
     themeDraft.value = tId;
     timeDraftMinutes.value = tMin;
     orig.value = { themeId: tId, minutes: tMin };
@@ -140,24 +138,41 @@ const themeDirty = computed(() => orig.value !== null && themeDraft.value !== or
 const timeDirty = computed(() => orig.value !== null && timeDraftMinutes.value !== orig.value.minutes);
 const dirty = computed(() => themeDirty.value || timeDirty.value);
 
+const timeProblem = computed<string | null>(() => {
+  const p = windowMinutesProblem(timeDraftMinutes.value);
+  if (p === 'range') return t('Must be 1–{max}.', { max: MAX_DEFAULT_WINDOW_MINUTES });
+  if (p === 'whole') return t('Whole number, greater than 0.');
+  return null;
+});
+const savePlan = computed(() =>
+  orig.value
+    ? planGlobalDefaultsSave(
+        { themeId: themeDraft.value, minutes: timeDraftMinutes.value },
+        orig.value,
+        (id) => AVAILABLE_THEMES.some((x) => x.id === id),
+      )
+    : null,
+);
+
 async function onSave(): Promise<void> {
   if (!dirty.value || saving.value) return;
   if (readOnly.value) {
     setFlash(t('You can view this configuration but not change it.'));
     return;
   }
+  const plan = savePlan.value;
+  if (!plan) return;
   saving.value = true;
   try {
-    // Batched as two separate /api/admin/templates/save calls (each
-    // template is a distinct OAP row). If the second fails the first
-    // still landed — surface the partial state to the operator.
-    if (themeDirty.value) {
-      await bff.templateSync.save('horizon.theme.active', { themeId: themeDraft.value });
+    // Two rows, two writes. Each is recorded as it lands, so if the second
+    // fails only its own section is left unsaved.
+    if (plan.themeId !== undefined) {
+      await bff.templateSync.save('horizon.theme.active', { themeId: plan.themeId });
+      if (orig.value) orig.value = { ...orig.value, themeId: plan.themeId };
     }
-    if (timeDirty.value) {
-      await bff.templateSync.save('horizon.time-defaults.global', {
-        defaultWindowMinutes: timeDraftMinutes.value,
-      });
+    if (plan.minutes !== undefined) {
+      await bff.templateSync.save('horizon.time-defaults.global', { defaultWindowMinutes: plan.minutes });
+      if (orig.value) orig.value = { ...orig.value, minutes: plan.minutes };
     }
     await loadFromOap();
     setFlash(t('saved to OAP'));
@@ -210,9 +225,10 @@ function precisionForMinutes(m: number): 'MINUTE' | 'HOUR' | 'DAY' {
   if (m < 30 * 24 * 60) return 'HOUR';  // < 30 d
   return 'DAY';
 }
-const draftPrecision = computed(() => precisionForMinutes(timeDraftMinutes.value));
+const draftMinutes = computed<number>(() => (typeof timeDraftMinutes.value === 'number' ? timeDraftMinutes.value : 0));
+const draftPrecision = computed(() => precisionForMinutes(draftMinutes.value));
 const draftBucketCount = computed(() => {
-  const m = timeDraftMinutes.value;
+  const m = draftMinutes.value;
   // 60-min window @ MINUTE step → 60 one-minute buckets;
   // hour-precision divides by 60, day-precision by 60*24.
   if (draftPrecision.value === 'MINUTE') return m;
@@ -344,12 +360,14 @@ async function onDiffReset(): Promise<void> {
               v-model.number="timeDraftMinutes"
               type="number"
               min="1"
-              max="44640"
+              :max="MAX_DEFAULT_WINDOW_MINUTES"
+              :class="{ invalid: timeProblem }"
               :disabled="timeReadOnly"
             />
           </label>
         </div>
-        <p class="gd__resolved">
+        <p v-if="timeProblem" class="gd__field-err" data-testid="time-window-problem">{{ timeProblem }}</p>
+        <p v-else class="gd__resolved">
           <i18n-t keypath="{minutes} → {precision} step, {buckets} per query." tag="span">
             <template #minutes><strong>{{ t('{n} min', { n: timeDraftMinutes }) }}</strong></template>
             <template #precision><code>{{ draftPrecision }}</code></template>
@@ -371,8 +389,8 @@ async function onDiffReset(): Promise<void> {
         <button
           type="button"
           class="gd__btn gd__btn--primary"
-          :disabled="!dirty || saving || readOnly"
-          :title="readOnly ? t('You can view this configuration but not change it.') : ''"
+          :disabled="!dirty || saving || readOnly || !savePlan"
+          :title="readOnly ? t('You can view this configuration but not change it.') : (timeProblem ?? '')"
           @click="onSave"
         >{{ saving ? t('saving…') : readOnly ? t('read-only') : t('save to OAP') }}</button>
       </footer>
@@ -528,6 +546,12 @@ async function onDiffReset(): Promise<void> {
   color: var(--sw-fg-0);
   border-radius: 3px;
   font-size: var(--sw-fs-sm);
+}
+.gd__custom input.invalid { border-color: var(--sw-err); }
+.gd__field-err {
+  margin: 10px 0 0;
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-err);
 }
 
 .gd__actions {

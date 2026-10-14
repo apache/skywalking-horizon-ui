@@ -3563,5 +3563,6 @@
   "Record trace": "レコードのトレース",
   "Trace store": "トレースストア",
   "none — the layer's trace popout": "なし — レイヤーのトレースポップアウト",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "このウィジェットのトレース ID が保存されているストア。行のトレースアイコンは、そこからトレースをページ上に開きます。"
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "このウィジェットのトレース ID が保存されているストア。行のトレースアイコンは、そこからトレースをページ上に開きます。",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "未設定：組み込みのデフォルトメトリクスが適用されます。ここで変更すると、このレイヤー独自の設定が作成され、デフォルトは置き換えられます。"
 }

@@ -54,6 +54,7 @@ import { useExtPages, isPageableScope } from './useExtPages';
 import {
   componentOwnedCount,
   disableEntityComponent,
+  COMPONENT_OWNED_BLOCK,
   type EntityScope,
 } from './componentDisable';
 import { useLayerServices } from '@/layer/useLayerServices';
@@ -203,28 +204,20 @@ const COMPONENT_TO_PAGEABLE_SCOPE: Record<string, string> = {
  * until they are removed on the Translations page. The confirmation says
  * so rather than implying they clean themselves up.
  */
-/** Non-entity components that own a configuration block — the MQE an
- *  operator tuned for that one view. It is as unreachable as a widget
- *  grid once the component is off, and it would come back unannounced if
- *  the component were re-enabled later. */
-const COMPONENT_TO_OWNED_BLOCK: Record<string, 'topology' | 'deployment' | 'endpointDependency'> = {
-  topology: 'topology',
-  deployment: 'deployment',
-  endpointDependency: 'endpointDependency',
-};
 /** The label the Components list shows, so the confirmation names the
  *  control the operator just clicked. */
 const COMPONENT_LABEL: Record<string, () => string> = {
   topology: () => t('Topology'),
   deployment: () => t('Deployment'),
   endpointDependency: () => t('API dependency'),
+  networkProfiling: () => t('Network Profiling'),
 };
 const componentLabel = (key: string): string => COMPONENT_LABEL[key]?.() ?? key;
 
 function onConfirmDisable(key: string): void {
   if (readOnly.value) return;
   const tpl = selectedTpl.value;
-  const block = COMPONENT_TO_OWNED_BLOCK[key];
+  const block = COMPONENT_OWNED_BLOCK[key];
   if (tpl && block) {
     const has = (tpl as Record<string, unknown>)[block] !== undefined;
     const off = (): void => {

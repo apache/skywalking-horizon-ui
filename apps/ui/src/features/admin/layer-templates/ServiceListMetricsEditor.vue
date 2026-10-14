@@ -27,7 +27,7 @@
   render (label, scale, precision, unit, default-sort marker).
 -->
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
@@ -64,21 +64,20 @@ function ensure(): NonNullable<AdminLayerTemplate['metrics']> {
   }
   return config.value;
 }
-onMounted(() => {
-  if (!props.readOnly) ensure();
-});
 
-// Mirrors the legacy metricsModel: seeds the block on access so the orderBy
-// control + columns table render even before the operator touches the JSON
-// (the block is part of the live draft and is mutated in place). Read-only
-// reads it straight off the template instead — a render must not mutate a
-// draft the session cannot save.
-const metricsModel = computed(() => (props.readOnly ? config.value : ensure()));
-const metricsColumns = computed(() => {
-  if (props.readOnly) return config.value?.columns ?? [];
-  const m = ensure();
-  if (!m.columns) m.columns = [];
-  return m.columns;
+// Reads never create the block: viewing the tab is no edit. Writes go
+// through ensure().
+const metricsColumns = computed(() => config.value?.columns ?? []);
+const orderByModel = computed<string | undefined>({
+  get: () => config.value?.orderBy,
+  set: (v) => {
+    if (props.readOnly) return;
+    if (v === undefined) {
+      if (config.value) delete config.value.orderBy;
+      return;
+    }
+    ensure().orderBy = v;
+  },
 });
 const atColumnCap = computed(() => metricsColumns.value.length >= MAX_COLUMNS);
 function addMetricColumn(): void {
@@ -159,10 +158,10 @@ const effectiveOrderBy = computed(
         {{ t('＋ Add column') }}
       </button>
     </div>
-    <div v-if="metricsModel" class="metrics-keys">
+    <div class="metrics-keys">
       <label>
         <span>{{ t('Default sort (orderBy)') }}</span>
-        <select v-model="metricsModel.orderBy" :disabled="readOnly">
+        <select v-model="orderByModel" :disabled="readOnly">
           <option :value="undefined">{{ t('(first column)') }}</option>
           <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.metric }}</option>
         </select>

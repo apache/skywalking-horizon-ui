@@ -44,6 +44,19 @@ import { vAutosize } from '@/utils/autosize';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { META_SEL } from './constants';
+import {
+  fitMaxToStyle,
+  firstMqeKpi,
+  moveKpi,
+  normalRankBy,
+  PROGRESS_BAR_MAX_DEFAULT,
+  removeKpi,
+  setAggregateOnPage,
+  setKpiSource,
+  setOptionalNumber,
+  setOptionalText,
+  type OptionalKey,
+} from './widgetEdits';
 
 const props = defineProps<{
   draft: OverviewDashboard;
@@ -144,17 +157,23 @@ function setResolution(w: OverviewWidget, value: string): void {
 
 function setAggMode(w: OverviewWidget, pageSide: boolean): void {
   if (props.readOnly) return;
-  w.aggregateOnPage = pageSide;
-  if (!pageSide) w.rankBy = undefined; // ranking only applies to the page-side path
+  setAggregateOnPage(w, pageSide);
 }
-function firstMqeKpi(w: OverviewWidget): number {
-  const i = (w.kpis ?? []).findIndex((k) => (k.source ?? 'mqe') === 'mqe');
-  return i < 0 ? 0 : i;
+function setNumber<T extends object>(target: T, key: OptionalKey<T, number>, e: Event): void {
+  if (props.readOnly) return;
+  setOptionalNumber(target, key, (e.target as HTMLInputElement).value);
 }
-/** Current "Rank by" selection: a KPI index (string) or the `__mqe` escape. */
+function setTip(w: OverviewWidget, e: Event): void {
+  if (props.readOnly) return;
+  setOptionalText(w, 'tip', (e.target as HTMLInputElement).value);
+}
+/** Current "Rank by" selection: a KPI index (string) or the `__mqe` escape.
+ *  Read through `normalRankBy` so a row the renderer cannot rank by shows the
+ *  first row it falls back to, not a blank select. */
 function rankSel(w: OverviewWidget): string {
-  if (w.rankBy?.mqe != null) return '__mqe';
-  return String(w.rankBy?.kpi ?? firstMqeKpi(w));
+  const rankBy = normalRankBy(w.rankBy, w.kpis);
+  if (rankBy?.mqe != null) return '__mqe';
+  return String(rankBy?.kpi ?? firstMqeKpi(w.kpis));
 }
 function setRankSel(w: OverviewWidget, v: string): void {
   if (props.readOnly) return;
@@ -165,7 +184,7 @@ function setRankSel(w: OverviewWidget, v: string): void {
   const idx = Number(v);
   // Absent rankBy === rank by the first KPI, so only store an explicit index
   // when it isn't the default — keeps the template clean.
-  w.rankBy = idx === firstMqeKpi(w) ? undefined : { kpi: idx };
+  w.rankBy = idx === firstMqeKpi(w.kpis) ? undefined : { kpi: idx };
 }
 function rankMqe(w: OverviewWidget): string {
   return w.rankBy?.mqe ?? '';
@@ -195,25 +214,21 @@ function addKpi(w: OverviewWidget): void {
   const next = [...(w.kpis ?? []), { label: 'new KPI', mqe: '' } as OverviewKpi];
   w.kpis = next;
 }
-function removeKpi(w: OverviewWidget, idx: number): void {
-  if (props.readOnly || !w.kpis) return;
-  w.kpis = w.kpis.filter((_, i) => i !== idx);
+function onRemoveKpi(w: OverviewWidget, idx: number): void {
+  if (props.readOnly) return;
+  removeKpi(w, idx);
 }
-function moveKpi(w: OverviewWidget, idx: number, dir: -1 | 1): void {
-  if (props.readOnly || !w.kpis) return;
-  const next = [...w.kpis];
-  const j = idx + dir;
-  if (j < 0 || j >= next.length) return;
-  [next[idx], next[j]] = [next[j], next[idx]];
-  w.kpis = next;
+function onMoveKpi(w: OverviewWidget, idx: number, dir: -1 | 1): void {
+  if (props.readOnly) return;
+  moveKpi(w, idx, dir);
 }
-/* Switching a KPI to progress-bar makes `max` mandatory — seed a
- * sensible default if it isn't set so the BFF doesn't 400 on save. */
+function onKpiSourceChange(w: OverviewWidget, idx: number, e: Event): void {
+  if (props.readOnly) return;
+  setKpiSource(w, idx, (e.target as HTMLSelectElement).value as OverviewKpi['source']);
+}
 function onKpiStyleChange(k: OverviewKpi): void {
   if (props.readOnly) return;
-  if (k.style === 'progress-bar' && (k.max === undefined || k.max === null)) {
-    k.max = 100;
-  }
+  fitMaxToStyle(k);
 }
 </script>
 
@@ -294,16 +309,16 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <div class="ot__row">
         <label v-if="w.type === 'section-break'" class="ot__field">
           <span>{{ t('Columns (grid)') }}</span>
-          <input v-model.number="w.cols" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" />
+          <input :value="w.cols" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" @input="setNumber(w, 'cols', $event)" />
         </label>
         <template v-else>
           <label class="ot__field">
             <span>{{ t('Width (span)') }}</span>
-            <input v-model.number="w.span" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" />
+            <input :value="w.span" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" @input="setNumber(w, 'span', $event)" />
           </label>
           <label class="ot__field">
             <span>{{ t('Height (rows)') }}</span>
-            <input v-model.number="w.rowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" />
+            <input :value="w.rowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" :disabled="readOnly" @input="setNumber(w, 'rowSpan', $event)" />
           </label>
         </template>
       </div>
@@ -315,7 +330,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
         <label v-if="w.type !== 'section-break'" class="ot__field ot__field--wide">
           <span>{{ t('Tip') }}</span>
-          <input v-model="w.tip" type="text" class="ot__in" :disabled="readOnly" :placeholder="t('(optional)')" />
+          <input :value="w.tip" type="text" class="ot__in" :disabled="readOnly" :placeholder="t('(optional)')" @input="setTip(w, $event)" />
         </label>
       </div>
 
@@ -363,7 +378,9 @@ function onKpiStyleChange(k: OverviewKpi): void {
              both modes implied it always did something. -->
         <label v-if="w.aggregateOnPage" class="ot__field">
           <span>{{ t('Aggregation') }}</span>
+          <!-- Absent reads as avg, the renderer's default. -->
           <select v-model="w.aggregation" class="ot__in ot__in--narrow" :disabled="readOnly">
+            <option :value="undefined">avg</option>
             <option value="avg">avg</option>
             <option value="sum">sum</option>
           </select>
@@ -398,13 +415,14 @@ function onKpiStyleChange(k: OverviewKpi): void {
           <label class="ot__field">
             <span>{{ t('Window (days)') }} <WidgetTip :tip="windowDaysHint" /></span>
             <input
-              v-model.number="w.windowDays"
+              :value="w.windowDays"
               type="number"
               :min="CALENDAR_HEATMAP_WINDOW_DAYS_MIN"
               :max="CALENDAR_HEATMAP_WINDOW_DAYS_MAX"
               class="ot__in ot__in--num"
               :disabled="readOnly"
               :placeholder="String(CALENDAR_HEATMAP_WINDOW_DAYS_DEFAULT)"
+              @input="setNumber(w, 'windowDays', $event)"
             />
           </label>
           <label class="ot__field">
@@ -444,7 +462,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
           </label>
           <label class="ot__field">
             <span>{{ t('Rows') }}</span>
-            <input v-model.number="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" placeholder="10" />
+            <input :value="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" placeholder="10" @input="setNumber(w, 'limit', $event)" />
           </label>
         </div>
         <div class="ot__row">
@@ -463,7 +481,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <div v-if="w.type === 'alarms'" class="ot__row">
         <label class="ot__field">
           <span>{{ t('Row limit') }}</span>
-          <input v-model.number="w.limit" type="number" min="1" max="100" class="ot__in ot__in--num" :disabled="readOnly" />
+          <input :value="w.limit" type="number" min="1" max="100" class="ot__in ot__in--num" :disabled="readOnly" @input="setNumber(w, 'limit', $event)" />
         </label>
       </div>
 
@@ -497,7 +515,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
           <div v-if="w.aggregateOnPage" class="ot__agg-params">
             <label class="ot__field">
               <span>{{ t('Top-N services') }} <WidgetTip :tip="topNServicesHint" /></span>
-              <input v-model.number="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" />
+              <input :value="w.limit" type="number" min="1" :max="LANDING_TOP_N_MAX" class="ot__in ot__in--num" :disabled="readOnly" @input="setNumber(w, 'limit', $event)" />
             </label>
             <label v-if="w.type !== 'metric'" class="ot__field ot__field--wide">
               <span>{{ t('Rank by') }} <WidgetTip :tip="rankByHint" /></span>
@@ -519,7 +537,8 @@ function onKpiStyleChange(k: OverviewKpi): void {
             </label>
           </div>
         </div>
-        <div class="ot__kpis">
+        <!-- A metric widget renders its own MQE, never KPI rows. -->
+        <div v-if="w.type !== 'metric'" class="ot__kpis">
           <div class="ot__kpis-head">
             <span>{{ t('KPI rows ({n})', { n: (w.kpis ?? []).length }) }}</span>
             <button type="button" class="ot__add-btn" :disabled="readOnly" @click="addKpi(w)">{{ t('+ add row') }}</button>
@@ -540,17 +559,17 @@ function onKpiStyleChange(k: OverviewKpi): void {
                     class="ot__arrow"
                     :title="t('Move up')"
                     :disabled="i === 0 || readOnly"
-                    @click="moveKpi(w, i, -1)"
+                    @click="onMoveKpi(w, i, -1)"
                   >↑</button>
                   <button
                     type="button"
                     class="ot__arrow"
                     :title="t('Move down')"
                     :disabled="i === (w.kpis ?? []).length - 1 || readOnly"
-                    @click="moveKpi(w, i, 1)"
+                    @click="onMoveKpi(w, i, 1)"
                   >↓</button>
                 </div>
-                <button type="button" class="ot__del" :disabled="readOnly" :title="t('Remove row')" @click="removeKpi(w, i)">×</button>
+                <button type="button" class="ot__del" :disabled="readOnly" :title="t('Remove row')" @click="onRemoveKpi(w, i)">×</button>
               </div>
               <label class="ot__field ot__field--full">
                 <span>{{ t('Label') }}</span>
@@ -562,7 +581,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
                   :value="k.source ?? 'mqe'"
                   class="ot__in"
                   :disabled="readOnly"
-                  @change="k.source = ($event.target as HTMLSelectElement).value as OverviewKpi['source']"
+                  @change="onKpiSourceChange(w, i, $event)"
                 >
                   <option value="mqe">mqe</option>
                   <option value="service-count">service-count</option>
@@ -606,13 +625,14 @@ function onKpiStyleChange(k: OverviewKpi): void {
                 <label v-if="k.style === 'progress-bar'" class="ot__field">
                   <span>{{ t('Max') }}</span>
                   <input
-                    v-model.number="k.max"
+                    :value="k.max"
                     type="number"
                     :disabled="readOnly"
                     min="0"
                     step="any"
                     class="ot__in"
-                    placeholder="100"
+                    :placeholder="String(PROGRESS_BAR_MAX_DEFAULT)"
+                    @input="setNumber(k, 'max', $event)"
                   />
                 </label>
               </div>

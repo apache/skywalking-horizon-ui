@@ -50,7 +50,20 @@ const props = defineProps<{
   canMoveDown: boolean;
   readOnly?: boolean;
 }>();
-defineEmits<{ moveUp: []; moveDown: []; remove: [] }>();
+const emit = defineEmits<{ moveUp: []; moveDown: []; remove: []; rename: [from: string, to: string] }>();
+// A rename is reported once the id is committed (blur or Enter), not per
+// keystroke: an id typed letter by letter passes through other ids.
+let idAtFocus = metric.value.id;
+function onIdFocus(): void {
+  if (metric.value.id) idAtFocus = metric.value.id;
+}
+function onIdCommitted(): void {
+  const id = metric.value.id;
+  // A cleared id commits nothing: the id committed next is the rename.
+  if (!id) return;
+  if (id !== idAtFocus) emit('rename', idAtFocus, id);
+  idAtFocus = id;
+}
 
 function toggleThresholds(m: DeploymentMetricDef): void {
   if (props.readOnly) return;
@@ -61,7 +74,7 @@ function toggleThresholds(m: DeploymentMetricDef): void {
 <template>
   <article class="metric-row">
     <div class="metric-row-head">
-      <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" :disabled="readOnly" /></label>
+      <label class="mf"><span>{{ t('id') }}</span><input v-model="metric.id" type="text" class="mf-input mono" :disabled="readOnly" @focus="onIdFocus" @change="onIdCommitted" /></label>
       <label class="mf"><span>{{ t('label') }}</span><input v-model="metric.label" type="text" class="mf-input" :disabled="readOnly" /></label>
       <label v-if="showAlias" class="mf mf-narrow"><span>{{ t('alias') }}</span><input v-model="metric.alias" type="text" class="mf-input mono" placeholder="W" :title="t('Short prefix on the edge, e.g. W / R')" :disabled="readOnly" /></label>
       <label class="mf mf-wide"><span>{{ t('MQE') }}</span><MqeExpressionInput v-model="metric.mqe" :placeholder="mqePlaceholder" :title="mqeTitle" :layer-key="layerKey" :site-scope="siteScope" :readonly="readOnly" /></label>

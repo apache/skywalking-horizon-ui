@@ -39,7 +39,7 @@ Horizon ships bundled overview templates, and an administrator customizes them i
 | `visibility` | `public` \| `operate` | `public` | Sidebar placement. `operate` puts the overview under the Operate group (admin-only by convention). |
 | `icon` | string | — | Sidebar icon name (from Horizon's icon set). |
 | `order` | number | — | Sort order within the visibility bucket (lower = earlier). |
-| `layers` | string[] | — | Layer enums this overview aggregates. Optional — Horizon also unions in every widget's `layer` field, so a dashboard created via "+ New" (no `layers[]`) gates correctly off its widgets alone. See *Sidebar visibility* below. |
+| `layers` | string[] | — | Layer enums this overview aggregates. Optional — Horizon also unions in every widget's `layer` field, so a dashboard gates correctly off its widgets alone. The **Overview templates** editor has no control for it and drops it on save, so a saved dashboard is listed by the layers its widgets use. See *Sidebar visibility* below. |
 | `widgets` | array | **required** | Ordered widget list. The renderer iterates and lays out per the grid model. |
 
 ## Widget types

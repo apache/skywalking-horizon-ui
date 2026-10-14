@@ -3563,5 +3563,6 @@
   "Record trace": "Record-Trace",
   "Trace store": "Trace-Speicher",
   "none — the layer's trace popout": "keiner — das Trace-Popout des Layers",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "Der Speicher, in dem die Trace-IDs dieses Widgets liegen. Das Trace-Symbol einer Zeile öffnet den Trace daraus, über der Seite."
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "Der Speicher, in dem die Trace-IDs dieses Widgets liegen. Das Trace-Symbol einer Zeile öffnet den Trace daraus, über der Seite.",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Nicht konfiguriert: Es gelten die integrierten Standardmetriken. Jede Änderung hier legt eine eigene Konfiguration für diese Ebene an, die sie ersetzt."
 }

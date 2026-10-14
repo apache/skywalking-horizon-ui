@@ -47,6 +47,7 @@ import { refreshConfigBundle } from '@/controls/configBundle';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { type AdminScope, SCOPES } from './layer-dashboards.scopes';
 import { draftPageIdIssues } from './useExtPages';
+import { cleanLayerTemplate } from './cleanLayerTemplate';
 import { layerPath, menuLayers as layersOfMenu } from '@/utils/layerRoute';
 
 export function useLayerTemplateStore() {
@@ -528,23 +529,6 @@ export function useLayerTemplateStore() {
     return stableStringify(draft.template) !== stableStringify(remote);
   });
 
-  /** An all-empty `deployment` block (no metrics anywhere, no rules) carries no
-   *  renderable config but its mere presence flips caps.deployment on save —
-   *  strip it so an opened-then-abandoned editor can't enable the tab. */
-  function stripEmptyDeployment(tpl: AdminLayerTemplate): void {
-    const d = tpl.deployment;
-    if (!d) return;
-    const hasMetrics =
-      (d.nodeMetrics?.length ?? 0) > 0 ||
-      (d.linkServerMetrics?.length ?? 0) > 0 ||
-      (d.linkClientMetrics?.length ?? 0) > 0 ||
-      (d.roleToRole?.some((p) => (p.metrics?.length ?? 0) > 0) ?? false) ||
-      (d.roles?.some((r) => (r.nodeMetrics?.length ?? 0) > 0) ?? false);
-    if (!hasMetrics && !d.clusterBy && !d.siblingBy && !d.roleBy && !(d.roles?.length)) {
-      delete tpl.deployment;
-    }
-  }
-
   /** Save the current editor state to the browser local draft. This is the
    *  only "save" — it never writes OAP. Publish later with "Push local → OAP". */
   function save(): void {
@@ -561,7 +545,10 @@ export function useLayerTemplateStore() {
     // A save that succeeds clears the last failure: leaving it up showed
     // the refusal and the confirmation on screen at the same time.
     error.value = null;
-    stripEmptyDeployment(draft.template);
+    // Against the template as this edit began, so an empty page an imported
+    // file meant stays, and one emptied by add-then-delete goes.
+    const before = loadedSnapshot.value ? (JSON.parse(loadedSnapshot.value) as AdminLayerTemplate) : null;
+    cleanLayerTemplate(draft.template, before);
     persistLocal(draft.template);
     editorSource.value = 'local';
     saveMsg.value = 'Saved to your browser (local). Publish with “Check diff & push”.';
@@ -576,12 +563,21 @@ export function useLayerTemplateStore() {
   function prettyJson(o: unknown): string {
     return o ? stableStringify(o, 2) : '';
   }
-  const localDiffersFromRemote = computed<boolean>(() => {
+  /** The local draft as it would be pushed. Cleaned here as well as on save,
+   *  so a draft saved or imported before the cleanup existed publishes clean. */
+  const pushContent = computed<AdminLayerTemplate | null>(() => {
     const local = localEdits.get<AdminLayerTemplate>(editName.value);
-    if (!local) return false;
-    return stableStringify(local) !== stableStringify(sources.remote<AdminLayerTemplate>(editName.value) ?? null);
+    if (!local) return null;
+    const copy = JSON.parse(JSON.stringify(local)) as AdminLayerTemplate;
+    // Against the saved draft itself: the push never changes a grid the save kept.
+    cleanLayerTemplate(copy, local);
+    return copy;
   });
-  const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
+  const localDiffersFromRemote = computed<boolean>(() => {
+    if (!pushContent.value) return false;
+    return stableStringify(pushContent.value) !== stableStringify(sources.remote<AdminLayerTemplate>(editName.value) ?? null);
+  });
+  const pushLocalPretty = computed(() => prettyJson(pushContent.value));
   const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
   /** Publish the local draft to OAP. The BFF waits for the new row to
@@ -590,7 +586,7 @@ export function useLayerTemplateStore() {
    *  On the BFF's 504 propagation-timeout, refetch sync state anyway —
    *  the row may have appeared moments later. */
   async function pushToOap(): Promise<void> {
-    const local = localEdits.get<AdminLayerTemplate>(editName.value);
+    const local = pushContent.value;
     if (sync.readOnly.value || !local || isSaving.value) return;
     isSaving.value = true;
     saveMsg.value = 'Saving to OAP…';
@@ -872,7 +868,6 @@ export function useLayerTemplateStore() {
     editorDiffersFromRemote,
     localDiffersFromRemote,
     canExport,
-    stripEmptyDeployment,
     save,
     pushToOap,
     pushDiffOpen,

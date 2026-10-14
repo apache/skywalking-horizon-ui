@@ -23,7 +23,7 @@
   draft), so the model value is the same object the parent's draft holds.
 -->
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EndpointDependencyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import { nextFreeId } from './free-id';
@@ -42,13 +42,13 @@ const props = defineProps<{ layerKey?: string; readOnly?: boolean }>();
 // read-only: seeding is a draft mutation, and a session that cannot save
 // must not leave one behind.
 function ensure(): EndpointDependencyConfig {
-  if (!config.value) config.value = { nodeMetrics: [], linkMetrics: [] };
-  if (!config.value.linkMetrics) config.value.linkMetrics = [];
-  return config.value;
+  // Returns the block it creates: a model write reaches the parent and comes
+  // back a tick later, so `config.value` still reads undefined here.
+  const c = config.value ?? { nodeMetrics: [], linkMetrics: [] };
+  if (!c.linkMetrics) c.linkMetrics = [];
+  if (c !== config.value) config.value = c;
+  return c;
 }
-onMounted(() => {
-  if (!props.readOnly) ensure();
-});
 
 const nodeMetrics = computed(() => config.value?.nodeMetrics ?? []);
 const linkMetrics = computed(() => config.value?.linkMetrics ?? []);
@@ -89,6 +89,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
       <h4>{{ t('API dependency config') }}</h4>
       <span class="sub">{{ t('node + line metrics (server-side only — OAP has no endpoint client family).') }}</span>
     </div>
+    <p v-if="!config" class="defaults-note">{{ t('Not configured: the built-in default metrics apply. Any change here starts this layer\'s own configuration, which replaces them.') }}</p>
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
         <input type="checkbox" :checked="showGroup" :disabled="readOnly" @change="toggleShowGroup" />
@@ -161,6 +162,7 @@ function remove(list: TopologyMetricDef[], i: number): void {
 /* Config-editor chrome, duplicated here scoped (parent keeps its copy until
    every config editor is extracted; .sw-card / .sw-btn are global). */
 .editor-card { padding: 0; overflow: visible; }
+.defaults-note { margin: 6px 12px 0; font-size: 11.5px; color: var(--sw-warn); }
 .topo-cfg-card .topo-cfg-body { padding: 4px 0 0; }
 .card-head {
   display: flex;

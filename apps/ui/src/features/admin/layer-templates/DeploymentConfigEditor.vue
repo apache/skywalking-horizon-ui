@@ -40,6 +40,7 @@ import type {
   RolePairMetrics,
 } from '@skywalking-horizon-ui/api-client';
 import { nextFreeId } from './free-id';
+import { dropFromPrimary, renameInPrimary } from './pairPrimary';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import RoleMetricRow from './RoleMetricRow.vue';
@@ -57,8 +58,11 @@ const { t } = useI18n({ useScope: 'global' });
 // deliberately omits top-level nodeMetrics) untouched by edits to the other
 // lists.
 function ensure(): DeploymentConfig {
-  if (!config.value) config.value = {};
-  return config.value;
+  // Returns the block it creates: a model write reaches the parent and comes
+  // back a tick later, so `config.value` still reads undefined here.
+  const c = config.value ?? {};
+  if (c !== config.value) config.value = c;
+  return c;
 }
 function ensureDeploymentList(
   bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient',
@@ -339,6 +343,20 @@ function moveRolePair(i: number, dir: -1 | 1): void {
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
 }
+function removePairMetric(p: RolePairMetrics, i: number): void {
+  if (props.readOnly || !p.metrics) return;
+  const [removed] = p.metrics.splice(i, 1);
+  // A pair can hold a server and a client metric under one id.
+  if (removed && !p.metrics.some((m) => m.id === removed.id)) dropFromPrimary(p, removed.id);
+}
+/** A committed rename carries into the pair's primary — unless another
+ *  metric of the pair (a pair can hold a server and a client metric under one
+ *  id) still answers to the old id, or the new id is blank. */
+function renamePairMetric(p: RolePairMetrics, from: string, to: string): void {
+  if (props.readOnly || !from || !to) return;
+  if ((p.metrics ?? []).some((m) => m.id === from)) return;
+  renameInPrimary(p, from, to);
+}
 function ensurePairMetrics(p: RolePairMetrics): DeploymentMetricDef[] {
   if (!p.metrics) p.metrics = [];
   return p.metrics;
@@ -568,7 +586,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   :can-move-down="mi < p.metrics.length - 1"
                   @move-up="moveRoleMetric(p.metrics, mi, -1)"
                   @move-down="moveRoleMetric(p.metrics, mi, 1)"
-                  @remove="removeRoleMetric(p.metrics, mi)"
+                  @remove="removePairMetric(p, mi)"
+                  @rename="(from: string, to: string) => renamePairMetric(p, from, to)"
                 />
               </div>
             </div>
