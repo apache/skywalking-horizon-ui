@@ -144,6 +144,15 @@ describe('idAddressableIds', () => {
   });
 });
 
+describe('mergeLocalizedNode — an empty English string', () => {
+  it('stays empty: a translation of text since cleared does not bring it back', () => {
+    expect(mergeLocalizedNode({ title: 'Load', tip: '' }, { title: '负载', tip: '旧提示' })).toEqual({
+      title: '负载',
+      tip: '',
+    });
+  });
+});
+
 describe('mergeLocalizedNode — id addressing', () => {
   it('translates every widget when source and overlay agree', () => {
     expect(titles(mergeLocalizedNode(source, overlay))).toEqual(['前 20 API', '流量', 'Pod']);

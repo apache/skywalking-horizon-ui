@@ -3566,5 +3566,6 @@
   "Record trace": "레코드 트레이스",
   "Trace store": "트레이스 저장소",
   "none — the layer's trace popout": "없음 — 레이어의 트레이스 팝아웃",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "이 위젯의 트레이스 ID가 저장된 저장소입니다. 행의 트레이스 아이콘은 이 저장소에서 트레이스를 페이지 위에 엽니다."
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "이 위젯의 트레이스 ID가 저장된 저장소입니다. 행의 트레이스 아이콘은 이 저장소에서 트레이스를 페이지 위에 엽니다.",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "구성되지 않음: 기본 제공 메트릭이 적용됩니다. 여기서 변경하면 이 레이어 자체 구성이 만들어지며 기본 메트릭을 대체합니다."
 }

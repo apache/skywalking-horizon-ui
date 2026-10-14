@@ -60,22 +60,13 @@ async function renameColumn(w: VueWrapper, i: number, to: string): Promise<void>
  * back yet.
  */
 describe('a template with no metrics block', () => {
-  it('mounts, and seeds the block rather than throwing', () => {
+  it('mounts without writing anything: viewing the tab is no edit', () => {
     const w = mount(ServiceListMetricsEditor, {
       props: { config: undefined, serviceLabel: 'Service' },
       global: { plugins: [i18n] },
     });
-    // The orderBy control renders off the seeded block, so its presence is
-    // what says the block reached the template rather than staying
-    // undefined behind a v-if.
     expect(w.find('.metrics-keys').exists()).toBe(true);
-    // Seeded through the model, so the parent receives the block the
-    // editor is about to write into — and it is the SAME object, which is
-    // what makes the editor's in-place mutations reach the draft. The
-    // template's own reads have already put `columns` on it by now.
-    const seeded = w.emitted('update:config')?.[0]?.[0] as { columns?: unknown[] };
-    expect(seeded).toBeTypeOf('object');
-    expect(seeded.columns).toEqual([]);
+    expect(w.emitted('update:config')).toBeUndefined();
   });
 
   it('accepts a column straight away', async () => {

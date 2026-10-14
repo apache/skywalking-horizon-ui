@@ -3566,5 +3566,6 @@
   "Record trace": "Trace do registro",
   "Trace store": "Armazenamento de traces",
   "none — the layer's trace popout": "nenhum — o popout de trace da camada",
-  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "O armazenamento onde ficam os ids de trace deste widget. O ícone de trace de uma linha abre o trace a partir dele, sobre a página."
+  "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "O armazenamento onde ficam os ids de trace deste widget. O ícone de trace de uma linha abre o trace a partir dele, sobre a página.",
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Não configurado: as métricas padrão integradas se aplicam. Qualquer alteração aqui cria a configuração própria desta camada, que as substitui."
 }

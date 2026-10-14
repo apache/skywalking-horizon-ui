@@ -136,7 +136,8 @@ useEscapeToClose(
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 45;
+  /* Over its trace popout (999), as the native span dialog is. */
+  z-index: 1000;
   display: flex;
   /* Aligned from the TOP, like the trace popout it opens over, and inset from
      it — centred and 82vh tall, this dialog was TALLER than that card, so the

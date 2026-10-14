@@ -238,6 +238,8 @@ The widget type **must match the MQE shape**:
 
 A `line` widget with a scalar-collapsed MQE renders a one-point chart and confuses operators. The widget editor warns; the schema does not enforce.
 
+Changing a widget's **Type** in the editor clears the settings only the old type uses — a card's value map and colours, a line's trace drill and axes, a table's headers and row limit, a tab's panels — and keeps its title, size, expressions and visibility rule. A widget switched to `tab` keeps only its title and size.
+
 ### Tab widgets
 
 A `tab` widget is a sized grid slot that holds several **named tab panels**, each with its own set of widgets — its own little dashboard. Use it when several groups of widgets belong in one place — one tab per subsystem, or traffic vs. errors vs. saturation — without spending a slot on each.

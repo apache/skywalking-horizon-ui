@@ -153,11 +153,17 @@ export const SCOPE_SLOT: Partial<Record<AdminScope, SlotKey>> = {
   dependency: 'endpointDependency',
 };
 
+/** A layer's menu labels as the runtime reads them: `slots`, else the older
+ *  `aliases` a template written in the bundle's format still carries. */
+export function menuLabelsOf(template: AdminLayerTemplate | null | undefined): Record<string, string> {
+  return template?.slots ?? (template as { aliases?: Record<string, string> } | null | undefined)?.aliases ?? {};
+}
+
 /** Alias-aware scope label: the layer's slot alias for the scope's noun if
  *  set, else the generic label. Pure — callers pass `draft.template`. */
 export function scopeLabelOf(template: AdminLayerTemplate | null | undefined, s: AdminScope): string {
   const sk = SCOPE_SLOT[s];
-  return (sk && template?.slots?.[sk]) || SCOPE_LABELS[s];
+  return (sk && menuLabelsOf(template)[sk]) || SCOPE_LABELS[s];
 }
 
 /** Role-binding options for a topology/dependency metric — the dropdown in

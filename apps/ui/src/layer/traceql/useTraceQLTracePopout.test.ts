@@ -28,6 +28,7 @@ async function harness(path: string) {
     routes: [
       { path: '/layer/:layerKey/service', component: Blank, meta: { layerRow: 'service' } },
       { path: '/layer/:layerKey/traceql-otlp-trace', component: Blank, meta: { layerRow: 'traceql-otlp-trace' } },
+      { path: '/layer/:layerKey/traceql-native-trace', component: Blank, meta: { layerRow: 'traceql-native-trace' } },
     ],
   });
   await router.push(path);
@@ -52,9 +53,17 @@ describe('useTraceQLTracePopout', () => {
     expect(api.open.value).toBeNull();
   });
 
-  it('stands aside on a TraceQL row, whose view opens the id itself', async () => {
+  it('stands aside on the TraceQL row of the store it names, whose view opens the id itself', async () => {
     const { api } = await harness('/layer/otlp_service/traceql-otlp-trace?traceqlId=abc123&ds=otlp');
     expect(api.open.value).toBeNull();
+  });
+
+  it('opens on a TraceQL row of another store, from the store it names', async () => {
+    const { router, api } = await harness('/layer/general/traceql-native-trace?traceqlId=abc123&ds=otlp');
+    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp' });
+    api.closeTrace();
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({});
   });
 
   it('needs a known datasource', async () => {

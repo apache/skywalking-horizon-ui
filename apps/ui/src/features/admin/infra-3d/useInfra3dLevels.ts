@@ -57,6 +57,7 @@ export function useInfra3dLevels(
   levelsSorted: ComputedRef<InfraLevelSpec[]>;
   addLevel: () => void;
   removeLevel: (id: string) => void;
+  renameLevel: (prevId: string, nextId: string) => boolean;
   moveLevel: (idx: number, delta: number) => void;
   resolveLevel: (key: string) => ResolvedLevel;
   levelLabel: (levelId: string | null) => string;
@@ -73,12 +74,35 @@ export function useInfra3dLevels(
     draft.value.levels.push({ id, order: maxOrder + 1, label: 'New level', layers: [] });
   }
 
+  /** The last tier stays: a config needs at least one. Whatever pointed at
+   *  the removed tier — groups, the failover tier — moves to the first
+   *  remaining one; its pins go with it, so those layers fall to failover. */
   function removeLevel(id: string): void {
     if (!draft.value || readOnly.value) return;
-    draft.value.levels = draft.value.levels.filter((l) => l.id !== id);
-    if (draft.value.unknownLayer.level === id && draft.value.levels.length > 0) {
-      draft.value.unknownLayer.level = draft.value.levels[0]!.id;
+    const rest = draft.value.levels.filter((l) => l.id !== id);
+    if (rest.length === 0) return;
+    draft.value.levels = rest;
+    const fallback = rest[0]!.id;
+    if (draft.value.unknownLayer.level === id) draft.value.unknownLayer.level = fallback;
+    for (const g of draft.value.groups ?? []) {
+      if (g.level === id) g.level = fallback;
     }
+  }
+
+  /** Rename a tier and every reference to it. Runs per keystroke, so it is
+   *  refused (false, nothing changed) for an empty id or one another tier
+   *  holds — taking it would merge the two tiers' references for good. */
+  function renameLevel(prevId: string, nextId: string): boolean {
+    if (!draft.value || readOnly.value) return false;
+    if (nextId === prevId) return true;
+    const level = draft.value.levels.find((l) => l.id === prevId);
+    if (!level || !nextId || draft.value.levels.some((l) => l.id === nextId)) return false;
+    level.id = nextId;
+    if (draft.value.unknownLayer.level === prevId) draft.value.unknownLayer.level = nextId;
+    for (const g of draft.value.groups ?? []) {
+      if (g.level === prevId) g.level = nextId;
+    }
+    return true;
   }
 
   const levelsSorted = computed<InfraLevelSpec[]>(() => {
@@ -125,5 +149,25 @@ export function useInfra3dLevels(
     return draft.value?.levels.find((l) => l.id === levelId)?.label ?? levelId;
   }
 
-  return { levelsSorted, addLevel, removeLevel, moveLevel, resolveLevel, levelLabel };
+  return { levelsSorted, addLevel, removeLevel, renameLevel, moveLevel, resolveLevel, levelLabel };
+}
+
+/** File each row under the tier the map draws it on — its group's tier,
+ *  else its pin — as `resolveLevel` says. Failover and filtered-out rows,
+ *  and any whose tier is missing, come back as `unplaced`. */
+export function placeRowsByTier<R extends { key: string }>(
+  levelIds: readonly string[],
+  rows: readonly R[],
+  resolved: Readonly<Record<string, ResolvedLevel>>,
+): { byTier: Record<string, R[]>; unplaced: R[] } {
+  const tiers = new Map<string, R[]>(levelIds.map((id) => [id, []]));
+  const unplaced: R[] = [];
+  for (const r of rows) {
+    const res = resolved[r.key];
+    const levelId = res && (res.via === 'group' || res.via === 'explicit') ? res.levelId : null;
+    const bucket = levelId === null ? undefined : tiers.get(levelId);
+    if (bucket) bucket.push(r);
+    else unplaced.push(r);
+  }
+  return { byTier: Object.fromEntries(tiers), unplaced };
 }
