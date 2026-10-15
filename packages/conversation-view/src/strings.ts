@@ -252,6 +252,7 @@ export interface ViewStrings {
   measuredTime: string;
   measuredTimeText: string;
   notReported: string;
+  executionRemoved: string;
   sentToServer: string;
   cameBack: string;
   sizeAndDigest: string;
@@ -320,6 +321,7 @@ export interface ViewStrings {
   basisUnattributed: string;
   changedFilesUnknown: string;
   changedFilesNone: string;
+  changedFilesNotKept: string;
   coveragePartial: string;
   overlapsNote: string;
   sharedWith: string;
@@ -327,6 +329,7 @@ export interface ViewStrings {
   outsideWindow: string;
   diffBinary: string;
   diffTooLarge: string;
+  diffTooLargeCounted: string;
   diffUnavailable: string;
   noNewlineBefore: string;
   noNewlineAfter: string;
@@ -581,6 +584,7 @@ export const ENGLISH: ViewStrings = {
   measuredTime: 'Measured time',
   measuredTimeText: "The time the runtime measured around the call. It includes any waiting before the call started, so it is not the server's own time.",
   notReported: 'not reported',
+  executionRemoved: 'Retention removed this record from the stored files; its time and outcome are kept.',
   sentToServer: 'Sent to the server',
   cameBack: 'Came back',
   sizeAndDigest: '{bytes} B · SHA-256 {digest}',
@@ -648,6 +652,7 @@ export const ENGLISH: ViewStrings = {
   basisUnattributed: 'found by a later scan; no observed tool window covers it',
   changedFilesUnknown: 'how many files changed is unknown',
   changedFilesNone: 'a complete observation found no changed file',
+  changedFilesNotKept: '{n} file(s) changed; the list was taken out to fit the record in its stored file',
   coveragePartial: 'Partial coverage: a scan stopped early, so changes may be missing. Gaps:',
   overlapsNote: 'Other windows were open on this root at the same time:',
   sharedWith: 'shared with {windows}',
@@ -655,6 +660,7 @@ export const ENGLISH: ViewStrings = {
   outsideWindow: 'outside any observed window',
   diffBinary: 'binary — path and hashes only, no diff',
   diffTooLarge: 'too large to diff — path and hashes only',
+  diffTooLargeCounted: 'diff taken out to fit its stored file — line counts, path and hashes only',
   diffUnavailable: 'no diff available',
   noNewlineBefore: 'before: no newline at end of file',
   noNewlineAfter: 'after: no newline at end of file',

@@ -258,3 +258,17 @@ describe('the prompt panel over a removal', () => {
     expect(body.textContent).toContain('Whole request');
   });
 });
+
+describe('a manifest with no segment list', () => {
+  it('reads a list left out or written as null as an empty one, as the Sessionizer does', () => {
+    const empty = digest(new Uint8Array());
+    for (const segments of [', "segments": null', '']) {
+      const line = `{"ord":1,"id":"empty","parts":[{"k":"data","data":{"schema":"provider_body/1","role":"response","sha256":"${empty}","bytes":0,"depth":0${segments}}}]}`;
+      const file = new TextEncoder().encode(`{"h":1,"kind":"provider_body"}\n${line}\n{"t":"end","records":1}\n`);
+      const s = new PromptStore();
+      s.addFile({ seq: 1, file: 'provider_body.sd', bytes: file });
+      expect(readProviderFile(1, file)).toHaveLength(1);
+      expect(s.bodyAt(1, 1)).toHaveLength(0);
+    }
+  });
+});

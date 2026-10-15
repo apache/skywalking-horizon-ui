@@ -192,6 +192,8 @@ function wellFormed(m: PromptManifest | null): boolean {
   if (!m || typeof m !== 'object') return false;
   if (m.schema !== PROMPT_SCHEMA || typeof m.sha256 !== 'string' || typeof m.role !== 'string') return false;
   if (!Number.isSafeInteger(m.bytes) || !Number.isSafeInteger(m.depth)) return false;
+  // A list left out or written as null is an empty one, as the Sessionizer's own decoder reads it.
+  if (m.segments === undefined || m.segments === null) m.segments = [];
   if (!Array.isArray(m.segments)) return false;
   // Every other field the panel shows or joins by is a string where it is there at all. A number or
   // an object under one of these reaches the page as whatever printing it produces, and the

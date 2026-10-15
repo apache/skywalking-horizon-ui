@@ -54,6 +54,16 @@ export function drawExecutionTab(ctx: ViewContext, body: HTMLElement, step: Step
   let html = '';
   for (const r of m.executionsOf(step.id)) {
     const ended = Date.parse(r.time);
+    // A record the Sessionizer's retention removed keeps its call, its time and its outcome; the rest
+    // was not left unreported, it was removed.
+    if (r.state === 'removed') {
+      html += `<div class="acv-kicker" style="margin-top:14px">${esc(s.executionRemoved)}</div>`;
+      html += `<dl class="acv-definition">`;
+      html += row(s.outcomeWord, esc(r.outcome), true);
+      html += row(s.observedAt, Number.isFinite(ended) ? esc(f.dateTime(ended)) : esc(r.time));
+      html += `</dl>`;
+      continue;
+    }
     html += `<div class="acv-kicker" style="margin-top:14px">${esc(s.observedBy)} <span class="mono">${esc(r.observed_by)} · ${esc(r.boundary)}</span></div>`;
     html += `<dl class="acv-definition">`;
     html += row(s.mcpServer, r.server ? esc(r.server.name) : '—', true);

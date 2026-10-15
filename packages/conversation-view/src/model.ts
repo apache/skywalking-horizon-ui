@@ -105,6 +105,8 @@ export type Observation = 'skipped' | 'unknown' | 'none' | 'files';
 export function observationOf(r: AszWorkspaceChange): Observation {
   if (r.basis === 'skipped_read_only') return 'skipped';
   if (r.changes && r.changes.length > 0) return 'files';
+  // A record made smaller to fit its file keeps its count when its file list goes.
+  if (r.changed_files !== null && r.changed_files > 0) return 'files';
   // A scan that stopped early and found nothing has not found "nothing".
   if (r.changed_files === null || r.coverage === 'partial') return 'unknown';
   return 'none';
@@ -141,8 +143,32 @@ export interface ChangeTally {
   observation: Observation;
 }
 
-export function tallyChanges(records: AszWorkspaceChange[]): ChangeTally {
+/**
+ * How many distinct files records changed, by root and path. A record whose file list was taken out
+ * to fit its stored file names a count and no path, so its files cannot be told from another
+ * record's: alone, its count is exact; beside any other record, the larger of the counts is the
+ * least the records changed, and `floor` says so.
+ */
+export function countFiles(records: AszWorkspaceChange[]): { files: number; floor: boolean } {
   const seen = new Set<string>();
+  let listed = 0;
+  let listless = 0;
+  let most = 0;
+  for (const r of records) {
+    if (r.changes && r.changes.length > 0) {
+      listed++;
+      for (const c of r.changes) seen.add(`${r.root?.path ?? ''}|${c.path}`);
+    } else if (r.changed_files !== null && r.changed_files > 0) {
+      listless++;
+      most = Math.max(most, r.changed_files);
+    }
+  }
+  if (listless === 0) return { files: seen.size, floor: false };
+  if (listless === 1 && listed === 0) return { files: most, floor: false };
+  return { files: Math.max(seen.size, most), floor: true };
+}
+
+export function tallyChanges(records: AszWorkspaceChange[]): ChangeTally {
   let observation: Observation = 'skipped';
   let incomplete = false;
   const rank: Record<Observation, number> = { skipped: 0, none: 1, unknown: 2, files: 3 };
@@ -150,8 +176,9 @@ export function tallyChanges(records: AszWorkspaceChange[]): ChangeTally {
     const o = observationOf(r);
     if (rank[o] > rank[observation]) observation = o;
     if (incompleteObservation(r)) incomplete = true;
-    for (const c of r.changes ?? []) seen.add(`${r.root?.path ?? ''}|${c.path}`);
   }
+  const counted = countFiles(records);
+  if (counted.floor) incomplete = true;
   const withFiles = records.filter((r) => (r.changes?.length ?? 0) > 0);
   let additions: number | null = null;
   let deletions: number | null = null;
@@ -166,7 +193,7 @@ export function tallyChanges(records: AszWorkspaceChange[]): ChangeTally {
       deletions = (deletions ?? 0) + c.deletions;
     }
   }
-  return { files: seen.size, incomplete, additions, deletions, observation };
+  return { files: counted.files, incomplete, additions, deletions, observation };
 }
 
 /** One file as the conversation-level panel lists it: every record that
