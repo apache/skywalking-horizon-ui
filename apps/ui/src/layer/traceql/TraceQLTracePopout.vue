@@ -21,6 +21,7 @@
 -->
 <script setup lang="ts">
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import OTLPEvaluationTraceDetail from '@/layer/evaluation-record/OTLPEvaluationTraceDetail.vue';
 import TraceQLTraceDetail from './TraceQLTraceDetail.vue';
 import { useTraceQLTracePopout } from './useTraceQLTracePopout';
 
@@ -30,7 +31,8 @@ useEscapeToClose(() => open.value !== null, closeTrace);
 
 <template>
   <div v-if="open" class="tqp-overlay" @click.self="closeTrace">
-    <TraceQLTraceDetail class="tqp-card" :ds="open.ds" :trace-id="open.traceId" @close="closeTrace" />
+    <OTLPEvaluationTraceDetail v-if="open.evaluation" class="tqp-card" :trace-id="open.traceId" :span-id="open.spanId" :at-ms="open.atMs" @close="closeTrace" />
+    <TraceQLTraceDetail v-else class="tqp-card" :ds="open.ds" :trace-id="open.traceId" :focus-span-id="open.spanId" @close="closeTrace" />
   </div>
 </template>
 

@@ -22,12 +22,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NativeSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
+import type { NativeSpan, TraceQLSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 import Modal from '@/components/primitives/Modal.vue';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
-import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
+import { useEvaluationOTLPTrace } from './useEvaluationOTLPTrace';
 import { useEmptyTraceRetry } from '@/layer/traces/useEmptyTraceRetry';
-import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan, type GenAISpanContext } from './genaiSpan';
+import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan, genAIContextOfOTLPSpan, type GenAISpanContext } from './genaiSpan';
 
 /** One span, as the query condition addresses it. `null` means the whole trace. */
 export type RelatedSpanPick =
@@ -56,10 +56,7 @@ const lookup = computed(() =>
   props.window ? { startMs: props.window.startMs - HOUR_MS, endMs: props.window.endMs + HOUR_MS } : null,
 );
 const native = useTraceDetail(nativeTraceId, computed(() => 'native' as const), lookup);
-const otlp = useZipkinTrace(otlpTraceId, undefined, {
-  endTs: computed(() => props.window?.endMs ?? null),
-  lookback: computed(() => (props.window ? props.window.endMs - props.window.startMs : null)),
-});
+const otlp = useEvaluationOTLPTrace(otlpTraceId, computed(() => props.window));
 
 interface PickerRow {
   key: string;
@@ -85,7 +82,7 @@ function nativeRows(spans: NativeSpan[]): PickerRow[] {
     pick: { type: 'SKYWALKING_NATIVE', segmentId: s.segmentId, spanIndex: s.spanId },
   }));
 }
-function otlpRows(spans: ZipkinSpan[]): PickerRow[] {
+function zipkinRows(spans: ZipkinSpan[]): PickerRow[] {
   const t0 = Math.min(...spans.map((s) => s.timestamp ?? Infinity));
   return spans.map((s) => ({
     key: s.id,
@@ -98,8 +95,21 @@ function otlpRows(spans: ZipkinSpan[]): PickerRow[] {
     pick: { type: 'OTLP', spanId: s.id },
   }));
 }
+function otlpRows(spans: TraceQLSpan[]): PickerRow[] {
+  const t0 = Math.min(...spans.map((span) => span.startUs));
+  return spans.map((span) => ({
+    key: span.spanId,
+    service: span.service,
+    operation: span.name,
+    startOffsetMs: (span.startUs - t0) / 1000,
+    durationMs: span.durationUs / 1000,
+    error: span.status === 'error',
+    genAI: genAIContextOfOTLPSpan(span),
+    pick: { type: 'OTLP', spanId: span.spanId },
+  }));
+}
 const rows = computed<PickerRow[]>(() => {
-  const list = props.traceType === 'OTLP' ? otlpRows(otlp.spans.value) : nativeRows(native.nativeDetail.value?.spans ?? []);
+  const list = props.traceType === 'OTLP' ? [...otlpRows(otlp.otlpSpans.value), ...zipkinRows(otlp.zipkinSpans.value)] : nativeRows(native.nativeDetail.value?.spans ?? []);
   return list.sort((a, b) => a.startOffsetMs - b.startOffsetMs);
 });
 const llmRows = computed(() => rows.value.filter((r) => r.genAI));
@@ -114,12 +124,9 @@ const loading = computed(() => (props.traceType === 'OTLP' ? otlp.isFetching.val
 // A trace OAP has no record of yet is an empty answer to re-read, not a
 // failure: the Zipkin route marks that case `notFound`.
 const failure = computed<string | null>(() => {
-  const thrown = props.traceType === 'OTLP' ? otlp.error.value : native.error.value;
+  if (props.traceType === 'OTLP') return otlp.failure.value;
+  const thrown = native.error.value;
   if (thrown) return String(thrown);
-  if (props.traceType === 'OTLP') {
-    const answer = otlp.data.value;
-    return answer && answer.reachable === false && !answer.notFound ? (answer.error || t('Backend unreachable.')) : null;
-  }
   const answer = native.nativeDetail.value;
   return answer && answer.reachable === false ? (answer.error || t('Backend unreachable.')) : null;
 });

@@ -20,7 +20,7 @@ import { useResultTracePopout } from './useResultTracePopout';
 
 const popouts = vi.hoisted(() => ({ native: vi.fn(), otlp: vi.fn() }));
 vi.mock('./useTracePopout', () => ({ useTracePopout: () => ({ openTrace: popouts.native }) }));
-vi.mock('./useZipkinTracePopout', () => ({ useZipkinTracePopout: () => ({ openTrace: popouts.otlp }) }));
+vi.mock('@/layer/traceql/useTraceQLTracePopout', () => ({ useTraceQLTracePopout: () => ({ openTrace: popouts.otlp }) }));
 
 const AT = 1788393600000;
 beforeEach(() => vi.clearAllMocks());
@@ -32,9 +32,9 @@ describe('useResultTracePopout', () => {
     expect(popouts.otlp).not.toHaveBeenCalled();
   });
 
-  it('opens an OTLP record on the Zipkin popout and keeps the record time, so an old trace is looked up where it is', () => {
+  it('opens an OTLP record through the native-first evaluation reader with its judged span and time', () => {
     useResultTracePopout().openResultTrace({ type: 'OTLP', traceId: 'trace-2', spanId: 'span-2' }, AT);
-    expect(popouts.otlp).toHaveBeenCalledWith('trace-2', { segmentId: null, spanIndex: null, spanId: 'span-2', at: AT });
+    expect(popouts.otlp).toHaveBeenCalledWith('trace-2', 'otlp', { spanId: 'span-2', atMs: AT, evaluation: true });
   });
 
   it('ignores a record with no trace', () => {
