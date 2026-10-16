@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import type { NativeSpan, TraceKeyValue, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
+import type { NativeSpan, TraceKeyValue, TraceQLSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 
 /**
  * Which spans OAP's LLM-as-Judge samples — mirrored so the related-trace picker
@@ -52,4 +52,8 @@ export function genAIContextOfNativeSpan(span: Pick<NativeSpan, 'layer' | 'tags'
 export function genAIContextOfZipkinSpan(span: Pick<ZipkinSpan, 'tags'>): GenAISpanContext | null {
   const tags = span.tags ?? {};
   return contextOf((key) => tags[key]);
+}
+
+export function genAIContextOfOTLPSpan(span: Pick<TraceQLSpan, 'attributes'>): GenAISpanContext | null {
+  return contextOf((key) => span.attributes.find((attribute) => attribute.key === key)?.value);
 }

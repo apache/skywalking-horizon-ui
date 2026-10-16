@@ -29,7 +29,7 @@ import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import TraceQLDetailCard from './TraceQLDetailCard.vue';
 import { useTraceQLTrace } from './useTraceQL';
 
-const props = defineProps<{ ds: TraceQLDatasource; traceId: string }>();
+const props = defineProps<{ ds: TraceQLDatasource; traceId: string; focusSpanId?: string }>();
 const emit = defineEmits<{
   (e: 'close'): void;
   /** A trace's status, derived from its spans, once they are known. The list
@@ -73,6 +73,7 @@ watch(
       :ds="ds"
       :trace-id="traceId"
       :spans="detail.spans.value"
+      :focus-span-id="props.focusSpanId"
       :loading="detail.isFetching.value"
       @close="emit('close')"
     />

@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan } from './genaiSpan';
+import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan, genAIContextOfOTLPSpan } from './genaiSpan';
 
 describe('genaiSpan — the spans OAP judges', () => {
   it('takes a native span only when its layer is GenAI AND it names the response model', () => {
@@ -25,6 +25,14 @@ describe('genaiSpan — the spans OAP judges', () => {
     expect(genAIContextOfNativeSpan({ layer: 'Http', tags })).toBeNull();
     expect(genAIContextOfNativeSpan({ layer: 'GenAI', tags: [{ key: 'gen_ai.response.model', value: ' ' }] })).toBeNull();
     expect(genAIContextOfNativeSpan({ layer: 'GenAI', tags: [] })).toBeNull();
+  });
+
+  it('identifies native OTLP GenAI spans from span attributes', () => {
+    expect(genAIContextOfOTLPSpan({ attributes: [
+      { key: 'gen_ai.response.model', value: 'gpt-4.1-mini' },
+      { key: 'gen_ai.provider.name', value: 'openai' },
+    ] })).toEqual({ model: 'gpt-4.1-mini', provider: 'openai' });
+    expect(genAIContextOfOTLPSpan({ attributes: [] })).toBeNull();
   });
 
   it('takes a Zipkin/OTLP span on the model tag alone, and falls back to gen_ai.system for the provider', () => {

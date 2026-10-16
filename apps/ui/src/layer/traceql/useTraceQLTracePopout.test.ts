@@ -66,6 +66,25 @@ describe('useTraceQLTracePopout', () => {
     expect(router.currentRoute.value.query).toEqual({});
   });
 
+  it('keeps the judged span and lookup time in a shareable evaluation URL and clears them on close', async () => {
+    const { router, api } = await harness('/layer/general/service?service=db');
+    api.openTrace('trace', 'otlp', { spanId: 'span', atMs: 1788393600000, evaluation: true });
+    await new Promise((r) => setTimeout(r));
+    expect(api.open.value).toEqual({ traceId: 'trace', ds: 'otlp', spanId: 'span', atMs: 1788393600000, evaluation: true });
+    expect(router.currentRoute.value.query).toMatchObject({ traceqlSpanId: 'span', traceqlAt: '1788393600000', evaluationTrace: '1' });
+    api.closeTrace();
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ service: 'db' });
+  });
+
+  it('does not carry the previous evaluation focus into an ordinary trace', async () => {
+    const { router, api } = await harness('/layer/general/service?traceqlId=old&ds=otlp&traceqlSpanId=old-span&traceqlAt=1000&evaluationTrace=1');
+    api.openTrace('next', 'otlp');
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ traceqlId: 'next', ds: 'otlp' });
+    expect(api.open.value).toEqual({ traceId: 'next', ds: 'otlp' });
+  });
+
   it('needs a known datasource', async () => {
     const { api } = await harness('/layer/general/service?traceqlId=abc123&ds=tempo');
     expect(api.open.value).toBeNull();

@@ -19,11 +19,13 @@ limitations under the License.
 
 OAP can score LLM calls with an LLM judge: each call a GenAI span records is sent to a judge model with the evaluation tasks you configured, and every verdict is stored as an **evaluation record** tied to the provider, the model, the calling service and the exact span that was judged. Horizon shows these records on the **Virtual GenAI** layer's **Evaluation records** tab, one row per judged call and task.
 
-The calls can come from either trace source. A service on a SkyWalking agent reports GenAI spans natively; a service on OpenTelemetry reports them over OTLP. Both are judged. A record from a native trace opens that trace. A record from an OTLP trace opens it from the Zipkin store, which holds OTLP spans only when OAP converts them into Zipkin form (`otlpTraceStorage: zipkin`); OAP 11.1.0 stores them natively by default.
+The calls can come from either trace source. A service on a SkyWalking agent reports GenAI spans natively; a service on OpenTelemetry reports them over OTLP. Both are judged. A record from a native trace opens that trace. A record from an OTLP trace is read from native OTLP storage first, matching OAP 11.1.0's default. Traces converted with `otlpTraceStorage: zipkin` remain readable through the legacy Zipkin query path.
 
 ## Requirements
 
 - OAP's AI evaluation module must be enabled and pointed at a judge, with the tasks to score defined. This is OAP configuration, not Horizon's; see the SkyWalking documentation on LLM-as-Judge for the judge settings and the sampling rate. With sampling below every call, a quiet system can go a while between records.
+
+- Opening natively stored OTLP traces and picking their spans requires OAP's TraceQL module with its OTLP datasource enabled (`SW_TRACEQL=default`, `SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true`) and Horizon's `oap.traceql` configured to reach it. The OTLP spans are read directly; no Zipkin conversion is required.
 
 - Reading the tab needs the `logs:read` permission. The trace link on a row and **Pick span…** need `traces:read` as well; the span address can still be typed without it. The provider picker on this tab reads the evaluation catalog rather than the metrics roster, so a role with only `logs:read` can still pick a provider.
 
@@ -85,7 +87,7 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 ## Opening the trace
 
-The trace link opens the trace in a popout without leaving the list, with the judged span already selected. A native trace opens on the native waterfall; an OTLP trace opens on the Zipkin renderer, and is found only when OAP converts OTLP spans into Zipkin form. Either way the lookup is bounded to the record's own time, so with the query cold stage on, a record older than the hot window still opens its trace. The popout shares the page's address, so the browser's back button closes it and the URL can be shared.
+The trace link opens the trace in a popout without leaving the list, with the judged span already selected. A SkyWalking-native trace opens on the native waterfall; a natively stored OTLP trace opens on the TraceQL waterfall, with the judged span selected. The same native-first lookup supplies **Pick span…**. When the OTLP datasource is explicitly unconfigured or disabled, or its query confirms the trace is absent, Horizon tries the legacy Zipkin store. A failed OTLP request remains an error rather than silently switching stores. Either way the lookup is bounded to the record's own time, so with the query cold stage on, a record older than the hot window still opens its trace. The popout shares the page's address, so the browser's back button closes it and the URL can be shared.
 
 ## From the dashboards
 

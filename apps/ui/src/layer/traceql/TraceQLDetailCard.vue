@@ -39,6 +39,7 @@ const props = defineProps<{
   traceId: string;
   spans: TraceQLSpan[];
   loading?: boolean;
+  focusSpanId?: string;
 }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n({ useScope: 'global' });
@@ -55,6 +56,16 @@ watch(
     selected.value = null;
     viewMode.value = 'default';
   },
+);
+
+// A result link names the exact judged span; resolve it once the trace lands.
+watch(
+  () => [props.traceId, props.focusSpanId, props.spans] as const,
+  ([, focus, spans], previous) => {
+    if (focus) selected.value = spans.find((span) => span.spanId === focus) ?? null;
+    else if (previous?.[1]) selected.value = null;
+  },
+  { immediate: true },
 );
 
 const services = computed(() => [...buildServiceColors(props.spans).keys()]);

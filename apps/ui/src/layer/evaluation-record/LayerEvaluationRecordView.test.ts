@@ -26,13 +26,14 @@ import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStream
 
 const api = vi.hoisted(() => ({
   list: vi.fn(), facets: vi.fn(), instances: vi.fn(), callerServices: vi.fn(), openTrace: vi.fn(),
-  traceDetail: vi.fn(), zipkinTrace: vi.fn(),
+  traceDetail: vi.fn(), zipkinTrace: vi.fn(), traceqlSources: vi.fn(), otlpTrace: vi.fn(),
 }));
 vi.mock('@/api/client', () => ({ bffClient: {
   evaluationRecord: { list: api.list, facets: api.facets, callerServices: api.callerServices },
   layer: { instances: api.instances },
   trace: { detail: api.traceDetail },
   zipkin: { trace: api.zipkinTrace },
+  traceql: { sources: api.traceqlSources, trace: api.otlpTrace },
 } }));
 vi.mock('@/layer/traces/useResultTracePopout', () => ({
   useResultTracePopout: () => ({ openResultTrace: api.openTrace }),
@@ -50,6 +51,7 @@ let client: QueryClient;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  api.traceqlSources.mockResolvedValue([{ ds: 'otlp', configured: false, reachable: false }]);
   // A caller application sorts FIRST across layers; only the rows on the
   // page's layer are providers.
   api.callerServices.mockResolvedValue({ services: [
@@ -462,8 +464,31 @@ describe('related trace span narrowing', () => {
     }
   });
 
+  it('picks a judged span from native OTLP without reading Zipkin', async () => {
+    api.traceqlSources.mockResolvedValue([{ ds: 'otlp', configured: true, reachable: true }]);
+    api.otlpTrace.mockResolvedValue({ ds: 'otlp', traceId: 'trace-1', reachable: true, notFound: false, spans: [
+      { spanId: 'aaaa', parentSpanId: '', name: 'GET /', service: 'py', startUs: 1788393600000000, durationUs: 200000, status: 'unset', attributes: [] },
+      { spanId: 'bbbb', parentSpanId: 'aaaa', name: 'chat', service: 'py', startUs: 1788393600001000, durationUs: 100000, status: 'ok',
+        attributes: [{ key: 'gen_ai.response.model', value: 'gpt-4.1-mini' }, { key: 'gen_ai.provider.name', value: 'openai' }] },
+    ] });
+    await openPage('&evaluationTraceId=trace-1');
+    await selectFor('Trace ID type').setValue('OTLP');
+    await wrapper.get('.cf-pick-span').trigger('click');
+    await flushPromises();
+    expect(api.otlpTrace.mock.lastCall?.slice(0, 2)).toEqual(['otlp', 'trace-1']);
+    expect(api.zipkinTrace).not.toHaveBeenCalled();
+    const shown = [...document.querySelectorAll('[role="dialog"] .sp tbody tr')];
+    expect(shown).toHaveLength(1);
+    expect(shown[0].textContent).toContain('openai / gpt-4.1-mini');
+    (shown[0].querySelector('.sp-use') as HTMLButtonElement).click();
+    await flushPromises();
+    expect((wrapper.get('.cf-span-id').element as HTMLInputElement).value).toBe('bbbb');
+    await runQuery();
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'OTLP', traceSpanId: 'bbbb' });
+  });
+
   it('addresses an OTLP span by its span id, typed or picked', async () => {
-    api.zipkinTrace.mockResolvedValue({ generatedAt: 0, spans: [
+    api.zipkinTrace.mockResolvedValue({ generatedAt: 0, reachable: true, spans: [
       { traceId: 'trace-1', id: 'aaaa', name: 'GET /', timestamp: 1788393600000000, duration: 200000, localEndpoint: { serviceName: 'py' }, tags: {} },
       { traceId: 'trace-1', id: 'bbbb', parentId: 'aaaa', name: 'chat gpt-4.1-mini', timestamp: 1788393600001000, duration: 100000,
         localEndpoint: { serviceName: 'py' }, tags: { 'gen_ai.response.model': 'gpt-4.1-mini', 'gen_ai.system': 'openai' } },

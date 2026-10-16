@@ -16,7 +16,7 @@
  */
 
 import { useTracePopout } from './useTracePopout';
-import { useZipkinTracePopout } from './useZipkinTracePopout';
+import { useTraceQLTracePopout } from '@/layer/traceql/useTraceQLTracePopout';
 
 export type ResultTraceRef = {
   type: 'SKYWALKING_NATIVE' | 'OTLP';
@@ -29,7 +29,7 @@ export type ResultTraceRef = {
 /** Opens an evaluation result's trace using the renderer implied by traceRef.type. */
 export function useResultTracePopout() {
   const { openTrace: openNativeTrace } = useTracePopout();
-  const { openTrace: openOtlpTrace } = useZipkinTracePopout();
+  const { openTrace: openOtlpTrace } = useTraceQLTracePopout();
 
   function openResultTrace(ref: ResultTraceRef, atMs?: number): void {
     if (!ref.traceId) return;
@@ -42,7 +42,7 @@ export function useResultTracePopout() {
       // The moment bounds the lookup the same way it does for a native trace:
       // without it OAP searches only its default day, and a record older than
       // that (cold stage on) opens to an empty popout.
-      openOtlpTrace(ref.traceId, { ...focus, at: atMs });
+      openOtlpTrace(ref.traceId, 'otlp', { spanId: ref.spanId, atMs, evaluation: true });
     } else {
       openNativeTrace(ref.traceId, atMs, ref.type, focus);
     }
