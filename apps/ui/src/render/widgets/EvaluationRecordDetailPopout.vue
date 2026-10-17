@@ -20,6 +20,7 @@ import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
 import Modal from '@/components/primitives/Modal.vue';
 import { useAuthStore } from '@/state/auth';
+import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -94,17 +95,13 @@ const copied = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyContent(): Promise<void> {
   if (!props.row) return;
-  try {
-    await navigator.clipboard.writeText(props.row.content);
-    copied.value = true;
-    if (copyTimer) clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => {
-      copied.value = false;
-      copyTimer = null;
-    }, 1500);
-  } catch {
-    /* clipboard may be blocked; silently no-op */
-  }
+  if (!(await copyText(props.row.content))) return;
+  copied.value = true;
+  if (copyTimer) clearTimeout(copyTimer);
+  copyTimer = setTimeout(() => {
+    copied.value = false;
+    copyTimer = null;
+  }, 1500);
 }
 watch(() => props.row, () => { copied.value = false; });
 onBeforeUnmount(() => { if (copyTimer) clearTimeout(copyTimer); });

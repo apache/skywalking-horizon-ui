@@ -37,6 +37,7 @@ import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useTraceQLTracePopout } from '@/layer/traceql/useTraceQLTracePopout';
 import { fmtMetric } from '@/utils/formatters';
+import { copyText } from '@/utils/clipboard';
 
 interface RecordRow {
   name: string;
@@ -70,11 +71,7 @@ function openTrace(id: string): void {
 const copiedIdx = ref<number | null>(null);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyStatement(text: string, idx: number): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    /* clipboard blocked (insecure context / no permission) — no-op */
-  }
+  if (!(await copyText(text))) return;
   copiedIdx.value = idx;
   if (copiedTimer) clearTimeout(copiedTimer);
   copiedTimer = setTimeout(() => {
