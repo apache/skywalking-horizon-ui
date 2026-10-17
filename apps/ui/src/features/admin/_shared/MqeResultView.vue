@@ -37,6 +37,7 @@ import TimeChart from '@/components/charts/TimeChart.vue';
 const MonacoView = defineAsyncComponent(() => import('@/components/primitives/MonacoView.vue'));
 import { alignSeries, seriesLabel } from './mqeSeries';
 import { timestampLabel } from '@/utils/formatters';
+import { copyText } from '@/utils/clipboard';
 
 const props = defineProps<{
   result: ExpressionResult;
@@ -72,13 +73,9 @@ const pretty = computed(() => JSON.stringify(props.result, null, 2));
 
 const copied = ref(false);
 async function copyJson(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(pretty.value);
-    copied.value = true;
-    setTimeout(() => (copied.value = false), 1200);
-  } catch {
-    /* clipboard blocked (insecure context / no permission) — no-op */
-  }
+  if (!(await copyText(pretty.value))) return;
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 1200);
 }
 
 /** A type can be legitimate while `results` is empty: when storage returns a

@@ -55,6 +55,7 @@ import { entryRedirect, rosterReadKey } from './entryRoute';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 import { resolveEntry, routeRow } from '@/utils/layerRoute';
+import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -500,21 +501,7 @@ const shareCopied = ref(false);
 let shareCopiedTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyShareLink(): Promise<void> {
   const url = window.location.origin + window.location.pathname;
-  try {
-    await navigator.clipboard.writeText(url);
-  } catch {
-    // Fallback for non-secure contexts (clipboard API requires HTTPS
-    // or localhost). A hidden textarea + execCommand is the only
-    // path that works in plain HTTP intranets — common deployment
-    // shape for self-hosted OAP installs.
-    const ta = document.createElement('textarea');
-    ta.value = url;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
-  }
+  if (!(await copyText(url))) return;
   shareCopied.value = true;
   if (shareCopiedTimer) clearTimeout(shareCopiedTimer);
   shareCopiedTimer = setTimeout(() => { shareCopied.value = false; }, 1400);

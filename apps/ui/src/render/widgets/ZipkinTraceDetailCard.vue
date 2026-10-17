@@ -36,6 +36,7 @@ import { tagsReportError } from '@skywalking-horizon-ui/api-client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import LongValue from '@/components/primitives/LongValue.vue';
 import type { ZipkinSpan } from '@/api/client';
+import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -56,7 +57,7 @@ const emit = defineEmits<{
 
 function copyTraceId(): void {
   if (!props.traceId) return;
-  navigator.clipboard?.writeText(props.traceId).catch(() => {});
+  void copyText(props.traceId);
 }
 function copyShareableUrl(): void {
   if (!props.traceId || typeof window === 'undefined') return;
@@ -70,7 +71,7 @@ function copyShareableUrl(): void {
   // trace is older than that.
   const { t0 } = detailBounds.value;
   if (Number.isFinite(t0) && t0 > 0) url.searchParams.set('traceAt', String(Math.floor(t0 / 1000)));
-  navigator.clipboard?.writeText(url.toString()).catch(() => {});
+  void copyText(url.toString());
 }
 
 interface DetailRow { span: ZipkinSpan; depth: number; offsetUs: number; durUs: number; }
