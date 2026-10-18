@@ -22,28 +22,36 @@
  *
  * The document says only where the bodies landed. This tab loads the session's provider files up to
  * that position when the reader asks, rebuilds the two bodies, and shows them: the request whole or as
- * what it added to the call before it, and the response plainly. Nothing is loaded before the reader
+ * what changed against the call before it, and the response plainly. Nothing is loaded before the reader
  * presses the button, and what is loaded is kept, so the next call on the same session costs only the
  * files that landed after it.
  */
 
 import { esc } from '../dom.js';
-import type { Step } from '../model.js';
+import { cardCall, type Step } from '../model.js';
 import { fill } from '../strings.js';
 import type { AszProviderBody, AszRef } from '../types.js';
 import {
-  deltaOf,
+  outsideOf,
   readBody,
   type PromptBlock,
-  type PromptDelta,
   type PromptMessage,
   type ReadBody,
   type ReadRequest,
   type ReadResponse,
 } from '../prompt/messages.js';
-import { PromptError, ROLE_REQUEST, ROLE_RESPONSE, STATE_REMOVED, STATE_TOO_LARGE, type PromptManifest } from '../prompt/store.js';
+import {
+  PromptError,
+  ROLE_REQUEST,
+  ROLE_RESPONSE,
+  STATE_REMOVED,
+  STATE_TOO_LARGE,
+  type HistoryEntry,
+  type PromptManifest,
+} from '../prompt/store.js';
 import type { ViewContext } from './context.js';
 import { copyButton, copyField } from './structured.js';
+import { historyLine, historyNotes } from './history.js';
 
 /** Seqs asked for in one request, the OAP route's own limit. */
 const BATCH = 32;
@@ -251,19 +259,14 @@ function drawUnloaded(ctx: ViewContext, body: HTMLElement, sides: Sides, failed?
   };
 }
 
-function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides, store: ReturnType<ViewContext['prompts']['store']>): string {
+function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides, store: Store): string {
   const { s, f, state } = ctx;
-  const previous = state.promptWhole ? null : previousRequest(ctx, e, sides, store);
   const modes = `
     <div class="acv-prompt-modes" role="group" aria-label="${esc(s.promptRequestModes)}">
       <button type="button" class="acv-chip${state.promptWhole ? ' on' : ''}" data-prompt-whole="1" aria-pressed="${state.promptWhole}">${esc(s.promptWholeRequest)}</button>
       <button type="button" class="acv-chip${state.promptWhole ? '' : ' on'}" data-prompt-whole="0" aria-pressed="${!state.promptWhole}">${esc(s.promptChanges)}</button>
     </div>`;
-  if (!state.promptWhole) {
-    if (previous === UNNAMED) return `${modes}<div class="acv-empty">${esc(s.promptNoPreviousNamed)}</div>`;
-    if (!previous) return `${modes}<div class="acv-empty">${esc(s.promptNoPrevious)}</div>`;
-    return `${modes}${drawDelta(ctx, e, deltaOf(previous, read), read, previous.messages.length)}`;
-  }
+  if (!state.promptWhole) return `${modes}${drawHistory(ctx, e, read, sides, store)}`;
   const system = read.system.length
     ? section(ctx, e, 'system', s.promptSystem, blockSummary(ctx, read.system), read.system.map((b, i) => block(ctx, b, `${e.id}|req|sys|${i}`)).join(''))
     : '';
@@ -297,68 +300,192 @@ function drawRequest(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides,
   return `${modes}${system}${tools}${messages}${settings}${whole}`;
 }
 
-/** A request that names no request before it: the first of its chain, or one whose runtime does not
- *  say, as a LangChain agent's does not. Nothing is missing then, and the panel must not say so. */
-const UNNAMED = 'unnamed';
+type Store = ReturnType<ViewContext['prompts']['store']>;
 
-/** The request of the call before this one in the same chain, found by the ids the bodies carry:
- *  this request names the request before it, the response of that request names its call, and the
- *  document says where that call's request landed. A chain that cannot be followed gives nothing,
- *  because a copy segment is storage, not a relationship. */
-function previousRequest(
-  ctx: ViewContext,
-  e: Step,
-  sides: Sides,
-  store: ReturnType<ViewContext['prompts']['store']>,
-): ReadRequest | typeof UNNAMED | null {
-  if (!sides.request) return null;
-  const mine = store.manifestAt(sides.request.seq, sides.request.row);
-  if (mine && !mine.previous_request) return UNNAMED;
-  if (!mine?.previous_request) return null;
-  const response = store.responseOfRequestId(mine.previous_request);
-  if (!response?.manifest.call) return null;
-  const call = response.manifest.call;
-  for (const step of ctx.model.stepById.values()) {
-    const bodies = bodiesOf(step);
-    const theirResponse = bodies.find((b) => b.role === ROLE_RESPONSE)?.ref;
-    const theirRequest = bodies.find((b) => b.role === ROLE_REQUEST)?.ref;
-    if (!theirResponse || !theirRequest || step.id === e.id) continue;
-    if (store.manifestAt(theirResponse.seq, theirResponse.row)?.call !== call) continue;
-    try {
-      const read = readBody(store.bodyAt(theirRequest.seq, theirRequest.row), ROLE_REQUEST);
-      return read.kind === 'request' ? read : null;
-    } catch {
-      return null;
-    }
+/** What one message of a request is against the history before it. */
+type Mark = 'kept' | 'changed' | 'added';
+
+/**
+ * What this request's history is against the call before it, as the call says it: the document
+ * compared the two histories from the manifests, so this tab says what it found and never guesses
+ * from where messages sit. A request that continues a provider thread holds only its new messages,
+ * so a list read by position from the body alone would call every such request rewritten.
+ */
+function drawHistory(ctx: ViewContext, e: Step, read: ReadRequest, sides: Sides, store: Store): string {
+  const { s } = ctx;
+  const a = e.attrs ?? {};
+  const history = a['history'];
+  const reason = typeof a['history_reason'] === 'string' ? a['history_reason'] : '';
+  const note = (text: string) => `<div class="acv-empty">${esc(text)}</div>`;
+  switch (history) {
+    case 'kept':
+    case 'changed':
+      break;
+    case 'first':
+      return note(resetBefore(ctx, e) ?? s.promptHistoryFirst);
+    case 'not_compared':
+      if (reason === 'auxiliary_stream') return note(s.promptHistoryAuxiliary);
+      if (reason === 'internal_call') return note(s.promptHistoryInternal);
+      return note(fill(s.promptHistoryUnavailable, { why: reason || 'not_compared' }));
+    case 'unavailable':
+      return note(fill(s.promptHistoryUnavailable, { why: reason || 'unavailable' }));
+    default:
+      return note(s.promptHistoryNone);
   }
+  const before = ctx.model.step(typeof a['history_from'] === 'string' ? a['history_from'] : null);
+  const ref = sides.request;
+  const own = ref ? store.idAt(ref.seq, ref.row) : null;
+  const mine = ref ? store.manifestAt(ref.seq, ref.row) : null;
+  const theirs = before ? requestOf(store, before) : null;
+
+  const lines: string[] = [];
+  const card = history === 'changed' ? cardOf(ctx, e) : null;
+  if (history === 'kept') {
+    const kept = before?.attrs?.['history_messages'];
+    lines.push(typeof kept === 'number' ? fill(s.promptHistoryKept, { count: String(kept) }) : s.promptHistoryKeptAll);
+  } else {
+    lines.push(card ? `${s.promptHistoryChanged} ${historyLine(ctx, card)}` : s.promptHistoryChanged);
+  }
+  // The card's line says what else changed; a kept history has no card, and the call says it.
+  const notes = card ? [] : historyNotes(ctx, a, 'history_reply');
+  if (notes.length) lines.push(notes.join(' · '));
+  const continues = threadOf(mine) === 'continue';
+  if (theirs?.read) {
+    const outside = outsideOf(theirs.read, read, continues || theirs.continues);
+    const what = [outside.tools ? s.promptToolsWord : '', outside.settings ? s.promptSettings : ''].filter(Boolean);
+    if (what.length) lines.push(fill(s.promptAlsoChanged, { what: what.join(', ') }));
+  }
+  if (continues) lines.push(s.promptThreadHeld);
+  const said = lines.map((l) => `<div class="acv-faint">${esc(l)}</div>`).join('');
+
+  const total = read.messages.length;
+  const drawn = (marks: (Mark | null)[], only?: Mark[]) =>
+    read.messages
+      .map((m, i) => ({ m, i, mark: marks[i] ?? null }))
+      .filter((x) => !only || (x.mark && only.includes(x.mark)))
+      .map((x) => message(ctx, x.m, x.i + 1, total, `${e.id}|req|msg|${x.i}`, x.mark ?? undefined))
+      .join('');
+
+  const ownList = own ? store.listOf(own) : null;
+  if (history === 'kept') {
+    const marks = keptMarks(a['history_messages'], before?.attrs?.['history_messages'], total, ownList?.length ?? null, continues);
+    if (!marks) return `${said}${drawn([])}`;
+    const added = marks.filter((m) => m === 'added').length;
+    const list = added ? drawn(marks, ['added']) : `<div class="acv-empty">${esc(s.promptNothingAdded)}</div>`;
+    return `${said}<div class="acv-kicker" style="margin-top:12px">${esc(fill(s.promptAdded, { count: String(added) }))}</div>${list}`;
+  }
+  // A changed history is marked message by message only when both lists are whole in their bodies;
+  // with a thread the bodies hold a part of each history, and the card's counts say the rest.
+  const N = continues ? null : ownList;
+  const P = theirs && !theirs.continues ? store.listOf(theirs.id) : null;
+  const found = N && P && N.length === total ? changedMarks(P, N) : null;
+  if (!found || !P) return `${said}${drawn([])}`;
+  const { marks, dropped } = found;
+  const gone =
+    theirs?.read && theirs.read.messages.length === P.length
+      ? dropped.map((i) => message(ctx, theirs.read!.messages[i]!, i + 1, P.length, `${e.id}|req|was|${i}`, 'dropped')).join('')
+      : '';
+  return `${said}${drawn(marks)}${gone ? `<div class="acv-kicker" style="margin-top:12px">${esc(fill(s.promptDropped, { count: String(dropped.length) }))}</div>${gone}` : ''}`;
+}
+
+/** The card drawn before a call, which names the call as the one it changed to. */
+function cardOf(ctx: ViewContext, e: Step): Step | null {
+  for (const x of ctx.model.steps(e.stream)) if (x.kind === 'history.change' && cardCall(x) === e.id) return x;
   return null;
 }
 
-function drawDelta(ctx: ViewContext, e: Step, delta: PromptDelta, read: ReadRequest, previousCount: number): string {
-  const { s, f } = ctx;
-  const changed = [
-    delta.systemChanged ? s.promptSystem : '',
-    delta.toolsChanged ? fill(s.promptTools, { count: String(read.tools.length) }) : '',
-    delta.settingsChanged ? s.promptSettings : '',
-  ].filter(Boolean);
-  const notes = [
-    `<div class="acv-faint">${esc(fill(s.promptShared, { count: String(delta.sharedMessages), bytes: f.number(delta.sharedBytes) }))}</div>`,
-    // A compaction is not a fault: it is the runtime replacing the context with a summary, which the
-    // conversation records as its own step. Saying which of the two happened is the whole value of
-    // the note -- a warning on every ordinary growth would say nothing.
-    delta.replaced
-      ? `<div class="acv-faint">${esc(fill(s.promptCompacted, { before: String(previousCount), after: String(read.messages.length) }))}</div>`
-      : delta.rewritten
-        ? `<div class="acv-warning">${esc(s.promptRewritten)}</div>`
-        : '',
-    changed.length ? `<div class="acv-faint">${esc(fill(s.promptAlsoChanged, { what: changed.join(', ') }))}</div>` : '',
-  ].join('');
-  const added = delta.added.length
-    ? delta.added
-        .map((m, i) => message(ctx, m, delta.sharedMessages + i + 1, read.messages.length, `${e.id}|req|msg|${delta.sharedMessages + i}`))
-        .join('')
-    : `<div class="acv-empty">${esc(s.promptNothingAdded)}</div>`;
-  return `${notes}<div class="acv-kicker" style="margin-top:12px">${esc(fill(s.promptAdded, { count: String(delta.added.length) }))}</div>${added}`;
+/** The request body of a call, as this tab reads it, its record id, and whether it continues a
+ *  provider thread; null when it has none held. */
+function requestOf(store: Store, step: Step): { id: string; read: ReadRequest | null; continues: boolean } | null {
+  const ref = bodiesOf(step).find((b) => b.role === ROLE_REQUEST)?.ref;
+  const id = ref ? store.idAt(ref.seq, ref.row) : null;
+  if (!ref || !id) return null;
+  let read: ReadRequest | null = null;
+  try {
+    const r = readBody(store.bodyAt(ref.seq, ref.row), ROLE_REQUEST);
+    if (r.kind === 'request') read = r;
+  } catch {
+    // a body that does not rebuild compares nothing outside its messages
+  }
+  return { id, read, continues: threadOf(store.manifestAt(ref.seq, ref.row)) === 'continue' };
+}
+
+function threadOf(m: PromptManifest | null): string {
+  const t = m?.thread;
+  return t && typeof t === 'object' && typeof (t as { type?: unknown }).type === 'string' ? (t as { type: string }).type : '';
+}
+
+/**
+ * Each message of a kept history, by where it sits: the history is the one before it with more after it,
+ * so a message whose place is before the earlier history's length is kept and any other is added. A
+ * request's messages are the last of its history: all of it for a whole list, its new messages for one
+ * that continues a thread. The body must hold what its manifest lists, one message an entry, or a
+ * message's place is not known and nothing is marked.
+ *
+ * @param n the call's history length, and p the earlier call's
+ * @param total the messages the body holds, and own the entries its manifest lists
+ */
+export function keptMarks(n: unknown, p: unknown, total: number, own: number | null, continues: boolean): Mark[] | null {
+  if (typeof n !== 'number' || typeof p !== 'number' || p > n || own !== total) return null;
+  if (continues ? total > n : total !== n) return null;
+  const offset = n - total;
+  return Array.from({ length: total }, (_, i) => (offset + i < p ? 'kept' : 'added'));
+}
+
+/**
+ * Each message of a changed history against the one before, by the same counts the card gives: a
+ * message the earlier history holds as it is is kept; one that shares an id with an earlier message
+ * left over is changed; any other is added. The earlier messages left over are dropped. Each message
+ * is marked only when the pairing is certain: with an id twice in a list, or two messages of one
+ * digest and no id, which earlier message became which is not known, and only the counts hold.
+ */
+export function changedMarks(P: HistoryEntry[], N: HistoryEntry[]): { marks: Mark[]; dropped: number[] } | null {
+  const key = (x: HistoryEntry) => (x.id ? `i${x.id}|${x.digest}` : `d${x.digest}`);
+  const index = (list: HistoryEntry[]) => {
+    const byKey = new Map<string, number>();
+    const byId = new Map<string, number>();
+    for (const [i, x] of list.entries()) {
+      if (x.id ? byId.has(x.id) : byKey.has(key(x))) return null;
+      byKey.set(key(x), i);
+      if (x.id) byId.set(x.id, i);
+    }
+    return { byKey, byId };
+  };
+  const p = index(P);
+  if (!p || !index(N)) return null;
+  const used = new Set<number>();
+  const marks: (Mark | null)[] = N.map((x) => {
+    const at = p.byKey.get(key(x));
+    if (at === undefined) return null;
+    used.add(at);
+    return 'kept';
+  });
+  N.forEach((x, j) => {
+    const at = x.id ? p.byId.get(x.id) : undefined;
+    if (marks[j] || at === undefined || used.has(at)) return;
+    used.add(at);
+    marks[j] = 'changed';
+  });
+  const dropped = P.map((_, i) => i).filter((i) => !used.has(i));
+  return { marks: marks.map((m) => m ?? 'added'), dropped };
+}
+
+/**
+ * What to say of a first call after a reset, from the reset itself, and a summary only when the reset
+ * has one. A history that starts again without one is never called a reset here. A first call has no
+ * predecessor in its epoch, so any call between it and the epoch's start is one the framework made for
+ * its own purpose, recorded with its class or not: the nearest boundary before it is where its context
+ * began, and with none it is the conversation's first context.
+ */
+function resetBefore(ctx: ViewContext, e: Step): string | null {
+  const steps = ctx.model.steps(e.stream);
+  for (let i = steps.findIndex((x) => x.id === e.id) - 1; i >= 0; i--) {
+    const x = steps[i]!;
+    if (x.kind !== 'epoch.boundary') continue;
+    const summary = x.edges.some((g) => g.type === 'summarizes' && g.dir === 'in');
+    return summary ? ctx.s.promptResetSummary : ctx.s.promptReset;
+  }
+  return null;
 }
 
 function drawResponse(ctx: ViewContext, e: Step, read: ReadResponse): string {
@@ -433,8 +560,9 @@ function documentSection(ctx: ViewContext, e: Step, key: string, title: string, 
  * it then used - and without the box a reader counts the blocks and finds more of them than the
  * section says there are messages.
  */
-function message(ctx: ViewContext, m: PromptMessage, n: number, total: number, key: string): string {
+function message(ctx: ViewContext, m: PromptMessage, n: number, total: number, key: string, mark?: Mark | 'dropped'): string {
   const { s } = ctx;
+  const marked = mark ? `<span class="acv-history-mark ${mark}">${esc(markText(ctx, mark))}</span>` : '';
   // A message that is one text with no label of its own has no title but the message's, so its copy
   // button goes there rather than on a title row of its own.
   const only = m.blocks.length === 1 && m.blocks[0]!.kind === 'text' && !m.blocks[0]!.reminder ? m.blocks[0]! : null;
@@ -442,10 +570,15 @@ function message(ctx: ViewContext, m: PromptMessage, n: number, total: number, k
     <div class="acv-prompt-message"${only ? ' data-copy-scope' : ''}>
       <div class="acv-prompt-message-head">
         <span><span class="acv-prompt-role">${esc(m.role || s.promptUnknownRole)}</span>${only ? copyOf(ctx, only.text ?? '') : ''}</span>
-        <span class="acv-faint">${esc(fill(s.promptMessageOf, { n: String(n), total: String(total) }))}</span>
+        <span class="acv-faint">${esc(fill(s.promptMessageOf, { n: String(n), total: String(total) }))}${marked}</span>
       </div>
       <div class="acv-prompt-message-body">${m.blocks.map((b, i) => block(ctx, b, `${key}|${i}`, b === only)).join('')}</div>
     </div>`;
+}
+
+function markText(ctx: ViewContext, mark: Mark | 'dropped'): string {
+  const { s } = ctx;
+  return { kept: s.promptMarkKept, changed: s.promptMarkChanged, added: s.promptMarkAdded, dropped: s.promptMarkDropped }[mark];
 }
 
 /**

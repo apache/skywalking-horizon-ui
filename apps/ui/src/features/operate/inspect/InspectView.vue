@@ -61,6 +61,7 @@ import {
 } from './inspectTime';
 import { buildForeignMqeEntity, makeForeignMetric } from './inspectForeign';
 import { scopeShort, type ForeignForm, type Source } from './inspectTypes';
+import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -810,7 +811,7 @@ function copyMqeEntity(w: Widget) {
     .filter((m): m is MqeEntity => m !== undefined);
   if (sel.length === 0) return;
   const payload = sel.length === 1 ? sel[0] : sel;
-  navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
+  void copyText(JSON.stringify(payload, null, 2));
 }
 
 function addCustomEntity(w: Widget) {

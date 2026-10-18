@@ -526,7 +526,7 @@ export function bindTimeline(ctx: ViewContext): void {
         ctx.state.openTalks.add(tid);
         ctx.state.autoOpen.add(tid);
       }
-      ctx.select(node.dataset.node!, true);
+      ctx.select(ctx.model.target(node.dataset.node!), true);
       return;
     }
     const folder = target.closest<HTMLElement>('[data-folder]');

@@ -79,7 +79,72 @@ export interface PromptManifest {
   call?: string;
   request?: string;
   previous_request?: string;
+  /** What a request says of its call's history: the rules it was written under, its message list,
+   *  and a Claude Code request's provider thread. See Session Data, History. */
+  history_form?: string;
+  messages?: unknown;
+  thread?: unknown;
   segments: PromptSegment[];
+}
+
+/** One message of a request's history, as a manifest names it: the digest of the id the runtime sent,
+ *  when it sent one, and the digest of the message's form. */
+export interface HistoryEntry {
+  id?: string;
+  digest: string;
+}
+
+/** Eight bytes in hex, either case, as the Sessionizer's reader takes a digest. */
+const DIGEST = /^[0-9a-fA-F]{16}$/;
+
+/** A JSON key that is there with a value; a null is read as no key, as the Sessionizer's reader reads it. */
+function has(o: Record<string, unknown>, key: string): boolean {
+  return o[key] !== undefined && o[key] !== null;
+}
+
+/** An entry, its digests in lower case: the Sessionizer reads a digest as the number it spells, so two
+ *  spellings of one number are one digest. */
+function entryOf(v: unknown): HistoryEntry | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const digest = o['digest'];
+  if (typeof digest !== 'string' || !DIGEST.test(digest)) return null;
+  if (!has(o, 'id') || o['id'] === '') return { digest: digest.toLowerCase() };
+  const id = o['id'];
+  return typeof id === 'string' && DIGEST.test(id) ? { id: id.toLowerCase(), digest: digest.toLowerCase() } : null;
+}
+
+/** Whether a value has the shape of an entry, whatever its digests say: an object whose id and digest,
+ *  when there, are strings. */
+function entryShaped(v: unknown): boolean {
+  if (v === null) return true;
+  if (typeof v !== 'object' || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  return ['id', 'digest'].every((k) => !has(o, k) || typeof o[k] === 'string');
+}
+
+/** Whether every field a message list may carry has its type, as the Sessionizer's reader takes the
+ *  list whole: a field of another type makes the list one it does not read, whatever its shape. */
+function typed(l: Record<string, unknown>): boolean {
+  const list = (v: unknown) => Array.isArray(v) && v.every(entryShaped);
+  // An integer a number in JavaScript holds exactly: past that, two counts read as one.
+  const integer = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v);
+  const text = (v: unknown) => typeof v === 'string';
+  const rules: Array<[string, (v: unknown) => boolean]> = [
+    ['entries', list], ['add', list], ['base', text], ['unavailable', text], ['keep', integer], ['count', integer],
+  ];
+  return rules.every(([k, ok]) => !has(l, k) || ok(l[k]));
+}
+
+function entriesOf(v: unknown): HistoryEntry[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: HistoryEntry[] = [];
+  for (const x of v) {
+    const e = entryOf(x);
+    if (!e) return null;
+    out.push(e);
+  }
+  return out;
 }
 
 interface Part {
@@ -325,12 +390,37 @@ export class PromptStore {
     throw new PromptError(`${record.id} was removed by retention`, STATE_REMOVED);
   }
 
-  /** The record a response with that provider request id carries, or null. */
-  responseOfRequestId(requestId: string): PromptRecord | null {
-    for (const r of this.records.values()) {
-      if (r.manifest.role === ROLE_RESPONSE && r.manifest.request === requestId) return r;
+  /**
+   * The whole message list of the request held under a record id, or null when it carries none or
+   * it does not read: a list against a base is the base's first entries and its own, and the base
+   * must have landed before it, in the same form, holding at least what is kept of it.
+   */
+  listOf(id: string, depth = 0): HistoryEntry[] | null {
+    const record = this.records.get(id);
+    const m = record?.manifest;
+    if (!record || !m || m.role !== ROLE_REQUEST || !m.history_form) return null;
+    if (!m.messages || typeof m.messages !== 'object' || Array.isArray(m.messages)) return null;
+    // Exactly one of the three shapes, as the Sessionizer's reader takes them; any mix is no list.
+    const l = m.messages as Record<string, unknown>;
+    if (!typed(l) || has(l, 'unavailable')) return null;
+    if (has(l, 'entries')) return has(l, 'base') ? null : entriesOf(l['entries']);
+    if (!has(l, 'base') || !has(l, 'keep') || !has(l, 'add') || depth >= MAX_DEPTH) return null;
+    const keep = l['keep'];
+    if (typeof l['base'] !== 'string' || l['base'] === '' || typeof keep !== 'number' || !Number.isInteger(keep) || keep < 1 || keep > 0xffffffff) {
+      return null;
     }
-    return null;
+    const base = this.records.get(l['base']);
+    const add = entriesOf(l['add']);
+    if (!base || !add || base.manifest.history_form !== m.history_form) return null;
+    if (base.seq > record.seq || (base.seq === record.seq && base.row >= record.row)) return null;
+    const prior = this.listOf(l['base'], depth + 1);
+    if (!prior || keep > prior.length) return null;
+    return [...prior.slice(0, keep), ...add];
+  }
+
+  /** The record id of the body at a landed position, or null when it is not held. */
+  idAt(seq: number, row: number): string | null {
+    return this.byPosition.get(`${seq}/${row}`)?.id ?? null;
   }
 
   private add(record: PromptRecord): AddOutcome {

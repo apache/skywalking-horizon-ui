@@ -30,6 +30,7 @@ import { injectionSays, kindTitle, QUIET_MS } from '../vocabulary.js';
 import { changePill, inlineChanges, redrawBoth } from './changes.js';
 import { streamName, type ViewContext } from './context.js';
 import { executionPill } from './executions.js';
+import { historyLine } from './history.js';
 import { clipNote, copyButton, copyField, textBody } from './structured.js';
 
 /** Characters past which a card clamps a text with a fade and offers the rest. */
@@ -102,6 +103,8 @@ function present(ctx: ViewContext, e: Step): Presentation {
       return { cls: `acv-activity${child}`, role: `${agent} · ${s.modelCall}`, color: 'model' };
     case 'thinking':
       return { cls: `acv-activity${child}`, role: `${agent} · ${s.reasoning}`, color: 'model' };
+    case 'history.change':
+      return { cls: 'acv-activity acv-history', role: `${agent} · ${s.historyRole}`, color: 'history' };
     case 'tool':
       // A call to an MCP server names the server; its tool is the card's title.
       return e.mcp
@@ -140,7 +143,7 @@ export function stepCard(ctx: ViewContext, e: Step, prev: Step | undefined, near
   // key handler gives it Enter and Space.
   return `${sep}<div class="acv-card ${p.cls}${e.id === state.sel ? ' selected' : ''}${
     near && !near.has(e.id) ? ' dim' : ''
-  }" role="button" tabindex="0" data-card="${esc(e.id)}" title="${esc(s.locateInTimeline)}"${
+  }" role="button" tabindex="0" data-card="${esc(m.target(e.id))}" title="${esc(s.locateInTimeline)}"${
     indent ? ` style="--indent:${indent};margin-left:${indent * 22}px;max-width:calc(100% - ${indent * 22}px)"` : ''
   }>
     <span class="acv-time"><strong>${esc(f.time(e.at))}</strong>${esc(e.kind)}</span>
@@ -155,6 +158,7 @@ export function stepCard(ctx: ViewContext, e: Step, prev: Step | undefined, near
           : ''
       }
       ${e.result ? resultBlock(ctx, e) : ''}
+      ${e.kind === 'history.change' ? `<span class="acv-history-line">${esc(historyLine(ctx, e))}</span>` : ''}
       ${inlineChanges(ctx, e)}
     </span></div>${link}`;
 }

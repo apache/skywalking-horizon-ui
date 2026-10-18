@@ -144,6 +144,64 @@ describe('a LangChain body', () => {
     expect(tool('success').messages[0]!.blocks[0]!.failed).toBeUndefined();
   });
 
+  it('reads a LangChain JS message by its class, which is all JS names it by', () => {
+    // A LangGraph JS agent's second model request, as the Sessionizer's js-graph capture holds it: LangChain
+    // for JavaScript writes no type into a message's fields, only its class in id.
+    const js = (cls: string, kwargs: Record<string, unknown>) => ({ lc: 1, type: 'constructor', id: ['langchain_core', 'messages', cls], kwargs });
+    const r = read({
+      messages: [
+        [
+          js('SystemMessage', { content: 'You are a docs assistant. You answer from the docs only.', additional_kwargs: {}, response_metadata: {} }),
+          js('HumanMessage', { content: 'what changed in the setup page', additional_kwargs: {}, response_metadata: {} }),
+          js('AIMessage', {
+            content: '',
+            tool_calls: [{ id: 'call-1', name: 'read_docs', args: { page: 'setup' } }],
+            invalid_tool_calls: [],
+            additional_kwargs: {},
+            response_metadata: {},
+          }),
+          js('ToolMessage', {
+            status: 'success',
+            content: 'The setup page gained a section on hiding.',
+            tool_call_id: 'call-1',
+            name: 'read_docs',
+            additional_kwargs: {},
+            response_metadata: {},
+          }),
+        ],
+      ],
+    }) as ReadRequest;
+    expect(r.messages.map((m) => m.role)).toEqual(['system', 'human', 'ai', 'tool']);
+    expect(r.messages[3]!.blocks).toEqual([
+      expect.objectContaining({ kind: 'tool_result', id: 'call-1', text: 'The setup page gained a section on hiding.' }),
+    ]);
+    // a streamed piece is the message it belongs to, and a type the fields carry wins over the class
+    const chunk = read({ messages: [[js('AIMessageChunk', { content: 'part' }), js('HumanMessage', { type: 'ai', content: 'x' })]] }) as ReadRequest;
+    expect(chunk.messages.map((m) => m.role)).toEqual(['ai', 'ai']);
+    // a class named like a property every object has is no class
+    expect((read({ messages: [[js('toString', { role: 'critic', content: 'x' })]] }) as ReadRequest).messages[0]!.role).toBe('critic');
+    expect((read({ messages: [[js('RemoveMessage', { content: '' })]] }) as ReadRequest).messages[0]!.role).toBe('remove');
+  });
+
+  it('reads a Python chunk by the class name its fields carry', () => {
+    // LangChain for Python writes a chunk's class name as its type
+    const py = (cls: string, kwargs: Record<string, unknown>) => ({ lc: 1, type: 'constructor', id: ['langchain', 'schema', 'messages', cls], kwargs: { ...kwargs, type: cls } });
+    const r = read({
+      messages: [
+        [
+          py('HumanMessageChunk', { content: 'q' }),
+          py('AIMessageChunk', { content: '', tool_calls: [{ id: 'c1', name: 'f', args: {} }] }),
+          py('ToolMessageChunk', { content: 'boom', tool_call_id: 'c1', status: 'error' }),
+          py('ChatMessageChunk', { role: 'critic', content: 'x' }),
+          py('SystemMessageChunk', { content: 's' }),
+          py('FunctionMessageChunk', { name: 'f', content: '1' }),
+        ],
+      ],
+    }) as ReadRequest;
+    expect(r.messages.map((m) => m.role)).toEqual(['human', 'ai', 'tool', 'critic', 'system', 'function']);
+    expect(r.messages[2]!.blocks).toEqual([expect.objectContaining({ kind: 'tool_result', id: 'c1', failed: true, text: 'boom' })]);
+  });
+
   it('reads a plain message the caller passed, and shows one it cannot read as its JSON', () => {
     const r = read({ messages: [[{ role: 'user', content: 'first' }, { lc: 1, type: 'not_implemented', id: ['x'], repr: 'X()' }]] }) as ReadRequest;
     expect(r.messages[0]).toMatchObject({ role: 'user', blocks: [{ kind: 'text', text: 'first' }] });
@@ -225,11 +283,11 @@ describe('the prompt panel on a LangChain call', () => {
     expect(panel.textContent).toContain('service_health');
     // nothing but messages in the body, so no empty settings section
     expect(panel.textContent).not.toContain('Settings');
-    // a LangChain request names no request before it, and nothing is missing
+    // these bodies landed before the Sessionizer recorded a request's history, which the tab says
+    // rather than reading one from where the messages sit
     root.querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
     const changes = root.querySelector<HTMLElement>('.acv-inspector-body')!.textContent;
-    expect(changes).toContain('names no request before it');
-    expect(changes).not.toContain('not among the loaded bodies');
+    expect(changes).toContain('does not record its history');
   });
 
   it("puts the copy button of a message that is one text on the message's head", async () => {

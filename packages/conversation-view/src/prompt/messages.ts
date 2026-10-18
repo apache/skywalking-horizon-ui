@@ -91,10 +91,8 @@ export type ReadBody = ReadRequest | ReadResponse | ReadOther;
 
 const REMINDER = '<system-reminder>';
 
-/** How deep the provider's cache marker sits in each thing the delta compares: on a message and on
- *  each of its content blocks, two levels in because the content is an array; on a system block or a
- *  tool, one level into the list; nowhere in the settings. */
-const MARKED_IN_MESSAGE = 2;
+/** How deep the provider's cache marker sits in what is compared outside the messages: on a tool, one
+ *  level into the list; nowhere in the settings. */
 const MARKED_IN_LIST = 1;
 const NOT_MARKED = -1;
 
@@ -256,6 +254,7 @@ function readLangChainRequest(body: Record<string, unknown>, prompt: Array<Recor
 function readLangChainResponse(body: Record<string, unknown>, generation: Record<string, unknown>): ReadResponse {
   const message = generation['message'];
   const fields = isObject(message) ? langChainFields(message) : null;
+  const type = isObject(message) && fields ? langChainType(message, fields) : '';
   const rest: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [k, v] of Object.entries(fields ?? {})) {
     if (!['content', 'tool_calls', 'invalid_tool_calls', 'usage_metadata', 'id', 'type'].includes(k)) rest[k] = v;
@@ -272,7 +271,7 @@ function readLangChainResponse(body: Record<string, unknown>, generation: Record
     kind: 'response',
     model: typeof model === 'string' ? model : undefined,
     id: typeof fields?.['id'] === 'string' ? fields['id'] : undefined,
-    blocks: fields ? langChainBlocks(fields, message) : typeof text === 'string' ? [{ kind: 'text', text }] : [],
+    blocks: fields ? langChainBlocks(fields, message, type) : typeof text === 'string' ? [{ kind: 'text', text }] : [],
     usage: isObject(usage) ? usage : undefined,
     rest,
     raw: body,
@@ -281,10 +280,36 @@ function readLangChainResponse(body: Record<string, unknown>, generation: Record
 
 function readLangChainMessage(value: Record<string, unknown>): PromptMessage {
   const fields = langChainFields(value);
-  const type = typeof fields['type'] === 'string' ? fields['type'] : '';
+  const type = langChainType(value, fields);
   const role = typeof fields['role'] === 'string' ? fields['role'] : '';
   // A ChatMessage carries a role of the caller's choosing, and a plain object may say role and not type.
-  return { role: type && type !== 'chat' ? type : role, blocks: langChainBlocks(fields, value), raw: value };
+  return { role: type && type !== 'chat' ? type : role, blocks: langChainBlocks(fields, value, type), raw: value };
+}
+
+/** LangChain's own name for each message class, which is the message's `type`. A chunk is the message
+ *  it is a piece of. A Map, so a class named like an object's own property is no class. */
+const LANGCHAIN_TYPES = new Map<string, string>([
+  ['HumanMessage', 'human'],
+  ['AIMessage', 'ai'],
+  ['SystemMessage', 'system'],
+  ['ToolMessage', 'tool'],
+  ['FunctionMessage', 'function'],
+  ['ChatMessage', 'chat'],
+  ['RemoveMessage', 'remove'],
+]);
+
+/**
+ * A message's type: the one its fields carry, or, for a serialized message whose fields carry none, the
+ * one its class stands for. LangChain for Python writes the type into the fields, and for a streamed
+ * chunk writes the chunk's class name there; LangChain for JavaScript writes none, and names the class in
+ * `id` alone. A class name, in either place, reads as the type of its message.
+ */
+function langChainType(m: Record<string, unknown>, fields: Record<string, unknown>): string {
+  const id = m['lc'] === 1 && m['type'] === 'constructor' && Array.isArray(m['id']) ? m['id'] : [];
+  const named = typeof fields['type'] === 'string' ? fields['type'] : id[id.length - 1];
+  if (typeof named !== 'string') return '';
+  const cls = named.replace(/Chunk$/, '');
+  return LANGCHAIN_TYPES.get(cls) ?? (typeof fields['type'] === 'string' ? fields['type'] : '');
 }
 
 function langChainContentBlock(value: unknown): PromptBlock {
@@ -310,9 +335,9 @@ function langChainFields(m: Record<string, unknown>): Record<string, unknown> {
  * has it, with the arguments from `tool_calls`. Those are LangChain's parsed arguments, the ones the
  * agent ran with: a streamed provider block can still read `{}`, with the arguments in pieces beside it.
  */
-function langChainBlocks(fields: Record<string, unknown>, raw: unknown): PromptBlock[] {
+function langChainBlocks(fields: Record<string, unknown>, raw: unknown, type: string): PromptBlock[] {
   const content = fields['content'];
-  if (fields['type'] === 'tool' || fields['role'] === 'tool') {
+  if (type === 'tool' || fields['role'] === 'tool') {
     const about = {
       ...(typeof fields['tool_call_id'] === 'string' ? { id: fields['tool_call_id'] } : {}),
       ...(fields['status'] === 'error' ? { failed: true } : {}),
@@ -346,87 +371,48 @@ function langChainBlocks(fields: Record<string, unknown>, raw: unknown): PromptB
   return typeof content === 'string' ? [{ kind: 'text', text: '' }] : [{ kind: 'unknown', json: raw }];
 }
 
-/** What one request adds to the one before it. */
-export interface PromptDelta {
-  /** The messages this request carries that the one before it did not. */
-  added: PromptMessage[];
-  /** How many messages the two share, and how many bytes they are. */
-  sharedMessages: number;
-  sharedBytes: number;
-  /** Whether the shared messages differ in their own text, rather than the list only growing. */
-  rewritten: boolean;
-  /** Whether the list was replaced rather than added to: a compaction starts it again from the
-   *  summary that took the place of the context, so it is shorter as well as different. A rewrite
-   *  that is not this is the rare one, and worth saying so. */
-  replaced: boolean;
-  /** What else changed outside the messages. */
-  systemChanged: boolean;
-  toolsChanged: boolean;
-  settingsChanged: boolean;
+/** What changed between two requests outside their messages, whose history the call itself says. */
+export interface OutsideChanges {
+  tools: boolean;
+  settings: boolean;
 }
 
+/** Settings a request carries about itself rather than about the call: who sent it, and the
+ *  provider thread it starts or continues, which the call's history already says. */
+const NOT_SETTINGS = new Set(['metadata', 'thread', 'diagnostics']);
+
 /**
- * Compares two requests, message by message, from the start. The cache marker the runtime moves down
- * the list as it goes is left out of the comparison, so a message that only lost or gained that marker
- * counts as unchanged; everything else is compared as it was sent.
+ * Compares what two requests carry besides their messages. A request that continues a provider
+ * thread sends no tools, and that is not a change, so the tools are not compared when either request
+ * continues one; between two other requests, a tool list added or taken away is a change. The cache
+ * marker the runtime moves is left out.
  */
-export function deltaOf(previous: ReadRequest, current: ReadRequest): PromptDelta {
-  let shared = 0;
-  let rewritten = false;
-  const least = Math.min(previous.messages.length, current.messages.length);
-  while (shared < least && same(previous.messages[shared]!.raw, current.messages[shared]!.raw, MARKED_IN_MESSAGE)) shared++;
-  if (shared < least) rewritten = true;
-  const replaced = rewritten && current.messages.length < previous.messages.length;
-  const added = current.messages.slice(shared);
-  let sharedBytes = 0;
-  for (let i = 0; i < shared; i++) sharedBytes += size(current.messages[i]!.raw);
+export function outsideOf(previous: ReadRequest, current: ReadRequest, threaded: boolean): OutsideChanges {
   return {
-    added,
-    sharedMessages: shared,
-    sharedBytes,
-    rewritten,
-    replaced,
-    systemChanged: !same(previous.raw['system'], current.raw['system'], MARKED_IN_LIST),
-    toolsChanged: !same(previous.raw['tools'], current.raw['tools'], MARKED_IN_LIST),
-    settingsChanged: !same(settings(previous), settings(current), NOT_MARKED),
+    tools: !threaded && !same(previous.raw['tools'], current.raw['tools'], MARKED_IN_LIST),
+    settings: !same(settings(previous), settings(current), NOT_MARKED),
   };
 }
 
 function settings(r: ReadRequest): Record<string, unknown> {
   const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const [k, v] of Object.entries(r.rest)) if (k !== 'metadata') out[k] = v;
+  for (const [k, v] of Object.entries(r.rest)) if (!NOT_SETTINGS.has(k)) out[k] = v;
   return out;
 }
 
 /**
  * Two values, compared without the moving cache marker. `markedTo` is how deep the marker can sit in
- * this value: a message carries one and so does each of its content blocks, which are two levels in
- * because the content is an array; a system block or a tool is one level into the list it is in.
+ * this value: a tool is one level into the list it is in.
  */
 function same(a: unknown, b: unknown, markedTo: number): boolean {
   return canonical(a, markedTo) === canonical(b, markedTo);
 }
 
-function size(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value) ?? '').length;
-}
-
 /**
- * The value as one string, with the two things the runtime changes about a message it is no longer
- * caching left out.
- *
- * The first is the `cache_control` marker, which the runtime moves down the message list as the
- * conversation grows, so a message that only gained or lost one is the same message. It sits on a
- * message, a content block, a system block or a tool, and nowhere deeper: a `cache_control` inside a
- * tool's own input or schema is the agent's data, and two calls that differ only there differ. That
- * is why the walk carries how deep the marker can be rather than removing the name at every depth.
- *
- * The second is the shape of the content itself. A message of one text block is sent as a list while
- * it is the newest, and as a plain string once the marker has left it, which is what Claude Code was
- * measured to write and what the Sessionizer reproduces. The text is the same and the message is the
- * same, so the two spellings have to compare equal: without this, every message compared unequal the
- * moment it stopped being the newest, and a history that merely grew was read as one that had been
- * rewritten.
+ * The value as one string, without the `cache_control` marker the runtime moves as the conversation
+ * grows. It sits on a tool and nowhere deeper: a `cache_control` inside a tool's own input schema is
+ * the agent's data, and two tools that differ only there differ. That is why the walk carries how deep
+ * the marker can be rather than removing the name at every depth.
  *
  * It builds a string instead of an object because a body can carry a `__proto__` key, and assigning
  * that into an object changes the object's prototype instead of keeping the value.
@@ -438,22 +424,7 @@ function canonical(value: unknown, markedTo: number, depth = 0): string {
   const parts: string[] = [];
   for (const k of Object.keys(obj).sort()) {
     if (depth <= markedTo && k === 'cache_control') continue;
-    const v = k === 'content' && depth < markedTo ? plainContent(obj[k]) : obj[k];
-    parts.push(`${JSON.stringify(k)}:${canonical(v, markedTo, depth + 1)}`);
+    parts.push(`${JSON.stringify(k)}:${canonical(obj[k], markedTo, depth + 1)}`);
   }
   return `{${parts.join(',')}}`;
-}
-
-/**
- * One text block and the plain string it becomes, as the same value. Anything else is left as it is:
- * a message of several blocks, or of one block that is not text, never takes the short spelling.
- */
-function plainContent(content: unknown): unknown {
-  if (typeof content === 'string') return [{ type: 'text', text: content }];
-  if (!Array.isArray(content) || content.length !== 1) return content;
-  const only = content[0] as Record<string, unknown> | null;
-  if (!only || typeof only !== 'object' || only['type'] !== 'text' || typeof only['text'] !== 'string') return content;
-  // Only the type and the text survive: the marker is dropped by the walk above, and a lone text
-  // block carries nothing else the plain spelling could have kept.
-  return [{ type: 'text', text: only['text'] }];
 }

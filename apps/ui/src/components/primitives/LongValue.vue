@@ -27,6 +27,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Modal from './Modal.vue';
+import { copyText } from '@/utils/clipboard';
 
 const props = withDefaults(
   defineProps<{
@@ -61,11 +62,12 @@ const open = ref(false);
 const copied = ref(false);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 function copyAll(): void {
-  navigator.clipboard?.writeText(props.value).then(() => {
+  void copyText(props.value).then((done) => {
+    if (!done) return;
     copied.value = true;
     if (copiedTimer) clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => { copied.value = false; }, 1400);
-  }, () => {});
+  });
 }
 </script>
 

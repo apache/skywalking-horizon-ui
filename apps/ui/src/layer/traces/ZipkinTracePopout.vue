@@ -43,6 +43,7 @@ import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useRoute } from 'vue-router';
 import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { useEmptyTraceRetry } from './useEmptyTraceRetry';
+import { copyText } from '@/utils/clipboard';
 
 const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
 const route = useRoute();
@@ -204,7 +205,7 @@ function annotationHint(value: string): string | null {
 }
 function copyShareableUrl(): void {
   if (typeof window === 'undefined') return;
-  navigator.clipboard?.writeText(window.location.href).catch(() => {});
+  void copyText(window.location.href);
 }
 
 function fmtMs(us: number): string {
@@ -233,7 +234,7 @@ useEscapeToClose(() => openTraceId.value !== null && selectedSpan.value !== null
 
 function copyTraceId(): void {
   if (!traceIdRef.value) return;
-  navigator.clipboard?.writeText(traceIdRef.value).catch(() => {});
+  void copyText(traceIdRef.value);
 }
 </script>
 

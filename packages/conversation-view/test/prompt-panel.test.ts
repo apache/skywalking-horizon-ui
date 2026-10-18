@@ -95,75 +95,24 @@ describe('the prompt panel', () => {
     expect(after.textContent).toContain('read the configuration');
   });
 
-  it('shows what the call added, against the request before it', async () => {
-    const root = mount();
-    tab(root, 'prompt')!.click();
-    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
-    await new Promise((r) => setTimeout(r, 0));
-    panel(root).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
-    const body = panel(root);
-    expect(body.textContent).toContain('Added by this call');
-    // the shared history is named, not repeated
-    expect(body.textContent).toMatch(/message\(s\) before are as the call before sent them/);
-  });
-
-  it('says a first request names none before it, rather than that one is not loaded', async () => {
-    // The main stream's first call: its request names no request before it, so nothing is missing.
-    const root = mount(undefined, 'call/s2-call-fdae022ac306');
-    tab(root, 'prompt')!.click();
-    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
-    await new Promise((r) => setTimeout(r, 0));
-    panel(root).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
-    const body = panel(root);
-    expect(body.textContent).toContain('names no request before it');
-    expect(body.textContent).not.toContain('not among the loaded bodies');
-  });
-
-  it('says the request before is not loaded when it names one the tab cannot find', async () => {
-    // The second call names the first call's request, but here the document lists no bodies for the
-    // first call, so the one it names is nowhere the tab can read it.
-    const withoutFirst = JSON.parse(JSON.stringify(doc)) as AszViewDocument;
-    const strip = (nodes: AszViewDocument['talks']): void => {
-      for (const n of nodes) {
-        if (n.id === 'call/s2-call-fdae022ac306') delete (n as { provider_bodies?: unknown }).provider_bodies;
-        strip(n.children ?? []);
-      }
-    };
-    strip(withoutFirst.talks);
-    host = document.createElement('div');
-    document.body.appendChild(host);
-    view = mountConversationView(host, {
-      document: withoutFirst,
-      loadFiles: async (request: { session: string; seqs: number[] }, onFile: (f: StoredFile) => void) => {
-        for (const seq of request.seqs) onFile({ seq, file: `${request.session}/provider_body/x.sd`, bytes: file });
-      },
-      state: { step: CALL },
-    });
-    tab(host, 'prompt')!.click();
-    panel(host).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
-    await new Promise((r) => setTimeout(r, 0));
-    panel(host).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
-    const body = panel(host);
-    expect(body.textContent).toContain('not among the loaded bodies');
-    expect(body.textContent).not.toContain('names no request before it');
-  });
-
-  it('calls a growing history growth, however the runtime spells a message', () => {
-    // This call is the first whose history holds a message that has stopped being the newest. Such a
-    // message is sent as a list of one text block while it is newest and as a plain string after,
-    // and reading the two spellings as different messages ended the shared prefix one message early
-    // and reported an ordinary growth step as a rewritten history.
-    const root = mount(undefined, 'call/s6-call-fdae022ac306');
-    tab(root, 'prompt')!.click();
-    panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
-    return new Promise<void>((done) => setTimeout(() => {
+  it('says a request landed before its history was recorded has nothing to compare, and guesses nothing', async () => {
+    // These bodies landed before the Sessionizer recorded a request's history, so the document says
+    // nothing of it, and the tab does not read one from where messages sit in the two bodies.
+    for (const call of [CALL, 'call/s2-call-fdae022ac306', 'call/s6-call-fdae022ac306']) {
+      const root = mount(undefined, call);
+      tab(root, 'prompt')!.click();
+      panel(root).querySelector<HTMLButtonElement>('[data-load-prompt]')!.click();
+      await new Promise((r) => setTimeout(r, 0));
       panel(root).querySelector<HTMLButtonElement>('[data-prompt-whole="0"]')!.click();
       const body = panel(root);
-      expect(body.textContent).toContain('Added by this call');
-      expect(body.textContent).not.toContain('was rewritten');
+      expect(body.textContent).toContain('does not record its history');
+      expect(body.textContent).not.toContain('rewritten');
       expect(body.textContent).not.toContain('replaced by a summary');
-      done();
-    }, 0));
+      view?.destroy();
+      view = null;
+      host?.remove();
+      host = null;
+    }
   });
 
   it('shows the response on its own, with what stopped it', async () => {
