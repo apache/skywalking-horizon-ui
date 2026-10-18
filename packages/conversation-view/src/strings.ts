@@ -281,8 +281,6 @@ export interface ViewStrings {
   promptWholeRequest: string;
   promptWholeBody: string;
   promptChanges: string;
-  promptNoPrevious: string;
-  promptNoPreviousNamed: string;
   promptSystem: string;
   promptTools: string;
   promptMessages: string;
@@ -290,12 +288,37 @@ export interface ViewStrings {
   promptMessagesNote: string;
   promptSettings: string;
   promptBlocks: string;
-  promptShared: string;
-  promptRewritten: string;
-  promptCompacted: string;
   promptAlsoChanged: string;
   promptAdded: string;
   promptNothingAdded: string;
+  historyRole: string;
+  historyChanged: string;
+  historyCounts: string;
+  historyOrderChanged: string;
+  historyOrderUnknown: string;
+  historySystemChanged: string;
+  historyReplyBack: string;
+  historyReplyBackChanged: string;
+  historyReplyNotFound: string;
+  historyReplyUnknown: string;
+  promptHistoryFirst: string;
+  promptReset: string;
+  promptResetSummary: string;
+  promptHistoryAuxiliary: string;
+  promptHistoryInternal: string;
+  promptHistoryUnavailable: string;
+  promptHistoryNone: string;
+  promptHistoryKept: string;
+  promptHistoryKeptAll: string;
+  promptHistoryChanged: string;
+  historySystemUnknown: string;
+  promptToolsWord: string;
+  promptThreadHeld: string;
+  promptDropped: string;
+  promptMarkKept: string;
+  promptMarkChanged: string;
+  promptMarkAdded: string;
+  promptMarkDropped: string;
   promptStopReason: string;
   promptThinking: string;
   promptReminder: string;
@@ -611,9 +634,7 @@ export const ENGLISH: ViewStrings = {
   promptRequestModes: 'How much of the request to show',
   promptWholeRequest: 'Whole request',
   promptWholeBody: 'The body',
-  promptChanges: 'What it added',
-  promptNoPrevious: 'The request before this one is not among the loaded bodies, so there is nothing to compare with.',
-  promptNoPreviousNamed: 'This request names no request before it, so there is nothing to compare with.',
+  promptChanges: 'What changed',
   promptSystem: 'System prompt',
   promptTools: 'Tools ({count})',
   promptMessages: 'Messages ({count})',
@@ -621,12 +642,37 @@ export const ENGLISH: ViewStrings = {
   promptMessagesNote: '{bytes} bytes as sent',
   promptSettings: 'Settings',
   promptBlocks: '{count} block(s), {bytes} bytes',
-  promptShared: 'The {count} message(s) before are as the call before sent them, {bytes} bytes.',
-  promptRewritten: 'The history before this point was rewritten, and not by a compaction.',
-  promptCompacted: 'The context was replaced by a summary here, so the list starts again: {before} message(s) became {after}.',
   promptAlsoChanged: 'Also changed: {what}.',
   promptAdded: 'Added by this call ({count})',
   promptNothingAdded: 'This request adds no message.',
+  historyRole: 'History',
+  historyChanged: 'History changed · cause unavailable',
+  historyCounts: '{kept} kept, {changed} changed, {dropped} dropped, {added} added',
+  historyOrderChanged: 'the order changed',
+  historyOrderUnknown: 'whether the order changed is not known',
+  historySystemChanged: 'the system prompt changed',
+  historyReplyBack: 'the previous reply is included unchanged',
+  historyReplyBackChanged: 'the previous reply is included with changes',
+  historyReplyNotFound: 'the previous reply was not found in this history',
+  historyReplyUnknown: 'whether the previous reply is included is not known',
+  promptHistoryFirst: 'This is the first call of its stream since the context began, so there is nothing to compare with.',
+  promptReset: 'The context was reset here, so there is nothing before this call to compare with.',
+  promptResetSummary: 'The context was reset here and replaced by a summary, so there is nothing before this call to compare with.',
+  promptHistoryAuxiliary: 'A call of an auxiliary stream is not compared with the calls around it.',
+  promptHistoryInternal: 'The framework made this call for its own purpose, so it is not compared with the calls around it.',
+  promptHistoryUnavailable: 'This history cannot be compared with the call before it: {why}.',
+  promptHistoryNone: 'This request does not record its history, so there is nothing to compare with.',
+  promptHistoryKept: 'The history of the call before is kept whole: its {count} message(s) come first, as it sent them.',
+  promptHistoryKeptAll: 'The history of the call before is kept whole.',
+  promptHistoryChanged: 'The history of the call before changed:',
+  historySystemUnknown: 'whether the system prompt changed is not known',
+  promptToolsWord: 'Tools',
+  promptThreadHeld: 'This request continues a provider thread: it holds only its new messages, and the provider keeps the rest.',
+  promptDropped: 'Dropped from the call before ({count})',
+  promptMarkKept: 'kept',
+  promptMarkChanged: 'changed',
+  promptMarkAdded: 'added',
+  promptMarkDropped: 'dropped',
   promptStopReason: 'stopped: {reason}',
   promptThinking: 'Thinking',
   promptReminder: 'Injected by the runtime',

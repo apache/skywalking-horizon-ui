@@ -25,7 +25,7 @@ import type { ViewStrings } from './strings.js';
  * plain-English name.
  */
 export type Track = 'input' | 'messages' | 'context' | 'model' | 'tools' | 'mcp' | 'agents' | 'annotation';
-export type KindType = 'user' | 'assistant' | 'subagent-response' | 'model' | 'tool' | 'agent' | 'instruction' | 'annotation' | 'error';
+export type KindType = 'user' | 'assistant' | 'subagent-response' | 'model' | 'tool' | 'agent' | 'instruction' | 'annotation' | 'history' | 'error';
 
 export interface KindMeta {
   track: Track;
@@ -48,6 +48,8 @@ const KIND: Record<string, KindMeta> = {
   'agent.launch_ack': { track: 'agents', type: 'agent', title: 'launchAcknowledged' },
   'runtime.notification': { track: 'agents', type: 'agent', title: 'notificationFromChild' },
   'epoch.boundary': { track: 'annotation', type: 'annotation', title: null, raw: 'Context reset' },
+  // Where a call's history changed with no reset: a type of its own, so its colour is not a reset's.
+  'history.change': { track: 'annotation', type: 'history', title: 'historyChanged' },
   'epoch.summary': { track: 'annotation', type: 'annotation', title: null, raw: 'Carried-forward summary' },
   'turn.duration': { track: 'annotation', type: 'annotation', title: null, raw: 'Turn duration' },
   'error.api': { track: 'annotation', type: 'error', title: null, raw: 'Provider error' },
