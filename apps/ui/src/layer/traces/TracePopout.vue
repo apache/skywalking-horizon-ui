@@ -40,6 +40,7 @@ import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
+import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -197,11 +198,11 @@ function flashCopy(kind: 'id' | 'url'): void {
 }
 function copyId(): void {
   if (!openTraceId.value) return;
-  navigator.clipboard?.writeText(openTraceId.value).then(() => flashCopy('id'), () => {});
+  void copyText(openTraceId.value).then((done) => { if (done) flashCopy('id'); });
 }
 function copyShareableUrl(): void {
   if (!openTraceId.value) return;
-  navigator.clipboard?.writeText(window.location.href).then(() => flashCopy('url'), () => {});
+  void copyText(window.location.href).then((done) => { if (done) flashCopy('url'); });
 }
 
 function selectSpan(s: NativeSpan): void { selectedSpan.value = s; }
