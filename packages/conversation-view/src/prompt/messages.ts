@@ -254,6 +254,7 @@ function readLangChainRequest(body: Record<string, unknown>, prompt: Array<Recor
 function readLangChainResponse(body: Record<string, unknown>, generation: Record<string, unknown>): ReadResponse {
   const message = generation['message'];
   const fields = isObject(message) ? langChainFields(message) : null;
+  const type = isObject(message) && fields ? langChainType(message, fields) : '';
   const rest: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const [k, v] of Object.entries(fields ?? {})) {
     if (!['content', 'tool_calls', 'invalid_tool_calls', 'usage_metadata', 'id', 'type'].includes(k)) rest[k] = v;
@@ -270,7 +271,7 @@ function readLangChainResponse(body: Record<string, unknown>, generation: Record
     kind: 'response',
     model: typeof model === 'string' ? model : undefined,
     id: typeof fields?.['id'] === 'string' ? fields['id'] : undefined,
-    blocks: fields ? langChainBlocks(fields, message) : typeof text === 'string' ? [{ kind: 'text', text }] : [],
+    blocks: fields ? langChainBlocks(fields, message, type) : typeof text === 'string' ? [{ kind: 'text', text }] : [],
     usage: isObject(usage) ? usage : undefined,
     rest,
     raw: body,
@@ -279,10 +280,36 @@ function readLangChainResponse(body: Record<string, unknown>, generation: Record
 
 function readLangChainMessage(value: Record<string, unknown>): PromptMessage {
   const fields = langChainFields(value);
-  const type = typeof fields['type'] === 'string' ? fields['type'] : '';
+  const type = langChainType(value, fields);
   const role = typeof fields['role'] === 'string' ? fields['role'] : '';
   // A ChatMessage carries a role of the caller's choosing, and a plain object may say role and not type.
-  return { role: type && type !== 'chat' ? type : role, blocks: langChainBlocks(fields, value), raw: value };
+  return { role: type && type !== 'chat' ? type : role, blocks: langChainBlocks(fields, value, type), raw: value };
+}
+
+/** LangChain's own name for each message class, which is the message's `type`. A chunk is the message
+ *  it is a piece of. A Map, so a class named like an object's own property is no class. */
+const LANGCHAIN_TYPES = new Map<string, string>([
+  ['HumanMessage', 'human'],
+  ['AIMessage', 'ai'],
+  ['SystemMessage', 'system'],
+  ['ToolMessage', 'tool'],
+  ['FunctionMessage', 'function'],
+  ['ChatMessage', 'chat'],
+  ['RemoveMessage', 'remove'],
+]);
+
+/**
+ * A message's type: the one its fields carry, or, for a serialized message whose fields carry none, the
+ * one its class stands for. LangChain for Python writes the type into the fields, and for a streamed
+ * chunk writes the chunk's class name there; LangChain for JavaScript writes none, and names the class in
+ * `id` alone. A class name, in either place, reads as the type of its message.
+ */
+function langChainType(m: Record<string, unknown>, fields: Record<string, unknown>): string {
+  const id = m['lc'] === 1 && m['type'] === 'constructor' && Array.isArray(m['id']) ? m['id'] : [];
+  const named = typeof fields['type'] === 'string' ? fields['type'] : id[id.length - 1];
+  if (typeof named !== 'string') return '';
+  const cls = named.replace(/Chunk$/, '');
+  return LANGCHAIN_TYPES.get(cls) ?? (typeof fields['type'] === 'string' ? fields['type'] : '');
 }
 
 function langChainContentBlock(value: unknown): PromptBlock {
@@ -308,9 +335,9 @@ function langChainFields(m: Record<string, unknown>): Record<string, unknown> {
  * has it, with the arguments from `tool_calls`. Those are LangChain's parsed arguments, the ones the
  * agent ran with: a streamed provider block can still read `{}`, with the arguments in pieces beside it.
  */
-function langChainBlocks(fields: Record<string, unknown>, raw: unknown): PromptBlock[] {
+function langChainBlocks(fields: Record<string, unknown>, raw: unknown, type: string): PromptBlock[] {
   const content = fields['content'];
-  if (fields['type'] === 'tool' || fields['role'] === 'tool') {
+  if (type === 'tool' || fields['role'] === 'tool') {
     const about = {
       ...(typeof fields['tool_call_id'] === 'string' ? { id: fields['tool_call_id'] } : {}),
       ...(fields['status'] === 'error' ? { failed: true } : {}),
