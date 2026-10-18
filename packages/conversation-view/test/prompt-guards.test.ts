@@ -22,7 +22,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { PromptError, PromptStore, readProviderFile } from '../src/prompt/store.js';
-import { deltaOf, readBody, type ReadRequest } from '../src/prompt/messages.js';
+import { outsideOf, readBody, type ReadRequest } from '../src/prompt/messages.js';
 
 const HEADER = '{"h":1,"schema":"sd/1","seq":1,"at":"2026-01-01T00:00:00Z","kind":"provider_body","adapter":"mock/0.2.0","dialect":"mock/1","src":".","session":"s"}';
 const END = '{"t":"end"}';
@@ -130,80 +130,46 @@ describe('what the body reader refuses', () => {
   });
 });
 
-describe('what the delta compares', () => {
-  const request = (messages: unknown[]): ReadRequest =>
-    readBody(new TextEncoder().encode(JSON.stringify({ model: 'm', messages })), 'request') as ReadRequest;
+describe('what is compared outside the messages', () => {
+  const request = (fields: Record<string, unknown>): ReadRequest =>
+    readBody(new TextEncoder().encode(JSON.stringify({ model: 'm', messages: [], ...fields })), 'request') as ReadRequest;
+  const tool = (extra: Record<string, unknown> = {}) => ({ name: 'Run', description: 'runs', input_schema: { type: 'object' }, ...extra });
 
-  it('leaves out the cache marker the runtime moves, and nothing else named like it', () => {
-    const before = request([{ role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }] }]);
-    const after = request([{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
-    expect(deltaOf(before, after).sharedMessages).toBe(1);
-    // the same name inside a tool's own input is the agent's data, and two calls that differ there differ
-    const one = request([{ role: 'assistant', content: [{ type: 'tool_use', name: 'Run', input: { cache_control: 'a' } }] }]);
-    const two = request([{ role: 'assistant', content: [{ type: 'tool_use', name: 'Run', input: { cache_control: 'b' } }] }]);
-    expect(deltaOf(one, two).sharedMessages).toBe(0);
+  it('leaves out the cache marker the runtime moves on a tool, and nothing else named like it', () => {
+    const marked = request({ tools: [tool({ cache_control: { type: 'ephemeral' } })] });
+    expect(outsideOf(marked, request({ tools: [tool()] }), false).tools).toBe(false);
+    // the same name inside a tool's own schema is the agent's data, and two tools that differ there differ
+    const one = request({ tools: [tool({ input_schema: { cache_control: 'a' } })] });
+    const two = request({ tools: [tool({ input_schema: { cache_control: 'b' } })] });
+    expect(outsideOf(one, two, false).tools).toBe(true);
   });
 
-  it('reads a one-block message and its plain string as the same message', () => {
-    // A message of one text block is sent as a list while it is the newest, and as a plain string
-    // once the cache marker has left it. Both spellings are the same message, and before this every
-    // message compared unequal the moment it stopped being newest: on one real 94-call conversation
-    // 60 of 62 growth steps were reported as a rewritten history.
-    const newest = request([{ role: 'user', content: [{ type: 'text', text: 'which four?', cache_control: { type: 'ephemeral' } }] }]);
-    const passed = request([{ role: 'user', content: 'which four?' }]);
-    const d = deltaOf(newest, passed);
-    expect(d.sharedMessages).toBe(1);
-    expect(d.rewritten).toBe(false);
-    expect(d.replaced).toBe(false);
-    // and a message of several blocks never takes the short spelling, so it is not folded away
-    const many = request([{ role: 'user', content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] }]);
-    const one = request([{ role: 'user', content: 'ab' }]);
-    expect(deltaOf(many, one).sharedMessages).toBe(0);
-    // nor does a lone block that is not text
-    const tool = request([{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: 'x' }] }]);
-    expect(deltaOf(tool, request([{ role: 'user', content: 'x' }])).sharedMessages).toBe(0);
+  it('leaves the tools out only where a request continues a provider thread', () => {
+    // such a request sends no tools, and that is not a change
+    expect(outsideOf(request({ tools: [tool()] }), request({}), true).tools).toBe(false);
+    // between two other requests, a tool list taken away or added is one
+    expect(outsideOf(request({ tools: [tool()] }), request({}), false).tools).toBe(true);
+    expect(outsideOf(request({}), request({ tools: [tool()] }), false).tools).toBe(true);
+    expect(outsideOf(request({ tools: [tool()] }), request({ tools: [] }), false).tools).toBe(true);
   });
 
-  it('calls a compaction a compaction, and an unexplained rewrite a rewrite', () => {
-    const before = request([
-      { role: 'user', content: 'find the loaders' },
-      { role: 'assistant', content: 'here they are' },
-      { role: 'user', content: 'and the callers?' },
-    ]);
-    // a compaction replaces the context with a summary: the list is shorter and starts again
-    const compacted = request([{ role: 'user', content: 'Summary: two loaders, callers pending.' }]);
-    const c = deltaOf(before, compacted);
-    expect(c.rewritten).toBe(true);
-    expect(c.replaced).toBe(true);
-    expect(c.sharedMessages).toBe(0);
-    // a history edited in place is not a compaction: same length, different text
-    const edited = request([
-      { role: 'user', content: 'find the loaders' },
-      { role: 'assistant', content: 'here they are NOT' },
-      { role: 'user', content: 'and the callers?' },
-    ]);
-    const e = deltaOf(before, edited);
-    expect(e.rewritten).toBe(true);
-    expect(e.replaced).toBe(false);
-  });
-
-  it('reports a request that adds nothing', () => {
-    const one = request([{ role: 'user', content: 'go' }]);
-    const d = deltaOf(one, request([{ role: 'user', content: 'go' }]));
-    expect(d.added).toHaveLength(0);
-    expect(d.rewritten).toBe(false);
+  it('leaves out what a request says about itself rather than about the call', () => {
+    const one = request({ max_tokens: 10, metadata: { user_id: 'a' }, thread: { type: 'create' } });
+    const two = request({ max_tokens: 10, metadata: { user_id: 'b' }, thread: { type: 'continue' }, diagnostics: {} });
+    expect(outsideOf(one, two, false).settings).toBe(false);
+    expect(outsideOf(one, request({ max_tokens: 20 }), false).settings).toBe(true);
   });
 
   it('sees a difference under a top-level __proto__, not only a nested one', () => {
     const one = readBody(new TextEncoder().encode('{"model":"m","messages":[],"__proto__":{"x":1}}'), 'request') as ReadRequest;
     const two = readBody(new TextEncoder().encode('{"model":"m","messages":[],"__proto__":{"x":2}}'), 'request') as ReadRequest;
     expect(Object.keys(one.rest)).toContain('__proto__');
-    expect(deltaOf(one, two).settingsChanged).toBe(true);
+    expect(outsideOf(one, two, false).settings).toBe(true);
   });
 
   it('sees a difference under a key named __proto__', () => {
-    const one = request([JSON.parse('{"role":"user","content":[{"type":"tool_use","name":"R","input":{"__proto__":{"x":1}}}]}') as unknown]);
-    const two = request([JSON.parse('{"role":"user","content":[{"type":"tool_use","name":"R","input":{"__proto__":{"x":2}}}]}') as unknown]);
-    expect(deltaOf(one, two).sharedMessages).toBe(0);
+    const one = request({ tools: [JSON.parse('{"name":"R","input_schema":{"__proto__":{"x":1}}}') as unknown] });
+    const two = request({ tools: [JSON.parse('{"name":"R","input_schema":{"__proto__":{"x":2}}}') as unknown] });
+    expect(outsideOf(one, two, false).tools).toBe(true);
   });
 });

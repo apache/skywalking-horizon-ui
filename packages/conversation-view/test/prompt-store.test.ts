@@ -80,7 +80,8 @@ describe('the provider body reader', () => {
     const response = s.manifestAt(SEQ, 2)!;
     expect(response.role).toBe('response');
     expect(response.call).toBeTruthy();
-    expect(s.responseOfRequestId(response.request!)?.manifest.call).toBe(response.call);
+    expect(response.request).toBeTruthy();
+    expect(s.idAt(SEQ, 2)).toBe(readProviderFile(SEQ, file)[1]!.id);
   });
 
   it('says what it cannot rebuild, and holds nothing a reference cannot answer', () => {

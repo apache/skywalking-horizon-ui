@@ -261,12 +261,18 @@ export interface Folder {
  *  millisecond than the six injections behind it, so sorting by time buried
  *  the line that starts the talk six cards down. */
 export function readOrder(a: Step, b: Step): number {
-  if (a.ref && b.ref) return a.ref.seq - b.ref.seq || a.ref.row - b.ref.row;
+  if (a.ref && b.ref) return a.ref.seq - b.ref.seq || a.ref.row - b.ref.row || a.order - b.order;
   return (a.at || 0) - (b.at || 0) || a.order - b.order;
 }
 
 export function timeOrder(a: Step, b: Step): number {
   return (a.at || 0) - (b.at || 0) || a.order - b.order;
+}
+
+/** The call a history.change card stands before, which the card names as the one it changed to. */
+export function cardCall(card: Step): string {
+  const to = card.attrs?.['to_call'];
+  return typeof to === 'string' ? to : card.id;
 }
 
 export class ConversationModel {
@@ -376,6 +382,13 @@ export class ConversationModel {
       flatten(t, t.id, row.stream);
     }
     for (const n of doc.loose ?? []) flatten(n, null, n.stream ?? 'main');
+    // A history.change card stands on its call's first record and comes just before the call. It takes
+    // the call's place in the document's order, so every step tied with the two, such as what the call
+    // said on that same record, sorts after the card as it does after the call.
+    for (const step of this.stepById.values()) {
+      const call = step.kind === 'history.change' ? this.stepById.get(cardCall(step)) : undefined;
+      if (call) step.order = call.order - 0.5;
+    }
     for (const [name, steps] of this.stepsByStream) {
       steps.sort(readOrder);
       this.flowByStream.set(name, [...steps].sort(timeOrder));
@@ -415,6 +428,15 @@ export class ConversationModel {
 
   loose(stream: string): Step[] {
     return this.looseByStream.get(stream) ?? [];
+  }
+
+  /** The step a click on a step selects: a history.change card selects the call it stands before, when
+   *  the document holds that call, and itself otherwise. */
+  target(id: string): string {
+    const step = this.stepById.get(id);
+    if (step?.kind !== 'history.change') return id;
+    const call = cardCall(step);
+    return this.stepById.has(call) ? call : id;
   }
 
   step(id: string | null | undefined): Step | null {

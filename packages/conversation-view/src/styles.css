@@ -49,6 +49,11 @@
   --acv-kind-agent: var(--sw-series-5);
   --acv-kind-instruction: var(--sw-series-6);
   --acv-kind-annotation: var(--sw-series-7);
+  /* Where a call's history changed is no reset, so it takes no reset's colour. Every series colour is
+     some kind's, and the eighth is the error colour in every theme, so this is a hue between the
+     first and the fourth that no kind uses; its card is dashed as well, so it does not rest on
+     colour alone. */
+  --acv-kind-history: color-mix(in srgb, var(--sw-series-1) 50%, var(--sw-series-4));
   --acv-kind-error: var(--sw-err);
   --acv-edge: var(--sw-fg-2);
   --acv-owns: var(--sw-fg-3);
@@ -214,6 +219,7 @@
 .acv-kind-agent { color: var(--acv-kind-agent); }
 .acv-kind-instruction { color: var(--acv-kind-instruction); }
 .acv-kind-annotation { color: var(--acv-kind-annotation); }
+.acv-kind-history { color: var(--acv-kind-history); }
 .acv-kind-error { color: var(--acv-kind-error); }
 .acv-clip.nested { height: 32px; border-width: 2px; border-radius: 7px; background: linear-gradient(180deg, color-mix(in srgb, var(--acv-kind-agent) 28%, var(--acv-surface)), color-mix(in srgb, var(--acv-kind-agent) 13%, var(--acv-surface))); }
 .acv-clip.nested::before { width: 9px; height: 7px; border-radius: 2px 2px 1px 1px; box-shadow: 3px -3px 0 -1px currentColor; }
@@ -228,6 +234,7 @@
 .acv-clip.acv-kind-agent { color: var(--acv-kind-agent); }
 .acv-clip.acv-kind-instruction { color: var(--acv-kind-instruction); }
 .acv-clip.acv-kind-annotation { color: var(--acv-kind-annotation); }
+.acv-clip.acv-kind-history { color: var(--acv-kind-history); border-style: dashed; }
 .acv-clip.acv-kind-error { color: var(--acv-kind-error); }
 /* Selection is the outline: the clip keeps its own colour, because the colour
    says what kind of step it is and that does not change by being looked at. */
@@ -537,3 +544,12 @@ select.acv-stream-btn { border: 1px solid var(--acv-line); background: var(--acv
 .acv-prompt-tool:last-child { border-bottom: 0; }
 .acv-prompt-tool-name { font-weight: 600; }
 .acv-prompt-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+
+/* A history.change card: dashed in its own colour, with what changed on one line beneath its title. */
+.acv-card.acv-history { border-style: dashed; border-color: color-mix(in srgb, var(--acv-kind-history) 60%, transparent); }
+.acv-history-line { display: block; margin-top: 4px; color: var(--acv-faint); font-size: 12px; }
+/* What the Prompt tab says of each message against the request before it. */
+.acv-history-mark { margin-left: 8px; padding: 0 6px; border-radius: var(--acv-radius); border: 1px solid currentColor; font-size: 10px; font-weight: 650; }
+.acv-history-mark.added { color: var(--acv-kind-user); }
+.acv-history-mark.changed, .acv-history-mark.dropped { color: var(--acv-kind-history); }
+.acv-history-mark.kept { color: var(--acv-faint); }
