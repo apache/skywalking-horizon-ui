@@ -23,13 +23,14 @@ import {
   GENAI_TASKS,
   NATIVE_GENAI_CALLER,
   OTLP_GENAI_CALLER,
+  ZIPKIN_GENAI_CALLER,
 } from '../fixture.js';
 import type { Locator, Page } from '@playwright/test';
 
 // The Evaluation records tab, on the one stack where OAP's LLM-as-Judge has
-// scored calls from BOTH trace sources. Everything is asserted on screen: the
-// provider the tab opens on, the judged rows, and the native trace behind a
-// row judged from a SkyWalking-agent call. Provider, model, caller and task names are OAP
+// scored calls landing in all three trace stores. Everything is asserted on
+// screen: the provider the tab opens on, the judged rows, and the trace behind
+// a row, opened from the store the record names. Provider, model, caller and task names are OAP
 // data, rendered verbatim in every locale, so they are matched literally.
 
 /** Run the tab's query and hand back the row stream once it has rows. */
@@ -56,10 +57,10 @@ function rowFrom(page: Page, rows: Locator, caller: string, oldest = false): Loc
   return oldest ? matching.last() : matching.first();
 }
 
-test('the tab lists judged calls from both trace sources under the provider', async ({ page, pageErrors }) => {
+test('the tab lists judged calls from every trace store under the provider', async ({ page, pageErrors }) => {
   const rows = await openRecords(page);
 
-  for (const caller of [NATIVE_GENAI_CALLER, OTLP_GENAI_CALLER]) {
+  for (const caller of [NATIVE_GENAI_CALLER, OTLP_GENAI_CALLER, ZIPKIN_GENAI_CALLER]) {
     const row = rowFrom(page, rows, caller);
     await expect(row, `a record judged from ${caller}`).toBeVisible();
     // What makes a row readable: who was called, what was judged, how it scored.
@@ -153,3 +154,62 @@ test('the VIRTUAL_GENAI service dashboard renders the provider\'s card widgets',
 
   expect(pageErrors).toEqual([]);
 });
+
+/** A store a record can name, how its popout looks, and how a span in it is
+ *  addressed. */
+const STORES = [
+  {
+    store: 'OTLP', caller: OTLP_GENAI_CALLER,
+    card: '.tqp-overlay .tqc', span: '.tqw-row', idParam: 'traceqlId', selected: '.tqm',
+  },
+  {
+    store: 'ZIPKIN', caller: ZIPKIN_GENAI_CALLER,
+    card: '.zk-popout', span: '.tp-row', idParam: 'traceId', selected: '.zk-popout .tp-row.on',
+  },
+] as const;
+
+for (const s of STORES) {
+  test(`a record judged from a trace in the ${s.store} store opens it from that store, with the judged span selected`, async ({ page, pageErrors }) => {
+    const rows = await openRecords(page);
+    // An older row: its trace has long since landed.
+    await rowFrom(page, rows, s.caller, true).locator('.lg-trace').click();
+
+    const card = page.locator(s.card);
+    await expect(card).toBeVisible();
+    await expect(card.locator(s.span).first()).toBeVisible({ timeout: 45_000 });
+    await expect(page.locator(s.selected)).toBeVisible();
+    if (s.store === 'OTLP') await expect(page).toHaveURL(/[?&]ds=otlp/);
+    else await expect(page).toHaveURL(/[?&]traceAt=\d+/);
+
+    expect(pageErrors).toEqual([]);
+  });
+
+  test(`the trace-id condition narrows to one LLM span of a trace in the ${s.store} store`, async ({ page, pageErrors }) => {
+    const rows = await openRecords(page);
+    await rowFrom(page, rows, s.caller, true).locator('.lg-trace').click();
+    await expect(page.locator(s.card).locator(s.span).first()).toBeVisible({ timeout: 45_000 });
+    const traceId = new URL(page.url()).searchParams.get(s.idParam);
+    expect(traceId, 'the popout names the trace it opened').toBeTruthy();
+
+    // The trace id the way a shared link carries it, on a fresh page.
+    await page.goto(`/layer/${GENAI_LAYER}/evaluation-record?evaluationTraceId=${encodeURIComponent(traceId!)}`);
+    await expect(page.locator('.cf-provider .tas__label')).toHaveText(GENAI_PROVIDER, { timeout: 45_000 });
+    await page.locator('.cf-trace-store').selectOption(s.store);
+    await page.locator('.cf-pick-span').click();
+    const picker = page.locator('[role="dialog"] .sp');
+    await expect(picker).toBeVisible();
+    const llm = picker.locator('tr.llm');
+    await expect(llm.first()).toBeVisible({ timeout: 45_000 });
+    await llm.first().locator('.sp-use').click();
+    await expect(picker).toBeHidden();
+    await expect(page.locator('.cf-span-id')).not.toHaveValue('');
+
+    await page.getByRole('button', { name: /run query/i }).click();
+    const narrowed = page.locator('.lg-stream .lg-row');
+    await expect(narrowed.first()).toBeVisible({ timeout: 45_000 });
+    expect(await narrowed.count()).toBeLessThanOrEqual(GENAI_TASKS.length);
+    await expect(narrowed.first().locator('.lg-svc')).toContainText(s.caller);
+
+    expect(pageErrors).toEqual([]);
+  });
+}

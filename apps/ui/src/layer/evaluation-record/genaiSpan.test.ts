@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan } from './genaiSpan';
+import { genAIContextOfNativeSpan, genAIContextOfOTLPSpan, genAIContextOfZipkinSpan } from './genaiSpan';
 
 describe('genaiSpan — the spans OAP judges', () => {
   it('takes a native span only when its layer is GenAI AND it names the response model', () => {
@@ -27,7 +27,7 @@ describe('genaiSpan — the spans OAP judges', () => {
     expect(genAIContextOfNativeSpan({ layer: 'GenAI', tags: [] })).toBeNull();
   });
 
-  it('takes a Zipkin/OTLP span on the model tag alone, and falls back to gen_ai.system for the provider', () => {
+  it('takes a Zipkin span on the model tag alone, and falls back to gen_ai.system for the provider', () => {
     expect(genAIContextOfZipkinSpan({ tags: { 'gen_ai.response.model': 'gpt-4.1-mini', 'gen_ai.system': 'openai' } }))
       .toEqual({ model: 'gpt-4.1-mini', provider: 'openai' });
     expect(genAIContextOfZipkinSpan({ tags: { 'gen_ai.response.model': 'm', 'gen_ai.provider.name': 'p', 'gen_ai.system': 's' } }))
@@ -35,5 +35,15 @@ describe('genaiSpan — the spans OAP judges', () => {
     expect(genAIContextOfZipkinSpan({ tags: { 'gen_ai.response.model': 'm' } })).toEqual({ model: 'm', provider: null });
     expect(genAIContextOfZipkinSpan({ tags: { 'http.method': 'GET' } })).toBeNull();
     expect(genAIContextOfZipkinSpan({})).toBeNull();
+  });
+
+  it('takes an OTLP span on the model attribute alone, with the same provider fallback', () => {
+    const attributes = (pairs: Record<string, string>) => Object.entries(pairs).map(([key, value]) => ({ key, value }));
+    expect(genAIContextOfOTLPSpan({ attributes: attributes({ 'gen_ai.response.model': 'gpt-4.1-mini', 'gen_ai.provider.name': 'openai' }) }))
+      .toEqual({ model: 'gpt-4.1-mini', provider: 'openai' });
+    expect(genAIContextOfOTLPSpan({ attributes: attributes({ 'gen_ai.response.model': 'm', 'gen_ai.system': 's' }) }))
+      .toEqual({ model: 'm', provider: 's' });
+    expect(genAIContextOfOTLPSpan({ attributes: attributes({ 'http.method': 'GET' }) })).toBeNull();
+    expect(genAIContextOfOTLPSpan({ attributes: [] })).toBeNull();
   });
 });

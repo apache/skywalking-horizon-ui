@@ -19,6 +19,7 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
+import type { GenAITraceRefType } from '@skywalking-horizon-ui/api-client';
 import type {
   EvaluationRecordFacetsResponse,
   EvaluationRecordRow,
@@ -44,7 +45,7 @@ export interface GenAIEvaluationRecordStreamRow {
   endpointName: string | null;
   endpointId: string | null;
   traceId: string | null;
-  traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  traceType: GenAITraceRefType | null;
   traceSegmentId: string | null;
   traceSpanIndex: number | null;
   traceSpanId: string | null;
@@ -76,7 +77,7 @@ export interface EvaluationRecordParams {
   sortField?: Ref<'EVALUATION_TIME' | 'SCORE_VALUE'>;
   sortOrder?: Ref<'ASC' | 'DES'>;
   traceId?: Ref<string | null>;
-  traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
+  traceType?: Ref<GenAITraceRefType | null>;
   traceSegmentId?: Ref<string | null>;
   traceSpanIndex?: Ref<number | null>;
   traceSpanId?: Ref<string | null>;
@@ -252,7 +253,7 @@ export interface EvaluationRecordFacetParams {
   taskName?: Ref<string | null>;
   judgeModel?: Ref<string | null>;
   traceId?: Ref<string | null>;
-  traceType?: Ref<'SKYWALKING_NATIVE' | 'OTLP' | null>;
+  traceType?: Ref<GenAITraceRefType | null>;
   traceSegmentId?: Ref<string | null>;
   traceSpanIndex?: Ref<number | null>;
   traceSpanId?: Ref<string | null>;

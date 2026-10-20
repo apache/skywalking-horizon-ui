@@ -21,11 +21,11 @@ import { mount } from '@vue/test-utils';
 import { useEmptyTraceRetry } from './useEmptyTraceRetry';
 
 function harness() {
-  const active = ref(true); const empty = ref(true); const busy = ref(false); const failed = ref(false);
+  const active = ref(true); const key = ref<unknown>('trace-1'); const empty = ref(true); const busy = ref(false); const failed = ref(false);
   const refetch = vi.fn();
   let result!: ReturnType<typeof useEmptyTraceRetry>;
-  const w = mount(defineComponent({ setup() { result = useEmptyTraceRetry({ active, empty, busy, failed, refetch }, { intervalMs: 1_000, limit: 3 }); return () => h('div'); } }));
-  return { active, empty, busy, failed, refetch, result: () => result, w };
+  const w = mount(defineComponent({ setup() { result = useEmptyTraceRetry({ active, key, empty, busy, failed, refetch }, { intervalMs: 1_000, limit: 3 }); return () => h('div'); } }));
+  return { active, key, empty, busy, failed, refetch, result: () => result, w };
 }
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
@@ -71,6 +71,19 @@ describe('useEmptyTraceRetry', () => {
     active.value = false; await nextTick();
     expect(result().retries.value).toBe(0);
     active.value = true; await nextTick();
+    await vi.advanceTimersByTimeAsync(1_000); await nextTick();
+    expect(refetch).toHaveBeenCalledTimes(4);
+    w.unmount();
+  });
+
+  it('gives another trace its own budget when a view stays open and is reused for it', async () => {
+    const { key, refetch, result, w } = harness();
+    await vi.advanceTimersByTimeAsync(3_000); await nextTick();
+    expect(result().retries.value).toBe(3);
+    expect(result().pending.value).toBe(false);
+    key.value = 'trace-2'; await nextTick();
+    expect(result().retries.value).toBe(0);
+    expect(result().pending.value).toBe(true);
     await vi.advanceTimersByTimeAsync(1_000); await nextTick();
     expect(refetch).toHaveBeenCalledTimes(4);
     w.unmount();

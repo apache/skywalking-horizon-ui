@@ -36,6 +36,7 @@ import type {
   EvaluationRecordRow,
   EvaluationRecordsResponse,
   FetchLike,
+  GenAITraceRefType,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -163,7 +164,7 @@ const QUERY_EVALUATION_RECORD_FACETS = /* GraphQL */ `
 // hint, which is what booster-ui does now.
 
 interface OapEvaluationRecordRow {
-  traceRef?: { type?: 'SKYWALKING_NATIVE' | 'OTLP'; traceId?: string | null; segmentId?: string | null; spanIndex?: number | null; spanId?: string | null } | null;
+  traceRef?: { type?: GenAITraceRefType; traceId?: string | null; segmentId?: string | null; spanIndex?: number | null; spanId?: string | null } | null;
   serviceId?: string | null;
   serviceName?: string | null;
   providerId?: string | null;
@@ -230,16 +231,16 @@ export interface EvaluationRecordFetchScope {
   sortField?: string | null;
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
-  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  traceType?: GenAITraceRefType | null;
   traceSegmentId?: string | null;
   traceSpanIndex?: number | null;
   traceSpanId?: string | null;
 }
 
 /** OAP's `relatedTrace`: the trace, optionally narrowed to ONE span in it.
- *  A native span is addressed by segment + index, an OTLP span by span id;
- *  the field for the other scheme is dropped, not forwarded — OAP applies
- *  `spanIndex` to any non-OTLP query, so a stray one matches nothing. */
+ *  A native span is addressed by segment + index, an OTLP or Zipkin span by
+ *  span id; the field for the other scheme is dropped, not forwarded — OAP
+ *  refuses a condition that carries both. */
 function relatedTraceCondition(scope: Pick<EvaluationRecordFetchScope,
     'traceId' | 'traceType' | 'traceSegmentId' | 'traceSpanIndex' | 'traceSpanId'>): Record<string, unknown> | null {
   if (!scope.traceId) return null;
@@ -336,7 +337,7 @@ export async function fetchEvaluationRecords(
  */
 interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
   service?: string;
-  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  traceType?: GenAITraceRefType | null;
 }
 
 /**

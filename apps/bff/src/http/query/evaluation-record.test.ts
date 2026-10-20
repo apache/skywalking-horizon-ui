@@ -262,7 +262,7 @@ describe('evaluation-record route scope and time window', () => {
     expect(res.json()).not.toHaveProperty('total');
   });
 
-  it('narrows the related trace to one span — segment and index for native, span id for OTLP', async () => {
+  it('narrows the related trace to one span — segment and index for native, span id for OTLP and Zipkin', async () => {
     const oap = fakeRouteOap();
     const { app, sid } = await buildRoute(oap.fetch);
     const post = (url: string, payload: Record<string, unknown>) =>
@@ -284,6 +284,12 @@ describe('evaluation-record route scope and time window', () => {
     });
     expect(related('QueryGenAIEvaluationRecords', 'condition')).toEqual({ type: 'OTLP', traceId: 'trace-2', spanId: 'span-9' });
 
+    oap.calls.length = 0;
+    await post('/api/layer/virtual_genai/evaluation-records', {
+      traceId: 'trace-4', traceType: 'ZIPKIN', traceSpanId: 'span-4', traceSegmentId: 'stray', traceSpanIndex: 1,
+    });
+    expect(related('QueryGenAIEvaluationRecords', 'condition')).toEqual({ type: 'ZIPKIN', traceId: 'trace-4', spanId: 'span-4' });
+
     // Index 0 is the first span, not "unset".
     oap.calls.length = 0;
     await post('/api/layer/virtual_genai/evaluation-records/facets', {
@@ -292,7 +298,7 @@ describe('evaluation-record route scope and time window', () => {
     expect(related('QueryGenAIEvaluationRecordFacets', 'evaluationRecordCondition')).toEqual({ type: 'SKYWALKING_NATIVE', traceId: 'trace-3', segmentId: 'seg-3', spanIndex: 0 });
   });
 
-  it.each(['OTLP', 'SKYWALKING_NATIVE'] as const)('ignores standalone %s type in facets without a trace ID', async (type) => {
+  it.each(['OTLP', 'ZIPKIN', 'SKYWALKING_NATIVE'] as const)('ignores standalone %s type in facets without a trace ID', async (type) => {
     const oap = fakeRouteOap();
     const { app, sid } = await buildRoute(oap.fetch);
     try {

@@ -61,7 +61,7 @@ export function useTracePopout() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null, focus?: { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null }): void {
+  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | null, focus?: { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null }): void {
     if (!id) return;
     const next: Record<string, string | (string | null)[] | null | undefined> = {
       ...route.query,

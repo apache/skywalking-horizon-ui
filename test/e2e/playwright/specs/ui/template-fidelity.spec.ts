@@ -20,7 +20,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { test, expect } from '../support/diagnostics.js';
-import { LAYER } from '../fixture.js';
+import { DEMO_ENDPOINT_PATTERN, LAYER } from '../fixture.js';
+import { selectEndpoint } from '../support/layer.js';
 
 // Layer dashboards are DECLARED, not coded: a JSON template says which
 // widgets exist, what graph form each takes, and how wide it sits. The
@@ -128,15 +129,20 @@ const FIXTURE_GUARANTEES_DATA = new Set(['line', 'top']);
 const EMPTY_STATE = '.muted, .empty';
 const NO_DATA = /^no data$/i;
 
-async function assertScopeMatchesTemplate(page: Page, scope: string, path: string) {
-  await assertWidgetsRender(page, unconditional(widgetsOf(LAYER, scope)), path, `${LAYER}.${scope}`);
+/** `select` puts the page on the entity whose data the widgets need, after
+ *  the page lands and before anything is measured. */
+type SelectEntity = (page: Page) => Promise<void>;
+
+async function assertScopeMatchesTemplate(page: Page, scope: string, path: string, select?: SelectEntity) {
+  await assertWidgetsRender(page, unconditional(widgetsOf(LAYER, scope)), path, `${LAYER}.${scope}`, select);
 }
 
-async function assertWidgetsRender(page: Page, declared: Widget[], path: string, what: string) {
+async function assertWidgetsRender(page: Page, declared: Widget[], path: string, what: string, select?: SelectEntity) {
   expect(declared.length, `${what} declares no widgets — wrong fixture?`).toBeGreaterThan(0);
 
   await page.goto(path);
   await expect(page.locator('.widget').first()).toBeVisible({ timeout: 45_000 });
+  if (select) await select(page);
   // Settle the grid before measuring: the count is read after layout, not
   // mid-render.
   await expect
@@ -251,7 +257,9 @@ test('the endpoint dashboard renders exactly what its template declares', async 
   page,
   pageErrors,
 }) => {
-  await assertScopeMatchesTemplate(page, 'endpoint', `/layer/${LAYER}/endpoint`);
+  // An endpoint known only from logs has no endpoint metrics, and a
+  // percentile line has nothing to draw for it: render one the fixture drives.
+  await assertScopeMatchesTemplate(page, 'endpoint', `/layer/${LAYER}/endpoint`, (p) => selectEndpoint(p, DEMO_ENDPOINT_PATTERN));
   expect(pageErrors).toEqual([]);
 });
 

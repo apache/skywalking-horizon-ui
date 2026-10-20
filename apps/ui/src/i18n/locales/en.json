@@ -3587,5 +3587,6 @@
   "Trace store": "Trace store",
   "none — the layer's trace popout": "none — the layer's trace popout",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.",
-  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them."
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.",
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path."
 }

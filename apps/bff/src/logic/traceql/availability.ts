@@ -58,7 +58,8 @@ function failureText(e: unknown): string {
   return String(e);
 }
 
-async function probeOne(
+/** One datasource's status, from the same cache {@link traceqlSources} reads. */
+export async function traceqlSourceStatus(
   cfg: HorizonConfig,
   ds: TraceQLDatasource,
   fetch?: FetchLike,
@@ -103,7 +104,7 @@ export async function traceqlSources(
   fetch?: FetchLike,
   signal?: AbortSignal,
 ): Promise<TraceQLSourceStatus[]> {
-  return Promise.all(TRACEQL_DATASOURCES.map((ds) => probeOne(cfg, ds, fetch, signal)));
+  return Promise.all(TRACEQL_DATASOURCES.map((ds) => traceqlSourceStatus(cfg, ds, fetch, signal)));
 }
 
 /** Force a re-probe. Used by the tests; a config reload also invalidates by

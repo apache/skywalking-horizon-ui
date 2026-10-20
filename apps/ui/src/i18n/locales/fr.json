@@ -3587,5 +3587,6 @@
   "Trace store": "Stockage des traces",
   "none — the layer's trace popout": "aucun — la fenêtre de trace de la couche",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "Le stockage qui contient les ids de trace de ce widget. L'icône de trace d'une ligne ouvre la trace depuis celui-ci, par-dessus la page.",
-  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Non configuré : les métriques par défaut intégrées s'appliquent. Toute modification ici crée la configuration propre de cette couche, qui les remplace."
+  "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Non configuré : les métriques par défaut intégrées s'appliquent. Toute modification ici crée la configuration propre de cette couche, qui les remplace.",
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "Le TraceQL d’OAP n’a pas de source de données {name} au chemin configuré. Activez-la dans OAP ({setting}=true, avec SW_TRACEQL=default), ou corrigez {pathKey} si OAP la sert sur un autre chemin de contexte."
 }

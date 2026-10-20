@@ -40,6 +40,8 @@ const props = defineProps<{
   traceId: string;
   spans: TraceQLSpan[];
   loading?: boolean;
+  /** A span to open selected once the spans land — a link that names one. */
+  focusSpanId?: string | null;
 }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n({ useScope: 'global' });
@@ -56,6 +58,23 @@ watch(
     selected.value = null;
     viewMode.value = 'default';
   },
+);
+
+// Once per trace and span: a re-read of the same trace must not reopen a span
+// the operator has closed.
+let focusedOn: string | null = null;
+watch(
+  () => [props.traceId, props.focusSpanId, props.spans] as const,
+  ([traceId, focus, spans]) => {
+    if (!focus) return;
+    const key = `${traceId}\u0000${focus}`;
+    if (focusedOn === key) return;
+    const span = spans.find((s) => s.spanId === focus);
+    if (!span) return;
+    selected.value = span;
+    focusedOn = key;
+  },
+  { immediate: true },
 );
 
 const services = computed(() => [...buildServiceColors(props.spans).keys()]);

@@ -16,8 +16,10 @@
 #
 
 # GenAI case — the VIRTUAL_GENAI layer and its Evaluation records tab, on a
-# stack where OAP's LLM-as-Judge scores calls arriving from BOTH trace
-# sources: the SkyWalking Java agent (native) and OpenTelemetry (OTLP).
+# stack where OAP's LLM-as-Judge scores calls landing in ALL THREE trace
+# stores: the SkyWalking Java agent (native), OpenTelemetry over OTLP (stored
+# as OTLP, read through TraceQL), and OpenTelemetry exporting Zipkin to OAP's
+# Zipkin receiver.
 #
 # Run it:  make -C test/e2e run CASE=genai
 # Images:  make -C test/e2e images   (the Python caller builds through compose)
@@ -89,6 +91,14 @@ verify:
           | yq -P '{"hasOtlpRecords": ([.records[] | select(.traceRef.type == "OTLP")] | length > 0)}'
       expected: expected/has-otlp-records.yml
 
+    # 4b. READINESS: and one from the Zipkin receiver, which names its own store.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -P '{"hasZipkinRecords": ([.records[] | select(.traceRef.type == "ZIPKIN")] | length > 0)}'
+      expected: expected/has-zipkin-records.yml
+
     # 5. READINESS: the native trace a record points at opens. The record is
     #    written from the span at analysis time; the segment itself persists
     #    on its own cycle, and the spec clicks straight through to it.
@@ -101,6 +111,29 @@ verify:
           "http://${horizon_host}:${horizon_8081}" "/api/trace/${TRACE_ID}" \
           | yq -P '{"hasSpans": ((.native.spans // []) | length > 0)}'
       expected: expected/has-native-trace.yml
+
+    # 5b. READINESS: an OTLP record's trace opens through TraceQL's OTLP
+    #     datasource, the read the TraceQL popout and Pick span… make.
+    - query: |
+        TRACE_ID=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -r '[.records[] | select(.traceRef.type == "OTLP")][-1].traceRef.traceId')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/traceql/otlp/trace/${TRACE_ID}" \
+          | yq -P '{"hasSpans": ((.spans // []) | length > 0)}'
+      expected: expected/has-otlp-trace.yml
+
+    # 5c. READINESS: a Zipkin record's trace opens through the Zipkin API.
+    - query: |
+        TRACE_ID=$(bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/virtual_genai/evaluation-records \
+          '{"providerId":"b3BlbmFp.0","windowMinutes":30,"page":1,"pageSize":100}' \
+          | yq -r '[.records[] | select(.traceRef.type == "ZIPKIN")][-1].traceRef.traceId')
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/zipkin/trace/${TRACE_ID}" \
+          | yq -P '{"hasSpans": ((.spans // []) | length > 0)}'
+      expected: expected/has-zipkin-trace.yml
 
     # 6. READINESS: the provider's metrics landed — what the layer's service
     #    dashboard reads. Persisted on OAP's ~25s cycle into minute buckets,

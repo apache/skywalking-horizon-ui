@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { GenAITraceRefType } from '@skywalking-horizon-ui/api-client';
 import type { LogRow } from '@/api/client';
 import Modal from '@/components/primitives/Modal.vue';
 import { useAuthStore } from '@/state/auth';
@@ -37,7 +38,7 @@ const props = withDefaults(defineProps<{
 });
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
+  (e: 'jump-trace', payload: { traceId: string; traceType: GenAITraceRefType | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
 }>();
 
 type LogFormat = 'json' | 'yaml' | 'text';
@@ -110,7 +111,7 @@ function onJumpTrace(): void {
     traceId: props.row.traceId,
     traceType: (() => {
       const value = props.row.tags.find((tag) => tag.key.toLowerCase() === 'trace_type')?.value;
-      return value === 'OTLP' || value === 'SKYWALKING_NATIVE' ? value : null;
+      return value === 'SKYWALKING_NATIVE' || value === 'OTLP' || value === 'ZIPKIN' ? value : null;
     })(),
     traceSegmentId: props.row.tags.find((tag) => tag.key.toLowerCase() === 'segment_id')?.value ?? null,
     traceSpanIndex: (() => {

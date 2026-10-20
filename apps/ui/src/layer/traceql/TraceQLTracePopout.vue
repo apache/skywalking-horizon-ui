@@ -30,7 +30,7 @@ useEscapeToClose(() => open.value !== null, closeTrace);
 
 <template>
   <div v-if="open" class="tqp-overlay" @click.self="closeTrace">
-    <TraceQLTraceDetail class="tqp-card" :ds="open.ds" :trace-id="open.traceId" @close="closeTrace" />
+    <TraceQLTraceDetail class="tqp-card" :ds="open.ds" :trace-id="open.traceId" :focus-span-id="open.spanId" @close="closeTrace" />
   </div>
 </template>
 

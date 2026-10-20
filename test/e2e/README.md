@@ -27,9 +27,10 @@ test/e2e/
     browser/                     browser telemetry — OAP's browser receiver
                                  and the BROWSER layer
     genai/                       OAP's LLM judge over a mock provider called
-      ai-evaluation.yml          from the Java agent AND from OpenTelemetry —
-                                 the VIRTUAL_GENAI layer and the Evaluation
-                                 records tab, with both trace sources
+      ai-evaluation.yml          from the Java agent AND from OpenTelemetry
+                                 (OTLP and Zipkin) — the VIRTUAL_GENAI layer
+                                 and the Evaluation records tab, over all
+                                 three trace stores
     admin/                       the WRITE paths — DSL hot-update and
                                  template CRUD, isolated because they mutate
                                  the backend other cases read; covers the

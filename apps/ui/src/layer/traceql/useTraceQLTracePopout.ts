@@ -22,10 +22,10 @@
  *  stands aside on the row of the store it was asked for, and on no other. */
 
 import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import { routeRow } from '@/utils/layerRoute';
-import { TRACEQL_DS_QUERY, TRACEQL_POPOUT_QUERY, traceqlRowDatasource } from './traceqlDetailShared';
+import { TRACEQL_DS_QUERY, TRACEQL_POPOUT_QUERY, TRACEQL_SPAN_QUERY, traceqlRowDatasource } from './traceqlDetailShared';
 
 const DATASOURCES: readonly TraceQLDatasource[] = ['native', 'zipkin', 'otlp'];
 
@@ -33,18 +33,22 @@ export function useTraceQLTracePopout() {
   const route = useRoute();
   const router = useRouter();
 
-  const open = computed<{ traceId: string; ds: TraceQLDatasource } | null>(() => {
+  const open = computed<{ traceId: string; ds: TraceQLDatasource; spanId: string | null } | null>(() => {
     const id = route.query[TRACEQL_POPOUT_QUERY];
     const ds = route.query[TRACEQL_DS_QUERY];
+    const spanId = route.query[TRACEQL_SPAN_QUERY];
     if (typeof id !== 'string' || !id) return null;
     if (typeof ds !== 'string' || !(DATASOURCES as readonly string[]).includes(ds)) return null;
     if (traceqlRowDatasource(routeRow(route)) === ds) return null;
-    return { traceId: id, ds: ds as TraceQLDatasource };
+    return { traceId: id, ds: ds as TraceQLDatasource, spanId: typeof spanId === 'string' && spanId ? spanId : null };
   });
 
-  function openTrace(id: string, ds: TraceQLDatasource): void {
+  function openTrace(id: string, ds: TraceQLDatasource, options?: { spanId?: string | null }): void {
     if (!id) return;
-    void router.push({ path: route.path, query: { ...route.query, [TRACEQL_POPOUT_QUERY]: id, [TRACEQL_DS_QUERY]: ds } });
+    const query: LocationQuery = { ...route.query, [TRACEQL_POPOUT_QUERY]: id, [TRACEQL_DS_QUERY]: ds };
+    if (options?.spanId) query[TRACEQL_SPAN_QUERY] = options.spanId;
+    else delete query[TRACEQL_SPAN_QUERY];
+    void router.push({ path: route.path, query });
   }
 
   function closeTrace(): void {
@@ -52,6 +56,7 @@ export function useTraceQLTracePopout() {
     const query = { ...route.query };
     delete query[TRACEQL_POPOUT_QUERY];
     delete query[TRACEQL_DS_QUERY];
+    delete query[TRACEQL_SPAN_QUERY];
     void router.replace({ path: route.path, query });
   }
 

@@ -15,29 +15,32 @@
   limitations under the License.
 -->
 <!--
-  The related-trace picker: the spans of one trace (native or OTLP), the ones
+  The related-trace picker: the spans of one trace, read from the store the
+  record names (native, OTLP or Zipkin), the ones
   OAP's judge samples marked LLM and shown first, so the operator picks the
   span an evaluation record points at instead of copying ids out of logs.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NativeSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
+import type { GenAITraceRefType, NativeSpan, TraceQLDatasource, TraceQLSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 import Modal from '@/components/primitives/Modal.vue';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
-import { useEmptyTraceRetry } from '@/layer/traces/useEmptyTraceRetry';
-import { genAIContextOfNativeSpan, genAIContextOfZipkinSpan, type GenAISpanContext } from './genaiSpan';
+import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
+import { useTraceQLTrace } from '@/layer/traceql/useTraceQL';
+import { traceqlStoreMissingText } from '@/layer/traceql/traceqlDetailShared';
+import { genAIContextOfNativeSpan, genAIContextOfOTLPSpan, genAIContextOfZipkinSpan, type GenAISpanContext } from './genaiSpan';
 
 /** One span, as the query condition addresses it. `null` means the whole trace. */
 export type RelatedSpanPick =
   | { type: 'SKYWALKING_NATIVE'; segmentId: string; spanIndex: number }
-  | { type: 'OTLP'; spanId: string };
+  | { type: 'OTLP' | 'ZIPKIN'; spanId: string };
 
 const props = defineProps<{
   open: boolean;
   traceId: string;
-  traceType: 'SKYWALKING_NATIVE' | 'OTLP';
+  traceType: GenAITraceRefType;
   /** The tab's window: bounds the lookup where the trace is, which is what
    *  finds it at all with the cold stage on. */
   window: { startMs: number; endMs: number } | null;
@@ -45,8 +48,9 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; pick: [pick: RelatedSpanPick | null] }>();
 const { t } = useI18n();
 
-// One source fetches at a time; the other's id is null so it fires nothing.
+// One store fetches at a time; the others' ids are null so they fire nothing.
 const nativeTraceId = computed(() => (props.open && props.traceType === 'SKYWALKING_NATIVE' ? props.traceId : null));
+const zipkinTraceId = computed(() => (props.open && props.traceType === 'ZIPKIN' ? props.traceId : null));
 const otlpTraceId = computed(() => (props.open && props.traceType === 'OTLP' ? props.traceId : null));
 // The window as it is, padded an hour each side so the HOUR-step bounds the
 // BFF formats never round the trace out. A midpoint would search only the
@@ -56,10 +60,14 @@ const lookup = computed(() =>
   props.window ? { startMs: props.window.startMs - HOUR_MS, endMs: props.window.endMs + HOUR_MS } : null,
 );
 const native = useTraceDetail(nativeTraceId, computed(() => 'native' as const), lookup);
-const otlp = useZipkinTrace(otlpTraceId, undefined, {
+const zipkin = useZipkinTrace(zipkinTraceId, undefined, {
   endTs: computed(() => props.window?.endMs ?? null),
   lookback: computed(() => (props.window ? props.window.endMs - props.window.startMs : null)),
 });
+// TraceQL looks an id up across everything it retains, so the window would only
+// narrow it; its cold stage is not read here.
+const OTLP_DS = computed<TraceQLDatasource>(() => 'otlp');
+const otlp = useTraceQLTrace(OTLP_DS, otlpTraceId, computed(() => null));
 
 interface PickerRow {
   key: string;
@@ -85,7 +93,7 @@ function nativeRows(spans: NativeSpan[]): PickerRow[] {
     pick: { type: 'SKYWALKING_NATIVE', segmentId: s.segmentId, spanIndex: s.spanId },
   }));
 }
-function otlpRows(spans: ZipkinSpan[]): PickerRow[] {
+function zipkinRows(spans: ZipkinSpan[]): PickerRow[] {
   const t0 = Math.min(...spans.map((s) => s.timestamp ?? Infinity));
   return spans.map((s) => ({
     key: s.id,
@@ -95,11 +103,28 @@ function otlpRows(spans: ZipkinSpan[]): PickerRow[] {
     durationMs: (s.duration ?? 0) / 1000,
     error: s.tags?.error != null,
     genAI: genAIContextOfZipkinSpan(s),
-    pick: { type: 'OTLP', spanId: s.id },
+    pick: { type: 'ZIPKIN', spanId: s.id },
+  }));
+}
+function otlpRows(spans: TraceQLSpan[]): PickerRow[] {
+  const t0 = Math.min(...spans.map((s) => s.startUs));
+  return spans.map((s) => ({
+    key: s.spanId,
+    service: s.service,
+    operation: s.name,
+    startOffsetMs: (s.startUs - t0) / 1000,
+    durationMs: s.durationUs / 1000,
+    error: s.status === 'error',
+    genAI: genAIContextOfOTLPSpan(s),
+    pick: { type: 'OTLP', spanId: s.spanId },
   }));
 }
 const rows = computed<PickerRow[]>(() => {
-  const list = props.traceType === 'OTLP' ? otlpRows(otlp.spans.value) : nativeRows(native.nativeDetail.value?.spans ?? []);
+  const list = props.traceType === 'OTLP'
+    ? otlpRows(otlp.spans.value)
+    : props.traceType === 'ZIPKIN'
+      ? zipkinRows(zipkin.spans.value)
+      : nativeRows(native.nativeDetail.value?.spans ?? []);
   return list.sort((a, b) => a.startOffsetMs - b.startOffsetMs);
 });
 const llmRows = computed(() => rows.value.filter((r) => r.genAI));
@@ -108,18 +133,28 @@ const llmRows = computed(() => rows.value.filter((r) => r.genAI));
 const llmOnly = ref(true);
 watch(() => props.open, (open) => { if (open) llmOnly.value = true; });
 const shown = computed(() => (llmOnly.value && llmRows.value.length > 0 ? llmRows.value : rows.value));
-const loading = computed(() => (props.traceType === 'OTLP' ? otlp.isFetching.value : native.isFetching.value));
-// Both trace routes answer 200 with `reachable: false` and an `error` when
+const loading = computed(() => {
+  if (props.traceType === 'OTLP') return otlp.isFetching.value;
+  return props.traceType === 'ZIPKIN' ? zipkin.isFetching.value : native.isFetching.value;
+});
+// Every trace route answers 200 with `reachable: false` and an `error` when
 // OAP cannot be read; that is a failure to show, not an empty trace to retry.
 // A trace OAP has no record of yet is an empty answer to re-read, not a
-// failure: the Zipkin route marks that case `notFound`.
+// failure: the Zipkin and TraceQL routes mark that case `notFound`.
 const failure = computed<string | null>(() => {
-  const thrown = props.traceType === 'OTLP' ? otlp.error.value : native.error.value;
-  if (thrown) return String(thrown);
   if (props.traceType === 'OTLP') {
+    if (otlp.error.value) return String(otlp.error.value);
     const answer = otlp.data.value;
+    const missing = traceqlStoreMissingText(t, 'otlp', answer);
+    if (missing) return missing;
     return answer && answer.reachable === false && !answer.notFound ? (answer.error || t('Backend unreachable.')) : null;
   }
+  if (props.traceType === 'ZIPKIN') {
+    if (zipkin.error.value) return String(zipkin.error.value);
+    const answer = zipkin.data.value;
+    return answer && answer.reachable === false && !answer.notFound ? (answer.error || t('Backend unreachable.')) : null;
+  }
+  if (native.error.value) return String(native.error.value);
   const answer = native.nativeDetail.value;
   return answer && answer.reachable === false ? (answer.error || t('Backend unreachable.')) : null;
 });
@@ -129,10 +164,14 @@ const failure = computed<string | null>(() => {
 // empty for a moment.
 const { pending: stillLooking } = useEmptyTraceRetry({
   active: computed(() => props.open),
+  key: computed(() => `${props.traceType}\u0000${props.traceId}`),
   empty: computed(() => rows.value.length === 0),
   busy: loading,
   failed: computed(() => failure.value != null),
-  refetch: () => (props.traceType === 'OTLP' ? otlp.refetch() : native.refetch()),
+  refetch: () => {
+    if (props.traceType === 'OTLP') return otlp.refetch();
+    return props.traceType === 'ZIPKIN' ? zipkin.refetch() : native.refetch();
+  },
 });
 
 function fmtMs(ms: number): string {
@@ -146,7 +185,7 @@ function fmtMs(ms: number): string {
     <div class="sp">
       <div class="sp-head">
         <code class="sp-tid mono" :title="traceId">{{ traceId }}</code>
-        <span class="sp-type">{{ traceType === 'OTLP' ? 'OTLP' : 'SkyWalking Native' }}</span>
+        <span class="sp-type">{{ traceType === 'OTLP' ? 'OTLP' : traceType === 'ZIPKIN' ? 'Zipkin' : 'SkyWalking Native' }}</span>
         <label class="sp-toggle" :class="{ off: llmRows.length === 0 }">
           <input v-model="llmOnly" type="checkbox" :disabled="llmRows.length === 0" />
           {{ t('LLM spans only') }}

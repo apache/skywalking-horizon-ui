@@ -36,6 +36,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     opentelemetry-instrumentation==0.62b0 \
     opentelemetry-instrumentation-openai==0.58.0 \
     opentelemetry-exporter-otlp-proto-grpc==1.41.0 \
+    opentelemetry-exporter-zipkin-json==1.41.0 \
     opentelemetry-distro==0.62b0
 
 COPY python/openai-call.py /openai-call.py

@@ -184,6 +184,7 @@ export type {
   LogFacetsResponse,
 } from './logs.js';
 export type {
+  GenAITraceRefType,
   EvaluationRecordQueryRequest,
   EvaluationRecordFacetsResponse,
   EvaluationRecordRow,

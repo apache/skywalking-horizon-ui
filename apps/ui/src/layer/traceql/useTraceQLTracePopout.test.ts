@@ -46,7 +46,7 @@ describe('useTraceQLTracePopout', () => {
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.path).toBe('/layer/otlp_virtual_database/service');
     expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'abc123', ds: 'otlp' });
-    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp' });
+    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: null });
     api.closeTrace();
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.query).toEqual({ service: 'db' });
@@ -60,10 +60,26 @@ describe('useTraceQLTracePopout', () => {
 
   it('opens on a TraceQL row of another store, from the store it names', async () => {
     const { router, api } = await harness('/layer/general/traceql-native-trace?traceqlId=abc123&ds=otlp');
-    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp' });
+    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: null });
     api.closeTrace();
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.query).toEqual({});
+  });
+
+  it('carries a span to open selected, and clears it on close and for a trace opened without one', async () => {
+    const { router, api } = await harness('/layer/general/service?service=db');
+    api.openTrace('abc123', 'otlp', { spanId: 'span-1' });
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'abc123', ds: 'otlp', traceqlSpanId: 'span-1' });
+    expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: 'span-1' });
+    api.openTrace('def456', 'otlp');
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'def456', ds: 'otlp' });
+    api.openTrace('abc123', 'otlp', { spanId: 'span-1' });
+    await new Promise((r) => setTimeout(r));
+    api.closeTrace();
+    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ service: 'db' });
   });
 
   it('needs a known datasource', async () => {
