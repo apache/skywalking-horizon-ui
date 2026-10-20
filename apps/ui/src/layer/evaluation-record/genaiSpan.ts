@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import type { NativeSpan, TraceKeyValue, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
+import type { NativeSpan, TraceKeyValue, TraceQLSpan, ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 
 /**
  * Which spans OAP's LLM-as-Judge samples — mirrored so the related-trace picker
@@ -23,8 +23,8 @@ import type { NativeSpan, TraceKeyValue, ZipkinSpan } from '@skywalking-horizon-
  *
  * Source, in apache/skywalking's ai-evaluation analyzer: a native span is
  * sampled when its layer is GenAI and it carries `gen_ai.response.model`
- * (GenAIEvaluationAnalysisListener); a Zipkin/OTLP span on the tag alone
- * (AIEvaluationSpanListener). The provider label follows GenAIContextResolver:
+ * (GenAIEvaluationAnalysisListener); a Zipkin or OTLP span on the attribute
+ * alone (AIEvaluationSpanListener). The provider label follows GenAIContextResolver:
  * `gen_ai.provider.name`, else the older `gen_ai.system`.
  */
 export const GEN_AI_RESPONSE_MODEL = 'gen_ai.response.model';
@@ -52,4 +52,8 @@ export function genAIContextOfNativeSpan(span: Pick<NativeSpan, 'layer' | 'tags'
 export function genAIContextOfZipkinSpan(span: Pick<ZipkinSpan, 'tags'>): GenAISpanContext | null {
   const tags = span.tags ?? {};
   return contextOf((key) => tags[key]);
+}
+
+export function genAIContextOfOTLPSpan(span: Pick<TraceQLSpan, 'attributes'>): GenAISpanContext | null {
+  return contextOf((key) => span.attributes.find((attribute) => attribute.key === key)?.value);
 }

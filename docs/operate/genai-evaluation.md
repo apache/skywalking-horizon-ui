@@ -19,11 +19,13 @@ limitations under the License.
 
 OAP can score LLM calls with an LLM judge: each call a GenAI span records is sent to a judge model with the evaluation tasks you configured, and every verdict is stored as an **evaluation record** tied to the provider, the model, the calling service and the exact span that was judged. Horizon shows these records on the **Virtual GenAI** layer's **Evaluation records** tab, one row per judged call and task.
 
-The calls can come from either trace source. A service on a SkyWalking agent reports GenAI spans natively; a service on OpenTelemetry reports them over OTLP. Both are judged. A record from a native trace opens that trace. A record from an OTLP trace opens it from the Zipkin store, which holds OTLP spans only when OAP converts them into Zipkin form (`otlpTraceStorage: zipkin`); OAP 11.1.0 stores them natively by default.
+The calls can come from any trace store OAP keeps. A service on a SkyWalking agent reports GenAI spans natively. A service on OpenTelemetry reports them over OTLP, which OAP stores as OTLP by default, or converts into Zipkin form with `otlpTraceStorage: zipkin` (a setting that also needs OAP's Zipkin receiver, `SW_RECEIVER_ZIPKIN=default`). A service on a Zipkin tracer reports them to OAP's Zipkin receiver. All of them are judged, and each record names the store holding its span — **SkyWalking Native**, **OTLP** or **Zipkin** — so its trace is read from that store. One OAP can hold OTLP and Zipkin spans at once.
 
 ## Requirements
 
 - OAP's AI evaluation module must be enabled and pointed at a judge, with the tasks to score defined. This is OAP configuration, not Horizon's; see the SkyWalking documentation on LLM-as-Judge for the judge settings and the sampling rate. With sampling below every call, a quiet system can go a while between records.
+
+- Opening a record's trace reads the store the record names. A **Zipkin** record needs OAP's Zipkin query module (`SW_QUERY_ZIPKIN=default`) and Horizon's `oap.zipkinUrl` pointed at it. An **OTLP** record is read through OAP's TraceQL service with its OTLP datasource on (`SW_TRACEQL=default`, `SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true`), Horizon's `oap.traceql.url` pointing at that service and `oap.traceql.otlpPath` matching OAP's context path for it; see [TraceQL trace stores](../setup/oap.md#traceql-trace-stores-oaptraceql). For an OTLP record, the trace popout and **Pick span…** say when Horizon has no TraceQL address for it, or when OAP has no OTLP datasource at that path, instead of reporting the trace missing.
 
 - Reading the tab needs the `logs:read` permission. The trace link on a row and **Pick span…** need `traces:read` as well; the span address can still be typed without it. The provider picker on this tab reads the evaluation catalog rather than the metrics roster, so a role with only `logs:read` can still pick a provider.
 
@@ -73,11 +75,11 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 - **Sort by** — newest first, or by score in either direction when the value type is Score.
 
-- **Trace ID** — records judged from one trace. Pick the addressing scheme beside it: **SkyWalking Native** for a trace from a SkyWalking agent, **OTLP** for one from OpenTelemetry. The condition can then narrow to one span of that trace, which is how a call with several LLM spans is told apart:
+- **Trace ID** — records judged from one trace. Pick its **Trace store** beside it, the store the trace was written to: **SkyWalking Native** for a trace from a SkyWalking agent, **OTLP** for OpenTelemetry spans OAP stores as OTLP, **Zipkin** for spans that reached OAP's Zipkin receiver or that OAP converted with `otlpTraceStorage: zipkin`. The store has to match: when OAP converts OTLP spans, a trace from an OpenTelemetry service is under **Zipkin**, and **OTLP** finds nothing for it. The condition can then narrow to one span of that trace, which is how a call with several LLM spans is told apart:
 
-  - **Pick span…** opens the trace and lists its spans, with the ones the judge samples marked **LLM** and shown first. **Use** on a span fills the address; **Use whole trace** clears it.
+  - **Pick span…** opens the trace from that store and lists its spans in start order. The GenAI spans, the ones carrying a response model, are marked **LLM**, and **LLM spans only** shows just them by default; a trace with none shows every span. The mark does not say whether the judge sampled a span. **Use** on a span fills the address; **Use whole trace** clears it.
 
-  - The address can also be typed: the segment ID and span index for a native trace, or the span ID for an OTLP one. These are the identifiers a record's detail popout shows, and the ones that appear in logs correlated with the call.
+  - The address can also be typed: the segment ID and span index for a native trace, or the span ID for an OTLP or Zipkin one. These are the identifiers a record's detail popout shows, and the ones that appear in logs correlated with the call.
 
 - **Time range** — a rolling window, or **Custom** for an absolute one. A window can span up to seven days.
 
@@ -85,7 +87,7 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 ## Opening the trace
 
-The trace link opens the trace in a popout without leaving the list, with the judged span already selected. A native trace opens on the native waterfall; an OTLP trace opens on the Zipkin renderer, and is found only when OAP converts OTLP spans into Zipkin form. Either way the lookup is bounded to the record's own time, so with the query cold stage on, a record older than the hot window still opens its trace. The popout shares the page's address, so the browser's back button closes it and the URL can be shared.
+The trace link opens the trace in a popout without leaving the list, with the judged span already selected, from the store the record names: a native trace on the native waterfall, a Zipkin trace on the Zipkin renderer, and an OTLP trace on the TraceQL view of OAP's OTLP store. A native or Zipkin lookup is bounded to the record's own time, so a trace that has aged into cold storage opens with the query cold stage on; for that read the cold stage replaces the hot and warm ones, so leave it off for a recent trace. An OTLP trace is looked up across everything OAP keeps in its hot and warm stages; Horizon does not read TraceQL's cold stage, so an OTLP trace that has aged into cold storage does not open. The popout is part of the page's address, so its URL can be shared; the browser's Back button closes a native or OTLP popout opened from the list. An OTLP popout that shows an error or no trace has no close button of its own: close it with Escape or by clicking outside it.
 
 ## From the dashboards
 
@@ -98,6 +100,10 @@ The Virtual GenAI **Models** dashboard has an **Evaluation Score** chart. A poin
 - **The provider picker is empty.** No GenAI span has reached OAP yet, so the layer has no provider. The picker fills once one has.
 
 - **A calling service is missing from the Service picker.** A service that reports only over OTLP has no catalog entry. Run a query with the picker at **All services**; the caller then appears in the list under *seen in records*.
+
+- **An OTLP trace cannot be read.** *No TraceQL URL is configured for this source.* Set Horizon's `oap.traceql.url` and `oap.traceql.otlpPath`. *OAP's TraceQL has no OTLP datasource at the configured path.* Set `SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true` on OAP, or correct `oap.traceql.otlpPath` if OAP serves the datasource on another context path. *The trace source is not answering.* in the popout, or the read's own error text (*Backend unreachable.* when it has none) in **Pick span…**: the read failed. Check that OAP's TraceQL service is on (`SW_TRACEQL=default`) and reachable from Horizon; an authentication error, or a query or storage failure on OAP, shows the same. See [Requirements](#requirements).
+
+- **A Trace ID condition finds nothing for a trace you can open from a row.** Check that its **Trace store** matches the store the record names, which the record's detail popout shows as `trace_type`; the other conditions and the time range can also leave the record out. See [Conditions](#conditions).
 
 - **The trace opens with no spans.** The record is written when the judge answers, and the trace's spans are written on their own cycle; for a call judged seconds ago, try the link again shortly. For an older trace, check the query cold stage and the time range.
 

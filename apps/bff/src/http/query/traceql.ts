@@ -54,7 +54,7 @@ import {
   traceqlTraceById,
   TraceQLHttpError,
 } from '../../client/traceql.js';
-import { traceqlSources } from '../../logic/traceql/availability.js';
+import { traceqlSourceStatus, traceqlSources } from '../../logic/traceql/availability.js';
 import { fillTraceStatuses } from '../../logic/traceql/status.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTraces } from '../../logic/layers/preview.js';
@@ -227,11 +227,22 @@ export function registerTraceQLRoutes(app: FastifyInstance, deps: TraceQLRouteDe
       const opts = buildTraceQLOpts(deps.config.current, ds, deps.fetch, clientGone(reply));
       if (!opts) {
         return reply.send({
-          ds, traceId, spans: [], reachable: false, notFound: false,
+          ds, traceId, spans: [], reachable: false, notFound: false, configured: false,
         } satisfies TraceQLTraceDetailResponse);
       }
       try {
         const detail = await traceqlTraceById(opts, traceId, window ?? undefined);
+        // OAP answers 404 for a trace it has no record of AND on the path of a
+        // datasource it does not enable; only the build-info probe tells them
+        // apart, and "no such trace" would send the operator looking for data.
+        if (detail === null) {
+          const status = await traceqlSourceStatus(deps.config.current, ds, deps.fetch, clientGone(reply));
+          if (status.served === false) {
+            return reply.send({
+              ds, traceId, spans: [], reachable: false, notFound: false, served: false,
+            } satisfies TraceQLTraceDetailResponse);
+          }
+        }
         return reply.send({
           ds,
           traceId: detail?.traceId ?? traceId,

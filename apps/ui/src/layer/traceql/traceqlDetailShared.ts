@@ -167,6 +167,31 @@ export function latencyColor(durationUs: number): string {
 export const TRACEQL_POPOUT_QUERY = 'traceqlId';
 /** The store the trace in {@link TRACEQL_POPOUT_QUERY} is read from. */
 export const TRACEQL_DS_QUERY = 'ds';
+/** A span of that trace to open selected, as a link to one span names it. */
+export const TRACEQL_SPAN_QUERY = 'traceqlSpanId';
+
+type Translate = (key: string, named?: Record<string, unknown>) => string;
+
+/** What turns a datasource on in OAP, and the Horizon key naming its path. */
+const DATASOURCE_SWITCH: Record<TraceQLDatasource, { name: string; setting: string; pathKey: string }> = {
+  native: { name: 'SkyWalking', setting: 'SW_TRACEQL_ENABLE_DATASOURCE_SKYWALKING', pathKey: 'oap.traceql.nativePath' },
+  zipkin: { name: 'Zipkin', setting: 'SW_TRACEQL_ENABLE_DATASOURCE_ZIPKIN', pathKey: 'oap.traceql.zipkinPath' },
+  otlp: { name: 'OTLP', setting: 'SW_TRACEQL_ENABLE_DATASOURCE_OTLP', pathKey: 'oap.traceql.otlpPath' },
+};
+
+/** Why a trace read has nothing to show when the STORE is missing rather than
+ *  the trace, or null when it is the trace. A 404 on the datasource's path is
+ *  either a datasource OAP does not enable or a path Horizon has wrong, so the
+ *  text names both. */
+export function traceqlStoreMissingText(
+  t: Translate,
+  ds: TraceQLDatasource,
+  answer: { configured?: boolean; served?: boolean } | null | undefined,
+): string | null {
+  if (answer?.configured === false) return t('No TraceQL URL is configured for this source. Set oap.traceql in horizon.yaml.');
+  if (answer?.served !== false) return null;
+  return t("OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.", DATASOURCE_SWITCH[ds]);
+}
 
 /** The store a layer's TraceQL row reads — each store has its own row — or
  *  null for a row that is not a TraceQL one. */

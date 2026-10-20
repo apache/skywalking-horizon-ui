@@ -26,10 +26,12 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { traceOutcome } from '@skywalking-horizon-ui/api-client';
 import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
+import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
 import TraceQLDetailCard from './TraceQLDetailCard.vue';
+import { traceqlStoreMissingText } from './traceqlDetailShared';
 import { useTraceQLTrace } from './useTraceQL';
 
-const props = defineProps<{ ds: TraceQLDatasource; traceId: string }>();
+const props = defineProps<{ ds: TraceQLDatasource; traceId: string; focusSpanId?: string | null }>();
 const emit = defineEmits<{
   (e: 'close'): void;
   /** A trace's status, derived from its spans, once they are known. The list
@@ -44,6 +46,17 @@ const ds = computed(() => props.ds);
 // A lookup by id needs no window: this API answers one across its whole
 // history, which is what an id pasted from a log row wants.
 const detail = useTraceQLTrace(ds, traceId, computed(() => null));
+const storeMissing = computed(() => traceqlStoreMissingText(t, props.ds, detail.data.value));
+// A trace's spans land after whatever named it, so "not found" is re-read for
+// a while; a missing store or a failure is an answer, not something to wait out.
+const { pending: stillLooking } = useEmptyTraceRetry({
+  active: computed(() => !!props.traceId),
+  key: computed(() => `${props.ds}\u0000${props.traceId}`),
+  empty: computed(() => detail.spans.value.length === 0),
+  busy: detail.isFetching,
+  failed: computed(() => storeMissing.value != null || !detail.reachable.value),
+  refetch: detail.refetch,
+});
 
 // A trace is failed when any of its spans is: that is what the spans say, and
 // it is the same rule the Zipkin list applies to its own error tag.
@@ -64,7 +77,10 @@ watch(
 
 <template>
   <div class="tqd">
-    <p v-if="detail.notFound.value" class="tqd-note sw-card">{{ t('No trace with that id.') }}</p>
+    <p v-if="storeMissing" class="tqd-note sw-card err">{{ storeMissing }}</p>
+    <p v-else-if="detail.notFound.value" class="tqd-note sw-card">
+      {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('No trace with that id.') }}
+    </p>
     <p v-else-if="!detail.reachable.value" class="tqd-note sw-card err">
       {{ t('The trace source is not answering.') }}
     </p>
@@ -73,6 +89,7 @@ watch(
       :ds="ds"
       :trace-id="traceId"
       :spans="detail.spans.value"
+      :focus-span-id="focusSpanId"
       :loading="detail.isFetching.value"
       @close="emit('close')"
     />

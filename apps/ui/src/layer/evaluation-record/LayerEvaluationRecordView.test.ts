@@ -26,15 +26,16 @@ import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStream
 
 const api = vi.hoisted(() => ({
   list: vi.fn(), facets: vi.fn(), instances: vi.fn(), callerServices: vi.fn(), openTrace: vi.fn(),
-  traceDetail: vi.fn(), zipkinTrace: vi.fn(),
+  traceDetail: vi.fn(), zipkinTrace: vi.fn(), traceqlTrace: vi.fn(),
 }));
 vi.mock('@/api/client', () => ({ bffClient: {
   evaluationRecord: { list: api.list, facets: api.facets, callerServices: api.callerServices },
   layer: { instances: api.instances },
   trace: { detail: api.traceDetail },
   zipkin: { trace: api.zipkinTrace },
+  traceql: { trace: api.traceqlTrace },
 } }));
-vi.mock('@/layer/traces/useResultTracePopout', () => ({
+vi.mock('@/layer/evaluation-record/useResultTracePopout', () => ({
   useResultTracePopout: () => ({ openResultTrace: api.openTrace }),
 }));
 vi.mock('@/controls/useAutoRefreshSubscribe', () => ({ useAutoRefreshSubscribe: () => {} }));
@@ -438,7 +439,7 @@ describe('related trace span narrowing', () => {
     expect(wrapper.find('.cf-segment-id').exists()).toBe(true);
   });
 
-  it('re-reads an OTLP trace OAP has no record of yet, since the Zipkin route reports that as not found', async () => {
+  it('re-reads a Zipkin trace OAP has no record of yet, since the Zipkin route reports that as not found', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
       api.zipkinTrace
@@ -447,7 +448,7 @@ describe('related trace span narrowing', () => {
           { traceId: 'trace-1', id: 'bbbb', name: 'chat', timestamp: 1788393600001000, duration: 100000, localEndpoint: { serviceName: 'py' }, tags: { 'gen_ai.response.model': 'gpt-4.1-mini' } },
         ] });
       await openPage('&evaluationTraceId=trace-1');
-      await selectFor('Trace ID type').setValue('OTLP');
+      await selectFor('Trace store').setValue('ZIPKIN');
       await wrapper.get('.cf-pick-span').trigger('click');
       await flushPromises();
       const picker = () => document.querySelector('[role="dialog"] .sp')!;
@@ -462,18 +463,18 @@ describe('related trace span narrowing', () => {
     }
   });
 
-  it('addresses an OTLP span by its span id, typed or picked', async () => {
+  it('addresses a Zipkin span by its span id, typed or picked', async () => {
     api.zipkinTrace.mockResolvedValue({ generatedAt: 0, spans: [
       { traceId: 'trace-1', id: 'aaaa', name: 'GET /', timestamp: 1788393600000000, duration: 200000, localEndpoint: { serviceName: 'py' }, tags: {} },
       { traceId: 'trace-1', id: 'bbbb', parentId: 'aaaa', name: 'chat gpt-4.1-mini', timestamp: 1788393600001000, duration: 100000,
         localEndpoint: { serviceName: 'py' }, tags: { 'gen_ai.response.model': 'gpt-4.1-mini', 'gen_ai.system': 'openai' } },
     ] });
     await openPage('&evaluationTraceId=trace-1');
-    await selectFor('Trace ID type').setValue('OTLP');
+    await selectFor('Trace store').setValue('ZIPKIN');
     await flushPromises();
     await wrapper.get('.cf-span-id').setValue('typed-span');
     await runQuery();
-    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'OTLP', traceSpanId: 'typed-span' });
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'ZIPKIN', traceSpanId: 'typed-span' });
 
     await wrapper.get('.cf-pick-span').trigger('click');
     await flushPromises();
@@ -485,13 +486,56 @@ describe('related trace span narrowing', () => {
     await flushPromises();
     expect((wrapper.get('.cf-span-id').element as HTMLInputElement).value).toBe('bbbb');
     await runQuery();
-    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'OTLP', traceSpanId: 'bbbb' });
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'ZIPKIN', traceSpanId: 'bbbb' });
     expect(api.list.mock.lastCall?.[1].traceSegmentId).toBeUndefined();
+    expect(api.traceqlTrace).not.toHaveBeenCalled();
+  });
+
+  it('reads an OTLP trace from the TraceQL OTLP store, never from Zipkin, and narrows to the picked span', async () => {
+    api.traceqlTrace.mockResolvedValue({ ds: 'otlp', traceId: 'trace-1', reachable: true, notFound: false, spans: [
+      { spanId: 'aaaa', parentSpanId: '', service: 'py', resourceAttributes: [], name: 'GET /', kind: 'SPAN_KIND_SERVER',
+        startUs: 1788393600000000, durationUs: 200000, status: 'unset', attributes: [], events: [] },
+      { spanId: 'bbbb', parentSpanId: 'aaaa', service: 'py', resourceAttributes: [], name: 'chat', kind: 'SPAN_KIND_CLIENT',
+        startUs: 1788393600001000, durationUs: 100000, status: 'ok', events: [],
+        attributes: [{ key: 'gen_ai.response.model', value: 'gpt-4.1-mini' }, { key: 'gen_ai.provider.name', value: 'openai' }] },
+    ] });
+    await openPage('&evaluationTraceId=trace-1');
+    await selectFor('Trace store').setValue('OTLP');
+    await wrapper.get('.cf-pick-span').trigger('click');
+    await flushPromises();
+    expect(api.traceqlTrace.mock.lastCall?.slice(0, 3)).toEqual(['otlp', 'trace-1', undefined]);
+    expect(api.zipkinTrace).not.toHaveBeenCalled();
+    const shown = [...document.querySelectorAll('[role="dialog"] .sp tbody tr')];
+    expect(shown).toHaveLength(1);
+    expect(shown[0].textContent).toContain('openai / gpt-4.1-mini');
+    (shown[0].querySelector('.sp-use') as HTMLButtonElement).click();
+    await flushPromises();
+    expect((wrapper.get('.cf-span-id').element as HTMLInputElement).value).toBe('bbbb');
+    await runQuery();
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceType: 'OTLP', traceSpanId: 'bbbb' });
+  });
+
+  it('says the OTLP store is not served instead of looking again for a trace it cannot read', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      api.traceqlTrace.mockResolvedValue({ ds: 'otlp', traceId: 'trace-1', spans: [], reachable: false, notFound: false, served: false });
+      await openPage('&evaluationTraceId=trace-1');
+      await selectFor('Trace store').setValue('OTLP');
+      await wrapper.get('.cf-pick-span').trigger('click');
+      await flushPromises();
+      const banner = document.querySelector('[role="dialog"] .sp .banner.err');
+      expect(banner?.textContent).toContain('SW_TRACEQL_ENABLE_DATASOURCE_OTLP');
+      await vi.advanceTimersByTimeAsync(3_000);
+      await flushPromises();
+      expect(api.traceqlTrace).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
 describe('evaluation detail trace navigation', () => {
-  it.each(['SKYWALKING_NATIVE', 'OTLP'])('closes the actual detail modal before inspecting a %s trace', async (type) => {
+  it.each(['SKYWALKING_NATIVE', 'OTLP', 'ZIPKIN'])('closes the actual detail modal before inspecting a %s trace', async (type) => {
     api.list.mockResolvedValue({ reachable: true, total: null, records: [{
       traceId: 'trace-1', traceRef: { type, traceId: 'trace-1', segmentId: null, spanIndex: null, spanId: null },
       evaluationTime: 1788393600000, taskName: 'quality', valueType: 'SCORE', scoreValue: 0.5,

@@ -35,7 +35,7 @@ import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
-import { useEmptyTraceRetry } from './useEmptyTraceRetry';
+import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
@@ -60,6 +60,7 @@ const spans = computed<NativeSpan[]>(() => nativeDetail.value?.spans ?? []);
 // record) can read as empty until its spans land; re-read for a while.
 const { pending: stillLooking } = useEmptyTraceRetry({
   active: computed(() => openTraceId.value != null),
+  key: openTraceId,
   empty: computed(() => spans.value.length === 0),
   busy: isFetching,
   failed: computed(() => !!error.value || nativeDetail.value?.reachable === false),

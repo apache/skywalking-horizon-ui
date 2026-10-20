@@ -415,6 +415,26 @@ describe('the routes', () => {
     ]);
   });
 
+  it('tells a datasource OAP does not enable apart from a trace it has no record of — both answer 404', async () => {
+    const notServed: FetchLike = async () => new Response('', { status: 404 });
+    const { app, sid } = await build(notServed, { otlpUrl: OTLP_URL });
+    expect(await get(app, sid, '/api/traceql/otlp/trace/abc')).toMatchObject({ reachable: false, notFound: false, served: false });
+
+    resetTraceQLAvailability();
+    const served: FetchLike = async (url) => String(url).includes('/api/status/buildinfo')
+      ? json({ version: 'v' })
+      : new Response('', { status: 404 });
+    const second = await build(served, { otlpUrl: OTLP_URL });
+    const out = await get(second.app, second.sid, '/api/traceql/otlp/trace/abc');
+    expect(out).toMatchObject({ reachable: true, notFound: true });
+    expect(out).not.toHaveProperty('served');
+  });
+
+  it('answers configured false for a trace on a source with no URL', async () => {
+    const { app, sid } = await build(async () => json({}), {});
+    expect(await get(app, sid, '/api/traceql/otlp/trace/abc')).toMatchObject({ reachable: false, notFound: false, configured: false });
+  });
+
   it('serves nothing, reachable false, when the source has no URL', async () => {
     const { app, sid } = await build(async () => json({}), {});
     const out = await get(app, sid, '/api/traceql/native/search?startMs=1&endMs=2');

@@ -42,7 +42,7 @@ import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useRoute } from 'vue-router';
 import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
-import { useEmptyTraceRetry } from './useEmptyTraceRetry';
+import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
 import { copyText } from '@/utils/clipboard';
 
 const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
@@ -56,6 +56,7 @@ const { data, spans, isLoading, isFetching, error, refetch } = useZipkinTrace(tr
 // 404 is `notFound`, an empty answer to re-read, where a real failure is not.
 const { pending: stillLooking } = useEmptyTraceRetry({
   active: computed(() => openTraceId.value != null),
+  key: openTraceId,
   empty: computed(() => spans.value.length === 0),
   busy: isFetching,
   failed: computed(() => !!error.value || (data.value?.reachable === false && !data.value?.notFound)),

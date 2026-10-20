@@ -61,6 +61,10 @@ export const CONSUMER_SERVICE = 'e2e-service-consumer';
  * a correct build fail on timing.
  */
 export const DEMO_ENDPOINTS = ['/users', '/logs/trigger'];
+/** {@link DEMO_ENDPOINTS} as one pattern, for a locator's `hasText`. */
+export const DEMO_ENDPOINT_PATTERN = new RegExp(
+  DEMO_ENDPOINTS.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+);
 
 /**
  * The layer the Java agent's services land in. Everything the core fixture
@@ -181,6 +185,7 @@ export const GENAI_PROVIDER = 'openai';
 export const GENAI_MODEL = 'gpt-4.1-mini-2025-04-14';
 export const NATIVE_GENAI_CALLER = 'e2e-spring-ai';
 export const OTLP_GENAI_CALLER = 'e2e-otel-python';
+export const ZIPKIN_GENAI_CALLER = 'e2e-zipkin-python';
 /** The judge's tasks, from cases/genai/ai-evaluation.yml. */
 export const GENAI_TASKS = ['Faithfulness', 'TaskCompletion'];
 

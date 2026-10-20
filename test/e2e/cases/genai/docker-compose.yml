@@ -15,10 +15,11 @@
 # limitations under the License.
 #
 
-# GenAI case: OAP with its LLM-as-Judge on, upstream's mock LLM, and TWO
-# applications calling it — one on the SkyWalking Java agent, one on
-# OpenTelemetry — so the evaluation records point at both trace sources
-# Horizon renders: native and OTLP.
+# GenAI case: OAP with its LLM-as-Judge on, upstream's mock LLM, and THREE
+# applications calling it — one on the SkyWalking Java agent, two on
+# OpenTelemetry, one exporting OTLP and one exporting Zipkin — so the
+# evaluation records name all three trace stores Horizon reads: native, OTLP
+# (through TraceQL) and Zipkin.
 
 services:
   banyandb:
@@ -35,7 +36,16 @@ services:
     ports:
       - 12800
       - 17128
+      - 3200
+      - 9412
     environment:
+      # OTLP spans stay OTLP (OAP's default) and are read through TraceQL's
+      # OTLP datasource; the Zipkin caller's spans arrive at the Zipkin
+      # receiver and are read through the Zipkin query API.
+      SW_TRACEQL: default
+      SW_TRACEQL_ENABLE_DATASOURCE_OTLP: "true"
+      SW_RECEIVER_ZIPKIN: default
+      SW_QUERY_ZIPKIN: default
       SW_AI_EVALUATION: default
       # Judge every GenAI span. The default samples a fraction, which on a
       # fixture this young can be none at all.
@@ -130,11 +140,41 @@ services:
       mock-llm-server:
         condition: service_healthy
 
-  # Both callers in turn, for the whole run. The case's one `trigger` could
+  # Zipkin trace store: the same Python caller, exporting Zipkin JSON to OAP's
+  # Zipkin receiver instead of OTLP.
+  zipkinpy:
+    build:
+      context: ../../script
+      dockerfile: Dockerfile.otel-python
+    image: horizon-e2e-otel-python:e2e
+    networks: [e2e]
+    expose: ["9091"]
+    ports:
+      - 9091
+    environment:
+      OPENAI_BASE_URL: http://mock-llm-server:9090/llm/otlp/v1
+      OPENAI_API_KEY: e2e-not-a-key
+      OTEL_SERVICE_NAME: e2e-zipkin-python
+      OTEL_TRACES_EXPORTER: zipkin_json
+      OTEL_EXPORTER_ZIPKIN_ENDPOINT: http://oap:9411/api/v2/spans
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+    depends_on:
+      oap:
+        condition: service_healthy
+      mock-llm-server:
+        condition: service_healthy
+
+  # Every caller in turn, for the whole run. The case's one `trigger` could
   # drive one URL, and a source driven only at setup is displaced off the
-  # first page by the other as the run goes on — the specs read that page,
+  # first page by the others as the run goes on — the specs read that page,
   # and a slow run then failed on a healthy deployment. Alternating keeps
-  # both sources in every page, and the case declares no trigger.
+  # every source in every page, and the case declares no trigger.
   traffic:
     image: "${TRAFFIC_GEN_IMAGE}"
     networks: [e2e]
@@ -144,6 +184,7 @@ services:
         while true; do
           curl -sf -m 60 -o /dev/null http://springai:8080/ai/generateStream || true
           curl -sf -m 60 -o /dev/null http://otelpy:9091/ || true
+          curl -sf -m 60 -o /dev/null http://zipkinpy:9091/ || true
           sleep 3
         done
     depends_on:
@@ -151,11 +192,15 @@ services:
         condition: service_healthy
       otelpy:
         condition: service_healthy
+      zipkinpy:
+        condition: service_healthy
 
   horizon:
     extends:
       file: ../../script/docker-compose/base-compose.yml
       service: horizon
+    environment:
+      HORIZON_OAP_ZIPKIN_URL: http://oap:9412/zipkin
     ports:
       - 8081
     depends_on:

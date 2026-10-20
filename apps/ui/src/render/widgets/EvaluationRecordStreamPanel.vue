@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { logRowKey } from '@/utils/logRow';
+import type { GenAITraceRefType } from '@skywalking-horizon-ui/api-client';
 import type { GenAIEvaluationRecordStreamRow } from '@/layer/evaluation-record/useLayerEvaluationRecord';
 import { useAuthStore } from '@/state/auth';
 
@@ -28,7 +29,7 @@ const auth = useAuthStore();
 const { t } = useI18n();
 const emit = defineEmits<{
   (e: 'select', payload: { row: GenAIEvaluationRecordStreamRow; key: string }): void;
-  (e: 'jump-trace', payload: { traceId: string; traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
+  (e: 'jump-trace', payload: { traceId: string; traceType: GenAITraceRefType | null; traceSegmentId: string | null; traceSpanIndex: number | null; traceSpanId: string | null; ts: number }): void;
 }>();
 
 type Level = 'fail' | 'warning' | 'good' | 'excellent' | 'undefined';

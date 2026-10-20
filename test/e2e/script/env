@@ -54,7 +54,10 @@
 # conversation and its stored files: the `ai-agent` case reads both.
 # Must also be at or after d9e895f560 (#14108), whose conversation document
 # lists each call's execution records: the `ai-agent` case reads them.
-SW_OAP_COMMIT=d9e895f560a12abaf335c51325c7d100b8359bbb
+# Must also be at or after f34b9c7ef0 (#14152), whose GenAI evaluation records
+# name the store holding the judged span (`ZIPKIN` among them): the `genai`
+# case reads all three stores.
+SW_OAP_COMMIT=f34b9c7ef04792fcd48869aaa44c88f2e802ebc4
 
 # The AI Sessionizer, which builds a conversation and pushes it to OAP. Only
 # the `ai-agent` case runs it, and only once: a conversation is a chain of

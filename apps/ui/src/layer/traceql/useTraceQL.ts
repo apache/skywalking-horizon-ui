@@ -343,10 +343,13 @@ export function useTraceQLTrace(
     retry: false,
   });
   return {
+    data: q.data,
+    error: q.error,
     spans: computed(() => q.data.value?.spans ?? []),
     notFound: computed(() => q.data.value?.notFound ?? false),
     reachable: computed(() => (q.error.value ? false : (q.data.value?.reachable ?? true))),
     isFetching: q.isFetching,
+    refetch: q.refetch,
   };
 }
 

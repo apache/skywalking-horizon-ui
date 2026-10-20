@@ -40,3 +40,18 @@ export async function selectService(page: Page, name: string): Promise<void> {
   await picker.locator('tr.row', { hasText: name }).click();
   await expect(shown).toHaveText(name);
 }
+
+/**
+ * Pick an endpoint matching `name` on the endpoint tab, through its list.
+ *
+ * For a spec that needs an endpoint's DATA. The tab opens on the first
+ * endpoint OAP lists, and OAP lists every endpoint it saw in the window —
+ * ones known only from logs or cross-thread spans too, which carry no
+ * endpoint metrics — so say which one you need.
+ */
+export async function selectEndpoint(page: Page, name: RegExp): Promise<void> {
+  const row = page.locator('.ib-row').filter({ has: page.locator('.ib-name', { hasText: name }) }).first();
+  await expect(row).toBeVisible({ timeout: 45_000 });
+  await row.locator('.ib-pick-btn').click();
+  await expect(page.locator('.ib-row.on .ib-name')).toHaveText(name);
+}

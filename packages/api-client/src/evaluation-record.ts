@@ -25,6 +25,11 @@
  * changing the route again.
  */
 
+/** The store holding the judged span, which also sets how the span is
+ *  addressed: a native span by segment + index, the other two by span id. One
+ *  OAP can hold both OTLP and Zipkin spans at once. */
+export type GenAITraceRefType = 'SKYWALKING_NATIVE' | 'OTLP' | 'ZIPKIN';
+
 export interface EvaluationRecordQueryRequest {
   service?: string;
   serviceId?: string | null;
@@ -40,12 +45,13 @@ export interface EvaluationRecordQueryRequest {
   sortField?: 'EVALUATION_TIME' | 'SCORE_VALUE' | null;
   sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
-  /** Addressing scheme for traceId; ignored when traceId is absent. */
-  traceType?: 'SKYWALKING_NATIVE' | 'OTLP' | null;
+  /** The store of traceId; ignored when traceId is absent. OAP matches it
+   *  exactly, so an OTLP filter never finds a Zipkin record. */
+  traceType?: GenAITraceRefType | null;
   /** Narrow a native trace to ONE span: the segment it is in and its index there. */
   traceSegmentId?: string | null;
   traceSpanIndex?: number | null;
-  /** Narrow an OTLP trace to ONE span. */
+  /** Narrow an OTLP or Zipkin trace to ONE span. */
   traceSpanId?: string | null;
   page?: number;
   pageSize?: number;
@@ -56,7 +62,7 @@ export interface EvaluationRecordQueryRequest {
 }
 
 export interface EvaluationRecordRow {
-  traceRef: { type: 'SKYWALKING_NATIVE' | 'OTLP'; traceId: string; segmentId: string | null; spanIndex: number | null; spanId: string | null } | null;
+  traceRef: { type: GenAITraceRefType; traceId: string; segmentId: string | null; spanIndex: number | null; spanId: string | null } | null;
   traceId: string | null;
   serviceId: string | null;
   serviceName: string | null;

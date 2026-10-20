@@ -31,6 +31,9 @@ export function useEmptyTraceRetry(
   input: {
     /** The popout is open on an id. Going inactive resets the count. */
     active: Ref<boolean>;
+    /** What is being read. A view reused for another trace stays active, so
+     *  only a change of this gives the next trace its own budget. */
+    key: Ref<unknown>;
     empty: Ref<boolean>;
     /** A read is in flight — never re-read on top of one. */
     busy: Ref<boolean>;
@@ -61,6 +64,7 @@ export function useEmptyTraceRetry(
       schedule();
     }, intervalMs);
   }
+  watch(input.key, () => { retries.value = 0; schedule(); });
   watch([input.active, input.empty, input.busy, input.failed], schedule, { immediate: true });
   onBeforeUnmount(stop);
   return {

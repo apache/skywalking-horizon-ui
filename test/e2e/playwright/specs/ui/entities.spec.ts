@@ -16,16 +16,12 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { DEMO_ENDPOINTS, LAYER } from '../fixture.js';
+import { DEMO_ENDPOINT_PATTERN, LAYER } from '../fixture.js';
+import { selectEndpoint } from '../support/layer.js';
 
 // The tabs below the service dashboard, and the alarms page. Each is a
 // separate render path over data the core fixture already produces.
 
-// Which endpoint a picker auto-selects depends on traffic timing, not on
-// correctness — the fixture drives more than one. Match the known set (§7).
-const AN_ENDPOINT = new RegExp(
-  DEMO_ENDPOINTS.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
-);
 
 test('the instance tab renders a dashboard for a real instance', async ({ page, pageErrors }) => {
 
@@ -65,8 +61,10 @@ test('the endpoint tab renders a dashboard for a real endpoint', async ({ page, 
 
   const widgets = page.locator('.widget');
   await expect(widgets.first()).toBeVisible({ timeout: 45_000 });
-  // Scoped to the picked row for the same reason as the instance tab.
-  await expect(page.locator('.ib-row.on')).toContainText(AN_ENDPOINT, { timeout: 45_000 });
+  // The tab opens on whichever endpoint OAP lists first, which can be one
+  // known only from logs; a dashboard for a REAL endpoint needs one the
+  // fixture drives.
+  await selectEndpoint(page, DEMO_ENDPOINT_PATTERN);
   // A render check only, deliberately. The chart element appears even for an
   // all-null series, so it proves the widget dispatched, not that data arrived
   // — and the count trick used on the instance tab does not transfer: this
@@ -83,12 +81,13 @@ test('the API dependency tab mounts and resolves an endpoint', async ({ page, pa
 
   await page.goto(`/layer/${LAYER}/dependency`);
   await expect(page.locator('#app')).toBeVisible();
-  // The demo app's endpoint being SELECTED here proves the endpoint scope
-  // resolved; the dependency graph itself needs a second endpoint to be
-  // interesting, which this fixture does not produce. `.ep-row.on` is this
-  // view's picked row — matching the name anywhere matched the list, which
-  // renders before anything is picked.
-  await expect(page.locator('.ep-row.on')).toContainText(AN_ENDPOINT, { timeout: 45_000 });
+  // An endpoint being SELECTED here proves the endpoint scope resolved; the
+  // dependency graph itself needs a second endpoint to be interesting, which
+  // this fixture does not produce. Which endpoint follows OAP's listing, and
+  // that includes endpoints known only from logs or cross-thread spans, so the
+  // check is that one is picked, not which. `.ep-row.on` is this view's picked
+  // row — the list renders before anything is picked.
+  await expect(page.locator('.ep-row.on .ep-pick')).not.toBeEmpty({ timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);
 });

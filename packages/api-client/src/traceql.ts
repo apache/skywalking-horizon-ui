@@ -102,6 +102,11 @@ export interface TraceQLTraceDetailResponse {
   spans: TraceQLSpan[];
   reachable: boolean;
   notFound: boolean;
+  /** False when Horizon has no TraceQL service configured for this datasource. */
+  configured?: boolean;
+  /** False when OAP answers but does not enable this datasource, as
+   *  {@link TraceQLSourceStatus.served}. */
+  served?: boolean;
   error?: string;
 }
 

@@ -28,6 +28,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { useI18n } from 'vue-i18n';
+import type { GenAITraceRefType } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { errorText } from '@/api/permissionDenied';
 import {
@@ -38,7 +39,7 @@ import {
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
-import { useResultTracePopout } from '@/layer/traces/useResultTracePopout';
+import { useResultTracePopout } from './useResultTracePopout';
 import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useAuthStore } from '@/state/auth';
@@ -261,8 +262,9 @@ const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-// The addressing scheme is only needed when locating a specific trace.
-const traceTypeRef = ref<'SKYWALKING_NATIVE' | 'OTLP'>('SKYWALKING_NATIVE');
+// The store is only needed when locating a specific trace. OAP matches it
+// exactly, and it sets how a span of that trace is addressed.
+const traceTypeRef = ref<GenAITraceRefType>('SKYWALKING_NATIVE');
 // Narrowing to ONE span of that trace: typed in (ids copied from logs) or
 // picked from the trace. A span belongs to its trace and scheme, so both
 // reset the narrowing.
@@ -282,7 +284,7 @@ const traceSpanIndexRef = computed<number | null>(() => {
   return traceTypeRef.value === 'SKYWALKING_NATIVE' && Number.isInteger(index) && (index as number) >= 0 ? (index as number) : null;
 });
 const traceSpanIdRef = computed<string | null>(() =>
-    traceTypeRef.value === 'OTLP' ? traceSpanIdInput.value.trim() || null : null);
+    traceTypeRef.value !== 'SKYWALKING_NATIVE' ? traceSpanIdInput.value.trim() || null : null);
 const spanPickerOpen = ref(false);
 function applySpanPick(pick: RelatedSpanPick | null): void {
   spanPickerOpen.value = false;
@@ -290,7 +292,7 @@ function applySpanPick(pick: RelatedSpanPick | null): void {
   if (pick?.type === 'SKYWALKING_NATIVE') {
     traceSegmentIdInput.value = pick.segmentId;
     traceSpanIndexInput.value = pick.spanIndex;
-  } else if (pick?.type === 'OTLP') {
+  } else if (pick) {
     traceSpanIdInput.value = pick.spanId;
   }
 }
@@ -432,7 +434,7 @@ interface AppliedConditions {
   sortField: 'EVALUATION_TIME' | 'SCORE_VALUE';
   sortOrder: 'ASC' | 'DES';
   traceId: string | null;
-  traceType: 'SKYWALKING_NATIVE' | 'OTLP';
+  traceType: GenAITraceRefType;
   traceSegmentId: string | null;
   traceSpanIndex: number | null;
   traceSpanId: string | null;
@@ -665,7 +667,7 @@ function fmtAxisTime(ts: number): string {
  *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
  *  window — without this, OAP searches only the last 1 day and any
  *  trace older than that (cold-tier, etc.) silently fails to load. */
-function jumpToTrace(traceId: string, ts?: number, traceType: 'SKYWALKING_NATIVE' | 'OTLP' | null = null, traceSegmentId?: string | null, traceSpanIndex?: number | null, traceSpanId?: string | null): void {
+function jumpToTrace(traceId: string, ts?: number, traceType: GenAITraceRefType | null = null, traceSegmentId?: string | null, traceSpanIndex?: number | null, traceSpanId?: string | null): void {
   popoutRow.value = null;
   openResultTrace({
     type: traceType ?? 'SKYWALKING_NATIVE',
@@ -787,10 +789,11 @@ watch([drillArmed, providerReady], ([armed, ready]) => {
           />
         </label>
         <label v-if="traceIdRef" class="cf">
-          <span>Trace ID type</span>
-          <select v-model="traceTypeRef" class="cf-input">
+          <span>{{ t('Trace store') }}</span>
+          <select v-model="traceTypeRef" class="cf-input cf-trace-store">
             <option value="SKYWALKING_NATIVE">SkyWalking Native</option>
             <option value="OTLP">OTLP</option>
+            <option value="ZIPKIN">Zipkin</option>
           </select>
         </label>
         <!-- One span of that trace, by the scheme's own address. Blank means
