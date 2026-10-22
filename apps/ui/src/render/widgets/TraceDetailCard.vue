@@ -54,6 +54,7 @@ import TraceStatsView from './TraceStatsView.vue';
 import SpanDetailModal from './SpanDetailModal.vue';
 import { buildServiceColors, fmtMs, fmtDateTime } from './traceDetailShared';
 import { copyText } from '@/utils/clipboard';
+import { traceLink } from '@/layer/traces/tracePopoutQuery';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -86,11 +87,9 @@ function copyTraceId(): void {
 }
 function copyShareableUrl(): void {
   if (!props.traceId) return;
-  const url = new URL(window.location.href);
-  url.searchParams.set('traceId', props.traceId);
-  // Tag the source so Trace inspect (one route, two sources) reopens it as
-  // native rather than Zipkin.
-  url.searchParams.set('source', 'native');
+  // Named, so Trace inspect (one route, two sources) reopens it as native
+  // rather than Zipkin.
+  const url = traceLink(window.location.href, props.traceId, 'native');
   void copyText(url.toString()).then((done) => { if (done) flashCopy('url'); });
 }
 onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });

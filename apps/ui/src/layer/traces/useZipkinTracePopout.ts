@@ -15,36 +15,12 @@
  * limitations under the License.
  */
 
-/** URL-backed popout state for Zipkin traces, sharing the native
- *  popout's `?traceId=` param. */
+/** URL-backed popout state for Zipkin traces: `?traceId=` with
+ *  `?traceType=zipkin`. */
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useLayers } from '@/shell/useLayers';
-import { withTraceFocus, clearTraceFocus } from './tracePopoutQuery';
-import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
-import { resolveEntry, routeRow } from '@/utils/layerRoute';
-
-// Native vs Zipkin keys on the trace source, not the ID shape — native IDs
-// can be bare hex, same as Zipkin. An explicit `?source=` (written by the
-// shareable-URL copy) wins; otherwise the layer's route decides. Trace
-// inspect serves both sources from one route, so it relies on `?source=`.
-export function useTraceSourceIsZipkin() {
-  const route = useRoute();
-  const { layers } = useLayers();
-  return computed<boolean>(() => {
-    if (route.query.traceType === 'OTLP') return true;
-    if (route.query.traceType === 'SKYWALKING_NATIVE') return false;
-    const src = route.query.source;
-    if (src === 'zipkin') return true;
-    if (src === 'native') return false;
-    if (routeRow(route) === 'zipkin-trace') return true;
-    const layer = route.params.layerKey;
-    if (typeof layer !== 'string') return false;
-    const group = typeof route.params.group === 'string' ? route.params.group : undefined;
-    return traceRowIsZipkin(resolveEntry(layers.value, layer, group).def?.traces);
-  });
-}
+import { clearTraceAddress, traceStoreOf, withTraceFocus } from './tracePopoutQuery';
 
 /** The window a popped-out Zipkin trace is looked up in, from the address:
  *  the list's window when the id was opened from one (`traceEnd` +
@@ -81,11 +57,9 @@ interface ZipkinTraceOpenOptions {
 export function useZipkinTracePopout() {
   const route = useRoute();
   const router = useRouter();
-  const sourceIsZipkin = useTraceSourceIsZipkin();
-
   const openTraceId = computed<string | null>(() => {
     const v = route.query.traceId;
-    return typeof v === 'string' && v.length > 0 && sourceIsZipkin.value ? v : null;
+    return typeof v === 'string' && v.length > 0 && traceStoreOf(route.query) === 'zipkin' ? v : null;
   });
   const openTraceWindow = computed(() => (openTraceId.value ? zipkinPopoutWindow(route.query as Record<string, unknown>) : null));
 
@@ -93,12 +67,7 @@ export function useZipkinTracePopout() {
    *  in, `at` the moment a row gave — either bounds the lookup. */
   function openTrace(id: string, options?: ZipkinTraceOpenOptions): void {
     if (!id) return;
-    // Force the shared trace-id popout coordinator to select the Zipkin
-    // renderer even when the current layer's default source is native.
-    const next = withTraceFocus({ ...route.query, traceId: id, traceType: 'OTLP' as const }, options);
-    delete next.traceAt;
-    delete next.traceEnd;
-    delete next.traceLookback;
+    const next = withTraceFocus({ ...clearTraceAddress(route.query), traceId: id, traceType: 'zipkin' }, options);
     const given = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
     if (given(options?.lookback)) {
       next.traceEnd = String(given(options?.endTs) ? options.endTs : Date.now());
@@ -111,13 +80,7 @@ export function useZipkinTracePopout() {
 
   function closeTrace(): void {
     if (!openTraceId.value) return;
-    const next = clearTraceFocus({ ...route.query });
-    delete next.traceId;
-    delete next.traceAt;
-    delete next.traceEnd;
-    delete next.traceLookback;
-    if (next.traceType === 'OTLP') delete next.traceType;
-    void router.replace({ path: route.path, query: next });
+    void router.replace({ path: route.path, query: clearTraceAddress(route.query) });
   }
 
   return { openTraceId, openTraceWindow, openTrace, closeTrace };

@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "O conteúdo armazenado no OAP quebraria as páginas construídas a partir dele. Ao ativar o modelo novamente, ele continua inválido.",
   "Record trace": "Trace do registro",
   "Trace store": "Armazenamento de traces",
-  "none — the layer's trace popout": "nenhum — o popout de trace da camada",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "O armazenamento onde ficam os ids de trace deste widget. O ícone de trace de uma linha abre o trace a partir dele, sobre a página.",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Não configurado: as métricas padrão integradas se aplicam. Qualquer alteração aqui cria a configuração própria desta camada, que as substitui.",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "O TraceQL do OAP não tem a origem de dados {name} no caminho configurado. Ative-a no OAP ({setting}=true, com SW_TRACEQL=default) ou corrija {pathKey} se o OAP a servir em outro caminho de contexto."
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "O TraceQL do OAP não tem a origem de dados {name} no caminho configurado. Ative-a no OAP ({setting}=true, com SW_TRACEQL=default) ou corrija {pathKey} se o OAP a servir em outro caminho de contexto.",
+  "not set — its trace icon opens a notice": "não definido — o ícone de trace abre um aviso",
+  "Trace link not valid": "Link de trace inválido",
+  "not set": "não definido",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "O ícone de trace de uma lista de registros leva aqui quando o widget não indica um armazenamento de traces. Defina-o em Trace do registro, no editor de painéis por camada.",
+  "Query it from one of these trace sources:": "Consultá-lo a partir de uma destas fontes de traces:"
 }

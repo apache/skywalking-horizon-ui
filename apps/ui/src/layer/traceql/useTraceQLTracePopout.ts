@@ -15,49 +15,45 @@
  * limitations under the License.
  */
 
-/** URL-backed popout for one trace read through a TraceQL store, over any
- *  page: `?traceqlId=` with `?ds=` naming the store, as the TraceQL card's
- *  shareable URL writes them. A layer's TraceQL row opens the same id itself
- *  — with a list beside it — but only from its own store, so the popout
- *  stands aside on the row of the store it was asked for, and on no other. */
+/** URL-backed popout for one trace read through a TraceQL datasource, over
+ *  any page: `?traceId=` with `?traceType=traceql-<datasource>`, and
+ *  `?traceSpanId=` naming a span to select. A layer's TraceQL row opens the
+ *  same id itself — with a list beside it — but only from its own datasource,
+ *  so the popout stands aside on the row of the datasource it was asked for,
+ *  and on no other. */
 
 import { computed } from 'vue';
-import { useRoute, useRouter, type LocationQuery } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { TraceQLDatasource } from '@skywalking-horizon-ui/api-client';
 import { routeRow } from '@/utils/layerRoute';
-import { TRACEQL_DS_QUERY, TRACEQL_POPOUT_QUERY, TRACEQL_SPAN_QUERY, traceqlRowDatasource } from './traceqlDetailShared';
-
-const DATASOURCES: readonly TraceQLDatasource[] = ['native', 'zipkin', 'otlp'];
+import { TRACE_POPOUT_QUERY, TRACE_POPOUT_SPAN, TRACE_POPOUT_TYPE, clearTraceAddress, traceStoreOf, withTraceFocus } from '@/layer/traces/tracePopoutQuery';
+import { traceqlRowDatasource, traceqlSource, traceqlSourceDatasource } from './traceqlDetailShared';
 
 export function useTraceQLTracePopout() {
   const route = useRoute();
   const router = useRouter();
 
   const open = computed<{ traceId: string; ds: TraceQLDatasource; spanId: string | null } | null>(() => {
-    const id = route.query[TRACEQL_POPOUT_QUERY];
-    const ds = route.query[TRACEQL_DS_QUERY];
-    const spanId = route.query[TRACEQL_SPAN_QUERY];
-    if (typeof id !== 'string' || !id) return null;
-    if (typeof ds !== 'string' || !(DATASOURCES as readonly string[]).includes(ds)) return null;
+    const id = route.query[TRACE_POPOUT_QUERY];
+    const ds = traceqlSourceDatasource(traceStoreOf(route.query));
+    if (typeof id !== 'string' || !id || !ds) return null;
     if (traceqlRowDatasource(routeRow(route)) === ds) return null;
-    return { traceId: id, ds: ds as TraceQLDatasource, spanId: typeof spanId === 'string' && spanId ? spanId : null };
+    const spanId = route.query[TRACE_POPOUT_SPAN];
+    return { traceId: id, ds, spanId: typeof spanId === 'string' && spanId ? spanId : null };
   });
 
   function openTrace(id: string, ds: TraceQLDatasource, options?: { spanId?: string | null }): void {
     if (!id) return;
-    const query: LocationQuery = { ...route.query, [TRACEQL_POPOUT_QUERY]: id, [TRACEQL_DS_QUERY]: ds };
-    if (options?.spanId) query[TRACEQL_SPAN_QUERY] = options.spanId;
-    else delete query[TRACEQL_SPAN_QUERY];
+    const query = withTraceFocus(
+      { ...clearTraceAddress(route.query), [TRACE_POPOUT_QUERY]: id, [TRACE_POPOUT_TYPE]: traceqlSource(ds) },
+      { spanId: options?.spanId },
+    );
     void router.push({ path: route.path, query });
   }
 
   function closeTrace(): void {
     if (!open.value) return;
-    const query = { ...route.query };
-    delete query[TRACEQL_POPOUT_QUERY];
-    delete query[TRACEQL_DS_QUERY];
-    delete query[TRACEQL_SPAN_QUERY];
-    void router.replace({ path: route.path, query });
+    void router.replace({ path: route.path, query: clearTraceAddress(route.query) });
   }
 
   return { open, openTrace, closeTrace };

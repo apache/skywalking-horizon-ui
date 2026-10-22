@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP に保存された内容は、そこから作られるページを壊してしまいます。再度有効化しても、内容は無効なまま戻ります。",
   "Record trace": "レコードのトレース",
   "Trace store": "トレースストア",
-  "none — the layer's trace popout": "なし — レイヤーのトレースポップアウト",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "このウィジェットのトレース ID が保存されているストア。行のトレースアイコンは、そこからトレースをページ上に開きます。",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "未設定：組み込みのデフォルトメトリクスが適用されます。ここで変更すると、このレイヤー独自の設定が作成され、デフォルトは置き換えられます。",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP の TraceQL には、設定されたパスに {name} データソースがありません。OAP で有効にする（{setting}=true、SW_TRACEQL=default と併せて）か、OAP が別のコンテキストパスで提供している場合は {pathKey} を修正してください。"
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP の TraceQL には、設定されたパスに {name} データソースがありません。OAP で有効にする（{setting}=true、SW_TRACEQL=default と併せて）か、OAP が別のコンテキストパスで提供している場合は {pathKey} を修正してください。",
+  "not set — its trace icon opens a notice": "未設定 — トレースアイコンは通知を表示します",
+  "Trace link not valid": "無効なトレースリンク",
+  "not set": "未設定",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "レコード一覧のトレースアイコンからここに来るのは、そのウィジェットがトレースストアを指定していない場合です。レイヤーダッシュボードエディターの「レコードのトレース」で指定してください。",
+  "Query it from one of these trace sources:": "次のいずれかのトレースソースから照会します:"
 }

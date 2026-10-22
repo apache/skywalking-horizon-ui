@@ -65,7 +65,7 @@ async function openPopout(
   extra: Record<string, string> = {},
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
 ): Promise<VueWrapper> {
-  await router.push({ path: '/layer/mesh/trace', query: { traceId: TRACE, traceType: 'OTLP', ...extra } });
+  await router.push({ path: '/layer/mesh/trace', query: { traceId: TRACE, traceType: 'zipkin', ...extra } });
   wrapper = mount(ZipkinTracePopout, {
     global: { plugins: [router, i18n, [VueQueryPlugin, { queryClient }]] },
   });
@@ -107,6 +107,22 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   vi.unstubAllGlobals();
+});
+
+describe('Zipkin trace popout — an id Zipkin cannot hold', () => {
+  it('says there is no such trace, at once and without re-reading', async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => jsonResponse({ source: 'zipkin', traceId: TRACE, spans: [], reachable: true, notFound: true, invalidId: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const w = await openPopout();
+      expect(w.get('.zk-empty').text()).toBe('No trace with that id.');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/api/zipkin/trace/'))).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('Zipkin trace popout — a picked span opens in a dialog over the waterfall', () => {

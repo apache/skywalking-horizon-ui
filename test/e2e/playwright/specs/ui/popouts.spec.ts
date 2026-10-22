@@ -62,12 +62,11 @@ test('a log row jumps to the trace popout and back', async ({ page, pageErrors }
   await chip.click();
 
   // The popout is global (mounted in AppShell) and URL-addressable, so a
-  // shared link reopens it. Both halves matter.
-  //
-  // The param is `traceId` — note the source comment in useTracePopout says
-  // `openTraceId`, but TRACE_POPOUT_QUERY is what the code actually uses.
+  // shared link reopens it. Both halves matter. A log carries only the id, so
+  // the link names the trace source of the layer's own traces.
   await expect(page.locator('.tp-backdrop')).toBeVisible({ timeout: 45_000 });
   expect(page.url()).toContain('traceId=');
+  expect(page.url()).toContain('traceType=native');
   await expect(page.locator('.tp-head')).toBeVisible();
 
   // Dismissing must return to the logs, not unmount the host: a popout that

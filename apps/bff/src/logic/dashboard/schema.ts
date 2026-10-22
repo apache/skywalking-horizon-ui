@@ -79,8 +79,8 @@ const leafWidgetSchema = z.object({
     .optional()
     .catch(undefined),
   // Which store a `record` widget's trace ids open in. Tolerant too on read: a
-  // bad value falls back to the layer's own popout (native, or Zipkin on a
-  // Zipkin-only layer); push and import refuse it (`publishProblems`).
+  // bad value reads as none, whose trace icon asks which source to query;
+  // push and import refuse it (`publishProblems`).
   recordTrace: z
     .object({ source: z.enum(['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp']) })
     .optional()

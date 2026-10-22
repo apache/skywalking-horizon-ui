@@ -42,10 +42,9 @@ describe('useTraceQLTracePopout', () => {
   it('opens on the current page and closes back to it', async () => {
     const { router, api } = await harness('/layer/otlp_virtual_database/service?service=db');
     api.openTrace('abc123', 'otlp');
-    await router.isReady();
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.path).toBe('/layer/otlp_virtual_database/service');
-    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'abc123', ds: 'otlp' });
+    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceId: 'abc123', traceType: 'traceql-otlp' });
     expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: null });
     api.closeTrace();
     await new Promise((r) => setTimeout(r));
@@ -53,37 +52,37 @@ describe('useTraceQLTracePopout', () => {
     expect(api.open.value).toBeNull();
   });
 
-  it('stands aside on the TraceQL row of the store it names, whose view opens the id itself', async () => {
-    const { api } = await harness('/layer/otlp_service/traceql-otlp-trace?traceqlId=abc123&ds=otlp');
+  it('stands aside on the TraceQL row of the datasource it names, whose view opens the id itself', async () => {
+    const { api } = await harness('/layer/otlp_service/traceql-otlp-trace?traceId=abc123&traceType=traceql-otlp');
     expect(api.open.value).toBeNull();
   });
 
-  it('opens on a TraceQL row of another store, from the store it names', async () => {
-    const { router, api } = await harness('/layer/general/traceql-native-trace?traceqlId=abc123&ds=otlp');
+  it('opens on a TraceQL row of another datasource', async () => {
+    const { router, api } = await harness('/layer/general/traceql-native-trace?traceId=abc123&traceType=traceql-otlp');
     expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: null });
     api.closeTrace();
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.query).toEqual({});
   });
 
-  it('carries a span to open selected, and clears it on close and for a trace opened without one', async () => {
-    const { router, api } = await harness('/layer/general/service?service=db');
+  it('carries a span to select, and replaces the trace address it opens over', async () => {
+    const { router, api } = await harness('/layer/general/service?service=db&traceAt=1&traceSegmentId=seg');
     api.openTrace('abc123', 'otlp', { spanId: 'span-1' });
     await new Promise((r) => setTimeout(r));
-    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'abc123', ds: 'otlp', traceqlSpanId: 'span-1' });
+    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceId: 'abc123', traceType: 'traceql-otlp', traceSpanId: 'span-1' });
     expect(api.open.value).toEqual({ traceId: 'abc123', ds: 'otlp', spanId: 'span-1' });
-    api.openTrace('def456', 'otlp');
+    api.openTrace('def456', 'native');
     await new Promise((r) => setTimeout(r));
-    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceqlId: 'def456', ds: 'otlp' });
-    api.openTrace('abc123', 'otlp', { spanId: 'span-1' });
-    await new Promise((r) => setTimeout(r));
+    expect(router.currentRoute.value.query).toEqual({ service: 'db', traceId: 'def456', traceType: 'traceql-native' });
     api.closeTrace();
     await new Promise((r) => setTimeout(r));
     expect(router.currentRoute.value.query).toEqual({ service: 'db' });
   });
 
-  it('needs a known datasource', async () => {
-    const { api } = await harness('/layer/general/service?traceqlId=abc123&ds=tempo');
-    expect(api.open.value).toBeNull();
+  it('leaves a trace read by the native or Zipkin query, or by none named, to their popouts', async () => {
+    for (const query of ['traceId=abc123', 'traceId=abc123&traceType=zipkin', 'traceId=abc123&traceType=native', 'traceId=abc123&traceType=tempo']) {
+      const { api } = await harness(`/layer/general/service?${query}`);
+      expect(api.open.value, query).toBeNull();
+    }
   });
 });

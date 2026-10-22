@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "Le contenu stocké dans OAP casserait les pages construites à partir de lui. Une fois réactivé, ce modèle reste invalide.",
   "Record trace": "Trace de l'enregistrement",
   "Trace store": "Stockage des traces",
-  "none — the layer's trace popout": "aucun — la fenêtre de trace de la couche",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "Le stockage qui contient les ids de trace de ce widget. L'icône de trace d'une ligne ouvre la trace depuis celui-ci, par-dessus la page.",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Non configuré : les métriques par défaut intégrées s'appliquent. Toute modification ici crée la configuration propre de cette couche, qui les remplace.",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "Le TraceQL d’OAP n’a pas de source de données {name} au chemin configuré. Activez-la dans OAP ({setting}=true, avec SW_TRACEQL=default), ou corrigez {pathKey} si OAP la sert sur un autre chemin de contexte."
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "Le TraceQL d’OAP n’a pas de source de données {name} au chemin configuré. Activez-la dans OAP ({setting}=true, avec SW_TRACEQL=default), ou corrigez {pathKey} si OAP la sert sur un autre chemin de contexte.",
+  "not set — its trace icon opens a notice": "non défini — l'icône de trace ouvre un avertissement",
+  "Trace link not valid": "Lien de trace non valide",
+  "not set": "non défini",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "L'icône de trace d'une liste d'enregistrements mène ici quand son widget n'indique aucun stockage des traces. Définissez-le sous Trace de l'enregistrement, dans l'éditeur des tableaux de bord par couche.",
+  "Query it from one of these trace sources:": "L'interroger depuis l'une de ces sources de traces :"
 }

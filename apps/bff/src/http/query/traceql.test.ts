@@ -430,6 +430,22 @@ describe('the routes', () => {
     expect(out).not.toHaveProperty('served');
   });
 
+  it('answers no such trace, without asking OAP, for an id the Zipkin datasource cannot hold', async () => {
+    const asked: string[] = [];
+    const fetch: FetchLike = async (url) => { asked.push(String(url)); return new Response('Status: 400\nDescription: Bad Request', { status: 400 }); };
+    const { app, sid } = await build(fetch, { zipkinUrl: ZIPKIN_URL, nativeUrl: NATIVE_URL });
+    expect(await get(app, sid, '/api/traceql/zipkin/trace/0e03a1af-cb7d-47c8')).toMatchObject({ reachable: true, notFound: true, invalidId: true, spans: [] });
+    expect(asked).toEqual([]);
+    // Any other datasource, and any 400 OAP gives, stays a failure.
+    const native = await get(app, sid, '/api/traceql/native/trace/0e03a1af-cb7d-47c8');
+    expect(native).toMatchObject({ reachable: false, notFound: false });
+    expect(native).not.toHaveProperty('invalidId');
+    // A Zipkin id OAP answers 400 for — some other parameter — stays a failure too.
+    const zipkin = await get(app, sid, '/api/traceql/zipkin/trace/abc123');
+    expect(zipkin).toMatchObject({ reachable: false, notFound: false });
+    expect(zipkin).not.toHaveProperty('invalidId');
+  });
+
   it('answers configured false for a trace on a source with no URL', async () => {
     const { app, sid } = await build(async () => json({}), {});
     expect(await get(app, sid, '/api/traceql/otlp/trace/abc')).toMatchObject({ reachable: false, notFound: false, configured: false });

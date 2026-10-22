@@ -53,13 +53,14 @@ const { data, spans, isLoading, isFetching, error, refetch } = useZipkinTrace(tr
   lookback: computed(() => openTraceWindow.value?.lookback ?? null),
 });
 // OAP has no record of a trace for a moment after what named it landed; a
-// 404 is `notFound`, an empty answer to re-read, where a real failure is not.
+// 404 is `notFound`, an empty answer to re-read, where a real failure — or an
+// id Zipkin cannot hold at all — is not.
 const { pending: stillLooking } = useEmptyTraceRetry({
   active: computed(() => openTraceId.value != null),
   key: openTraceId,
   empty: computed(() => spans.value.length === 0),
   busy: isFetching,
-  failed: computed(() => !!error.value || (data.value?.reachable === false && !data.value?.notFound)),
+  failed: computed(() => !!error.value || data.value?.invalidId === true || (data.value?.reachable === false && !data.value?.notFound)),
   refetch,
 });
 
@@ -253,7 +254,7 @@ function copyTraceId(): void {
       </header>
 
       <div v-if="!isLoading && spans.length === 0" class="zk-empty">
-        {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('No spans returned for this trace.') }}
+        {{ data?.invalidId ? t('No trace with that id.') : stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('No spans returned for this trace.') }}
       </div>
 
       <template v-else>

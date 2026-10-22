@@ -32,7 +32,8 @@ import TraceQLWaterfall from './TraceQLWaterfall.vue';
 import TraceQLTreeView from './TraceQLTreeView.vue';
 import TraceQLStatsView from './TraceQLStatsView.vue';
 import TraceQLSpanModal from './TraceQLSpanModal.vue';
-import { buildServiceColors, fmtDateTime, fmtMs, serviceColorFrom, TRACEQL_POPOUT_QUERY } from './traceqlDetailShared';
+import { buildServiceColors, fmtDateTime, fmtMs, serviceColorFrom, traceqlSource } from './traceqlDetailShared';
+import { traceLink } from '@/layer/traces/tracePopoutQuery';
 import { copyText } from '@/utils/clipboard';
 
 const props = defineProps<{
@@ -100,10 +101,8 @@ function copyTraceId(): void {
   void copyText(props.traceId).then((done) => { if (done) flashCopy('id'); });
 }
 function copyShareableUrl(): void {
-  const url = new URL(globalThis.location.href);
   // The REAL id, the one every other surface shows — never the hex wire form.
-  url.searchParams.set(TRACEQL_POPOUT_QUERY, props.traceId);
-  url.searchParams.set('ds', props.ds);
+  const url = traceLink(globalThis.location.href, props.traceId, traceqlSource(props.ds));
   void copyText(url.toString()).then((done) => { if (done) flashCopy('url'); });
 }
 onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });

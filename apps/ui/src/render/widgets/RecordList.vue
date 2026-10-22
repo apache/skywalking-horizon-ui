@@ -20,8 +20,8 @@
 
     - a jump-to-trace icon at the head, shown ONLY when the sample carries
       a trace id (these are sampled, so the trace can be absent). The
-      widget's `recordTrace` names the store the id lives in; absent, it is
-      the layer's own popout (native, or Zipkin on a Zipkin-only layer);
+      widget's `recordTrace` names the trace source that reads the id;
+      a widget naming none opens the notice that says so;
     - the statement text, click-to-copy;
     - the metric value (latency) + unit.
 
@@ -57,15 +57,14 @@ const TRACEQL_DS: Record<string, TraceQLDatasource> = {
   'traceql-otlp': 'otlp',
 };
 
-/** Every store opens its popout over this page, so the menu stays put. With
- *  no store named, the layer's trace config picks the native or Zipkin popout,
- *  as it always has; a named `native` says so outright. */
+/** Every source opens its popout over this page, so the menu stays put. */
 function openTrace(id: string): void {
   const source = props.trace?.source;
   if (source === 'zipkin') openZipkinTrace(id);
   else if (source && TRACEQL_DS[source]) openTraceQLTrace(id, TRACEQL_DS[source]);
-  else if (source === 'native') openNativeTrace(id, undefined, 'SKYWALKING_NATIVE');
-  else openNativeTrace(id);
+  else if (source === 'native') openNativeTrace(id, 'native');
+  // None named: the link carries the id alone, and the notice says so.
+  else openNativeTrace(id, null);
 }
 
 const copiedIdx = ref<number | null>(null);

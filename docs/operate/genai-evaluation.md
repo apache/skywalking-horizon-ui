@@ -59,7 +59,7 @@ Above the list, the **Evaluation Levels** strip shows each level's share of the 
 
 ## Conditions
 
-Conditions are staged as you edit them and applied when you press **Run query**, as on the Logs and Traces tabs. Opening the tab reads nothing until then; a switch of provider clears the list back to the prompt.
+Conditions are staged as you edit them and applied when you press **Run query**, as on the Logs and Traces tabs. Opening the tab reads nothing until then, except from a link that carries a trace or a dashboard's time window, which runs at once; a switch of provider clears the list back to the prompt.
 
 - **Provider** — the provider whose records to read. The tab opens on the layer's first provider; the picker filters as you type.
 
@@ -75,7 +75,7 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 - **Sort by** — newest first, or by score in either direction when the value type is Score.
 
-- **Trace ID** — records judged from one trace. Pick its **Trace store** beside it, the store the trace was written to: **SkyWalking Native** for a trace from a SkyWalking agent, **OTLP** for OpenTelemetry spans OAP stores as OTLP, **Zipkin** for spans that reached OAP's Zipkin receiver or that OAP converted with `otlpTraceStorage: zipkin`. The store has to match: when OAP converts OTLP spans, a trace from an OpenTelemetry service is under **Zipkin**, and **OTLP** finds nothing for it. The condition can then narrow to one span of that trace, which is how a call with several LLM spans is told apart:
+- **Trace ID** — records judged from one trace. Pick its **Trace store** beside it, the store the trace was written to: **SkyWalking Native** for a trace from a SkyWalking agent, **OTLP** for OpenTelemetry spans OAP stores as OTLP, **Zipkin** for spans that reached OAP's Zipkin receiver or that OAP converted with `otlpTraceStorage: zipkin`. The store has to match: when OAP converts OTLP spans, a trace from an OpenTelemetry service is under **Zipkin**, and **OTLP** finds nothing for it. A Trace ID typed here is not kept in the page's address; a trace link fills it, with its store and span, when the tab opens — a span only where the link names it the way the store's condition does (a segment and index for **SkyWalking Native**, a span id for the others). The condition can then narrow to one span of that trace, which is how a call with several LLM spans is told apart:
 
   - **Pick span…** opens the trace from that store and lists its spans in start order. The GenAI spans, the ones carrying a response model, are marked **LLM**, and **LLM spans only** shows just them by default; a trace with none shows every span. The mark does not say whether the judge sampled a span. **Use** on a span fills the address; **Use whole trace** clears it.
 
@@ -87,7 +87,7 @@ Conditions are staged as you edit them and applied when you press **Run query**,
 
 ## Opening the trace
 
-The trace link opens the trace in a popout without leaving the list, with the judged span already selected, from the store the record names: a native trace on the native waterfall, a Zipkin trace on the Zipkin renderer, and an OTLP trace on the TraceQL view of OAP's OTLP store. A native or Zipkin lookup is bounded to the record's own time, so a trace that has aged into cold storage opens with the query cold stage on; for that read the cold stage replaces the hot and warm ones, so leave it off for a recent trace. An OTLP trace is looked up across everything OAP keeps in its hot and warm stages; Horizon does not read TraceQL's cold stage, so an OTLP trace that has aged into cold storage does not open. The popout is part of the page's address, so its URL can be shared; the browser's Back button closes a native or OTLP popout opened from the list. An OTLP popout that shows an error or no trace has no close button of its own: close it with Escape or by clicking outside it.
+The trace link opens the trace in a popout without leaving the list, with the judged span already selected, from the store the record names: a native trace on the native waterfall, a Zipkin trace on the Zipkin renderer, and an OTLP trace on the TraceQL view of OAP's OTLP store. A native or Zipkin lookup is bounded to the record's own time, so a trace that has aged into cold storage opens with the query cold stage on; for that read the cold stage replaces the hot and warm ones, so leave it off for a recent trace. An OTLP trace is looked up across everything OAP keeps in its hot and warm stages; Horizon does not read TraceQL's cold stage, so an OTLP trace that has aged into cold storage does not open. The popout is part of the page's address, so its URL can be shared; the browser's Back button closes a native or OTLP popout opened from the list. Opening the tab from such a link also fills its **Trace ID** condition with that trace, its store and its span, and the condition stays when the popout is closed. An OTLP popout that shows an error or no trace has no close button of its own: close it with Escape or by clicking outside it.
 
 ## From the dashboards
 

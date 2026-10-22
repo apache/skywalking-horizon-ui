@@ -24,7 +24,7 @@
      trace link opens the native or OTLP trace it was judged from.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { useI18n } from 'vue-i18n';
@@ -40,6 +40,7 @@ import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useResultTracePopout } from './useResultTracePopout';
+import { traceConditionOf } from './traceCondition';
 import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { useAuthStore } from '@/state/auth';
@@ -215,26 +216,12 @@ const modelTypeaheadOptions = computed(() => [
 ]);
 
 // — Query state ——————————————————————————
-// Trace ID is seeded by the route and remains editable in the condition bar.
-const traceIdParam = computed(() => {
-  const v = route.query.evaluationTraceId;
-  return typeof v === 'string' && v.length > 0 ? v : null;
-});
-// Keep the route-provided value visible and editable. Updating or clearing
-// the field updates the route-provided condition as well.
-const traceIdInput = ref(queryString('evaluationTraceId') ?? '');
-watch(traceIdParam, (next) => {
-  const value = next ?? '';
-  if (traceIdInput.value !== value) traceIdInput.value = value;
-}, { immediate: true });
-watch(traceIdInput, (value) => {
-  const next = value.trim();
-  if (next === (traceIdParam.value ?? '')) return;
-  const query = { ...route.query };
-  if (next) query.evaluationTraceId = next;
-  else delete query.evaluationTraceId;
-  void router.replace({ path: route.path, query });
-});
+// A link carrying a trace — the address every trace link writes — fills the
+// trace condition once, as the page opens. After that the condition is the
+// operator's: the same address opens a record's trace popout, so typing here
+// must not write it, and opening or closing a popout must not change it.
+const linkedTrace = traceConditionOf(route.query);
+const traceIdInput = ref(linkedTrace?.traceId ?? '');
 // Free-text content search is intentionally NOT exposed. OAP's
 // content-keyword filter is opt-in per storage backend (off on the
 // stock H2 store) and indexing across full log bodies has surprising
@@ -264,19 +251,32 @@ const traceIdRef = computed<string | null>(() => {
 });
 // The store is only needed when locating a specific trace. OAP matches it
 // exactly, and it sets how a span of that trace is addressed.
-const traceTypeRef = ref<GenAITraceRefType>('SKYWALKING_NATIVE');
+const traceTypeRef = ref<GenAITraceRefType>(linkedTrace?.type ?? 'SKYWALKING_NATIVE');
 // Narrowing to ONE span of that trace: typed in (ids copied from logs) or
 // picked from the trace. A span belongs to its trace and scheme, so both
 // reset the narrowing.
-const traceSegmentIdInput = ref('');
-const traceSpanIndexInput = ref<number | ''>('');
-const traceSpanIdInput = ref('');
+const traceSegmentIdInput = ref(linkedTrace?.segmentId ?? '');
+const traceSpanIndexInput = ref<number | ''>(linkedTrace?.spanIndex ?? '');
+const traceSpanIdInput = ref(linkedTrace?.spanId ?? '');
 function clearSpanNarrowing(): void {
   traceSegmentIdInput.value = '';
   traceSpanIndexInput.value = '';
   traceSpanIdInput.value = '';
 }
 watch([traceIdRef, traceTypeRef], clearSpanNarrowing);
+// The view is reused from one layer group's tab to the next; each takes the
+// trace its own link carries, as it would opening fresh. The span goes in a
+// tick later, after the trace change has cleared the old one.
+watch(layerKey, () => {
+  const next = traceConditionOf(route.query);
+  traceIdInput.value = next?.traceId ?? '';
+  traceTypeRef.value = next?.type ?? 'SKYWALKING_NATIVE';
+  void nextTick(() => {
+    traceSegmentIdInput.value = next?.segmentId ?? '';
+    traceSpanIndexInput.value = next?.spanIndex ?? '';
+    traceSpanIdInput.value = next?.spanId ?? '';
+  });
+});
 const traceSegmentIdRef = computed<string | null>(() =>
     traceTypeRef.value === 'SKYWALKING_NATIVE' ? traceSegmentIdInput.value.trim() || null : null);
 const traceSpanIndexRef = computed<number | null>(() => {
@@ -683,7 +683,7 @@ function jumpToTrace(traceId: string, ts?: number, traceType: GenAITraceRefType 
 // carrying a trace id. Those run once the provider resolves, the way the
 // metric→trace drill does on the Traces tab; a plain open waits for Run query.
 // Declared last: it fires during setup and reads everything above.
-const drillArmed = ref(traceIdParam.value != null || (startTimeParam.value != null && endTimeParam.value != null));
+const drillArmed = ref(linkedTrace != null || (startTimeParam.value != null && endTimeParam.value != null));
 watch([drillArmed, providerReady], ([armed, ready]) => {
   if (!armed || !ready) return;
   drillArmed.value = false;
@@ -777,8 +777,6 @@ watch([drillArmed, providerReady], ([armed, ready]) => {
             </select>
           </div>
         </label>
-        <!-- Trace ID. Bound directly — each keystroke updates the
-             query. URL `?traceId=` still overrides. -->
         <label class="cf cf-wide">
           <span>Trace ID</span>
           <input

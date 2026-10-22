@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "OAP 中存储的内容会破坏据此生成的页面。重新启用后它仍然无效。",
   "Record trace": "记录追踪",
   "Trace store": "追踪存储",
-  "none — the layer's trace popout": "无 — 该层的追踪弹窗",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "该部件的追踪 ID 所在的存储。行首的追踪图标会从该存储打开追踪，显示在当前页面之上。",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "未配置：使用内置的默认指标。在此做任何更改都会创建该 layer 自己的配置，并替换默认指标。",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP 的 TraceQL 在所配置的路径上没有 {name} 数据源。请在 OAP 中启用它（{setting}=true，并设置 SW_TRACEQL=default）；如果 OAP 在其他上下文路径上提供它，请更正 {pathKey}。"
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP 的 TraceQL 在所配置的路径上没有 {name} 数据源。请在 OAP 中启用它（{setting}=true，并设置 SW_TRACEQL=default）；如果 OAP 在其他上下文路径上提供它，请更正 {pathKey}。",
+  "not set — its trace icon opens a notice": "未设置 — 追踪图标将打开提示",
+  "Trace link not valid": "追踪链接无效",
+  "not set": "未设置",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "记录列表的追踪图标在其组件未指定追踪存储时会来到这里。请在层级仪表板编辑器的“记录追踪”中指定。",
+  "Query it from one of these trace sources:": "从以下任一追踪源查询："
 }

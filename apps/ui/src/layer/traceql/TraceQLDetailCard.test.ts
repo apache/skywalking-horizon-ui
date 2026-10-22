@@ -15,12 +15,15 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, expect, it, vi } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 import { i18n } from '@/i18n';
 import TraceQLDetailCard from './TraceQLDetailCard.vue';
 import TraceQLSpanModal from './TraceQLSpanModal.vue';
+
+const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => true) }));
+vi.mock('@/utils/clipboard', () => clipboard);
 
 function span(spanId: string): TraceQLSpan {
   return {
@@ -63,5 +66,35 @@ describe('TraceQL detail card span focus', () => {
     await wrapper.setProps({ traceId: 'trace-2', spans: [span('b')], focusSpanId: 'b' });
     expect(wrapper.getComponent(TraceQLSpanModal).props('span')).toMatchObject({ spanId: 'b' });
     wrapper.unmount();
+  });
+});
+
+describe('TraceQL detail card shareable URL', () => {
+  it('copies the trace address with its datasource, replacing the one the page carried', async () => {
+    window.history.replaceState({}, '', '/layer/general/service?service=a&traceId=n1&traceType=native&traceSpanId=s');
+    try {
+      const wrapper = mountCard({ traceId: 'o1', spans: [] });
+      await wrapper.get('button[title="Copy shareable URL"]').trigger('click');
+      await flushPromises();
+      wrapper.unmount();
+      const copied = new URL(clipboard.copyText.mock.lastCall?.[0] ?? '');
+      expect(Object.fromEntries(copied.searchParams)).toEqual({ service: 'a', traceId: 'o1', traceType: 'traceql-otlp' });
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+
+  it('keeps the span a link to the same trace selects, as an evaluation record\'s link does', async () => {
+    window.history.replaceState({}, '', '/layer/virtual_genai/evaluation-record?traceId=o1&traceType=traceql-otlp&traceSpanId=judged');
+    try {
+      const wrapper = mountCard({ traceId: 'o1', spans: [] });
+      await wrapper.get('button[title="Copy shareable URL"]').trigger('click');
+      await flushPromises();
+      wrapper.unmount();
+      const copied = new URL(clipboard.copyText.mock.lastCall?.[0] ?? '');
+      expect(Object.fromEntries(copied.searchParams)).toEqual({ traceId: 'o1', traceType: 'traceql-otlp', traceSpanId: 'judged' });
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
   });
 });

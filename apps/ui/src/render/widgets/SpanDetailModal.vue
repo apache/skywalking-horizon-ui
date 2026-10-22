@@ -98,7 +98,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
               <template v-for="(r, i) in span.refs" :key="i">
                 <tr v-if="r.traceId !== traceId">
                   <td>
-                    <button class="trace-link mono" type="button" @click="openTrace(r.traceId)">{{ r.traceId }} ↗</button>
+                    <button class="trace-link mono" type="button" @click="openTrace(r.traceId, 'native')">{{ r.traceId }} ↗</button>
                   </td>
                   <td class="mono dim">{{ r.parentSegmentId }}</td>
                   <td class="num mono">{{ r.parentSpanId }}</td>

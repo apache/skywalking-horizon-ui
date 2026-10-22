@@ -198,6 +198,7 @@ The data source returns a record set (rows × typed columns) rather than a numer
   "title": "Slow SQL",
   "type": "record",
   "expressions": ["top_n(database_slow_statement, 20, des)"],
+  "recordTrace": { "source": "native" },
   "span": 6,
   "rowSpan": 4
 }
@@ -217,7 +218,7 @@ A record's trace id belongs to whichever store kept the trace, and the widget ca
 
 | Trace store | Where the trace opens |
 |---|---|
-| none | The layer's own trace popout: the native one, or the Zipkin one on a layer whose traces are Zipkin only. |
+| not set | A notice that asks which trace source to query; the trace opens from the one picked. |
 | `native` | The native trace popout, whatever the layer's trace stores. |
 | `zipkin` | The Zipkin trace popout. |
 | `traceql-native`, `traceql-zipkin`, `traceql-otlp` | The TraceQL trace popout, reading that store. |
@@ -230,7 +231,7 @@ Each popout opens over the dashboard and closes back to it, so the page and its 
 "recordTrace": { "source": "traceql-otlp" }
 ```
 
-Publishing or importing a template refuses a `recordTrace` that names no known store, and one on a widget that is not a `record`. A template already stored with a bad value still loads; its trace icon opens the layer's own popout.
+Publishing or importing a template refuses a `recordTrace` that names no known store, and one on a widget that is not a `record`. A template already stored with a bad value still loads; its trace icon asks which trace source to query, as with none set.
 
 ## `table`
 

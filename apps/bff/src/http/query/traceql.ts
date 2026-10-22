@@ -33,7 +33,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { serviceFilterOf } from '@skywalking-horizon-ui/api-client';
+import { normalizeZipkinTraceId, serviceFilterOf } from '@skywalking-horizon-ui/api-client';
 import type {
   FetchLike,
   TraceQLDatasource,
@@ -228,6 +228,14 @@ export function registerTraceQLRoutes(app: FastifyInstance, deps: TraceQLRouteDe
       if (!opts) {
         return reply.send({
           ds, traceId, spans: [], reachable: false, notFound: false, configured: false,
+        } satisfies TraceQLTraceDetailResponse);
+      }
+      // Not an id Zipkin can hold, so the Zipkin datasource holds no trace with
+      // it: an answer, not a failure. OAP is not asked — its 400 would not say
+      // which parameter it refused.
+      if (ds === 'zipkin' && normalizeZipkinTraceId(traceId) === null) {
+        return reply.send({
+          ds, traceId, spans: [], reachable: true, notFound: true, invalidId: true,
         } satisfies TraceQLTraceDetailResponse);
       }
       try {

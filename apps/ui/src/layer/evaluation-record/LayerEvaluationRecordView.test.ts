@@ -335,7 +335,7 @@ describe('related trace span narrowing', () => {
         { key: 'gen_ai.response.model', value: 'gpt-4.1-mini' }, { key: 'gen_ai.provider.name', value: 'openai' },
       ] }),
     ] } });
-    await openPage('&evaluationTraceId=trace-1');
+    await openPage('&traceId=trace-1&traceType=native');
     expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceId: 'trace-1', traceType: 'SKYWALKING_NATIVE' });
     expect(api.list.mock.lastCall?.[1].traceSegmentId).toBeUndefined();
 
@@ -375,7 +375,7 @@ describe('related trace span narrowing', () => {
         .mockResolvedValue({ generatedAt: 0, source: 'native', native: { spans: [
           span({ spanId: 3, layer: 'GenAI', endpointName: 'chat', tags: [{ key: 'gen_ai.response.model', value: 'gpt-4.1-mini' }] }),
         ] } });
-      await openPage('&evaluationTraceId=trace-1');
+      await openPage('&traceId=trace-1&traceType=native');
       await wrapper.get('.cf-pick-span').trigger('click');
       await flushPromises();
       const picker = () => document.querySelector('[role="dialog"] .sp')!;
@@ -396,7 +396,7 @@ describe('related trace span narrowing', () => {
     // A three-day custom range: a midpoint lookup would search only its middle day.
     const start = 1788134400000;
     const end = 1788393600000;
-    await openPage(`&evaluationTraceId=trace-1&startTime=${start}&endTime=${end}`);
+    await openPage(`&traceId=trace-1&traceType=native&startTime=${start}&endTime=${end}`);
     await wrapper.get('.cf-pick-span').trigger('click');
     await flushPromises();
     expect(api.traceDetail).toHaveBeenCalledWith('trace-1', 'native', { startMs: start - 3_600_000, endMs: end + 3_600_000, step: 'HOUR' });
@@ -404,7 +404,7 @@ describe('related trace span narrowing', () => {
 
   it('takes the rolling window when the picker opens, not when the page rendered', async () => {
     api.traceDetail.mockResolvedValue({ generatedAt: 0, source: 'native', native: { spans: [], reachable: true } });
-    await openPage('&evaluationTraceId=trace-1');
+    await openPage('&traceId=trace-1&traceType=native');
     const before = Date.now();
     await wrapper.get('.cf-pick-span').trigger('click');
     await flushPromises();
@@ -418,7 +418,7 @@ describe('related trace span narrowing', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
       api.traceDetail.mockResolvedValue({ generatedAt: 0, source: 'native', native: { spans: [], reachable: false, error: 'OAP timed out' } });
-      await openPage('&evaluationTraceId=trace-1');
+      await openPage('&traceId=trace-1&traceType=native');
       await wrapper.get('.cf-pick-span').trigger('click');
       await flushPromises();
       const picker = document.querySelector('[role="dialog"] .sp')!;
@@ -434,7 +434,7 @@ describe('related trace span narrowing', () => {
 
   it('hides Pick span… without traces:read, and leaves the address typable', async () => {
     authState.verbs = new Set(['logs:read']);
-    await openPage('&evaluationTraceId=trace-1');
+    await openPage('&traceId=trace-1&traceType=native');
     expect(wrapper.find('.cf-pick-span').exists()).toBe(false);
     expect(wrapper.find('.cf-segment-id').exists()).toBe(true);
   });
@@ -447,7 +447,7 @@ describe('related trace span narrowing', () => {
         .mockResolvedValue({ generatedAt: 0, source: 'zipkin', traceId: 'trace-1', reachable: true, spans: [
           { traceId: 'trace-1', id: 'bbbb', name: 'chat', timestamp: 1788393600001000, duration: 100000, localEndpoint: { serviceName: 'py' }, tags: { 'gen_ai.response.model': 'gpt-4.1-mini' } },
         ] });
-      await openPage('&evaluationTraceId=trace-1');
+      await openPage('&traceId=trace-1&traceType=native');
       await selectFor('Trace store').setValue('ZIPKIN');
       await wrapper.get('.cf-pick-span').trigger('click');
       await flushPromises();
@@ -463,13 +463,76 @@ describe('related trace span narrowing', () => {
     }
   });
 
+  it('takes its trace condition from a trace link, once, as the page opens', async () => {
+    await openPage('&traceId=trace-1&traceType=traceql-otlp&traceSpanId=bbbb');
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceId: 'trace-1', traceType: 'OTLP', traceSpanId: 'bbbb' });
+    expect((selectFor('Trace store').element as HTMLSelectElement).value).toBe('OTLP');
+
+    // A record's trace opening over the tab writes the same address; the
+    // condition stays the operator's.
+    await router.push({ query: { ...router.currentRoute.value.query, traceId: 'trace-2', traceType: 'zipkin' } });
+    await flushPromises();
+    expect((wrapper.get('.cf-trace-id').element as HTMLInputElement).value).toBe('trace-1');
+    expect((selectFor('Trace store').element as HTMLSelectElement).value).toBe('OTLP');
+
+    // And typing one does not write the address, which would open a popout.
+    const before = { ...router.currentRoute.value.query };
+    await wrapper.get('.cf-trace-id').setValue('trace-3');
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual(before);
+  });
+
+  it('takes a native span from a trace link by its segment and index', async () => {
+    await openPage('&traceId=trace-1&traceType=native&traceSegmentId=seg-1&traceSpanIndex=0');
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceId: 'trace-1', traceType: 'SKYWALKING_NATIVE', traceSegmentId: 'seg-1', traceSpanIndex: 0 });
+  });
+
+  it('takes a native span from a trace link by its segment and span id, as the native popout reads it', async () => {
+    await openPage('&traceId=trace-1&traceType=native&traceSegmentId=seg-1&traceSpanId=3');
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceId: 'trace-1', traceType: 'SKYWALKING_NATIVE', traceSegmentId: 'seg-1', traceSpanIndex: 3 });
+  });
+
+  it('reads a native span named both ways when the two agree', async () => {
+    await openPage('&traceId=trace-1&traceType=native&traceSegmentId=seg-1&traceSpanId=3&traceSpanIndex=3');
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceSegmentId: 'seg-1', traceSpanIndex: 3 });
+  });
+
+  it('narrows to neither span when a link names two different native spans', async () => {
+    await openPage('&traceId=trace-1&traceType=native&traceSegmentId=seg-1&traceSpanId=9&traceSpanIndex=0');
+    expect(api.list.mock.lastCall?.[1]).toMatchObject({ traceId: 'trace-1', traceType: 'SKYWALKING_NATIVE' });
+    expect(api.list.mock.lastCall?.[1].traceSpanIndex).toBeUndefined();
+  });
+
+  it('takes the trace of the group it moves to, not the one it came from', async () => {
+    await openPage('&traceId=trace-1&traceType=native&traceSegmentId=seg-1&traceSpanIndex=2', '/layer/general/payments/evaluation-records?providerId=provider');
+    expect((wrapper.get('.cf-trace-id').element as HTMLInputElement).value).toBe('trace-1');
+    await router.push('/layer/general/risk/evaluation-records?providerId=provider');
+    await flushPromises();
+    expect((wrapper.get('.cf-trace-id').element as HTMLInputElement).value).toBe('');
+    await router.push('/layer/general/payments/evaluation-records?providerId=provider&traceId=trace-9&traceType=zipkin&traceSpanId=s9');
+    await flushPromises();
+    expect((wrapper.get('.cf-trace-id').element as HTMLInputElement).value).toBe('trace-9');
+    expect((selectFor('Trace store').element as HTMLSelectElement).value).toBe('ZIPKIN');
+    expect((wrapper.get('.cf-span-id').element as HTMLInputElement).value).toBe('s9');
+  });
+
+  it('takes no condition, and runs nothing, from a link that names no trace source or one it does not know', async () => {
+    for (const link of ['&traceId=trace-1', '&traceId=trace-1&traceType=OTLP']) {
+      api.list.mockClear();
+      await openPage(link);
+      expect(api.list, link).not.toHaveBeenCalled();
+      expect((wrapper.get('.cf-trace-id').element as HTMLInputElement).value, link).toBe('');
+      wrapper.unmount();
+    }
+  });
+
   it('addresses a Zipkin span by its span id, typed or picked', async () => {
     api.zipkinTrace.mockResolvedValue({ generatedAt: 0, spans: [
       { traceId: 'trace-1', id: 'aaaa', name: 'GET /', timestamp: 1788393600000000, duration: 200000, localEndpoint: { serviceName: 'py' }, tags: {} },
       { traceId: 'trace-1', id: 'bbbb', parentId: 'aaaa', name: 'chat gpt-4.1-mini', timestamp: 1788393600001000, duration: 100000,
         localEndpoint: { serviceName: 'py' }, tags: { 'gen_ai.response.model': 'gpt-4.1-mini', 'gen_ai.system': 'openai' } },
     ] });
-    await openPage('&evaluationTraceId=trace-1');
+    await openPage('&traceId=trace-1&traceType=native');
     await selectFor('Trace store').setValue('ZIPKIN');
     await flushPromises();
     await wrapper.get('.cf-span-id').setValue('typed-span');
@@ -499,7 +562,7 @@ describe('related trace span narrowing', () => {
         startUs: 1788393600001000, durationUs: 100000, status: 'ok', events: [],
         attributes: [{ key: 'gen_ai.response.model', value: 'gpt-4.1-mini' }, { key: 'gen_ai.provider.name', value: 'openai' }] },
     ] });
-    await openPage('&evaluationTraceId=trace-1');
+    await openPage('&traceId=trace-1&traceType=native');
     await selectFor('Trace store').setValue('OTLP');
     await wrapper.get('.cf-pick-span').trigger('click');
     await flushPromises();
@@ -519,7 +582,7 @@ describe('related trace span narrowing', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
       api.traceqlTrace.mockResolvedValue({ ds: 'otlp', traceId: 'trace-1', spans: [], reachable: false, notFound: false, served: false });
-      await openPage('&evaluationTraceId=trace-1');
+      await openPage('&traceId=trace-1&traceType=native');
       await selectFor('Trace store').setValue('OTLP');
       await wrapper.get('.cf-pick-span').trigger('click');
       await flushPromises();
@@ -528,6 +591,23 @@ describe('related trace span narrowing', () => {
       await vi.advanceTimersByTimeAsync(3_000);
       await flushPromises();
       expect(api.traceqlTrace).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says there is no such trace, without looking again, for an id the Zipkin store refuses', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      api.zipkinTrace.mockResolvedValue({ source: 'zipkin', traceId: 'trace-1', spans: [], reachable: true, notFound: true, invalidId: true });
+      await openPage('&traceId=trace-1&traceType=native');
+      await selectFor('Trace store').setValue('ZIPKIN');
+      await wrapper.get('.cf-pick-span').trigger('click');
+      await flushPromises();
+      expect(document.querySelector('[role="dialog"] .sp')?.textContent).toContain('No trace with that id.');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await flushPromises();
+      expect(api.zipkinTrace).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

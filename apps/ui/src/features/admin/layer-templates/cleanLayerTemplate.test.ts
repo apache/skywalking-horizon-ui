@@ -94,6 +94,13 @@ describe('cleanLayerTemplate — what a save writes', () => {
     expect(kept.dashboards!.instance).toEqual([]);
   });
 
+  it('keeps an empty grid of any scope the template began with, so Reset to bundled then Save writes it as shipped', () => {
+    const bundled = layer({ dashboards: { service: [], trace: [], ebpfProfiling: [] } });
+    const saved = layer({ dashboards: { service: [], trace: [], ebpfProfiling: [] } });
+    cleanLayerTemplate(saved, bundled);
+    expect(saved.dashboards).toEqual({ service: [], trace: [], ebpfProfiling: [] });
+  });
+
   it('cleans each widget: legacy gate and coordinates, a value map without enum, cleared numbers', () => {
     const tpl = layer();
     Object.assign(widget(tpl), {

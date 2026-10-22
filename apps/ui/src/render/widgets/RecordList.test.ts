@@ -68,17 +68,17 @@ describe('RecordList — trace icon', () => {
     expect(rows[1].find('.rec-trace').exists()).toBe(false);
   });
 
-  it('opens the native popout when the widget names no store', async () => {
+  it('writes the id with no source when the widget names none, which opens the notice', async () => {
     const w = await mountAt('/');
     await w.find('.rec-trace').trigger('click');
-    expect(openNative).toHaveBeenCalledWith('abc123');
+    expect(openNative).toHaveBeenCalledWith('abc123', null);
     expect(openZipkin).not.toHaveBeenCalled();
   });
 
-  it('forces the native popout when the widget names the native store', async () => {
+  it('opens the native popout when the widget names the native source', async () => {
     const w = await mountAt('/', { source: 'native' });
     await w.find('.rec-trace').trigger('click');
-    expect(openNative).toHaveBeenCalledWith('abc123', undefined, 'SKYWALKING_NATIVE');
+    expect(openNative).toHaveBeenCalledWith('abc123', 'native');
   });
 
   it('opens the Zipkin popout for the zipkin store', async () => {

@@ -107,6 +107,10 @@ export interface TraceQLTraceDetailResponse {
   /** False when OAP answers but does not enable this datasource, as
    *  {@link TraceQLSourceStatus.served}. */
   served?: boolean;
+  /** With `notFound`: the id is not one the Zipkin datasource can hold, by
+   *  Zipkin's own id rule, checked before OAP is asked — so no trace with it
+   *  can turn up there, and there is nothing to wait for. */
+  invalidId?: boolean;
   error?: string;
 }
 
