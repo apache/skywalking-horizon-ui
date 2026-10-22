@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { clearTraceFocus, withTraceFocus } from './tracePopoutQuery';
+import { clearTraceAddress, traceLink, traceStoreOf, withTraceFocus } from './tracePopoutQuery';
 
 describe('trace popout query state', () => {
   it('adds focus fields without changing unrelated preview source', () => {
@@ -38,8 +38,33 @@ describe('trace popout query state', () => {
     expect(query.traceSpanIndex).toBe('0');
   });
 
-  it('clears focus fields while retaining trace type and source', () => {
-    const query = clearTraceFocus({ source: 'remote', traceType: 'OTLP', traceId: 'abc', traceSpanId: 's' });
-    expect(query).toEqual({ source: 'remote', traceType: 'OTLP', traceId: 'abc' });
+  it('clears the whole trace address and keeps the preview source', () => {
+    const query = clearTraceAddress({
+      source: 'remote', traceId: 'abc', traceType: 'zipkin', traceAt: '1', traceEnd: '2', traceLookback: '3',
+      traceSegmentId: 'seg', traceSpanIndex: '0', traceSpanId: 's', service: 'db',
+    });
+    expect(query).toEqual({ source: 'remote', service: 'db' });
+  });
+
+  it('names a trace source only for the names layer templates use', () => {
+    for (const type of ['native', 'zipkin', 'traceql-native', 'traceql-zipkin', 'traceql-otlp']) {
+      expect(traceStoreOf({ traceType: type })).toBe(type);
+    }
+    expect(traceStoreOf({ traceType: 'ZIPKIN' })).toBeNull();
+    expect(traceStoreOf({ traceType: 'otlp' })).toBeNull();
+    expect(traceStoreOf({ source: 'zipkin' })).toBeNull();
+  });
+
+  it('links a trace from the current page, dropping the address of another trace', () => {
+    const url = traceLink('http://ui/layer/general/service?service=db&traceId=old&traceAt=1&traceSpanId=s', 'new', 'traceql-native');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ service: 'db', traceId: 'new', traceType: 'traceql-native' });
+    expect(url.pathname).toBe('/layer/general/service');
+  });
+
+  it('keeps the span and window the page carries for the same trace', () => {
+    const url = traceLink('http://ui/x?traceId=t&traceType=traceql-otlp&traceSpanId=s&traceAt=1&traceSegmentId=g&traceSpanIndex=0', 't', 'traceql-otlp');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      traceId: 't', traceType: 'traceql-otlp', traceSpanId: 's', traceAt: '1', traceSegmentId: 'g', traceSpanIndex: '0',
+    });
   });
 });

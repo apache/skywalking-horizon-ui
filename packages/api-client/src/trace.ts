@@ -437,6 +437,10 @@ export interface ZipkinTraceDetailResponse {
    *  misconfigured Zipkin URL answers 404 too; a caller sure of the id can
    *  read it as "not there yet". */
   notFound?: boolean;
+  /** With `notFound`: the id is not one Zipkin can hold, by Zipkin's own id
+   *  rule, checked before OAP is asked — so no trace with it can turn up, and
+   *  there is nothing to wait for. */
+  invalidId?: boolean;
 }
 
 // When the operator picks `source = both`, the list endpoint fans

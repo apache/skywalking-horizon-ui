@@ -347,6 +347,7 @@ export function useTraceQLTrace(
     error: q.error,
     spans: computed(() => q.data.value?.spans ?? []),
     notFound: computed(() => q.data.value?.notFound ?? false),
+    invalidId: computed(() => q.data.value?.invalidId ?? false),
     reachable: computed(() => (q.error.value ? false : (q.data.value?.reachable ?? true))),
     isFetching: q.isFetching,
     refetch: q.refetch,

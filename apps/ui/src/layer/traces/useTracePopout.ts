@@ -22,8 +22,9 @@
  * span detail, a log row's traceId, an alarm payload, …) can call
  * `openTrace(id)` to open a centered modal showing that trace's
  * waterfall. The state is round-tripped through the URL as
- * `?openTraceId=<id>` so links + back/forward + share-URL all work
- * without an extra session store.
+ * `?traceId=<id>` so links + back/forward + share-URL all work
+ * without an extra session store. `?traceType=` names the trace source
+ * that reads it, and each source's popout opens only for its own.
  *
  * The popout component (`TracePopout.vue`) is mounted once globally inside
  * `AppShell.vue`. It listens to the same query param and fetches the trace
@@ -32,9 +33,9 @@
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useTraceSourceIsZipkin } from './useZipkinTracePopout';
 export { TRACE_POPOUT_QUERY, TRACE_POPOUT_AT, TRACE_POPOUT_TYPE, TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN_INDEX, TRACE_POPOUT_SPAN } from './tracePopoutQuery';
-import { TRACE_POPOUT_QUERY, TRACE_POPOUT_AT, TRACE_POPOUT_TYPE, TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN_INDEX, TRACE_POPOUT_SPAN } from './tracePopoutQuery';
+import type { TraceStore } from '@skywalking-horizon-ui/api-client';
+import { TRACE_POPOUT_QUERY, TRACE_POPOUT_AT, TRACE_POPOUT_TYPE, clearTraceAddress, traceStoreOf, withTraceFocus, type TraceFocus } from './tracePopoutQuery';
 
 /** Query-string keys. Any URL with TRACE_POPOUT_QUERY auto-opens the
  *  trace popout — shareable. TRACE_POPOUT_AT carries the trace's
@@ -49,10 +50,9 @@ export function useTracePopout() {
   const route = useRoute();
   const router = useRouter();
 
-  const sourceIsZipkin = useTraceSourceIsZipkin();
   const openTraceId = computed<string | null>(() => {
     const v = route.query[TRACE_POPOUT_QUERY];
-    return typeof v === 'string' && v.length > 0 && !sourceIsZipkin.value ? v : null;
+    return typeof v === 'string' && v.length > 0 && traceStoreOf(route.query) === 'native' ? v : null;
   });
   const openTraceAtMs = computed<number | null>(() => {
     const v = route.query[TRACE_POPOUT_AT];
@@ -61,34 +61,21 @@ export function useTracePopout() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  function openTrace(id: string, atMs?: number, traceType?: 'SKYWALKING_NATIVE' | null, focus?: { segmentId?: string | null; spanIndex?: number | null; spanId?: string | null }): void {
+  /** Writes the address of trace `id` read by `traceType`, which opens that
+   *  source's popout. A null type writes the id alone, which opens the notice
+   *  that the link names no source. */
+  function openTrace(id: string, traceType: TraceStore | null, options?: { at?: number; focus?: TraceFocus }): void {
     if (!id) return;
-    const next: Record<string, string | (string | null)[] | null | undefined> = {
-      ...route.query,
-      [TRACE_POPOUT_QUERY]: id,
-    };
-    if (typeof atMs === 'number' && Number.isFinite(atMs) && atMs > 0) {
-      next[TRACE_POPOUT_AT] = String(atMs);
-    } else {
-      delete next[TRACE_POPOUT_AT];
-    }
+    const next = withTraceFocus({ ...clearTraceAddress(route.query), [TRACE_POPOUT_QUERY]: id }, options?.focus);
+    const at = options?.at;
+    if (typeof at === 'number' && Number.isFinite(at) && at > 0) next[TRACE_POPOUT_AT] = String(at);
     if (traceType) next[TRACE_POPOUT_TYPE] = traceType;
-    else delete next[TRACE_POPOUT_TYPE];
-    if (focus?.segmentId) next[TRACE_POPOUT_SEGMENT] = focus.segmentId; else delete next[TRACE_POPOUT_SEGMENT];
-    if (focus?.spanIndex != null) next[TRACE_POPOUT_SPAN_INDEX] = String(focus.spanIndex); else delete next[TRACE_POPOUT_SPAN_INDEX];
-    if (focus?.spanId) next[TRACE_POPOUT_SPAN] = focus.spanId; else delete next[TRACE_POPOUT_SPAN];
     void router.push({ path: route.path, query: next });
   }
 
   function closeTrace(): void {
-    const q = { ...route.query };
-    delete q[TRACE_POPOUT_QUERY];
-    delete q[TRACE_POPOUT_AT];
-    delete q[TRACE_POPOUT_TYPE];
-    delete q[TRACE_POPOUT_SEGMENT];
-    delete q[TRACE_POPOUT_SPAN_INDEX];
-    delete q[TRACE_POPOUT_SPAN];
-    void router.replace({ path: route.path, query: q });
+    if (!openTraceId.value) return;
+    void router.replace({ path: route.path, query: clearTraceAddress(route.query) });
   }
 
   return { openTraceId, openTraceAtMs, openTrace, closeTrace };

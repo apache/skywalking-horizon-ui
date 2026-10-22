@@ -47,6 +47,7 @@ import type {
   ZipkinTraceListRow,
   ZipkinTraceDetailResponse,
 } from '@skywalking-horizon-ui/api-client';
+import { normalizeZipkinTraceId } from '@skywalking-horizon-ui/api-client';
 import type { FastifyInstance } from 'fastify';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
@@ -214,8 +215,15 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     { preHandler: auth },
     async (req, reply) => {
       const { traceId } = req.params;
-      if (!traceId || !/^[0-9a-fA-F]+$/.test(traceId)) {
-        return reply.code(400).send({ error: 'invalid_trace_id' });
+      if (!traceId || normalizeZipkinTraceId(traceId) === null) {
+        // Not an id Zipkin can hold, so no trace with it is there: an answer,
+        // not a failure. OAP is not asked — it would refuse it with a 400,
+        // which says nothing about WHICH parameter it refused.
+        const detail: ZipkinTraceDetailResponse = {
+          source: 'zipkin', traceId: traceId ?? '', spans: [], reachable: true,
+          error: 'not a Zipkin trace id', notFound: true, invalidId: true,
+        };
+        return reply.code(200).send(detail);
       }
       // The window the trace was listed in, when the caller has one. With
       // the Cold pill on it matters: any of the three makes OAP bound the

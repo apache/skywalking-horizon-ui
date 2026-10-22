@@ -27,7 +27,6 @@ import type { AdminLayerTemplate } from '@/api/client';
 import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import { walkWidgets } from '@skywalking-horizon-ui/api-client';
 
-const ENTITY_PAGE_SCOPES = new Set(['instance', 'endpoint']);
 /** The push schema's bounds for a widget's grid footprint. */
 const MAX_SPAN = 12;
 const MAX_ROW_SPAN = 64;
@@ -113,17 +112,18 @@ function dropBlankConditions(tpl: AdminLayerTemplate): void {
 /**
  * An empty grid is not the same as none: an Instance or Endpoint page with no
  * grid of its own shows the Service grid, while an empty one shows nothing.
- * So an empty entity grid the template did not have when the edit began — one
- * widget added and removed again — is no grid at all; one it had, imported or
- * stored, is kept. Grids of other scopes are never rendered, so an empty one
- * says nothing.
+ * So an empty grid the template did not have when the edit began — one widget
+ * added and removed again — is no grid at all; one it had, imported, stored or
+ * bundled, is kept. Dropping those made Reset to bundled, then Save, write
+ * something other than the bundled template — a layer marked diverged that
+ * had nothing to push.
  */
 function dropEmptyGrids(tpl: AdminLayerTemplate, before: AdminLayerTemplate | null): void {
   const d = tpl.dashboards;
   if (!d) return;
   for (const [scope, widgets] of Object.entries(d)) {
     if (scope === 'service' || widgets.length > 0) continue;
-    if (ENTITY_PAGE_SCOPES.has(scope) && before?.dashboards?.[scope] !== undefined) continue;
+    if (before?.dashboards?.[scope] !== undefined) continue;
     delete d[scope];
   }
 }

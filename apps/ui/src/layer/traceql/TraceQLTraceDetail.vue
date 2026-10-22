@@ -48,13 +48,14 @@ const ds = computed(() => props.ds);
 const detail = useTraceQLTrace(ds, traceId, computed(() => null));
 const storeMissing = computed(() => traceqlStoreMissingText(t, props.ds, detail.data.value));
 // A trace's spans land after whatever named it, so "not found" is re-read for
-// a while; a missing store or a failure is an answer, not something to wait out.
+// a while; a missing store, an id the store cannot hold, or a failure is an
+// answer, not something to wait out.
 const { pending: stillLooking } = useEmptyTraceRetry({
   active: computed(() => !!props.traceId),
   key: computed(() => `${props.ds}\u0000${props.traceId}`),
   empty: computed(() => detail.spans.value.length === 0),
   busy: detail.isFetching,
-  failed: computed(() => storeMissing.value != null || !detail.reachable.value),
+  failed: computed(() => storeMissing.value != null || !detail.reachable.value || detail.invalidId.value),
   refetch: detail.refetch,
 });
 

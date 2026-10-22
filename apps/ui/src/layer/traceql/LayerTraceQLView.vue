@@ -40,7 +40,8 @@ import TraceQLEditor from './TraceQLEditor.vue';
 import TraceQLSchemaPanel from './TraceQLSchemaPanel.vue';
 import TraceQLWindowFields from './TraceQLWindowFields.vue';
 import { buildTraceQL, lintTraceQL, serviceInExpression, type BuilderRows } from './traceqlLint';
-import { TRACEQL_DS_QUERY, TRACEQL_POPOUT_QUERY, traceqlRowDatasource } from './traceqlDetailShared';
+import { traceqlRowDatasource, traceqlSource } from './traceqlDetailShared';
+import { TRACE_POPOUT_QUERY, clearTraceAddress, traceStoreOf } from '@/layer/traces/tracePopoutQuery';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { TRACEQL_STATUS_VALUES } from '@/monaco/traceql-grammar';
 import {
@@ -228,21 +229,17 @@ const byId = useTraceQLTraceIds(ds, submittedIds);
  *  does. The overlay below is a different thing: a trace arrived at by URL,
  *  where there is no list for a card to sit beside. */
 const openTraceId = ref<string | null>(null);
-/** Only a trace of THIS row's store: one asked for in another store is the
- *  global popout's to open, from the store it names. */
+/** Only a trace read by THIS row's datasource: any other is a global
+ *  popout's to open, from the source it names. */
 const urlTraceId = computed(() => {
-  const raw = route.query[TRACEQL_POPOUT_QUERY];
-  const asked = route.query[TRACEQL_DS_QUERY];
-  if (asked !== undefined && asked !== ds.value) return null;
+  const raw = route.query[TRACE_POPOUT_QUERY];
+  if (traceStoreOf(route.query) !== traceqlSource(ds.value)) return null;
   return typeof raw === 'string' && raw ? raw : null;
 });
-/** Clears only ITS keys — the id and the store it names: wiping the whole
- *  query took every other page parameter with it. */
+/** Clears only the trace's keys: wiping the whole query took every other
+ *  page parameter with it. */
 function closeUrlTrace(): void {
-  const query = { ...route.query };
-  delete query[TRACEQL_POPOUT_QUERY];
-  delete query[TRACEQL_DS_QUERY];
-  void router.replace({ query });
+  void router.replace({ query: clearTraceAddress(route.query) });
 }
 // Escape closes it, as it does the native trace popout. The shared helper
 // answers the innermost open box first, so this is the third keypress: value

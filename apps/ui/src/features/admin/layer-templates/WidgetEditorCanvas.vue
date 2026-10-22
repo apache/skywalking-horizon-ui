@@ -1228,7 +1228,7 @@ onBeforeUnmount(() => {
                       :disabled="readOnly"
                       @change="setWidgetRecordTrace(($event.target as HTMLSelectElement).value)"
                     >
-                      <option value="">{{ t('none — the layer\'s trace popout') }}</option>
+                      <option value="">{{ t('not set — its trace icon opens a notice') }}</option>
                       <option v-for="store in TRACE_STORES" :key="store" :value="store">{{ store }}</option>
                     </select>
                   </label>

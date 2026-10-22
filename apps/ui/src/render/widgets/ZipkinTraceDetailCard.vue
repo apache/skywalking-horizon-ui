@@ -37,6 +37,7 @@ import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import LongValue from '@/components/primitives/LongValue.vue';
 import type { ZipkinSpan } from '@/api/client';
 import { copyText } from '@/utils/clipboard';
+import { traceLink } from '@/layer/traces/tracePopoutQuery';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -61,11 +62,9 @@ function copyTraceId(): void {
 }
 function copyShareableUrl(): void {
   if (!props.traceId || typeof window === 'undefined') return;
-  const url = new URL(window.location.href);
-  url.searchParams.set('traceId', props.traceId);
-  // Tag the source so Trace inspect (one route, two sources) reopens it as
-  // Zipkin rather than native — IDs alone can't disambiguate.
-  url.searchParams.set('source', 'zipkin');
+  // Named, so Trace inspect (one route, two sources) reopens it as Zipkin
+  // rather than native — IDs alone can't disambiguate.
+  const url = traceLink(window.location.href, props.traceId, 'zipkin');
   // And the trace's moment, so the link resolves with the Cold pill on: a
   // by-id lookup without a window searches OAP's default day, and a cold
   // trace is older than that.

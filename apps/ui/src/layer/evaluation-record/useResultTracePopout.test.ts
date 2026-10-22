@@ -29,7 +29,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('useResultTracePopout', () => {
   it('opens a native record on the native popout with the record time as the lookup moment', () => {
     useResultTracePopout().openResultTrace({ type: 'SKYWALKING_NATIVE', traceId: 'trace-1', segmentId: 'seg-1', spanIndex: 2 }, AT);
-    expect(popouts.native).toHaveBeenCalledWith('trace-1', AT, 'SKYWALKING_NATIVE', { segmentId: 'seg-1', spanIndex: 2, spanId: null });
+    expect(popouts.native).toHaveBeenCalledWith('trace-1', 'native', { at: AT, focus: { segmentId: 'seg-1', spanIndex: 2, spanId: null } });
     expect(popouts.zipkin).not.toHaveBeenCalled();
     expect(popouts.traceql).not.toHaveBeenCalled();
   });

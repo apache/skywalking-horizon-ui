@@ -27,7 +27,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
-import { traceqlRowDatasource, buildSpanTree, kindLabel, otlpKindName, rootSpanOf, spanStatus, statusColor } from './traceqlDetailShared';
+import { traceqlRowDatasource, traceqlSource, traceqlSourceDatasource, buildSpanTree, kindLabel, otlpKindName, rootSpanOf, spanStatus, statusColor } from './traceqlDetailShared';
 
 function span(spanId: string, parentSpanId: string, startUs = 0, durationUs = 10): TraceQLSpan {
   return {
@@ -156,5 +156,17 @@ describe('traceqlRowDatasource', () => {
     expect(traceqlRowDatasource('traceql-otlp-trace')).toBe('otlp');
     expect(traceqlRowDatasource('trace')).toBeNull();
     expect(traceqlRowDatasource(undefined)).toBeNull();
+  });
+});
+
+describe('TraceQL trace sources', () => {
+  it('names each datasource as a trace link names it, and back', () => {
+    for (const ds of ['native', 'zipkin', 'otlp'] as const) {
+      expect(traceqlSourceDatasource(traceqlSource(ds))).toBe(ds);
+    }
+    expect(traceqlSource('otlp')).toBe('traceql-otlp');
+    expect(traceqlSourceDatasource('native')).toBeNull();
+    expect(traceqlSourceDatasource('zipkin')).toBeNull();
+    expect(traceqlSourceDatasource(null)).toBeNull();
   });
 });

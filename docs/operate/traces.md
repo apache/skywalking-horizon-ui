@@ -95,7 +95,7 @@ Click any span row to open its detail panel:
 - **Logs** — per-span log entries with their timestamps.
 - **Attached Events** — named events on the span with their start/end times and summary key/values.
 
-The detail view's header KPIs report the trace's start time, total duration, span count, and the number of distinct services it touched. You can copy the trace id or a shareable URL from there; opening a shared `?traceId=` link lands directly on the trace in an overlay.
+The detail view's header KPIs report the trace's start time, total duration, span count, and the number of distinct services it touched. You can copy the trace id or a shareable URL from there; opening a shared `?traceId=` link lands directly on the trace in an overlay. The URL names the trace source that reads it in `traceType` — `native`, `zipkin`, `traceql-native`, `traceql-zipkin` or `traceql-otlp`, the names a layer template's `traces.sources` uses — so it opens in the same view on any page. A `?traceId=` without it, or with a value not in that list, opens a notice that asks which trace source to query, and the trace opens from the one you pick.
 
 ## Zipkin traces
 
@@ -219,6 +219,7 @@ With **No time range**, OAP 11.0.0 and earlier on BanyanDB look an id up in the 
 - **Run query is greyed out** — the tab does not yet know which service to read. It says which: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. The native and Zipkin tabs read for one service, so they wait instead of querying the whole layer — a lookup by trace id needs none, and the TraceQL rows can search **All services**, because the Tempo API takes a service as an ordinary condition rather than as the subject of the query.
 - **Rows are segments, not whole traces** — that is expected on storage backends without whole-trace support; the banner says so. Click a segment to fetch its full trace.
 - **A trace looked up by its id is not found** — a time range you picked has to cover when the trace happened, so widen it or pick **No time range**. With no time range, OAP 11.0.0 and earlier on BanyanDB cover only the last 24 hours, and the cold stage is not read. Open the trace from the log row that named it (which carries its timestamp), or pick a time range around when it happened, with **Cold** on if it has aged into cold storage.
+- **A trace opens to *No trace with that id.*** — the source asked does not hold that trace. A trace link names the source in `traceType`; an id that source cannot hold at all — a SkyWalking trace id with dashes asked of Zipkin, which takes hex ids only — is answered at once, while one it could hold is looked up first. Open it from the source that holds it.
 - **No data even with a valid service** — double-check the time range first; this tab does not follow the global topbar, so the window is whatever the tab's own Time range control says.
 
 ## Related

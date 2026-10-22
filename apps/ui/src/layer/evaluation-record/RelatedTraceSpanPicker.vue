@@ -159,6 +159,11 @@ const failure = computed<string | null>(() => {
   return answer && answer.reachable === false ? (answer.error || t('Backend unreachable.')) : null;
 });
 
+// The id is not one the store can hold: no trace with it can turn up there,
+// so there is nothing to wait for.
+const refused = computed(() => (props.traceType === 'OTLP' ? otlp.data.value?.invalidId
+  : props.traceType === 'ZIPKIN' ? zipkin.data.value?.invalidId : false) === true);
+
 // A record is written when the judge answers; its trace's spans land on their
 // own cycle, so a record judged seconds ago can name a trace that reads as
 // empty for a moment.
@@ -167,7 +172,7 @@ const { pending: stillLooking } = useEmptyTraceRetry({
   key: computed(() => `${props.traceType}\u0000${props.traceId}`),
   empty: computed(() => rows.value.length === 0),
   busy: loading,
-  failed: computed(() => failure.value != null),
+  failed: computed(() => failure.value != null || refused.value),
   refetch: () => {
     if (props.traceType === 'OTLP') return otlp.refetch();
     return props.traceType === 'ZIPKIN' ? zipkin.refetch() : native.refetch();
@@ -196,7 +201,7 @@ function fmtMs(ms: number): string {
       <div v-if="loading && rows.length === 0" class="sp-empty">{{ t('Reading data…') }}</div>
       <div v-else-if="failure" class="banner err">{{ failure }}</div>
       <div v-else-if="rows.length === 0" class="sp-empty">
-        {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('no span data') }}
+        {{ refused ? t('No trace with that id.') : stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('no span data') }}
       </div>
       <div v-else class="sp-scroll">
         <table class="sp-table">

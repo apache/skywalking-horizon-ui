@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.",
   "Record trace": "Record trace",
   "Trace store": "Trace store",
-  "none — the layer's trace popout": "none — the layer's trace popout",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path."
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.",
+  "not set — its trace icon opens a notice": "not set — its trace icon opens a notice",
+  "Trace link not valid": "Trace link not valid",
+  "not set": "not set",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.",
+  "Query it from one of these trace sources:": "Query it from one of these trace sources:"
 }

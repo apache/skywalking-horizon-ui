@@ -225,7 +225,10 @@ concurrency:
 jobs:
   e2e:
     name: ${{ matrix.case.name }}
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: on ubuntu-26.04, kind cannot load the multi-platform
+    # OAP image into its node (`ctr images import --all-platforms`: content
+    # digest not found), so the kind cases fail before any test runs.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       # One case failing must not cancel the others: when several go red at

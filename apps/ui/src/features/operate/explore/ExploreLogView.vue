@@ -60,6 +60,7 @@ import type {
 import type { PodLogLine } from '@/api/scopes/log';
 import { useLayers } from '@/shell/useLayers';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { usePageTraceSource } from '@/layer/traces/usePageTraceSource';
 import { WINDOW_OPTS as POD_WINDOW_OPTS, INTERVAL_OPTS as POD_INTERVAL_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
@@ -79,6 +80,7 @@ import { logRowKey } from '@/utils/logRow';
 const { t } = useI18n();
 const { availableLayers } = useLayers();
 const { openTrace } = useTracePopout();
+const pageTraceSource = usePageTraceSource();
 
 // ── source. `raw` = queryLogs (any service across layers); `browser` =
 // BROWSER-layer JS errors; `pods` = on-demand Kubernetes Pod logs (a
@@ -459,7 +461,7 @@ function closeDetail(): void {
   selectedBrowserRow.value = null;
 }
 function jumpToTrace(traceId: string, ts: number): void {
-  openTrace(traceId, ts);
+  openTrace(traceId, pageTraceSource.value, { at: ts });
 }
 
 // Drop the selection across result changes — a row that's no longer in

@@ -218,7 +218,7 @@ function clearSpan(): void { selectedSpan.value = null; }
 useEscapeToClose(() => openTraceId.value !== null, closeTrace);
 useEscapeToClose(() => openTraceId.value !== null && selectedSpan.value !== null, () => (selectedSpan.value = null));
 function isSelfRef(refTraceId: string): boolean { return refTraceId === openTraceId.value; }
-function jumpToTrace(id: string): void { openTrace(id); }
+function jumpToTrace(id: string): void { openTrace(id, 'native'); }
 function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 </script>
 

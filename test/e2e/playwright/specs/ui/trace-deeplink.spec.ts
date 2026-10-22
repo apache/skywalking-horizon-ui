@@ -57,7 +57,7 @@ test('a shared native trace link opens the trace in a new page', async ({
   // A genuinely fresh page — same session, no list, no prior state.
   const shared = await context.newPage();
   try {
-    await shared.goto(`/layer/${LAYER}/trace?traceId=${traceId}`);
+    await shared.goto(`/layer/${LAYER}/trace?traceId=${traceId}&traceType=native`);
 
     // The global popout, mounted in AppShell and opened purely by the URL.
     await expect(shared.locator('.tp-backdrop')).toBeVisible({ timeout: 45_000 });
@@ -69,6 +69,16 @@ test('a shared native trace link opens the trace in a new page', async ({
     await expect(shared.locator('.tp-waterfall .tp-row').first()).toBeVisible({
       timeout: 45_000,
     });
+
+    // A link naming no trace source opens no popout: the notice asks which
+    // source to query, and the one picked opens the trace.
+    await shared.goto(`/layer/${LAYER}/trace?traceId=${traceId}`);
+    const notice = shared.locator('.tln-card');
+    await expect(notice).toBeVisible({ timeout: 45_000 });
+    await expect(shared.locator('.tp-backdrop')).toHaveCount(0);
+    await notice.getByRole('button', { name: 'native', exact: true }).click();
+    await expect(notice).toBeHidden();
+    await expect(shared.locator('.tp-waterfall .tp-row').first()).toBeVisible({ timeout: 45_000 });
   } finally {
     await shared.close();
   }

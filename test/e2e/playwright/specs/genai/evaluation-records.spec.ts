@@ -87,6 +87,7 @@ test('a record judged from a native trace opens that trace on the native popout'
   // The record's time travels with the id, so the lookup is bounded to where
   // the trace is rather than to OAP's default day.
   await expect(page).toHaveURL(/[?&]traceId=/);
+  await expect(page).toHaveURL(/[?&]traceType=native(&|$)/);
   await expect(page).toHaveURL(/[?&]traceAt=\d+/);
 
   expect(pageErrors).toEqual([]);
@@ -155,16 +156,16 @@ test('the VIRTUAL_GENAI service dashboard renders the provider\'s card widgets',
   expect(pageErrors).toEqual([]);
 });
 
-/** A store a record can name, how its popout looks, and how a span in it is
- *  addressed. */
+/** A store a record can name, the trace source that reads it — what a trace
+ *  link names in `traceType` — and how its popout looks. */
 const STORES = [
   {
-    store: 'OTLP', caller: OTLP_GENAI_CALLER,
-    card: '.tqp-overlay .tqc', span: '.tqw-row', idParam: 'traceqlId', selected: '.tqm',
+    store: 'OTLP', type: 'traceql-otlp', caller: OTLP_GENAI_CALLER,
+    card: '.tqp-overlay .tqc', span: '.tqw-row', selected: '.tqm',
   },
   {
-    store: 'ZIPKIN', caller: ZIPKIN_GENAI_CALLER,
-    card: '.zk-popout', span: '.tp-row', idParam: 'traceId', selected: '.zk-popout .tp-row.on',
+    store: 'ZIPKIN', type: 'zipkin', caller: ZIPKIN_GENAI_CALLER,
+    card: '.zk-popout', span: '.tp-row', selected: '.zk-popout .tp-row.on',
   },
 ] as const;
 
@@ -178,8 +179,8 @@ for (const s of STORES) {
     await expect(card).toBeVisible();
     await expect(card.locator(s.span).first()).toBeVisible({ timeout: 45_000 });
     await expect(page.locator(s.selected)).toBeVisible();
-    if (s.store === 'OTLP') await expect(page).toHaveURL(/[?&]ds=otlp/);
-    else await expect(page).toHaveURL(/[?&]traceAt=\d+/);
+    await expect(page).toHaveURL(new RegExp(`[?&]traceType=${s.type}(&|$)`));
+    if (s.store === 'ZIPKIN') await expect(page).toHaveURL(/[?&]traceAt=\d+/);
 
     expect(pageErrors).toEqual([]);
   });
@@ -188,13 +189,18 @@ for (const s of STORES) {
     const rows = await openRecords(page);
     await rowFrom(page, rows, s.caller, true).locator('.lg-trace').click();
     await expect(page.locator(s.card).locator(s.span).first()).toBeVisible({ timeout: 45_000 });
-    const traceId = new URL(page.url()).searchParams.get(s.idParam);
+    const traceId = new URL(page.url()).searchParams.get('traceId');
     expect(traceId, 'the popout names the trace it opened').toBeTruthy();
 
-    // The trace id the way a shared link carries it, on a fresh page.
-    await page.goto(`/layer/${GENAI_LAYER}/evaluation-record?evaluationTraceId=${encodeURIComponent(traceId!)}`);
+    // The trace the way a link carries it, on a fresh page: it opens over the
+    // tab and fills the tab's trace condition, which stays once it is closed.
+    await page.goto(`/layer/${GENAI_LAYER}/evaluation-record?traceId=${encodeURIComponent(traceId!)}&traceType=${s.type}`);
+    await expect(page.locator(s.card).locator(s.span).first()).toBeVisible({ timeout: 45_000 });
+    await page.keyboard.press('Escape');
+    await expect(page.locator(s.card)).toBeHidden();
     await expect(page.locator('.cf-provider .tas__label')).toHaveText(GENAI_PROVIDER, { timeout: 45_000 });
-    await page.locator('.cf-trace-store').selectOption(s.store);
+    await expect(page.locator('.cf-trace-id')).toHaveValue(traceId!);
+    await expect(page.locator('.cf-trace-store')).toHaveValue(s.store);
     await page.locator('.cf-pick-span').click();
     const picker = page.locator('[role="dialog"] .sp');
     await expect(picker).toBeVisible();

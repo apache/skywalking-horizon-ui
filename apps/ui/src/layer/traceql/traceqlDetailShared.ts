@@ -26,7 +26,7 @@
  */
 
 import { spanOutcome } from '@skywalking-horizon-ui/api-client';
-import type { TraceQLDatasource, TraceQLSpan } from '@skywalking-horizon-ui/api-client';
+import type { TraceQLDatasource, TraceQLSpan, TraceStore } from '@skywalking-horizon-ui/api-client';
 
 const SERVICE_PALETTE = [
   'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
@@ -155,20 +155,21 @@ export function latencyColor(durationUs: number): string {
   return 'var(--sw-ok)';
 }
 
-/**
- * The query key the TraceQL rows share a trace with.
- *
- * Deliberately NOT `traceId`: that one belongs to the native and Zipkin
- * popouts, which are reachable from a TraceQL page too — the AI panel's log
- * rows link to them. A TraceQL page claiming `traceId` read those ids through
- * the Tempo API, which is the wrong trace in the wrong renderer, and dropped
- * the timestamp hint the popout needs for an old id.
- */
-export const TRACEQL_POPOUT_QUERY = 'traceqlId';
-/** The store the trace in {@link TRACEQL_POPOUT_QUERY} is read from. */
-export const TRACEQL_DS_QUERY = 'ds';
-/** A span of that trace to open selected, as a link to one span names it. */
-export const TRACEQL_SPAN_QUERY = 'traceqlSpanId';
+/** The trace source a TraceQL datasource is, as a trace link names it. */
+export function traceqlSource(ds: TraceQLDatasource): TraceStore {
+  return `traceql-${ds}`;
+}
+
+/** The TraceQL datasource a trace source reads, or null for one that is not
+ *  read through TraceQL. */
+export function traceqlSourceDatasource(store: TraceStore | null): TraceQLDatasource | null {
+  switch (store) {
+    case 'traceql-native': return 'native';
+    case 'traceql-zipkin': return 'zipkin';
+    case 'traceql-otlp': return 'otlp';
+    default: return null;
+  }
+}
 
 type Translate = (key: string, named?: Record<string, unknown>) => string;
 

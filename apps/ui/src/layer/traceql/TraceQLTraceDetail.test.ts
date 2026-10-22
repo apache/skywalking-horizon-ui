@@ -66,6 +66,19 @@ describe('TraceQL trace detail', () => {
     }
   });
 
+  it('says there is no such trace, at once and without re-reading, for an id the datasource refuses', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const text = await open({ reachable: true, notFound: true, invalidId: true });
+      expect(text).toContain('No trace with that id.');
+      expect(text).not.toContain('not answering');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(api.trace).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not re-read a store that is missing', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {

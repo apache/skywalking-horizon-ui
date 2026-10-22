@@ -52,7 +52,7 @@ export function useResultTracePopout() {
       // that (cold stage on) opens to an empty popout.
       openZipkinTrace(ref.traceId, { ...focus, at: atMs });
     } else {
-      openNativeTrace(ref.traceId, atMs, ref.type, focus);
+      openNativeTrace(ref.traceId, 'native', { at: atMs, focus });
     }
   }
 

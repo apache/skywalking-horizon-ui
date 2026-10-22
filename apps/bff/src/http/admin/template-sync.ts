@@ -965,8 +965,9 @@ function publishProblems(
 
 /**
  * The widget schema reads a bad `recordTrace` as absent, so a stored one only
- * falls back to the layer's own popout. Publishing it would store a choice
- * that never takes effect, so compare each raw widget with its parsed one.
+ * leads to the notice that asks which source to query. Publishing it would
+ * store a choice that never takes effect, so compare each raw widget with its
+ * parsed one.
  */
 function malformedRecordTraces(raw: unknown, parsed: unknown): TemplateProblem[] {
   const parsedByPath = new Map(widgetEntries(parsed).map((e) => [e.path, e.w]));

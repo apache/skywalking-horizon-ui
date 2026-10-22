@@ -3585,8 +3585,12 @@
   "The content stored on OAP would break the pages built from it. Turning it back on brings it back invalid.": "El contenido almacenado en OAP rompería las páginas construidas a partir de él. Si vuelves a habilitar la plantilla, seguirá sin ser válida.",
   "Record trace": "Traza del registro",
   "Trace store": "Almacén de trazas",
-  "none — the layer's trace popout": "ninguno — la ventana de traza de la capa",
   "The store this widget's trace ids live in. A row's trace icon opens the trace from it, over the page.": "El almacén donde están los ids de traza de este widget. El icono de traza de una fila abre la traza desde él, sobre la página.",
   "Not configured: the built-in default metrics apply. Any change here starts this layer's own configuration, which replaces them.": "Sin configurar: se aplican las métricas predeterminadas integradas. Cualquier cambio aquí crea la configuración propia de esta capa, que las sustituye.",
-  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "El TraceQL de OAP no tiene el origen de datos {name} en la ruta configurada. Habilítelo en OAP ({setting}=true, con SW_TRACEQL=default) o corrija {pathKey} si OAP lo sirve en otra ruta de contexto."
+  "OAP's TraceQL has no {name} datasource at the configured path. Enable it in OAP ({setting}=true, with SW_TRACEQL=default), or correct {pathKey} if OAP serves it on another context path.": "El TraceQL de OAP no tiene el origen de datos {name} en la ruta configurada. Habilítelo en OAP ({setting}=true, con SW_TRACEQL=default) o corrija {pathKey} si OAP lo sirve en otra ruta de contexto.",
+  "not set — its trace icon opens a notice": "no definido — el icono de traza abre un aviso",
+  "Trace link not valid": "Enlace de traza no válido",
+  "not set": "no definido",
+  "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "El icono de traza de una lista de registros lleva aquí cuando su widget no indica un almacén de trazas. Defínalo en Traza del registro, en el editor de paneles por capa.",
+  "Query it from one of these trace sources:": "Consultarla desde una de estas fuentes de trazas:"
 }

@@ -42,6 +42,7 @@ import { useLayerTabService } from '@/layer/useLayerServiceName';
 import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
+import { usePageTraceSource } from '@/layer/traces/usePageTraceSource';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
 import { useLogTimeRange, TIME_RANGE_PRESETS, CUSTOM_RANGE_SENTINEL } from '@/layer/logs/useLogTimeRange';
 import { MAX_RECORD_RANGE_DAYS, SLOW_RECORD_RANGE_HOURS } from '@/utils/recordTimeRange';
@@ -83,6 +84,7 @@ const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 const { openTrace } = useTracePopout();
+const pageTraceSource = usePageTraceSource();
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
@@ -459,7 +461,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
     logReturnRow.value = popoutRow.value;
     popoutRow.value = null;
   }
-  openTrace(traceId, ts);
+  openTrace(traceId, pageTraceSource.value, { at: ts });
 }
 watch(
   () => route.query[TRACE_POPOUT_QUERY],

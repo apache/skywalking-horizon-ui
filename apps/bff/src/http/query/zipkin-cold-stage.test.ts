@@ -131,6 +131,33 @@ describe('a Zipkin by-id lookup that OAP answers 404', () => {
   });
 });
 
+describe('a Zipkin by-id lookup for an id Zipkin cannot hold', () => {
+  it('answers no such trace without asking OAP, and leaves an OAP 400 on a real id a failure', async () => {
+    const asked: string[] = [];
+    const fetch: FetchLike = async (rawUrl, init) => {
+      const url = new URL(String(rawUrl));
+      if (url.pathname.includes('/api/v2/trace/')) {
+        asked.push(url.pathname);
+        return new Response('Status: 400\nDescription: Bad Request', { status: 400 });
+      }
+      const body = JSON.parse(String(init?.body ?? '{}')) as { query?: string };
+      if ((body.query ?? '').includes('getTimeInfo')) return json({ data: { getTimeInfo: { timezone: '+0000', currentTimestamp: Date.now() } } });
+      return json({ data: {} });
+    };
+    const { app, sid } = await build(fetch);
+    for (const id of ['0e03a1af-cb7d-47c8', '0000', 'f'.repeat(33)]) {
+      const res = await app.inject({ method: 'GET', url: `/api/zipkin/trace/${id}`, headers: { cookie: `horizon_sid=${sid}` } });
+      expect(res.statusCode, id).toBe(200);
+      expect(res.json(), id).toMatchObject({ reachable: true, notFound: true, invalidId: true, spans: [] });
+    }
+    expect(asked).toEqual([]);
+
+    const res = await app.inject({ method: 'GET', url: '/api/zipkin/trace/abc123', headers: { cookie: `horizon_sid=${sid}` } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).not.toHaveProperty('invalidId');
+  });
+});
+
 describe('the Cold pill on the trace routes’ Zipkin branches', () => {
   it('sends coldStage and the requested window on the layer list when the source is Zipkin', async () => {
     const on = await call(true, 'POST', '/api/layer/general/traces', { previewConfig: JSON.stringify({ sources: ['zipkin'] }), source: 'zipkin', pageSize: 5, startMs: 1700000000000, endMs: 1700432000000 });

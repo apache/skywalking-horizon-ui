@@ -94,12 +94,12 @@ test('a shared zipkin trace link opens the trace in a new page', async ({
 
   const shared = await context.newPage();
   try {
-    await shared.goto(`/layer/mesh/zipkin-trace?traceId=${traceId}`);
+    await shared.goto(`/layer/mesh/zipkin-trace?traceId=${traceId}&traceType=zipkin`);
 
     // A SEPARATE global popout from the native one — AppShell mounts both,
-    // and `useTracePopout` deliberately declines Zipkin-sourced routes so the
-    // two never fight over the same `?traceId=`. Asserting the native
-    // backdrop here would fail against a perfectly working link.
+    // and each opens only for the trace source the link names, so the two
+    // never fight over the same `?traceId=`. Asserting the native backdrop
+    // here would fail against a perfectly working link.
     await expect(shared.locator('.zk-popout')).toBeVisible({ timeout: 45_000 });
     // The id echoes back from the URL, so it proves routing, not fetching.
     // The spans are what the link had to go and get.
