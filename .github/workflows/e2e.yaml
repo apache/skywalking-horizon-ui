@@ -225,10 +225,7 @@ concurrency:
 jobs:
   e2e:
     name: ${{ matrix.case.name }}
-    # Not ubuntu-latest: on ubuntu-26.04, kind cannot load the multi-platform
-    # OAP image into its node (`ctr images import --all-platforms`: content
-    # digest not found), so the kind cases fail before any test runs.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
       # One case failing must not cancel the others: when several go red at
@@ -292,7 +289,7 @@ jobs:
         run: make -C test/e2e images
 
       - name: ${{ matrix.case.name }}
-        uses: apache/skywalking-infra-e2e@68bbdec303cf2d3df9f2353f970f91938b52f674
+        uses: apache/skywalking-infra-e2e@56ac8befeb5f910f2dc9339e65d07cd18953f90e
         with:
           e2e-file: $GITHUB_WORKSPACE/${{ matrix.case.config }}
           # Container logs land here. On a red run they answer the first
@@ -330,7 +327,7 @@ jobs:
     name: E2E Required
     if: always() && !cancelled()
     needs: [e2e]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Assert every case passed
         run: |
