@@ -18,8 +18,8 @@
 import { test, expect } from '../support/diagnostics.js';
 import {
   MESH_LAYER,
-  MESH_PEERS,
   MESH_SERVICES,
+  MESH_HEADER_SERVICES,
   MESH_DP_LAYER,
   MESH_DP_SUFFIX,
 } from '../fixture.js';
@@ -41,17 +41,19 @@ test('the mesh layer lists services built from Envoy access logs', async ({ page
   // member of the known set instead.
   const selected = page.locator('.service-row .svc-name');
   await expect(selected).toBeVisible({ timeout: 45_000 });
-  await expect(selected).toHaveText(new RegExp(`^(${MESH_SERVICES.join('|')})$`));
+  await expect(selected).toHaveText(new RegExp(`^(${MESH_HEADER_SERVICES.join('|')})$`));
 
   // The roster itself is the real assertion: every one of these exists only
   // because OAP analysed Envoy access logs into mesh entities. No agent
-  // reported any of them.
+  // reported any of them. The fixture's mesh is fully known, so the roster is
+  // asserted whole: every workload, and nothing else but `UNKNOWN`.
   await page.locator('.service-row button.switch').click();
   const picker = page.locator('.picker-table');
   await expect(picker).toBeVisible();
-  for (const peer of MESH_PEERS) {
-    await expect(picker.locator('tr.row', { hasText: peer }).first()).toBeVisible();
-  }
+  const names = picker.locator('tr.row .name-text');
+  await expect
+    .poll(async () => (await names.allTextContents()).map((n) => n.trim()).filter((n) => n !== 'UNKNOWN').sort())
+    .toEqual([...MESH_SERVICES].sort());
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });
@@ -62,12 +64,13 @@ test('the mesh topology draws the bookinfo call graph', async ({ page, pageError
   const nodes = page.locator('.sm-node');
   await expect(nodes.first()).toBeVisible({ timeout: 60_000 });
 
-  // bookinfo is a four-service graph on purpose: with two services a single
-  // edge drawn twice is indistinguishable from a real topology. Requiring
-  // more than one peer is what makes this assert a GRAPH.
-  await expect
-    .poll(async () => nodes.count(), { timeout: 60_000 })
-    .toBeGreaterThanOrEqual(MESH_PEERS.length);
+  // bookinfo is a multi-service graph on purpose: with two services a single
+  // edge drawn twice is indistinguishable from a real topology. The mesh is
+  // fully known, so every workload must be drawn, by name — a count would let
+  // `UNKNOWN` stand in for a missing one.
+  for (const name of MESH_SERVICES) {
+    await expect(nodes.filter({ hasText: name }).first()).toBeVisible({ timeout: 60_000 });
+  }
   await expect(page.locator('.sm-edge').first()).toBeVisible({ timeout: 60_000 });
 
   expect(pageErrors).toEqual([]);

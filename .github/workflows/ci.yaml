@@ -32,7 +32,7 @@ jobs:
     # container action that would otherwise sit behind the toolchain setup the
     # build job spends its first half-minute on.
     name: License header
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -48,7 +48,7 @@ jobs:
     # the setup cost eight times over. Steps run cheapest-first so a lint or
     # type error reports before the package build starts.
     name: Build and check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -252,7 +252,7 @@ jobs:
     # `test/e2e/script/env` pins, on an ephemeral port, and stops it after. No
     # service container to declare and no port to collide with.
     name: BanyanDB client IT
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -278,7 +278,7 @@ jobs:
     if: always() && !cancelled()
     name: Required
     needs: [license-header, build-and-check, banyandb-client-it]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Check upstream jobs

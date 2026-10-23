@@ -43,12 +43,13 @@ cases:
         )
     expected: expected/metrics-has-value.yml
 
-  # 3. READINESS: Horizon can see the mesh roster too, absorbing the catalog TTL
-  #    before the browser project pays for it.
+  # 3. READINESS: Horizon's mesh roster holds every workload the fixture
+  #    produces (MESH_SERVICES in the specs), which the mesh spec asserts
+  #    whole, absorbing the catalog TTL before the browser project pays for it.
   - query: |
       bash test/e2e/script/prepare/horizon-get.sh \
         "http://${service_horizon_host}:${service_horizon_8081}" /api/layer/mesh/services \
-        | yq -P '{"reachable": .reachable, "meshServices": [.services[] | select(.name == "productpage")] | length}'
+        | yq -P '{"reachable": .reachable, "meshServices": [.services[] | select(.name == "productpage" or .name == "reviews" or .name == "details" or .name == "ratings" or .name == "istio-ingressgateway")] | length}'
     expected: expected/horizon-mesh-roster.yml
 
   # 3b. READINESS: the mesh topology has EDGES. The service roster above proves

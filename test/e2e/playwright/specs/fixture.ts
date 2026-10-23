@@ -124,29 +124,27 @@ export const WINDOW_MINUTES = 30;
 export const MESH_LAYER = 'mesh';
 
 /**
- * bookinfo's workloads as MESH services. Matched as a SET, never pinned to
- * one: which service the layer header auto-resolves follows OAP's ordering,
- * so naming a single one fails on a healthy mesh whenever traffic shifts.
- *
- * `ratings` is deliberately absent. Only reviews-v2 and v3 call it, so
- * whether it has appeared yet depends on which reviews version the traffic
- * happened to reach — true of a healthy mesh, and not something to assert.
+ * EVERY service this fixture's mesh produces: all four bookinfo workloads
+ * plus the ingress gateway bookinfo is reached through, which ALS reports
+ * like any other mesh workload. The mesh is fully known, so the mesh spec
+ * asserts the roster against this whole and the topology must draw every one;
+ * the istio readiness check waits until Horizon lists all of them.
  */
-export const MESH_PEERS = ['productpage', 'reviews', 'details'];
+export const MESH_SERVICES = ['productpage', 'reviews', 'details', 'ratings', 'istio-ingressgateway'];
 
 /**
- * EVERY service this fixture's mesh can produce: all four bookinfo workloads
- * plus the ingress gateway bookinfo is reached through, which ALS reports
- * like any other mesh workload.
+ * The services the MESH layer header may open on: MESH_SERVICES plus OAP's
+ * `UNKNOWN`. Which one it picks follows OAP's ordering, so it is matched as a
+ * set. OAP reads the Kubernetes metadata of a new pod address in the
+ * background rather than waiting for it (apache/skywalking#14135), so
+ * bookinfo's first calls count under `UNKNOWN`, and in the first minute of
+ * traffic that burst can rank above every workload.
  *
- * Distinct from MESH_PEERS on purpose. `ratings` is reached only via
- * reviews-v2/v3, so whether it exists in a given window depends on which
- * review version the traffic hit — it cannot be REQUIRED to be listed, but it
- * can certainly be the one the header resolves to. Which service that is
- * follows OAP's ordering and changes between runs, so anything asserting on
- * the SELECTED service must accept the full set.
+ * Only for the header's pick. `UNKNOWN` is the one service outside
+ * MESH_SERVICES the roster may hold, and a roster missing any workload still
+ * fails the mesh spec.
  */
-export const MESH_SERVICES = [...MESH_PEERS, 'ratings', 'istio-ingressgateway'];
+export const MESH_HEADER_SERVICES = [...MESH_SERVICES, 'UNKNOWN'];
 
 /**
  * The SAME workload in the MESH_DP layer, which names services
