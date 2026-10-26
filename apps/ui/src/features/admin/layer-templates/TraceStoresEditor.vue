@@ -30,10 +30,11 @@
   overrides the fallback.
 -->
 <script setup lang="ts">
-import { computed, reactive, toRaw, watch } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   backtracksBadly,
+  OTLP_SERVICE_LAYERS,
   SERVICE_LAYER_PATTERN,
   TRACE_STORES,
   TRACE_STORE_ROWS,
@@ -89,9 +90,7 @@ const checked = computed(() => new Set(resolveTraceStores(props.traces)));
  *  the first edit: what was implied becomes an explicit `sources`, and the
  *  legacy `source` enum is not written back. */
 function commit(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): void {
-  const next = blockOf(sources, stores);
-  lastEmitted = next;
-  emit('update', next);
+  emit('update', blockOf(sources, stores));
 }
 
 function blockOf(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): TracesConfig {
@@ -138,18 +137,8 @@ function setFilter(store: TraceStore, part: 'pattern' | 'flags', value: string):
   commit([...checked.value], stores);
 }
 
-/** The text being typed, shown as typed: upper-casing the field itself on each
- *  keystroke would move the caret to its end. */
-const layerDrafts = reactive<Partial<Record<TraceStore, string>>>({});
-
-/** Layer names are upper case, so typing is upper-cased rather than refused. A
- *  value that is not a layer name is never written: the template schema refuses
- *  the whole template over it, so it would fail the save. */
-function setLayer(store: TraceStore, value: string): void {
+function setLayer(store: TraceStore, layer: string): void {
   if (props.readOnly) return;
-  layerDrafts[store] = value;
-  const layer = value.trim().toUpperCase();
-  if (layer && !SERVICE_LAYER_PATTERN.test(layer)) return;
   const stores = currentStores();
   const cfg = { ...(stores[store] ?? {}) };
   if (layer) cfg.serviceLayer = layer;
@@ -158,34 +147,14 @@ function setLayer(store: TraceStore, value: string): void {
   commit([...checked.value], stores);
 }
 
-/** Once the field is left, a value that was written is shown as written. */
-function settleLayer(store: TraceStore): void {
-  if (!layerInvalid(store)) delete layerDrafts[store];
-}
-
 function savedLayerOf(store: TraceStore): string {
   return props.traces?.stores?.[store]?.serviceLayer ?? '';
 }
-function layerOf(store: TraceStore): string {
-  return layerDrafts[store] ?? savedLayerOf(store);
-}
-
-/** The block this editor last emitted, which the parent hands back as it is. */
-let lastEmitted: TracesConfig | undefined;
-
-// Any other block — the template discarded, reloaded or switched — replaces what was being typed, whatever layer
-// it holds; the block this editor wrote keeps the text as typed.
-watch(
-  () => props.traces,
-  (traces) => {
-    if (traces === undefined || toRaw(traces) !== lastEmitted) {
-      for (const s of TRACE_STORES) delete layerDrafts[s];
-    }
-  },
-);
-function layerInvalid(store: TraceStore): boolean {
-  const layer = layerOf(store).trim().toUpperCase();
-  return layer !== '' && !SERVICE_LAYER_PATTERN.test(layer);
+/** The sender layers, and a saved one that is not among them, as the dashboard layer the checkbox below sets. */
+function layerOptions(store: TraceStore): string[] {
+  const saved = savedLayerOf(store);
+  const options: string[] = [...OTLP_SERVICE_LAYERS];
+  return saved && !options.includes(saved) ? [...options, saved] : options;
 }
 
 /** The only regular-expression flag worth offering for a service name. The
@@ -205,7 +174,6 @@ function usesDashboardLayer(store: TraceStore): boolean {
 }
 function setUseDashboardLayer(store: TraceStore, on: boolean): void {
   setLayer(store, on ? dashboardLayer.value : '');
-  delete layerDrafts[store];
 }
 
 function setIgnoreCase(store: TraceStore, on: boolean): void {
@@ -249,19 +217,21 @@ function filterInvalid(store: TraceStore): boolean {
       </label>
       <p class="ts-hint">{{ row.hint }}</p>
       <div v-if="checked.has(row.store)" class="ts-fields">
-        <label class="ts-field">
-          <span>{{ t('Menu name') }}</span>
-          <input
-            type="text"
-            class="alias-input sm"
-            :value="nameOf(row.store)"
-            :placeholder="row.label"
-            :disabled="readOnly"
-            spellcheck="false"
-            @input="setName(row.store, ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <template v-if="row.traceql">
+        <div class="ts-row">
+          <label class="ts-field">
+            <span>{{ t('Menu name') }}</span>
+            <input
+              type="text"
+              class="alias-input sm"
+              :value="nameOf(row.store)"
+              :placeholder="row.label"
+              :disabled="readOnly"
+              spellcheck="false"
+              @input="setName(row.store, ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+        <div v-if="row.traceql" class="ts-row">
           <label class="ts-field">
             <span>{{ t('Service filter') }}</span>
             <input
@@ -283,20 +253,21 @@ function filterInvalid(store: TraceStore): boolean {
               @change="setIgnoreCase(row.store, ($event.target as HTMLInputElement).checked)"
             />
           </label>
-          <label v-if="row.store === 'traceql-otlp'" class="ts-field">
+        </div>
+        <div v-if="row.store === 'traceql-otlp'" class="ts-row">
+          <label class="ts-field">
             <span>{{ t('Service layer') }}</span>
-            <input
-              type="text"
+            <select
               class="alias-input sm mono"
-              :value="layerOf(row.store)"
-              placeholder="OTLP_GENERAL"
+              :value="savedLayerOf(row.store)"
               :disabled="readOnly"
-              spellcheck="false"
-              @input="setLayer(row.store, ($event.target as HTMLInputElement).value)"
-              @change="settleLayer(row.store)"
-            />
+              @change="setLayer(row.store, ($event.target as HTMLSelectElement).value)"
+            >
+              <option value="">{{ t('All layers') }}</option>
+              <option v-for="layer in layerOptions(row.store)" :key="layer" :value="layer">{{ layer }}</option>
+            </select>
           </label>
-          <label v-if="row.store === 'traceql-otlp' && dashboardLayer" class="ts-field check">
+          <label v-if="dashboardLayer" class="ts-field check">
             <span>{{ t('Use dashboard layer ({layer})', { layer: dashboardLayer }) }}</span>
             <input
               type="checkbox"
@@ -305,18 +276,13 @@ function filterInvalid(store: TraceStore): boolean {
               @change="setUseDashboardLayer(row.store, ($event.target as HTMLInputElement).checked)"
             />
           </label>
-        </template>
+        </div>
       </div>
       <p v-if="row.traceql && row.store !== 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
         {{ t('The Tempo API has no notion of a layer, so it lists every service of the store. This pattern narrows the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
       </p>
       <p v-if="row.store === 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
         {{ t('OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
-      </p>
-      <p v-if="checked.has(row.store) && layerInvalid(row.store)" class="ts-warn">
-        {{ savedLayerOf(row.store)
-          ? t('Not a layer name, so it is not saved, and the picker keeps the saved layer {layer}. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.', { layer: savedLayerOf(row.store) })
-          : t('Not a layer name, so it is not saved. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.') }}
       </p>
       <p v-if="filterInvalid(row.store)" class="ts-warn">
         {{ t('Horizon will not run this expression, so the picker keeps showing every service. It either does not compile, or it can backtrack exponentially — avoid a repeat applied to a group that itself repeats or branches, such as (a+)+.') }}
@@ -347,7 +313,8 @@ function filterInvalid(store: TraceStore): boolean {
 .ts-hint { margin: 3px 0 0 22px; font-size: 10.5px; color: var(--sw-fg-3); line-height: 1.4; }
 .ts-hint.sub { margin-top: 5px; }
 .ts-warn { margin: 5px 0 0 22px; font-size: 10.5px; color: var(--sw-warn); line-height: 1.4; }
-.ts-fields { display: flex; flex-wrap: wrap; gap: 8px; margin: 7px 0 0 22px; }
+.ts-fields { display: flex; flex-direction: column; gap: 8px; margin: 7px 0 0 22px; }
+.ts-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .ts-field {
   display: flex;
   flex-direction: column;

@@ -116,6 +116,11 @@ export const SERVICE_FILTER_MAX_PATTERN = 200;
  *  a TraceQL expression, so anything else is refused rather than escaped. */
 export const SERVICE_LAYER_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 
+/** The layers OAP stores OTLP services under, which an OTLP store's `serviceLayer` picks from: those a sender sets
+ *  in `service.layer`, and `UNDEFINED` for one that set none or one that is not registered. The `OTLP_VIRTUAL_*`
+ *  layers hold peers derived from client spans, which send no spans of their own. */
+export const OTLP_SERVICE_LAYERS = ['OTLP_GENERAL', 'OTLP_MESH', 'UNDEFINED'] as const;
+
 /**
  * Whether a pattern is one the BFF will run.
  *

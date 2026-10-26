@@ -152,6 +152,7 @@ export type {
   TraceDetailResponse,
 } from './trace.js';
 export {
+  OTLP_SERVICE_LAYERS,
   SERVICE_LAYER_PATTERN,
   TRACE_STORES,
   backtracksBadly,

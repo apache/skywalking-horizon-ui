@@ -3593,9 +3593,8 @@
   "not set": "설정되지 않음",
   "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "레코드 목록의 트레이스 아이콘이 여기로 안내하는 것은 해당 위젯이 트레이스 저장소를 지정하지 않았기 때문입니다. 레이어 대시보드 편집기의 레코드 트레이스에서 지정하세요.",
   "Query it from one of these trace sources:": "다음 트레이스 소스 중 하나에서 조회:",
+  "All layers": "모든 레이어",
   "Use dashboard layer ({layer})": "대시보드 레이어 사용 ({layer})",
   "Service layer": "서비스 레이어",
-  "OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.": "OAP는 각 OTLP 서비스가 전송될 때의 service.layer를 보관하며, 설정되지 않았거나 등록되지 않은 레이어인 경우 UNDEFINED로 기록합니다. 서비스 레이어를 지정하면 서비스 필터를 적용하기 전에 선택기를 해당 레이어로 저장된 서비스로 좁힙니다. 둘 다 서비스 선택기만 좁히며, 결과 행은 필터링되지 않으므로 서비스 간 트레이스는 계속 표시됩니다.",
-  "Not a layer name, so it is not saved, and the picker keeps the saved layer {layer}. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "레이어 이름이 아니므로 저장되지 않으며, 선택기는 저장된 레이어 {layer}를 유지합니다. 문자로 시작하는 문자, 숫자, 밑줄을 64자 이내로 사용하세요(예: OTLP_GENERAL).",
-  "Not a layer name, so it is not saved. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "레이어 이름이 아니므로 저장되지 않습니다. 문자로 시작하는 문자, 숫자, 밑줄을 64자 이내로 사용하세요(예: OTLP_GENERAL)."
+  "OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.": "OAP는 각 OTLP 서비스가 전송될 때의 service.layer를 보관하며, 설정되지 않았거나 등록되지 않은 레이어인 경우 UNDEFINED로 기록합니다. 서비스 레이어를 지정하면 서비스 필터를 적용하기 전에 선택기를 해당 레이어로 저장된 서비스로 좁힙니다. 둘 다 서비스 선택기만 좁히며, 결과 행은 필터링되지 않으므로 서비스 간 트레이스는 계속 표시됩니다."
 }
