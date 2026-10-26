@@ -194,17 +194,17 @@ function layerInvalid(store: TraceStore): boolean {
 function ignoresCase(store: TraceStore): boolean {
   return (filterOf(store).flags ?? '').includes('i');
 }
-/** The layer being edited, offered as the OTLP store's service layer: the OTLP Service layer's services arrive
- *  under its own name. Absent when the key is not a layer name. */
-const thisLayer = computed(() => {
+/** The layer of the dashboard being edited, offered as the OTLP store's service layer: the OTLP Service layer's
+ *  services arrive under its own name. Absent when the key is not a layer name. */
+const dashboardLayer = computed(() => {
   const key = (props.layerKey ?? '').toUpperCase();
   return SERVICE_LAYER_PATTERN.test(key) ? key : '';
 });
-function usesThisLayer(store: TraceStore): boolean {
-  return thisLayer.value !== '' && savedLayerOf(store) === thisLayer.value;
+function usesDashboardLayer(store: TraceStore): boolean {
+  return dashboardLayer.value !== '' && savedLayerOf(store) === dashboardLayer.value;
 }
-function setUseThisLayer(store: TraceStore, on: boolean): void {
-  setLayer(store, on ? thisLayer.value : '');
+function setUseDashboardLayer(store: TraceStore, on: boolean): void {
+  setLayer(store, on ? dashboardLayer.value : '');
   delete layerDrafts[store];
 }
 
@@ -296,13 +296,13 @@ function filterInvalid(store: TraceStore): boolean {
               @change="settleLayer(row.store)"
             />
           </label>
-          <label v-if="row.store === 'traceql-otlp' && thisLayer" class="ts-field check">
-            <span>{{ t('Use this layer ({layer})', { layer: thisLayer }) }}</span>
+          <label v-if="row.store === 'traceql-otlp' && dashboardLayer" class="ts-field check">
+            <span>{{ t('Use dashboard layer ({layer})', { layer: dashboardLayer }) }}</span>
             <input
               type="checkbox"
-              :checked="usesThisLayer(row.store)"
+              :checked="usesDashboardLayer(row.store)"
               :disabled="readOnly"
-              @change="setUseThisLayer(row.store, ($event.target as HTMLInputElement).checked)"
+              @change="setUseDashboardLayer(row.store, ($event.target as HTMLInputElement).checked)"
             />
           </label>
         </template>

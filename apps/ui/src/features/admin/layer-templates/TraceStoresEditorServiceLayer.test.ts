@@ -31,9 +31,9 @@ function mountEditor(traces?: TracesConfig, layerKey?: string): VueWrapper {
   return mount(TraceStoresEditor, { props: { traces, layerKey }, global: { plugins: [i18n] } });
 }
 
-/** The OTLP row's "Use this layer" checkbox, when the editor offers one. */
-const useThisLayer = (w: VueWrapper) =>
-  row(w, ROW.traceqlOtlp).findAll('label.ts-field.check').find((l) => l.text().startsWith('Use this layer'));
+/** The OTLP row's "Use dashboard layer" checkbox, when the editor offers one. */
+const useDashboardLayer = (w: VueWrapper) =>
+  row(w, ROW.traceqlOtlp).findAll('label.ts-field.check').find((l) => l.text().startsWith('Use dashboard layer'));
 
 /** Rows are in `TRACE_STORES` order; the OTLP row's text fields are menu name, service filter, service layer. */
 const ROW = { native: 0, traceqlNative: 2, traceqlOtlp: 4 };
@@ -146,10 +146,10 @@ describe('trace stores editor: service layer', () => {
     expect(w.find('.ts-warn').exists()).toBe(false);
   });
 
-  it('offers the layer being edited as the service layer', async () => {
+  it('offers the dashboard layer being edited as the service layer', async () => {
     const w = mountEditor({ sources: ['traceql-otlp'] }, 'OTLP_GENERAL');
-    const box = useThisLayer(w)!;
-    expect(box.text()).toBe('Use this layer (OTLP_GENERAL)');
+    const box = useDashboardLayer(w)!;
+    expect(box.text()).toBe('Use dashboard layer (OTLP_GENERAL)');
     expect((box.get('input').element as HTMLInputElement).checked).toBe(false);
 
     await box.get('input').setValue(true);
@@ -158,7 +158,7 @@ describe('trace stores editor: service layer', () => {
 
   it('shows the box ticked while the saved layer is the edited one, and clears the layer when unticked', async () => {
     const w = mountEditor({ sources: ['traceql-otlp'], stores: { 'traceql-otlp': { serviceLayer: 'OTLP_GENERAL' } } }, 'OTLP_GENERAL');
-    const box = useThisLayer(w)!;
+    const box = useDashboardLayer(w)!;
     expect((box.get('input').element as HTMLInputElement).checked).toBe(true);
 
     await box.get('input').setValue(false);
@@ -167,8 +167,8 @@ describe('trace stores editor: service layer', () => {
 
   it('leaves the box unticked for another layer, and offers none without a layer key', () => {
     const mesh = mountEditor({ sources: ['traceql-otlp'], stores: { 'traceql-otlp': { serviceLayer: 'OTLP_MESH' } } }, 'MESH');
-    expect((useThisLayer(mesh)!.get('input').element as HTMLInputElement).checked).toBe(false);
-    expect(useThisLayer(mountEditor({ sources: ['traceql-otlp'] }))).toBeUndefined();
+    expect((useDashboardLayer(mesh)!.get('input').element as HTMLInputElement).checked).toBe(false);
+    expect(useDashboardLayer(mountEditor({ sources: ['traceql-otlp'] }))).toBeUndefined();
   });
 
   it('warns about a stored value that is not a layer name', () => {
