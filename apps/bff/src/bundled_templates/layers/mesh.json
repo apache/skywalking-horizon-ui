@@ -1012,6 +1012,11 @@
     ]
   },
   "traces": {
-    "sources": ["zipkin", "traceql-otlp"]
+    "sources": ["zipkin", "traceql-otlp"],
+    "stores": {
+      "traceql-otlp": {
+        "serviceLayer": "OTLP_MESH"
+      }
+    }
   }
 }

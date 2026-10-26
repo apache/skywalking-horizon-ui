@@ -122,7 +122,7 @@ For how these maps are read and navigated, see the [3D Infrastructure Map](../op
 
 ## Traces
 
-MESH has two trace rows, because a mesh can send its spans either way. **Zipkin Traces** holds spans sent in Zipkin's protocol, such as those of Istio's Zipkin tracer. **OTLP Traces** holds spans sent over OpenTelemetry, which OAP stores natively by default since 11.1.0; it needs OAP's TraceQL module with its `/otlp` datasource, and `oap.traceql.url` set in Horizon. The workflow and filters are the same as any other layer's trace view — see [Traces](../operate/traces.md).
+MESH has two trace rows, because a mesh can send its spans either way. **Zipkin Traces** holds spans sent in Zipkin's protocol, such as those of Istio's Zipkin tracer. **OTLP Traces** holds spans sent over OpenTelemetry, which OAP stores natively by default since 11.1.0; it needs OAP's TraceQL module with its `/otlp` datasource, and `oap.traceql.url` set in Horizon. Its service picker lists the services OAP stores under `service.layer=OTLP_MESH`, the layer OAP's [trace analyzer setup](https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/) has sidecars set, through the resource environment detector and `OTEL_RESOURCE_ATTRIBUTES` in `proxyMetadata`, so the applications' own OTLP services are left out; sidecars that set no layer are stored under `UNDEFINED` and are not listed until they set it, or until the row's **Service layer** is changed in **Dashboard setup → Layer dashboards**. The workflow and filters are the same as any other layer's trace view — see [Traces](../operate/traces.md).
 
 ## Requirements
 

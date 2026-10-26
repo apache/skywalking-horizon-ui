@@ -19,7 +19,8 @@
   called, and — for the TraceQL rows — which services its picker offers.
 
   A checklist, not a picker: a layer can expose any combination, and each
-  checked store becomes its own sidebar row.
+  checked store becomes its own sidebar row. The OTLP row can also name an OAP
+  layer, which OAP's own service catalog narrows that picker to.
 
   What is ticked when the page opens is what the layer RESOLVES to, not what its
   template literally says — a template written before the checklist carries the
@@ -29,10 +30,11 @@
   overrides the fallback.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, reactive, toRaw, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   backtracksBadly,
+  SERVICE_LAYER_PATTERN,
   TRACE_STORES,
   TRACE_STORE_ROWS,
   resolveTraceStores,
@@ -41,7 +43,7 @@ import {
   type TracesConfig,
 } from '@skywalking-horizon-ui/api-client';
 
-const props = defineProps<{ traces?: TracesConfig; readOnly?: boolean }>();
+const props = defineProps<{ traces?: TracesConfig; readOnly?: boolean; layerKey?: string }>();
 const emit = defineEmits<{ (e: 'update', value: TracesConfig | undefined): void }>();
 const { t } = useI18n({ useScope: 'global' });
 
@@ -87,19 +89,22 @@ const checked = computed(() => new Set(resolveTraceStores(props.traces)));
  *  the first edit: what was implied becomes an explicit `sources`, and the
  *  legacy `source` enum is not written back. */
 function commit(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): void {
+  const next = blockOf(sources, stores);
+  lastEmitted = next;
+  emit('update', next);
+}
+
+function blockOf(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): TracesConfig {
   const kept: Partial<Record<TraceStore, TraceStoreConfig>> = {};
   for (const s of sources) {
     const cfg = stores[s];
-    if (cfg && (cfg.name || cfg.serviceFilter?.pattern)) kept[s] = cfg;
+    if (cfg && (cfg.name || cfg.serviceFilter?.pattern || cfg.serviceLayer)) kept[s] = cfg;
   }
   // An empty LIST, never an absent block: a template that says nothing about
   // traces resolves to the native store for compatibility, so removing the
   // block would tick native back on rather than turn everything off.
-  if (sources.length === 0 && Object.keys(kept).length === 0) {
-    emit('update', { sources: [] });
-    return;
-  }
-  emit('update', Object.keys(kept).length > 0 ? { sources, stores: kept } : { sources });
+  if (sources.length === 0 && Object.keys(kept).length === 0) return { sources: [] };
+  return Object.keys(kept).length > 0 ? { sources, stores: kept } : { sources };
 }
 
 function currentStores(): Partial<Record<TraceStore, TraceStoreConfig>> {
@@ -133,12 +138,76 @@ function setFilter(store: TraceStore, part: 'pattern' | 'flags', value: string):
   commit([...checked.value], stores);
 }
 
+/** The text being typed, shown as typed: upper-casing the field itself on each
+ *  keystroke would move the caret to its end. */
+const layerDrafts = reactive<Partial<Record<TraceStore, string>>>({});
+
+/** Layer names are upper case, so typing is upper-cased rather than refused. A
+ *  value that is not a layer name is never written: the template schema refuses
+ *  the whole template over it, so it would fail the save. */
+function setLayer(store: TraceStore, value: string): void {
+  if (props.readOnly) return;
+  layerDrafts[store] = value;
+  const layer = value.trim().toUpperCase();
+  if (layer && !SERVICE_LAYER_PATTERN.test(layer)) return;
+  const stores = currentStores();
+  const cfg = { ...(stores[store] ?? {}) };
+  if (layer) cfg.serviceLayer = layer;
+  else delete cfg.serviceLayer;
+  stores[store] = cfg;
+  commit([...checked.value], stores);
+}
+
+/** Once the field is left, a value that was written is shown as written. */
+function settleLayer(store: TraceStore): void {
+  if (!layerInvalid(store)) delete layerDrafts[store];
+}
+
+function savedLayerOf(store: TraceStore): string {
+  return props.traces?.stores?.[store]?.serviceLayer ?? '';
+}
+function layerOf(store: TraceStore): string {
+  return layerDrafts[store] ?? savedLayerOf(store);
+}
+
+/** The block this editor last emitted, which the parent hands back as it is. */
+let lastEmitted: TracesConfig | undefined;
+
+// Any other block — the template discarded, reloaded or switched — replaces what was being typed, whatever layer
+// it holds; the block this editor wrote keeps the text as typed.
+watch(
+  () => props.traces,
+  (traces) => {
+    if (traces === undefined || toRaw(traces) !== lastEmitted) {
+      for (const s of TRACE_STORES) delete layerDrafts[s];
+    }
+  },
+);
+function layerInvalid(store: TraceStore): boolean {
+  const layer = layerOf(store).trim().toUpperCase();
+  return layer !== '' && !SERVICE_LAYER_PATTERN.test(layer);
+}
+
 /** The only regular-expression flag worth offering for a service name. The
  *  others are meaningless on one line (`m`, `s`) or change what the pattern
  *  matches under the operator (`g`, `y` carry state between tests). */
 function ignoresCase(store: TraceStore): boolean {
   return (filterOf(store).flags ?? '').includes('i');
 }
+/** The layer being edited, offered as the OTLP store's service layer: the OTLP Service layer's services arrive
+ *  under its own name. Absent when the key is not a layer name. */
+const thisLayer = computed(() => {
+  const key = (props.layerKey ?? '').toUpperCase();
+  return SERVICE_LAYER_PATTERN.test(key) ? key : '';
+});
+function usesThisLayer(store: TraceStore): boolean {
+  return thisLayer.value !== '' && savedLayerOf(store) === thisLayer.value;
+}
+function setUseThisLayer(store: TraceStore, on: boolean): void {
+  setLayer(store, on ? thisLayer.value : '');
+  delete layerDrafts[store];
+}
+
 function setIgnoreCase(store: TraceStore, on: boolean): void {
   setFilter(store, 'flags', on ? 'i' : '');
 }
@@ -214,10 +283,40 @@ function filterInvalid(store: TraceStore): boolean {
               @change="setIgnoreCase(row.store, ($event.target as HTMLInputElement).checked)"
             />
           </label>
+          <label v-if="row.store === 'traceql-otlp'" class="ts-field">
+            <span>{{ t('Service layer') }}</span>
+            <input
+              type="text"
+              class="alias-input sm mono"
+              :value="layerOf(row.store)"
+              placeholder="OTLP_GENERAL"
+              :disabled="readOnly"
+              spellcheck="false"
+              @input="setLayer(row.store, ($event.target as HTMLInputElement).value)"
+              @change="settleLayer(row.store)"
+            />
+          </label>
+          <label v-if="row.store === 'traceql-otlp' && thisLayer" class="ts-field check">
+            <span>{{ t('Use this layer ({layer})', { layer: thisLayer }) }}</span>
+            <input
+              type="checkbox"
+              :checked="usesThisLayer(row.store)"
+              :disabled="readOnly"
+              @change="setUseThisLayer(row.store, ($event.target as HTMLInputElement).checked)"
+            />
+          </label>
         </template>
       </div>
-      <p v-if="row.traceql && checked.has(row.store)" class="ts-hint sub">
+      <p v-if="row.traceql && row.store !== 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
         {{ t('The Tempo API has no notion of a layer, so it lists every service of the store. This pattern narrows the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
+      </p>
+      <p v-if="row.store === 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
+        {{ t('OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
+      </p>
+      <p v-if="checked.has(row.store) && layerInvalid(row.store)" class="ts-warn">
+        {{ savedLayerOf(row.store)
+          ? t('Not a layer name, so it is not saved, and the picker keeps the saved layer {layer}. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.', { layer: savedLayerOf(row.store) })
+          : t('Not a layer name, so it is not saved. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.') }}
       </p>
       <p v-if="filterInvalid(row.store)" class="ts-warn">
         {{ t('Horizon will not run this expression, so the picker keeps showing every service. It either does not compile, or it can backtrack exponentially — avoid a repeat applied to a group that itself repeats or branches, such as (a+)+.') }}

@@ -760,6 +760,7 @@ const namingTest = computed<NamingTestResult>(() => {
                 v-if="activeScope === 'trace'"
                 :traces="draft.template?.traces"
                 :read-only="readOnly"
+                :layer-key="selectedKey"
                 @update="setTraces"
               />
               <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">

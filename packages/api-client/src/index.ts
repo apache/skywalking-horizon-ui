@@ -151,7 +151,16 @@ export type {
   TraceListResponse,
   TraceDetailResponse,
 } from './trace.js';
-export { TRACE_STORES, backtracksBadly, resolveTraceStores, serviceFilterOf, tracesInclude, traceRowIsZipkin } from './trace.js';
+export {
+  SERVICE_LAYER_PATTERN,
+  TRACE_STORES,
+  backtracksBadly,
+  resolveTraceStores,
+  serviceFilterOf,
+  serviceLayerOf,
+  tracesInclude,
+  traceRowIsZipkin,
+} from './trace.js';
 export type {
   TraceQLDatasource,
   TraceQLServiceEntry,

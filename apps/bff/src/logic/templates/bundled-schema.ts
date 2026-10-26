@@ -60,6 +60,7 @@ import {
   LANDING_TOP_N_MAX,
   MAX_EXT_PAGE_ID_LENGTH,
   MAX_EXT_PAGE_NAME_LENGTH,
+  SERVICE_LAYER_PATTERN,
 } from '@skywalking-horizon-ui/api-client';
 import { widgetSchema, scopeSchema } from '../dashboard/schema.js';
 import { linkSchemeIssue } from '../../util/link-policy.js';
@@ -490,7 +491,8 @@ function buildLayerSchemas(complete: boolean) {
           // Per-store settings: the row's sidebar label, and the regex that
           // narrows its service picker — the Tempo API has no notion of a
           // layer, so a layer owning a subset of a store's services has no
-          // protocol-level way to say which.
+          // protocol-level way to say which. The OTLP store can also name an
+          // OAP layer, which OAP's own service catalog narrows the picker to.
           stores: z
             .object(
               Object.fromEntries(
@@ -503,6 +505,8 @@ function buildLayerSchemas(complete: boolean) {
                         .object({ pattern: text, flags: z.string().max(8).optional() })
                         .strict()
                         .optional(),
+                      // Only OAP's OTLP catalog keeps a layer per service.
+                      ...(k === 'traceql-otlp' ? { serviceLayer: z.string().regex(SERVICE_LAYER_PATTERN).optional() } : {}),
                     })
                     .strict()
                     .optional(),

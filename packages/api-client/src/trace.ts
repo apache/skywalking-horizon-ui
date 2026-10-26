@@ -86,11 +86,19 @@ export const TRACE_STORES: readonly TraceStore[] = [
  * service name; an invalid one filters nothing rather than emptying the list.
  * It shapes the picker only: filtering result rows would hide the cross-service
  * traces that are the point of having traces.
+ *
+ * `serviceLayer` narrows the same picker on the OTLP store, which OAP 11.1.0 can
+ * do itself: its service catalog keeps the `service.layer` each service's
+ * resource carried, `UNDEFINED` when it set none or one that is not a
+ * registered layer, and lists for a layer the services stored with it. It
+ * applies before {@link TraceStoreConfig.serviceFilter}.
  */
 export interface TraceStoreConfig {
   /** Sidebar label for this store's row. Absent uses the built-in name. */
   name?: string;
   serviceFilter?: { pattern: string; flags?: string };
+  /** An OAP layer name, `OTLP_GENERAL`. OTLP store only. */
+  serviceLayer?: string;
 }
 
 export interface TracesConfig {
@@ -103,6 +111,10 @@ export interface TracesConfig {
 
 /** The longest service-filter pattern accepted, in characters. */
 export const SERVICE_FILTER_MAX_PATTERN = 200;
+
+/** An OAP layer name, the only shape a `serviceLayer` takes: it is written into
+ *  a TraceQL expression, so anything else is refused rather than escaped. */
+export const SERVICE_LAYER_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /**
  * Whether a pattern is one the BFF will run.
@@ -201,6 +213,14 @@ export function serviceFilterOf(cfg: TracesConfig | null | undefined, store: Tra
   } catch {
     return null;
   }
+}
+
+/** A store's service layer, or `null` when it has none, the store is not the
+ *  OTLP one, or the value is not a layer name. */
+export function serviceLayerOf(cfg: TracesConfig | null | undefined, store: TraceStore): string | null {
+  if (store !== 'traceql-otlp') return null;
+  const layer = cfg?.stores?.[store]?.serviceLayer;
+  return typeof layer === 'string' && SERVICE_LAYER_PATTERN.test(layer) ? layer : null;
 }
 
 /**

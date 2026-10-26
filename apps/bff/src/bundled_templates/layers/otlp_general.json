@@ -1,5 +1,5 @@
 {
-  "key": "OTLP_SERVICE",
+  "key": "OTLP_GENERAL",
   "alias": "OTLP Service",
   "group": "OpenTelemetry",
   "color": "var(--sw-info)",
@@ -23,7 +23,12 @@
     "pprofProfiling": false
   },
   "traces": {
-    "sources": ["traceql-otlp"]
+    "sources": ["traceql-otlp"],
+    "stores": {
+      "traceql-otlp": {
+        "serviceLayer": "OTLP_GENERAL"
+      }
+    }
   },
   "layer-header": {
     "orderBy": "cpm",

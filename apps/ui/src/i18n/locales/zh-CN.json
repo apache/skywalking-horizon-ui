@@ -3592,5 +3592,10 @@
   "Trace link not valid": "追踪链接无效",
   "not set": "未设置",
   "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "记录列表的追踪图标在其组件未指定追踪存储时会来到这里。请在层级仪表板编辑器的“记录追踪”中指定。",
-  "Query it from one of these trace sources:": "从以下任一追踪源查询："
+  "Query it from one of these trace sources:": "从以下任一追踪源查询：",
+  "Use this layer ({layer})": "使用当前层 ({layer})",
+  "Service layer": "服务层",
+  "OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.": "OAP 会记录每个 OTLP 服务上报时的 service.layer，未设置或设置的不是已注册的层时记为 UNDEFINED。设置服务层后，选择器只列出以该层存储的服务，之后再应用服务过滤。两者都只缩小服务选择器的范围——结果行从不被过滤，因此跨服务的链路仍会显示。",
+  "Not a layer name, so it is not saved, and the picker keeps the saved layer {layer}. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "这不是有效的层名称，因此不会保存，选择器仍使用已保存的层 {layer}。请使用以字母开头的字母、数字和下划线，最多 64 个字符，例如 OTLP_GENERAL。",
+  "Not a layer name, so it is not saved. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "这不是有效的层名称，因此不会保存。请使用以字母开头的字母、数字和下划线，最多 64 个字符，例如 OTLP_GENERAL。"
 }

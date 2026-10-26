@@ -3592,5 +3592,10 @@
   "Trace link not valid": "無効なトレースリンク",
   "not set": "未設定",
   "A record list's trace icon leads here when its widget names no trace store. Set one under Record trace in the layer dashboard editor.": "レコード一覧のトレースアイコンからここに来るのは、そのウィジェットがトレースストアを指定していない場合です。レイヤーダッシュボードエディターの「レコードのトレース」で指定してください。",
-  "Query it from one of these trace sources:": "次のいずれかのトレースソースから照会します:"
+  "Query it from one of these trace sources:": "次のいずれかのトレースソースから照会します:",
+  "Use this layer ({layer})": "このレイヤーを使用 ({layer})",
+  "Service layer": "サービスレイヤー",
+  "OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.": "OAP は各 OTLP サービスが送信時に持っていた service.layer を保持し、未設定または登録されていないレイヤーの場合は UNDEFINED とします。サービスレイヤーを指定すると、サービスフィルターの適用前に、ピッカーをそのレイヤーで保存されたサービスに絞り込みます。どちらもサービスのピッカーだけを絞り込みます。結果の行は絞り込まれないため、サービスをまたぐトレースは引き続き表示されます。",
+  "Not a layer name, so it is not saved, and the picker keeps the saved layer {layer}. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "レイヤー名ではないため保存されず、ピッカーは保存済みのレイヤー {layer} を使い続けます。英字で始まる英字・数字・アンダースコアを 64 文字以内で使用してください（例: OTLP_GENERAL）。",
+  "Not a layer name, so it is not saved. Use letters, digits and underscores, starting with a letter, at most 64 characters, such as OTLP_GENERAL.": "レイヤー名ではないため、保存されません。英字で始まる英字・数字・アンダースコアを 64 文字以内で使用してください（例: OTLP_GENERAL）。"
 }
