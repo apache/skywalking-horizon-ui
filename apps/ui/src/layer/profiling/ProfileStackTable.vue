@@ -39,6 +39,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ProfileAnalyzationTree } from '@/api/client';
+import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import ProfileStackRow, { type StackColumns } from './ProfileStackRow.vue';
 import { foldStack, type StackNode } from './profileStackFold';
 
@@ -101,6 +102,7 @@ function targets(pick: (n: StackNode) => boolean): { key: string; ancestors: str
 
 type Column = keyof StackColumns;
 const MIN_WIDTH: StackColumns = { thread: 160, duration: 60, self: 60, count: 60 };
+const HEADER_HEIGHT = 28;
 const FIT_NUMBER_WIDTHS = { duration: 120, self: 140, count: 110 };
 const widths = reactive<StackColumns>({ thread: 0, ...FIT_NUMBER_WIDTHS });
 /** Until the operator drags a border, Thread Stack takes what the number
@@ -168,13 +170,14 @@ onMounted(() => {
   if (highlightTop.value) void jumpToNext('top');
 });
 onBeforeUnmount(() => {
+  if (pointerTimer) clearTimeout(pointerTimer);
   observer?.disconnect();
   endDrag?.();
 });
 
 /** Open every row above the target, then scroll to it — the page too when it
  *  must: on a short window the table's own bottom can sit below the fold. */
-async function reveal(target: { key: string; ancestors: string[] }): Promise<void> {
+async function reveal(target: { key: string; ancestors: string[] }, smooth = false): Promise<void> {
   if (target.ancestors.some((k) => collapsed.value.has(k))) {
     const next = new Set(collapsed.value);
     for (const k of target.ancestors) next.delete(k);
@@ -185,9 +188,124 @@ async function reveal(target: { key: string; ancestors: string[] }): Promise<voi
   const row = [...(scroller.value?.querySelectorAll<HTMLElement>('.row') ?? [])].find(
     (r) => r.dataset.key === target.key,
   );
-  row?.scrollIntoView({ block: 'center', inline: 'nearest' });
+  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  row?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: smooth && !reduced ? 'smooth' : 'auto' });
   // A row already on screen needs no scroll, so no scroll event marks it seen.
   if (highlightTop.value && topRowInView()) topSeen = true;
+}
+
+/** Each row's parent, for the depth button on rows whose indent stopped. */
+const parentOf = computed(() => {
+  const map = new Map<string, string>();
+  const walk = (list: StackNode[], parent: string | null) => {
+    for (const n of list) {
+      if (parent) map.set(n.key, parent);
+      walk(n.children, n.key);
+    }
+  };
+  walk(nodes.value, null);
+  return map;
+});
+const nodeByKey = computed(() => {
+  const map = new Map<string, { node: StackNode; depth: number }>();
+  const walk = (list: StackNode[], depth: number) => {
+    for (const n of list) {
+      map.set(n.key, { node: n, depth });
+      walk(n.children, depth + 1);
+    }
+  };
+  walk(nodes.value, 0);
+  return map;
+});
+
+const body = ref<HTMLElement | null>(null);
+const rowEl = (key: string) =>
+  [...(body.value?.querySelectorAll<HTMLElement>('.row') ?? [])].find((r) => r.dataset.key === key) ?? null;
+/** The band of the table the operator can actually see: below its sticky
+ *  header and inside every clipping ancestor and the window — on a short
+ *  window the page itself cuts the table off. */
+let clippingAncestors: HTMLElement[] | null = null;
+function visibleBand(): { top: number; bottom: number } | null {
+  const el = scroller.value;
+  if (!el) return null;
+  if (!clippingAncestors) {
+    clippingAncestors = [];
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      const overflow = getComputedStyle(p).overflowY;
+      if (overflow && overflow !== 'visible') clippingAncestors.push(p);
+    }
+  }
+  const box = el.getBoundingClientRect();
+  let top = Math.max(box.top + HEADER_HEIGHT, 0);
+  let bottom = Math.min(box.bottom, window.innerHeight);
+  for (const a of clippingAncestors) {
+    const r = a.getBoundingClientRect();
+    top = Math.max(top, r.top);
+    bottom = Math.min(bottom, r.bottom);
+  }
+  return { top, bottom };
+}
+function rowInView(row: HTMLElement): boolean {
+  const band = visibleBand();
+  if (!band) return false;
+  const r = row.getBoundingClientRect();
+  return r.top >= band.top && r.bottom <= band.bottom;
+}
+
+/** A depth click does not move the view. When the parent row is on screen an
+ *  arrow points at it from the clicked row; when it is not, a card names it
+ *  and offers to scroll there. */
+const flashKey = ref<string | null>(null);
+const pointer = ref<{ top: number; height: number; left: number } | null>(null);
+const parentCard = ref<{ anchor: HTMLElement; fromKey: string; key: string } | null>(null);
+const parentCardInfo = computed(() => (parentCard.value ? nodeByKey.value.get(parentCard.value.key) ?? null : null));
+let pointerTimer: ReturnType<typeof setTimeout> | null = null;
+function clearPointer(): void {
+  if (pointerTimer) clearTimeout(pointerTimer);
+  pointerTimer = null;
+  pointer.value = null;
+  flashKey.value = null;
+}
+
+function pointAt(fromKey: string, parentKey: string): void {
+  const from = rowEl(fromKey);
+  const to = rowEl(parentKey);
+  if (!from || !to) return;
+  const sig = to.querySelector<HTMLElement>('.cell.sig');
+  const indent = sig ? parseFloat(getComputedStyle(sig).paddingLeft) || 0 : 0;
+  const top = to.offsetTop + to.offsetHeight / 2;
+  // Cleared first so pointing at the same parent again replays the animation.
+  pointer.value = null;
+  flashKey.value = null;
+  void nextTick(() => {
+    pointer.value = { top, height: Math.max(0, from.offsetTop + from.offsetHeight / 2 - top), left: Math.max(2, indent - 12) };
+    flashKey.value = parentKey;
+  });
+  if (pointerTimer) clearTimeout(pointerTimer);
+  pointerTimer = setTimeout(() => {
+    pointer.value = null;
+    flashKey.value = null;
+  }, 2600);
+}
+function toParent(key: string, anchor: HTMLElement): void {
+  const parent = parentOf.value.get(key);
+  if (!parent) return;
+  const parentRow = rowEl(parent);
+  if (parentRow && rowInView(parentRow)) {
+    parentCard.value = null;
+    pointAt(key, parent);
+  } else {
+    parentCard.value = { anchor, fromKey: key, key: parent };
+  }
+}
+async function scrollToParentCard(): Promise<void> {
+  const card = parentCard.value;
+  if (!card) return;
+  parentCard.value = null;
+  const ancestors: string[] = [];
+  for (let k = parentOf.value.get(card.key); k; k = parentOf.value.get(k)) ancestors.unshift(k);
+  await reveal({ key: card.key, ancestors }, true);
+  pointAt(card.fromKey, card.key);
 }
 
 // The row the last jump landed on. Row keys are OAP element ids, which repeat
@@ -213,7 +331,6 @@ defineExpose({ jumpToNext });
 // Off again once the operator scrolls away: only after a highlighted row has
 // been in view, so the scrolls that bring it there do not count as leaving.
 let topSeen = false;
-const HEADER_HEIGHT = 28;
 
 // Turning the highlight on takes the operator to the first slow frame — in a
 // deep stack it is usually far below the framework frames on screen.
@@ -225,12 +342,11 @@ watch(highlightTop, async (on) => {
 });
 
 function topRowInView(): boolean {
-  const el = scroller.value;
-  if (!el) return false;
-  const box = el.getBoundingClientRect();
-  return [...el.querySelectorAll<HTMLElement>('.row.is-top')].some((r) => {
+  const band = visibleBand();
+  if (!band) return false;
+  return [...(scroller.value?.querySelectorAll<HTMLElement>('.row.is-top') ?? [])].some((r) => {
     const b = r.getBoundingClientRect();
-    return b.bottom > box.top + HEADER_HEIGHT && b.top < box.bottom;
+    return b.bottom > band.top && b.top < band.bottom;
   });
 }
 function onScroll(): void {
@@ -247,8 +363,13 @@ watch(
   () => [props.trees, props.hidePatterns],
   () => {
     topSeen = false;
+    // Keyed by element ids that the next analysis reuses for other frames.
+    parentCard.value = null;
+    clearPointer();
   },
 );
+// The arrow is drawn from row positions, which any layout change moves.
+watch([collapsed, unfolded, () => cols.value.thread], clearPointer);
 </script>
 
 <template>
@@ -275,7 +396,7 @@ watch(
           ></span>
         </div>
       </div>
-      <div class="stack-body">
+      <div ref="body" class="stack-body">
         <div v-if="!nodes.length" class="empty">{{ t('No analyze data yet — pick a profiled span and click Analyze.') }}</div>
         <ProfileStackRow
           v-for="n in nodes"
@@ -286,10 +407,36 @@ watch(
           :highlight-top="highlightTop"
           :current-key="currentKey"
           :collapsed="collapsed"
+          :flash-key="flashKey"
           @toggle-group="toggleGroup"
           @toggle-open="toggleOpen"
+          @to-parent="toParent"
         />
+        <div
+          v-if="pointer"
+          class="parent-pointer"
+          :style="{ top: pointer.top + 'px', height: pointer.height + 'px', left: pointer.left + 'px' }"
+        ></div>
       </div>
+      <FloatingPanel :open="!!parentCard" :anchor="parentCard?.anchor ?? null" :width="420" @close="parentCard = null">
+        <div v-if="parentCardInfo" class="parent-card" @click.stop>
+          <div class="parent-card-head">
+            {{ t('Parent frame') }} · {{ t('depth {n}', { n: parentCardInfo.depth }) }}
+            <span class="parent-card-note">{{ t('out of view') }}</span>
+          </div>
+          <div class="parent-card-sig">
+            {{ parentCardInfo.node.codeSignature ?? '⋯ ' + t('{n} frames hidden', { n: parentCardInfo.node.hidden.length }) }}
+          </div>
+          <dl class="parent-card-nums">
+            <div><dt>{{ t('Duration (ms)') }}</dt><dd>{{ parentCardInfo.node.duration }}</dd></div>
+            <div><dt>{{ t('Self Duration (ms)') }}</dt><dd>{{ parentCardInfo.node.durationChildExcluded }}</dd></div>
+            <div><dt>{{ t('Dump Count') }}</dt><dd>{{ parentCardInfo.node.count }}</dd></div>
+          </dl>
+          <div class="parent-card-actions">
+            <button type="button" class="parent-card-go" @click="scrollToParentCard">{{ t('Scroll to it') }}</button>
+          </div>
+        </div>
+      </FloatingPanel>
     </div>
   </div>
 </template>
@@ -324,6 +471,116 @@ watch(
 .stack-body {
   width: max-content;
   min-width: 100%;
+  position: relative;
+}
+/* A bracket in the indent gutter from the clicked row up to its parent, the
+ * arrowhead pointing at the parent's name. */
+.parent-pointer {
+  position: absolute;
+  width: 9px;
+  border: 2px solid var(--sw-accent);
+  border-right: none;
+  border-radius: 5px 0 0 5px;
+  pointer-events: none;
+  z-index: 1;
+  transform-origin: bottom;
+  animation: parent-pointer-in 0.35s ease-out;
+}
+.parent-pointer::after {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  border-left: 9px solid var(--sw-accent);
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  animation: parent-pointer-nudge 0.6s ease-in-out 0.35s 3;
+}
+@keyframes parent-pointer-in {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+@keyframes parent-pointer-nudge {
+  50% {
+    transform: translateX(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .parent-pointer,
+  .parent-pointer::after {
+    animation: none;
+  }
+}
+.parent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--sw-sans);
+}
+.parent-card-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.parent-card-note {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--sw-fg-3);
+}
+.parent-card-sig {
+  font-family: var(--sw-mono);
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.parent-card-nums {
+  margin: 0;
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+}
+.parent-card-nums dt {
+  color: var(--sw-fg-3);
+}
+.parent-card-nums dd {
+  margin: 0;
+  color: var(--sw-fg-0);
+  font-variant-numeric: tabular-nums;
+}
+.parent-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.parent-card-go {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  height: 24px;
+  padding: 0 12px;
+  border-radius: 4px;
+  border: 1px solid var(--sw-accent-line);
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent);
+  cursor: pointer;
+}
+.parent-card-go:hover {
+  border-color: var(--sw-accent);
 }
 .cell {
   box-sizing: border-box;

@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Mit der Eingabetaste zum nächsten Treffer springen",
   "{n} match": "{n} Treffer",
   "{n} matches": "{n} Treffer",
-  "Stack depth {n}": "Stacktiefe {n}",
   "Fold the frames shown from here": "Die ab hier eingeblendeten Frames wieder zusammenfalten",
   "Fold": "Zusammenfalten",
   "SkyWalking agent": "SkyWalking-Agent",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "z. B. org.apache.tomcat. oder */site-packages/",
   "Not a frame pattern: {value}": "Kein gültiges Frame-Muster: {value}",
   "No preset matches a frame in this stack.": "Keine Vorlage passt zu einem Frame in diesem Stack.",
-  "Drag to resize this column; double-click to fit all columns": "Ziehen ändert die Breite dieser Spalte; Doppelklick passt alle Spalten ein"
+  "Drag to resize this column; double-click to fit all columns": "Ziehen ändert die Breite dieser Spalte; Doppelklick passt alle Spalten ein",
+  "depth {n}": "Tiefe {n}",
+  "Parent frame": "Übergeordneter Frame",
+  "out of view": "nicht im Blick",
+  "Scroll to it": "Dorthin scrollen",
+  "Point out the parent frame": "Den übergeordneten Frame zeigen"
 }

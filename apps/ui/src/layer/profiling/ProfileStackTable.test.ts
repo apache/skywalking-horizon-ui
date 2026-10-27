@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import type { ProfileAnalyzationTree } from '@/api/client';
 import { i18n } from '@/i18n';
@@ -188,6 +188,98 @@ describe('ProfileStackTable', () => {
     await handle(3).trigger('dblclick');
     expect(widths()).toEqual([430, 120, 140, 110]);
     expect(total()).toBe(800);
+  });
+
+  describe('the depth button', () => {
+    const chain: ProfileAnalyzationTree = {
+      elements: Array.from({ length: 25 }, (_, i) => ({
+        id: String(i + 1),
+        parentId: String(i),
+        codeSignature: `com.example.Frame${i}.call`,
+        duration: 10,
+        durationChildExcluded: i === 24 ? 10 : 0,
+        count: 1,
+      })),
+    };
+    /** Lays out the viewport at 0–200, the clicked row inside it and its
+     *  parent inside or far above. */
+    function mountDeep(parentInView: boolean) {
+      vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+      const rect = (top: number) =>
+        ({ top, bottom: top + 26, left: 0, right: 800, width: 800, height: 26, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        if (this.classList.contains('stack-scroll')) return { ...rect(0), bottom: 200, height: 200 } as DOMRect;
+        const sig = this.querySelector?.('.sig-text')?.textContent;
+        if (sig === 'com.example.Frame19.call') return rect(parentInView ? 100 : -600);
+        return rect(130);
+      });
+      return mount(ProfileStackTable, {
+        props: { trees: [chain], highlightTop: false },
+        attachTo: document.body,
+        global: { plugins: [i18n] },
+      });
+    }
+    const row = (w: ReturnType<typeof mountDeep>, n: number) =>
+      w.findAll('.row').find((r) => r.find('.sig-text').text() === `com.example.Frame${n}.call`);
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('reads as the depth on a row whose indent stopped', async () => {
+      const w = mountDeep(true);
+      await nextTick();
+      expect(row(w, 20)?.find('.depth').text()).toBe('depth 20');
+      expect(row(w, 2)?.find('.depth').exists()).toBe(false);
+    });
+
+    it('points at a parent on screen without moving the view', async () => {
+      const w = mountDeep(true);
+      await nextTick();
+      await row(w, 20)?.find('.depth').trigger('click');
+      await nextTick();
+      expect(w.find('.parent-pointer').exists()).toBe(true);
+      expect(w.find('.row.is-flash .sig-text').text()).toBe('com.example.Frame19.call');
+      expect(scrolled).not.toHaveBeenCalled();
+      expect(document.body.querySelector('.parent-card')).toBeNull();
+    });
+
+    it('treats a parent the window cuts off as off screen', async () => {
+      vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(110);
+      const w = mountDeep(true);
+      await nextTick();
+      await row(w, 20)?.find('.depth').trigger('click');
+      await nextTick();
+      expect(document.body.querySelector('.parent-card')?.textContent).toContain('com.example.Frame19.call');
+      expect(w.find('.parent-pointer').exists()).toBe(false);
+    });
+
+    it('a new analysis closes the parent card, whose frame ids the new tree reuses', async () => {
+      const w = mountDeep(false);
+      await nextTick();
+      await row(w, 20)?.find('.depth').trigger('click');
+      await nextTick();
+      expect(document.body.querySelector('.parent-card')).not.toBeNull();
+      await w.setProps({ trees: [TREE] });
+      await nextTick();
+      expect(document.body.querySelector('.parent-card')).toBeNull();
+      expect(w.find('.parent-pointer').exists()).toBe(false);
+    });
+
+    it('names a parent off screen in a card, and scrolls there only when asked', async () => {
+      const w = mountDeep(false);
+      await nextTick();
+      await row(w, 20)?.find('.depth').trigger('click');
+      await nextTick();
+      const card = document.body.querySelector<HTMLElement>('.parent-card');
+      expect(card?.textContent).toContain('com.example.Frame19.call');
+      expect(card?.textContent).toContain('depth 19');
+      expect(scrolled).not.toHaveBeenCalled();
+      card?.querySelector<HTMLButtonElement>('.parent-card-go')?.click();
+      await flushPromises();
+      await nextTick();
+      expect(scrolled).toHaveBeenLastCalledWith({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+      expect(w.find('.parent-pointer').exists()).toBe(true);
+      expect(document.body.querySelector('.parent-card')).toBeNull();
+    });
   });
 
   it('a folded group keeps the self time of the frames in it', () => {

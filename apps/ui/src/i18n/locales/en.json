@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Press Enter to jump to the next match",
   "{n} match": "{n} match",
   "{n} matches": "{n} matches",
-  "Stack depth {n}": "Stack depth {n}",
   "Fold the frames shown from here": "Fold the frames shown from here",
   "Fold": "Fold",
   "SkyWalking agent": "SkyWalking agent",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "e.g. org.apache.tomcat. or */site-packages/",
   "Not a frame pattern: {value}": "Not a frame pattern: {value}",
   "No preset matches a frame in this stack.": "No preset matches a frame in this stack.",
-  "Drag to resize this column; double-click to fit all columns": "Drag to resize this column; double-click to fit all columns"
+  "Drag to resize this column; double-click to fit all columns": "Drag to resize this column; double-click to fit all columns",
+  "depth {n}": "depth {n}",
+  "Parent frame": "Parent frame",
+  "out of view": "out of view",
+  "Scroll to it": "Scroll to it",
+  "Point out the parent frame": "Point out the parent frame"
 }

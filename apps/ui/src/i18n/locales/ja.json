@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Enter キーで次の一致箇所へ移動",
   "{n} match": "{n} 件一致",
   "{n} matches": "{n} 件一致",
-  "Stack depth {n}": "スタックの深さ {n}",
   "Fold the frames shown from here": "ここから展開したフレームを再び折りたたむ",
   "Fold": "折りたたむ",
   "SkyWalking agent": "SkyWalking エージェント",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "例: org.apache.tomcat. または */site-packages/",
   "Not a frame pattern: {value}": "フレームのパターンとして無効です: {value}",
   "No preset matches a frame in this stack.": "このスタックのフレームに一致するプリセットはありません。",
-  "Drag to resize this column; double-click to fit all columns": "ドラッグでこの列の幅を変更します。ダブルクリックで全列を元の幅に合わせます"
+  "Drag to resize this column; double-click to fit all columns": "ドラッグでこの列の幅を変更します。ダブルクリックで全列を元の幅に合わせます",
+  "depth {n}": "深さ {n}",
+  "Parent frame": "親フレーム",
+  "out of view": "表示範囲外",
+  "Scroll to it": "そこへスクロール",
+  "Point out the parent frame": "親フレームを示す"
 }

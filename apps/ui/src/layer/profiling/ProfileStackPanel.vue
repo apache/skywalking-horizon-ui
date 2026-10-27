@@ -370,6 +370,8 @@ function togglePreset(p: Preset): void {
 .psp-pop {
   margin-left: auto;
 }
+/* The floating panel caps its height and hides overflow; min-height: 0 is
+ * what lets this flex child shrink and scroll instead of being cut off. */
 .psp-hide-panel {
   display: flex;
   flex-direction: column;
@@ -377,6 +379,7 @@ function togglePreset(p: Preset): void {
   padding: 12px 14px;
   width: 100%;
   box-sizing: border-box;
+  min-height: 0;
   overflow: auto;
   font-family: var(--sw-sans);
 }

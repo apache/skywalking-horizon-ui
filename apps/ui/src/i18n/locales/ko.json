@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Enter 키를 누르면 다음 일치 항목으로 이동합니다",
   "{n} match": "{n}개 일치",
   "{n} matches": "{n}개 일치",
-  "Stack depth {n}": "스택 깊이 {n}",
   "Fold the frames shown from here": "여기부터 펼친 프레임을 다시 접기",
   "Fold": "접기",
   "SkyWalking agent": "SkyWalking 에이전트",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "예: org.apache.tomcat. 또는 */site-packages/",
   "Not a frame pattern: {value}": "유효한 프레임 패턴이 아닙니다: {value}",
   "No preset matches a frame in this stack.": "이 스택의 프레임과 일치하는 프리셋이 없습니다.",
-  "Drag to resize this column; double-click to fit all columns": "드래그하면 이 열의 너비가 바뀝니다. 더블클릭하면 모든 열을 다시 맞춥니다"
+  "Drag to resize this column; double-click to fit all columns": "드래그하면 이 열의 너비가 바뀝니다. 더블클릭하면 모든 열을 다시 맞춥니다",
+  "depth {n}": "깊이 {n}",
+  "Parent frame": "부모 프레임",
+  "out of view": "화면 밖",
+  "Scroll to it": "그 위치로 스크롤",
+  "Point out the parent frame": "부모 프레임 가리키기"
 }

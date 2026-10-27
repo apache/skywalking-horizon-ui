@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "按 Enter 跳到下一个匹配项",
   "{n} match": "{n} 个匹配",
   "{n} matches": "{n} 个匹配",
-  "Stack depth {n}": "栈深度 {n}",
   "Fold the frames shown from here": "重新折叠从此处展开的栈帧",
   "Fold": "折叠",
   "SkyWalking agent": "SkyWalking 探针",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "例如 org.apache.tomcat. 或 */site-packages/",
   "Not a frame pattern: {value}": "不是有效的栈帧模式：{value}",
   "No preset matches a frame in this stack.": "没有与此栈中栈帧匹配的预设。",
-  "Drag to resize this column; double-click to fit all columns": "拖动以调整此列宽度；双击让所有列恢复适配宽度"
+  "Drag to resize this column; double-click to fit all columns": "拖动以调整此列宽度；双击让所有列恢复适配宽度",
+  "depth {n}": "深度 {n}",
+  "Parent frame": "父栈帧",
+  "out of view": "不在可视范围内",
+  "Scroll to it": "滚动到该行",
+  "Point out the parent frame": "指出父栈帧"
 }

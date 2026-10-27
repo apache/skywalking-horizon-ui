@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Pressione Enter para ir à próxima ocorrência",
   "{n} match": "{n} ocorrência",
   "{n} matches": "{n} ocorrências",
-  "Stack depth {n}": "Profundidade da pilha {n}",
   "Fold the frames shown from here": "Recolher novamente os frames exibidos a partir daqui",
   "Fold": "Recolher",
   "SkyWalking agent": "Agente do SkyWalking",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "ex.: org.apache.tomcat. ou */site-packages/",
   "Not a frame pattern: {value}": "Padrão de frame inválido: {value}",
   "No preset matches a frame in this stack.": "Nenhuma predefinição corresponde a um frame desta pilha.",
-  "Drag to resize this column; double-click to fit all columns": "Arraste para redimensionar esta coluna; clique duas vezes para reajustar todas as colunas"
+  "Drag to resize this column; double-click to fit all columns": "Arraste para redimensionar esta coluna; clique duas vezes para reajustar todas as colunas",
+  "depth {n}": "profundidade {n}",
+  "Parent frame": "Frame pai",
+  "out of view": "fora da vista",
+  "Scroll to it": "Rolar até ele",
+  "Point out the parent frame": "Mostrar o frame pai"
 }

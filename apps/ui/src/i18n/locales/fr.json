@@ -3600,7 +3600,6 @@
   "Press Enter to jump to the next match": "Appuyez sur Entrée pour aller à l’occurrence suivante",
   "{n} match": "{n} occurrence",
   "{n} matches": "{n} occurrences",
-  "Stack depth {n}": "Profondeur de pile {n}",
   "Fold the frames shown from here": "Replier les frames affichés à partir d’ici",
   "Fold": "Replier",
   "SkyWalking agent": "Agent SkyWalking",
@@ -3611,5 +3610,10 @@
   "e.g. org.apache.tomcat. or */site-packages/": "p. ex. org.apache.tomcat. ou */site-packages/",
   "Not a frame pattern: {value}": "Motif de frame invalide : {value}",
   "No preset matches a frame in this stack.": "Aucun préréglage ne correspond à un frame de cette pile.",
-  "Drag to resize this column; double-click to fit all columns": "Faites glisser pour redimensionner cette colonne ; double-cliquez pour ajuster toutes les colonnes"
+  "Drag to resize this column; double-click to fit all columns": "Faites glisser pour redimensionner cette colonne ; double-cliquez pour ajuster toutes les colonnes",
+  "depth {n}": "profondeur {n}",
+  "Parent frame": "Frame parent",
+  "out of view": "hors de vue",
+  "Scroll to it": "Faire défiler jusqu’à lui",
+  "Point out the parent frame": "Montrer le frame parent"
 }

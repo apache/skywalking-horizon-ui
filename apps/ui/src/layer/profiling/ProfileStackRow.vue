@@ -41,16 +41,23 @@ const props = defineProps<{
   currentKey: string | null;
   /** Rows whose children are closed; the table owns it. */
   collapsed: ReadonlySet<string>;
+  /** The row a depth click just took the operator to. */
+  flashKey: string | null;
 }>();
-const emit = defineEmits<{ 'toggle-group': [key: string]; 'toggle-open': [key: string] }>();
+const emit = defineEmits<{
+  'toggle-group': [key: string];
+  'toggle-open': [key: string];
+  'to-parent': [key: string, anchor: HTMLElement];
+}>();
 
 const open = computed(() => !props.collapsed.has(props.node.key));
 
 // Indentation stops growing once the name would have less than NAME_ROOM
-// left in the column; past that point the row shows its depth instead, so
-// a deep frame still reads and the number columns stay under their headers.
+// left in the column; past that point the row shows its depth instead, a
+// button that points out the parent, so a deep frame still reads and the
+// number columns stay under their headers.
 const INDENT = 12;
-const NAME_ROOM = 160;
+const NAME_ROOM = 200;
 const indent = computed(() => Math.min(props.depth * INDENT, Math.max(0, props.cols.thread - 32 - NAME_ROOM)));
 const clamped = computed(() => props.depth * INDENT > indent.value);
 
@@ -71,7 +78,7 @@ const colStyle = (w: number) => ({ width: w + 'px', flex: `0 0 ${w}px` });
 <template>
   <div
     class="row"
-    :class="{ 'is-match': node.match, 'is-current': currentKey === node.key, 'is-top': isTop }"
+    :class="{ 'is-match': node.match, 'is-current': currentKey === node.key, 'is-top': isTop, 'is-flash': flashKey === node.key }"
     :data-key="node.key"
   >
     <div
@@ -86,7 +93,13 @@ const colStyle = (w: number) => ({ width: w + 'px', flex: `0 0 ${w}px` });
         @click="emit('toggle-open', node.key)"
       >▸</span>
       <span v-else class="caret-spacer"></span>
-      <span v-if="clamped" class="depth" :title="t('Stack depth {n}', { n: depth })">{{ depth }}</span>
+      <button
+        v-if="clamped"
+        type="button"
+        class="depth"
+        :title="t('Point out the parent frame')"
+        @click.stop="emit('to-parent', node.key, $event.currentTarget as HTMLElement)"
+      >{{ t('depth {n}', { n: depth }) }}</button>
       <button
         v-if="node.hidden.length"
         type="button"
@@ -119,8 +132,10 @@ const colStyle = (w: number) => ({ width: w + 'px', flex: `0 0 ${w}px` });
       :highlight-top="highlightTop"
       :current-key="currentKey"
       :collapsed="collapsed"
+      :flash-key="flashKey"
       @toggle-group="(k: string) => emit('toggle-group', k)"
       @toggle-open="(k: string) => emit('toggle-open', k)"
+      @to-parent="(k: string, el: HTMLElement) => emit('to-parent', k, el)"
     />
   </template>
 </template>
@@ -191,12 +206,41 @@ const colStyle = (w: number) => ({ width: w + 'px', flex: `0 0 ${w}px` });
 }
 .depth {
   flex: 0 0 auto;
+  font: inherit;
   font-size: 10px;
-  color: var(--sw-fg-3);
+  color: var(--sw-fg-2);
+  background: var(--sw-bg-2);
   border: 1px solid var(--sw-line-2);
   border-radius: 3px;
-  padding: 0 3px;
-  line-height: 14px;
+  padding: 0 5px;
+  line-height: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.depth:hover {
+  color: var(--sw-accent);
+  border-color: var(--sw-accent-line);
+}
+/* The row a depth click lands on pulses twice, so the eye finds it after the
+ * scroll; without motion it is simply outlined while the class is set. */
+.row.is-flash {
+  animation: stack-row-flash 0.7s ease-out 2;
+}
+@keyframes stack-row-flash {
+  0% {
+    background: var(--sw-accent-soft);
+    box-shadow: inset 0 0 0 2px var(--sw-accent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row.is-flash {
+    animation: none;
+    box-shadow: inset 0 0 0 2px var(--sw-accent);
+  }
 }
 .sig-text {
   overflow: hidden;

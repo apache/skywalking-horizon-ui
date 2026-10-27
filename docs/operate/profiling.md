@@ -73,7 +73,7 @@ The result renders as either a **Tree** (indented stack table) or a **Flame** gr
 
 - **Pop out** — opens the result in a dialog that fills almost the whole window, with the same controls. Close it with ×, Escape or a click outside.
 
-The Tree's columns start out filling the result area. Drag a header's right edge to resize that column alone; widening one makes the whole table wider, and it then scrolls sideways. Double-click any header edge to fit the columns to the area again. A very deep frame keeps its name readable: once the indent would leave too little room, it stops growing and the row shows its stack depth instead.
+The Tree's columns start out filling the result area. Drag a header's right edge to resize that column alone; widening one makes the whole table wider, and it then scrolls sideways. Double-click any header edge to fit the columns to the area again. A very deep frame keeps its name readable: once the indent would leave too little room, it stops growing and the row shows **depth N** instead. Click it to see the parent frame — an arrow points at the parent row when it is on screen, and when it is not, a card names it and offers **Scroll to it**.
 
 ## eBPF Profiling
 
