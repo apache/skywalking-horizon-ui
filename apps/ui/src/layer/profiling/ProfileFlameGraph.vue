@@ -25,34 +25,32 @@
                                        (count for trace, duration for
                                        eBPF / async / pprof). Default
                                        is `count`.
+    hidePatterns: string[]           — frames starting with one of these
+                                       fold into one grey cell per
+                                       connected group
+    search: string                   — frames containing this are marked
+    durationUnit: 'ns' | 'ms'        — the unit OAP reports durations in
+                                       (ms for trace profiling)
 -->
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import * as d3 from 'd3';
 import { flamegraph } from 'd3-flame-graph';
-import type { ProfileAnalyzationElement, ProfileAnalyzationTree } from '@/api/client';
+import type { ProfileAnalyzationTree } from '@/api/client';
+import { buildFlameRoot, type FlameNode } from './profileFlameTree';
 
 const { t } = useI18n({ useScope: 'global' });
-
-interface FlameNode {
-  name: string;
-  value: number;
-  count: number;
-  duration: number;
-  durationChildExcluded: number;
-  codeSignature: string;
-  parentId: string;
-  originId: string;
-  children?: FlameNode[];
-}
 
 const props = withDefaults(
   defineProps<{
     trees: ProfileAnalyzationTree[];
     metricKey?: 'count' | 'duration';
+    hidePatterns?: string[];
+    search?: string;
+    durationUnit?: 'ns' | 'ms';
   }>(),
-  { metricKey: 'count' },
+  { metricKey: 'count', hidePatterns: () => [], search: '', durationUnit: 'ns' },
 );
 
 const root = ref<HTMLDivElement | null>(null);
@@ -77,74 +75,25 @@ function applySelectionHighlight(): void {
     });
 }
 
-function metricFor(el: ProfileAnalyzationElement): number {
-  if (props.metricKey === 'duration') return Math.max(0, el.duration);
-  return Math.max(0, el.count);
+function buildVirtualRoot(): FlameNode | null {
+  return buildFlameRoot(props.trees, {
+    metricKey: props.metricKey,
+    hidePatterns: props.hidePatterns,
+    hiddenLabel: (n) => '⋯ ' + (n === 1 ? t('{n} frame hidden', { n }) : t('{n} frames hidden', { n })),
+  });
 }
 
-function buildVirtualRoot(): FlameNode | null {
-  if (!props.trees.length) return null;
-  const all: number[] = [];
-  for (const t of props.trees) for (const el of t.elements) all.push(metricFor(el));
-  const min = all.length ? Math.min(...all) : 0;
-  const max = all.length ? Math.max(...all) : 1;
-  const scale = d3.scaleLinear().domain([min, max]).range([1, 200]);
+function frameMatches(node: FlameNode | undefined, term: string): boolean {
+  const needle = term.trim().toLowerCase();
+  if (!node || !needle || node.originId === 'virtual-root') return false;
+  if (!node.hidden.length) return node.codeSignature.toLowerCase().includes(needle);
+  return node.hidden.some((s) => s.toLowerCase().includes(needle));
+}
 
-  function processTree(arr: ProfileAnalyzationElement[]): FlameNode | null {
-    const items = arr.map<FlameNode>((el) => ({
-      name: el.codeSignature,
-      value: Number(scale(metricFor(el)).toFixed(4)),
-      count: el.count,
-      duration: el.duration,
-      durationChildExcluded: el.durationChildExcluded,
-      codeSignature: el.codeSignature,
-      parentId: String(Number(el.parentId) + 1),
-      originId: String(Number(el.id) + 1),
-    }));
-    const idx: Record<string, FlameNode> = {};
-    for (const it of items) idx[it.originId] = it;
-    let r: FlameNode | null = null;
-    for (const it of items) {
-      if (it.parentId === '1') r = it;
-      const me = idx[it.originId];
-      const parent = idx[me.parentId];
-      if (parent) (parent.children ??= []).push(me);
-    }
-    return r;
-  }
-
-  const virtRoot: FlameNode = {
-    name: 'Virtual Root',
-    value: 0,
-    count: 0,
-    duration: 0,
-    durationChildExcluded: 0,
-    codeSignature: 'Virtual Root',
-    parentId: '0',
-    originId: '1',
-    children: [],
-  };
-  for (const tree of props.trees) {
-    const r = processTree(tree.elements);
-    if (r) virtRoot.children?.push(r);
-  }
-  // Roll up so a parent never reports less than the sum of its children
-  // — d3-flame-graph requires that to lay frames out correctly.
-  function rollup(n: FlameNode): void {
-    if (n.children?.length) {
-      let s = 0;
-      for (const c of n.children) {
-        rollup(c);
-        s += c.value;
-      }
-      if (n.value < s) n.value = s;
-    }
-  }
-  for (const c of virtRoot.children ?? []) rollup(c);
-  let total = 0;
-  for (const c of virtRoot.children ?? []) total += c.value;
-  virtRoot.value = total;
-  return virtRoot;
+function applySearch(): void {
+  if (!chart) return;
+  if (props.search.trim()) chart.search(props.search);
+  else chart.clear();
 }
 
 function draw(): void {
@@ -178,8 +127,9 @@ function draw(): void {
      // keyed off the frame name so each stack cell stays distinguishable
      // but the overall card reads as part of the dark canvas instead of
      // glowing through it.
-    .setColorMapper((d: { highlight: boolean; data?: { name?: string } }, _original: string) => {
-      if (d.highlight) return '#6aff8f';
+    .setColorMapper((d: { highlight: boolean; data?: { name?: string; hidden?: string[] } }, _original: string) => {
+      if (d.highlight) return '#c2410c';
+      if (d.data?.hidden?.length) return 'hsl(220, 6%, 30%)';
       const name = d.data?.name ?? '';
       let hash = 0;
       for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
@@ -205,7 +155,12 @@ function draw(): void {
     applySelectionHighlight();
     window.setTimeout(applySelectionHighlight, 470);
   });
+  // The library's own matcher builds a RegExp from the term, which a `$` or a
+  // `(` in a Java signature breaks; match plain text, and look inside folded
+  // cells too.
+  chart.setSearchMatch((d: { data?: FlameNode }, term: string) => frameMatches(d.data, term));
   d3.select(root.value).datum(tree).call(chart);
+  applySearch();
   applySelectionHighlight();
   const svg = root.value.querySelector('svg');
   if (svg) {
@@ -267,12 +222,15 @@ const hoveredPctRoot = computed<string>(() => {
 // fixed` element so coords are viewport-relative.
 const TIP_W = 380;
 const TIP_H = 160;
+const TIP_HIDDEN_LINES = 12;
 const tipStyle = computed<Record<string, string>>(() => {
   const offset = 14;
+  const listLines = Math.min(hoveredFrame.value?.hidden.length ?? 0, TIP_HIDDEN_LINES + 1);
+  const tipH = TIP_H + listLines * 18;
   let x = tipPos.x + offset;
   let y = tipPos.y + offset;
   if (x + TIP_W > window.innerWidth - 8) x = tipPos.x - TIP_W - offset;
-  if (y + TIP_H > window.innerHeight - 8) y = tipPos.y - TIP_H - offset;
+  if (y + tipH > window.innerHeight - 8) y = tipPos.y - tipH - offset;
   if (x < 8) x = 8;
   if (y < 8) y = 8;
   return { transform: `translate(${x}px, ${y}px)` };
@@ -281,13 +239,14 @@ const tipStyle = computed<Record<string, string>>(() => {
 onMounted(() => {
   draw();
 });
-watch(() => [props.trees, props.metricKey], () => {
+watch(() => [props.trees, props.metricKey, props.hidePatterns], () => {
   // Drop any stale hover + selection when the data changes — keeps the
   // card and the outline from pointing at a frame that no longer exists.
   hoveredFrame.value = null;
   selectedOriginId.value = null;
   draw();
 });
+watch(() => props.search, applySearch);
 onBeforeUnmount(() => {
   if (svgHandlers) {
     svgHandlers.svg.removeEventListener('mousemove', svgHandlers.onMove);
@@ -321,6 +280,12 @@ onBeforeUnmount(() => {
       role="tooltip"
     >
       <div class="fg-tip-sig">{{ hoveredFrame.codeSignature }}</div>
+      <ul v-if="hoveredFrame.hidden.length" class="fg-tip-hidden">
+        <li v-for="(s, i) in hoveredFrame.hidden.slice(0, TIP_HIDDEN_LINES)" :key="i">{{ s }}</li>
+        <li v-if="hoveredFrame.hidden.length > TIP_HIDDEN_LINES" class="fg-tip-more">
+          … +{{ hoveredFrame.hidden.length - TIP_HIDDEN_LINES }}
+        </li>
+      </ul>
       <dl class="fg-tip-rows">
         <div class="fg-tip-row">
           <dt>{{ t('Dump count') }}</dt>
@@ -328,11 +293,11 @@ onBeforeUnmount(() => {
         </div>
         <div class="fg-tip-row">
           <dt>{{ t('Duration') }}</dt>
-          <dd>{{ hoveredFrame.duration }} ns</dd>
+          <dd>{{ hoveredFrame.duration }} {{ durationUnit }}</dd>
         </div>
         <div class="fg-tip-row">
           <dt>{{ t('Duration (excl. children)') }}</dt>
-          <dd>{{ hoveredFrame.durationChildExcluded }} ns</dd>
+          <dd>{{ hoveredFrame.durationChildExcluded }} {{ durationUnit }}</dd>
         </div>
         <div class="fg-tip-row">
           <dt>{{ t('% of root') }}</dt>
@@ -386,6 +351,21 @@ onBeforeUnmount(() => {
   border-bottom: 1px dashed var(--sw-line, #2a2d36);
   overflow-wrap: anywhere;
   word-break: break-all;
+}
+.fg-tip-hidden {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0 0 6px;
+  border-bottom: 1px dashed var(--sw-line, #2a2d36);
+  color: var(--sw-fg-2, #9a9eab);
+}
+.fg-tip-hidden li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fg-tip-more {
+  color: var(--sw-fg-3, #6b6f7a);
 }
 .fg-tip-rows {
   margin: 0;

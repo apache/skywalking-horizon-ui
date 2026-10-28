@@ -120,7 +120,7 @@ const {
 
 // Display-only toggles owned by the view.
 const displayMode = ref<'flame' | 'tree'>('flame');
-const highlightTop = ref(true);
+const highlightTop = ref(false);
 
 const showNewTask = ref(false);
 
@@ -254,9 +254,20 @@ function onPickTask(task: EBPFTask): void {
         </div>
         <div class="tb-block">
           <label class="lbl">{{ t('Display') }}</label>
-          <div class="seg">
-            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
-            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
+          <div class="display-row">
+            <div class="seg">
+              <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
+              <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
+            </div>
+            <button
+              v-if="displayMode === 'tree'"
+              type="button"
+              class="top-slow"
+              :class="{ on: highlightTop }"
+              :aria-pressed="highlightTop"
+              :title="t('Highlight top 10 slow methods')"
+              @click="highlightTop = !highlightTop"
+            >{{ t('top slow') }}</button>
           </div>
         </div>
         <EBPFProcessPicker v-model="selectedProcessIds" :processes="processes" />
@@ -287,8 +298,7 @@ function onPickTask(task: EBPFTask): void {
           <ProfileStackTable
             v-else
             :trees="profileTrees"
-            :highlight-top="highlightTop"
-            @toggle-highlight="highlightTop = !highlightTop"
+            v-model:highlight-top="highlightTop"
           />
         </template>
         <div v-else-if="!analyzeTip && !analyzeLoading" class="result-empty">
@@ -535,6 +545,29 @@ function onPickTask(task: EBPFTask): void {
 .seg button.on {
   background: var(--sw-accent);
   color: #fff;
+}
+.display-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.top-slow {
+  font-family: var(--sw-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid var(--sw-line-2);
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.top-slow.on {
+  background: var(--sw-accent-soft);
+  border-color: var(--sw-accent-line);
+  color: var(--sw-accent);
 }
 .btn-primary {
   background: var(--sw-accent);

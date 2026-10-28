@@ -51,7 +51,29 @@ To start a task, open the New Task dialog and set:
 
 - **Max sampling count** — the cap on how many segments the task collects.
 
-Once the task has collected sampled traces, pick a trace from the **Sampled traces** list to load its spans. Select a profiled span and press **Analyze** to build its call tree. The result renders as either a **Tree** (indented stack table) or a **Flame** graph. A **Data mode** toggle switches between **Include children** (the whole span's time) and **Exclude children** (only the time spent in the span itself, with child-span windows subtracted). The eye icon on a task opens a detail panel with the task's parameters and the per-instance operation log.
+Once the task has collected sampled traces, pick a trace from the **Sampled traces** list to load its spans. Select a profiled span and press **Analyze** to build its call tree. A **Data mode** toggle switches between **Include children** (the whole span's time) and **Exclude children** (only the time spent in the span itself, with child-span windows subtracted). The eye icon on a task opens a detail panel with the task's parameters and the per-instance operation log.
+
+The result renders as either a **Tree** (indented stack table) or a **Flame** graph, switched from the bar above it. The same bar holds:
+
+- **Hide frames** — patterns for the frames you do not want to read through. A pattern matches a frame whose name starts with it, such as `org.apache.tomcat.`; a `*` matches any text, so `*/site-packages/` matches a Python frame from any installed package. Every unbroken run of matching frames folds into one *⋯ N frames hidden* row, or one grey cell in the flame graph. The folded row keeps the duration and dump count of its top frame and the self time of all the frames it holds, so time spent inside a hidden frame — a JDK `Thread.sleep` or socket read — is never lost. Click a folded row to show its frames, and **Fold** to put them back. The list is kept in your browser, and nothing is hidden until you add a pattern.
+
+  Presets add the usual patterns for each agent that supports trace profiling, and clicking one again takes them out. Only the presets that match a frame in the current stack are offered, along with any that are already on. Each agent names its frames its own way: Java as `package.Class.method:line`, Python as `<file path>.<function>: <line>`, Go as `package.function:line`.
+
+  | Agent | Presets |
+  |---|---|
+  | Java | JDK, Tomcat, Jetty, Undertow, Spring, Netty, gRPC, SkyWalking agent |
+  | Python | Libraries — the standard library and installed packages |
+  | Go | Standard library, SkyWalking agent |
+
+  The Java SkyWalking agent preset hides the agent's interceptor frames but not the `$sw$original$…` frame, which is your own method and carries its real line number.
+
+- **Find frame…** — marks the frames whose name contains the text, in both views. In the Tree, Enter jumps to the next match.
+
+- **top slow** — in the Tree, highlights the frames with the ten largest self times and scrolls to the first of them; **↓** beside it steps to the next one. Scrolling them all out of view turns it off again, so the next click takes you back to them.
+
+- **Pop out** — opens the result in a dialog that fills almost the whole window, with the same controls. Close it with ×, Escape or a click outside.
+
+The Tree's columns start out filling the result area. Drag a header's right edge to resize that column alone; widening one makes the whole table wider, and it then scrolls sideways. Double-click any header edge to fit the columns to the area again. A very deep frame keeps its name readable: once the indent would leave too little room, it stops growing and the row shows **depth N** instead. Click it to see the parent frame — an arrow points at the parent row when it is on screen, and when it is not, a card names it and offers **Scroll to it**.
 
 ## eBPF Profiling
 
