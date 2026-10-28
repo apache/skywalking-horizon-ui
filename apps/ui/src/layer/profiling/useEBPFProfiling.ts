@@ -91,7 +91,9 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   });
 
   watch(
-    () => layerKey.value + '|' + (selectedId.value ?? ''),
+    // Keyed on the service the roster resolves, not the bare selected id:
+    // opened from a link, the id is known before the roster loads.
+    () => layerKey.value + '|' + (service.value?.id ?? ''),
     () => void refreshTasks(),
     { immediate: true },
   );

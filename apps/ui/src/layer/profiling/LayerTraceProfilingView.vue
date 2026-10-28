@@ -158,7 +158,10 @@ watch([currentTask, currentSegment, currentSpan], () => {
 });
 
 watch(
-  () => layerKey.value + '|' + (selectedId.value ?? ''),
+  // Keyed on the service as the layer's roster resolves it, not the bare
+  // selected id: opened from a link, the tab knows the id before the roster has
+  // loaded, and a load keyed on the id never ran again once it had.
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => {
     void refreshTasks();
   },
