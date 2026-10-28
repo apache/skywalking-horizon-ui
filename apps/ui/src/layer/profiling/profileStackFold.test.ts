@@ -21,6 +21,7 @@ import {
   isFrameHidden,
   normalizeHidePattern,
   stackStats,
+  withSelfFromTotals,
   type StackNode,
 } from './profileStackFold';
 
@@ -153,6 +154,27 @@ describe('foldStack', () => {
     expect(out.map((n) => n.codeSignature)).toEqual(['runtime.goexit:1695']);
     expect(rows(out)).toEqual(['runtime.goexit:1695', 'net/http.(*conn).serve:2009', 'main.handler:30', 'main.worker:12']);
     expect(rows(foldStack([go], { hidePatterns: [...FRAME_PRESETS.goStd] }))).toEqual(['⋯2', 'main.handler:30', 'main.worker:12']);
+  });
+});
+
+describe('withSelfFromTotals', () => {
+  // eBPF: every element carries its inclusive total as its own self value.
+  const ebpf: ProfileAnalyzationTree = {
+    elements: [
+      { id: '1', parentId: '0', codeSignature: 'clone', duration: 100, durationChildExcluded: 100, count: 100 },
+      { id: '2', parentId: '1', codeSignature: 'epoll_wait', duration: 70, durationChildExcluded: 70, count: 70 },
+      { id: '3', parentId: '1', codeSignature: 'futex', duration: 25, durationChildExcluded: 25, count: 25 },
+    ],
+  };
+
+  it('derives self as the total minus the children', () => {
+    expect(withSelfFromTotals(ebpf).elements.map((e) => e.durationChildExcluded)).toEqual([5, 70, 25]);
+  });
+
+  it('keeps a folded group from counting the same samples twice', () => {
+    const [group] = foldStack([withSelfFromTotals(ebpf)], { hidePatterns: ['clone', 'epoll_wait'] });
+    expect(group.duration).toBe(100);
+    expect(group.durationChildExcluded).toBe(75);
   });
 });
 

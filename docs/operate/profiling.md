@@ -93,7 +93,7 @@ When you select a task, the result auto-analyzes. The filter bar lets you narrow
 
 - **Processes** — pin specific processes from the capture; pinning re-runs the analysis immediately.
 
-The result is shown as a **Flame** graph or a **Tree**, with a banner stating the wall-clock window the capture covers and how many schedules contributed.
+The result is shown as a **Flame** graph or a **Tree**, with a banner stating the wall-clock window the capture covers and how many schedules contributed. The bar above it works as in [Trace Profiling](#trace-profiling): **Hide frames**, **Find frame…**, **top slow** in the Tree, and **Pop out**.
 
 ## Async Profiling
 
@@ -106,7 +106,7 @@ Async Profiling runs the async-profiler against a live Java service, capturing J
 - `CTIMER`
 - `ITIMER`
 
-You can select multiple instances and multiple events in a single task, with a duration from 30 seconds up to 15 minutes. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`).
+You can select multiple instances and multiple events in a single task, with a duration from 30 seconds up to 15 minutes. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`). The bar above the flame graph offers **Hide frames** — the Java presets match async-profiler stacks — **Find frame…** and **Pop out**, as described under [Trace Profiling](#trace-profiling).
 
 ## pprof
 
@@ -128,7 +128,7 @@ The dialog adapts to the event you pick:
 
 - `HEAP`, `GOROUTINE`, `ALLOCS`, and `THREADCREATE` are one-shot snapshots — they take no duration and no sampling rate, capturing the current state at the moment the task fires.
 
-A task can target multiple Go service instances. After it runs, select the instances to include and press **Analyze** to render the single result tree as a flame graph.
+A task can target multiple Go service instances. After it runs, select the instances to include and press **Analyze** to render the single result tree as a flame graph. The bar above it offers **Hide frames** — the Go presets match pprof stacks — **Find frame…** and **Pop out**, as described under [Trace Profiling](#trace-profiling).
 
 ## Network Profiling
 

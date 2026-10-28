@@ -36,7 +36,8 @@ import type {
   PprofTree,
   ProfileAnalyzationTree,
 } from '@/api/client';
-import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
+import ProfileStackPanel from '@/layer/profiling/ProfileStackPanel.vue';
+import { useHiddenFramePatterns } from '@/layer/profiling/useHiddenFramePatterns';
 import PprofTaskDetailModal from '@/layer/profiling/PprofTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
@@ -58,6 +59,9 @@ const tasksLoading = ref(false);
 
 const selectedInstances = ref<string[]>([]);
 const tree = ref<PprofTree | null>(null);
+const displayMode = ref<'tree' | 'flame'>('flame');
+const hidePatterns = useHiddenFramePatterns();
+const frameSearch = ref('');
 const analyzeError = ref<string | null>(null);
 const analyzeLoading = ref(false);
 
@@ -115,7 +119,10 @@ watch(currentTask, () => {
 });
 
 watch(
-  () => layerKey.value + '|' + (serviceId.value ?? ''),
+  // Keyed on the service as the layer's roster resolves it, not the bare
+  // selected id: opened directly, the tab knows the id before the roster has
+  // loaded, and a load keyed on the id never ran again once it had.
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => {
     taskDetailFor.value = null; // drop the detail modal on context change
     void refreshTasks();
@@ -337,7 +344,15 @@ function instanceCount(n: number): string {
       </div>
       <div v-if="analyzeError" class="banner err">{{ analyzeError }}</div>
       <div class="result">
-        <ProfileFlameGraph v-if="profileTrees.length" :trees="profileTrees" metric-key="count" />
+        <ProfileStackPanel
+          v-if="profileTrees.length"
+          v-model:display-mode="displayMode"
+          v-model:hide-patterns="hidePatterns"
+          v-model:search="frameSearch"
+          :trees="profileTrees"
+          :views="['flame']"
+          :popout-title="'pprof' + (serviceName ? ' · ' + serviceName : '')"
+        />
         <div v-else-if="!analyzeLoading" class="result-empty">
           {{ currentTask ? t('Pick instances, then click Analyze.') : t('Select a task.') }}
         </div>
@@ -667,6 +682,8 @@ function instanceCount(n: number): string {
   min-height: 0;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .result-empty {
   position: absolute;
