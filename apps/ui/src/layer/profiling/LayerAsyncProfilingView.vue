@@ -37,7 +37,8 @@ import type {
   AsyncProfilingTree,
   ProfileAnalyzationTree,
 } from '@/api/client';
-import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
+import ProfileStackPanel from '@/layer/profiling/ProfileStackPanel.vue';
+import { useHiddenFramePatterns } from '@/layer/profiling/useHiddenFramePatterns';
 import AsyncProfilingTaskDetailModal from '@/layer/profiling/AsyncProfilingTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
@@ -66,6 +67,9 @@ const taskDetailLogs = ref<AsyncProfilingProgressLog[]>([]);
 const selectedInstances = ref<string[]>([]);
 const eventType = ref<string>('EXECUTION_SAMPLE');
 const tree = ref<AsyncProfilingTree | null>(null);
+const displayMode = ref<'tree' | 'flame'>('flame');
+const hidePatterns = useHiddenFramePatterns();
+const frameSearch = ref('');
 const analyzeError = ref<string | null>(null);
 const analyzeLoading = ref(false);
 
@@ -131,7 +135,10 @@ watch(currentTask, () => {
 });
 
 watch(
-  () => layerKey.value + '|' + (serviceId.value ?? ''),
+  // Keyed on the service as the layer's roster resolves it, not the bare
+  // selected id: opened directly, the tab knows the id before the roster has
+  // loaded, and a load keyed on the id never ran again once it had.
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => {
     taskDetailFor.value = null; // drop the detail modal on context change
     void refreshTasks();
@@ -386,10 +393,14 @@ function instanceCount(n: number): string {
       <div v-if="analyzeError" class="banner err">{{ analyzeError }}</div>
 
       <div class="result">
-        <ProfileFlameGraph
+        <ProfileStackPanel
           v-if="profileTrees.length"
+          v-model:display-mode="displayMode"
+          v-model:hide-patterns="hidePatterns"
+          v-model:search="frameSearch"
           :trees="profileTrees"
-          metric-key="count"
+          :views="['flame']"
+          :popout-title="t('Async Profiling') + (serviceName ? ' · ' + serviceName : '')"
         />
         <div v-else-if="!analyzeLoading" class="result-empty">
           {{ currentTask ? t('Pick instances + event type, then click Analyze.') : t('Select a task to inspect its async profile.') }}
@@ -715,6 +726,8 @@ function instanceCount(n: number): string {
   min-height: 0;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .result-empty {
   position: absolute;

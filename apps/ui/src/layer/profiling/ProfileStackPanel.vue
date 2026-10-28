@@ -15,11 +15,11 @@
   limitations under the License.
 -->
 <!--
-  A trace-profile analyze result with its view controls: Tree | Flame, the
-  frame patterns to hide (typed, or from per-agent presets), a find box, the
-  top-slow highlight and Pop out. The page renders one in place and another
-  inside the pop-out; both bind the same models, so a change in either shows
-  in the other.
+  A profiling analyze result with its view controls: the views the page
+  offers (Tree | Flame, or the flame graph alone), the frame patterns to hide
+  (typed, or from per-agent presets), a find box, the top-slow highlight in
+  the Tree, and Pop out. Pop out opens a second panel in a dialog, bound to
+  the same models, so a change in either shows in the other.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
@@ -28,22 +28,32 @@ import type { ProfileAnalyzationTree } from '@/api/client';
 import ChipInput from '@/components/primitives/ChipInput.vue';
 import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import Icon from '@/components/icons/Icon.vue';
+import Modal from '@/components/primitives/Modal.vue';
 import ProfileStackTable from './ProfileStackTable.vue';
 import ProfileFlameGraph from './ProfileFlameGraph.vue';
 import { FRAME_PRESETS, foldStack, isFrameHidden, normalizeHidePattern, stackStats } from './profileStackFold';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{
-  trees: ProfileAnalyzationTree[];
-  /** Rendered inside the pop-out: no Pop out button of its own. */
-  inPopout?: boolean;
-}>();
-const emit = defineEmits<{ popout: [] }>();
+const props = withDefaults(
+  defineProps<{
+    trees: ProfileAnalyzationTree[];
+    /** The views offered, in switch order. */
+    views?: ('tree' | 'flame')[];
+    /** What sizes a flame cell: dump count, or duration. */
+    metricKey?: 'count' | 'duration';
+    /** The unit OAP reports this profile's durations in. */
+    durationUnit?: 'ns' | 'ms';
+    popoutTitle?: string;
+    /** Rendered inside the pop-out: no Pop out of its own. */
+    inPopout?: boolean;
+  }>(),
+  { views: () => ['tree', 'flame'], metricKey: 'count', durationUnit: 'ns', popoutTitle: '', inPopout: false },
+);
 
 const displayMode = defineModel<'tree' | 'flame'>('displayMode', { required: true });
 const hidePatterns = defineModel<string[]>('hidePatterns', { required: true });
-const highlightTop = defineModel<boolean>('highlightTop', { required: true });
+const highlightTop = defineModel<boolean>('highlightTop', { default: false });
 const search = defineModel<string>('search', { required: true });
 
 const table = ref<InstanceType<typeof ProfileStackTable> | null>(null);
@@ -55,6 +65,15 @@ function nextSlow(): void {
 }
 const hideButton = ref<HTMLElement | null>(null);
 const hideOpen = ref(false);
+const viewLabel = (v: 'tree' | 'flame') => (v === 'tree' ? t('Tree') : t('Flame'));
+
+const popoutOpen = ref(false);
+watch(
+  () => props.trees,
+  (trees) => {
+    if (!trees.length) popoutOpen.value = false;
+  },
+);
 
 // The flame graph folds every group; only the Tree lets one be opened. Reset
 // here as well as in the table, which is not mounted while Flame is showing.
@@ -121,9 +140,14 @@ function togglePreset(p: Preset): void {
 <template>
   <div class="psp">
     <div class="psp-bar">
-      <div class="seg" role="group" :aria-label="t('Display')">
-        <button type="button" :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
-        <button type="button" :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
+      <div v-if="views.length > 1" class="seg" role="group" :aria-label="t('Display')">
+        <button
+          v-for="v in views"
+          :key="v"
+          type="button"
+          :class="{ on: displayMode === v }"
+          @click="displayMode = v"
+        >{{ viewLabel(v) }}</button>
       </div>
       <div class="psp-group">
         <button
@@ -176,7 +200,7 @@ function togglePreset(p: Preset): void {
         type="button"
         class="psp-btn psp-pop"
         :disabled="!trees.length"
-        @click="emit('popout')"
+        @click="popoutOpen = true"
       ><Icon name="expand" :size="11" /> {{ t('Pop out') }}</button>
     </div>
     <!-- Clicks stop here: removing a chip detaches its × before the click
@@ -233,12 +257,32 @@ function togglePreset(p: Preset): void {
       <ProfileFlameGraph
         v-else
         :trees="trees"
-        metric-key="count"
-        duration-unit="ms"
+        :metric-key="metricKey"
+        :duration-unit="durationUnit"
         :hide-patterns="hidePatterns"
         :search="search"
       />
     </div>
+    <Modal
+      v-if="!inPopout"
+      :open="popoutOpen"
+      :title="popoutTitle || t('Pop out')"
+      width="calc(100vw - 32px)"
+      fit-body
+      @close="popoutOpen = false"
+    >
+      <ProfileStackPanel
+        v-model:display-mode="displayMode"
+        v-model:hide-patterns="hidePatterns"
+        v-model:highlight-top="highlightTop"
+        v-model:search="search"
+        :trees="trees"
+        :views="views"
+        :metric-key="metricKey"
+        :duration-unit="durationUnit"
+        in-popout
+      />
+    </Modal>
   </div>
 </template>
 

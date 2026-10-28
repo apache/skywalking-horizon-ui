@@ -125,6 +125,20 @@ export function indexTree(tree: ProfileAnalyzationTree): {
   return { kids, roots, byId };
 }
 
+/** Self values for a tree whose elements carry only inclusive totals — eBPF
+ *  reports each frame's total dump count and no self — as the total minus
+ *  the children's totals. Folding sums self values, so an inclusive one
+ *  standing in for self would count the same samples once per frame. */
+export function withSelfFromTotals(tree: ProfileAnalyzationTree): ProfileAnalyzationTree {
+  const { kids } = indexTree(tree);
+  return {
+    elements: tree.elements.map((e) => {
+      const children = (kids.get(e.id) ?? []).reduce((sum, c) => sum + c.duration, 0);
+      return { ...e, durationChildExcluded: Math.max(0, e.duration - children) };
+    }),
+  };
+}
+
 function topSelfTimes(trees: readonly ProfileAnalyzationTree[]): Set<number> {
   const all = trees.flatMap((t) => t.elements.map((e) => e.durationChildExcluded));
   return new Set([...all].sort((a, b) => b - a).filter((v, i) => i < 10 && v !== 0));

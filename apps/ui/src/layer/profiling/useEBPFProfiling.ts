@@ -37,6 +37,7 @@ import type {
   ProfileAnalyzationTree,
 } from '@/api/client';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
+import { withSelfFromTotals } from '@/layer/profiling/profileStackFold';
 import type { ServiceRef } from '@/utils/serviceRef';
 
 export interface NewEBPFTaskPayload {
@@ -90,7 +91,9 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   });
 
   watch(
-    () => layerKey.value + '|' + (selectedId.value ?? ''),
+    // Keyed on the service the roster resolves, not the bare selected id:
+    // opened from a link, the id is known before the roster loads.
+    () => layerKey.value + '|' + (service.value?.id ?? ''),
     () => void refreshTasks(),
     { immediate: true },
   );
@@ -267,16 +270,18 @@ export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef 
   // invalidate the cached draw. A computed gives a stable identity that
   // only changes when `analyzeTrees` itself changes.
   const profileTrees = computed<ProfileAnalyzationTree[]>(() =>
-    analyzeTrees.value.map((t) => ({
-      elements: t.elements.map((e) => ({
-        id: e.id,
-        parentId: e.parentId,
-        codeSignature: e.symbol,
-        count: e.dumpCount,
-        duration: e.dumpCount,
-        durationChildExcluded: e.dumpCount,
-      })),
-    })),
+    analyzeTrees.value.map((t) =>
+      withSelfFromTotals({
+        elements: t.elements.map((e) => ({
+          id: e.id,
+          parentId: e.parentId,
+          codeSignature: e.symbol,
+          count: e.dumpCount,
+          duration: e.dumpCount,
+          durationChildExcluded: e.dumpCount,
+        })),
+      }),
+    ),
   );
 
   // Pinning / unpinning a process is a query-shape change; the operator

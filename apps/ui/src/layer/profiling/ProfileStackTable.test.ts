@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import type { ProfileAnalyzationTree } from '@/api/client';
 import { i18n } from '@/i18n';
@@ -44,6 +44,9 @@ beforeEach(() => {
   scrolled.mockReset();
   Element.prototype.scrollIntoView = scrolled;
 });
+// Unmounted after each test: a mounted floating panel keeps a click listener
+// on document, which a later test's clicks would wake against a wiped body.
+enableAutoUnmount(afterEach);
 afterEach(() => {
   vi.restoreAllMocks();
   document.body.innerHTML = '';

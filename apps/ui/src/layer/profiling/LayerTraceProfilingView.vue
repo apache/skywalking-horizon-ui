@@ -54,7 +54,6 @@ import type {
 } from '@/api/client';
 import ProfileStackPanel from '@/layer/profiling/ProfileStackPanel.vue';
 import { useHiddenFramePatterns } from '@/layer/profiling/useHiddenFramePatterns';
-import Modal from '@/components/primitives/Modal.vue';
 import NativeTraceWaterfall from '@/layer/traces/NativeTraceWaterfall.vue';
 import NewTraceProfileTaskModal from '@/layer/profiling/NewTraceProfileTaskModal.vue';
 import type { NewTraceTaskPayload } from '@/layer/profiling/NewTraceProfileTaskModal.vue';
@@ -133,12 +132,12 @@ const dataMode = ref<'include' | 'exclude'>('include');
 const highlightTop = ref(false);
 const hidePatterns = useHiddenFramePatterns();
 const frameSearch = ref('');
-const popoutOpen = ref(false);
 watch(analyzeTrees, (trees) => {
-  if (trees.length) return;
-  popoutOpen.value = false;
-  analyzedSpan.value = null;
+  if (!trees.length) analyzedSpan.value = null;
 });
+const popoutTitle = computed(() =>
+  analyzedSpan.value ? t('Thread Stack') + ' · ' + analyzedSpan.value.endpointName : t('Thread Stack'),
+);
 
 /** Request tickets. A reply for the service the operator has already navigated
  *  away from must not publish under the new one. */
@@ -159,7 +158,10 @@ watch([currentTask, currentSegment, currentSpan], () => {
 });
 
 watch(
-  () => layerKey.value + '|' + (selectedId.value ?? ''),
+  // Keyed on the service as the layer's roster resolves it, not the bare
+  // selected id: opened from a link, the tab knows the id before the roster has
+  // loaded, and a load keyed on the id never ran again once it had.
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => {
     void refreshTasks();
   },
@@ -490,28 +492,13 @@ function fmtTime(ms: number): string {
           v-model:highlight-top="highlightTop"
           v-model:search="frameSearch"
           :trees="analyzeTrees"
-          @popout="popoutOpen = true"
+          duration-unit="ms"
+          :popout-title="popoutTitle"
         />
       </div>
     </div>
   </div>
 
-  <Modal
-    :open="popoutOpen"
-    :title="analyzedSpan ? t('Thread Stack') + ' · ' + analyzedSpan.endpointName : t('Thread Stack')"
-    width="calc(100vw - 32px)"
-    fit-body
-    @close="popoutOpen = false"
-  >
-    <ProfileStackPanel
-      v-model:display-mode="displayMode"
-      v-model:hide-patterns="hidePatterns"
-      v-model:highlight-top="highlightTop"
-      v-model:search="frameSearch"
-      :trees="analyzeTrees"
-      in-popout
-    />
-  </Modal>
 
   <NewTraceProfileTaskModal
     v-model:show="showNewTask"
