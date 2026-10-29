@@ -74,9 +74,7 @@ The primary drill-down for one selected service.
 
 ## Topology
 
-Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges are observed on the client side, from the caller's CLIENT and PRODUCER spans: **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_call_sla/100`). The only server-side edge metric is **RPM** (`otlp_service_relation_server_cpm`), which exists for the calls a root server span receives, drawn from the `User` node, for the calls a consumer receives from its broker, and for the calls that reach a service through an uninstrumented gateway listed in `gateways.yml`; an OTLP server span carries no caller identity, so no other edge has server-side numbers. The map also shows the conjectured peers the calls reach, databases, caches and brokers, which live in the OpenTelemetry virtual layers.
-
-A peer that a client named by address, `cart:7070` or an IP, is folded onto the service that answers there once OAP has learned the address, from the server's own span or by pairing the two spans of one call; the first calls to a freshly seen address can appear on an address-named node for a minute.
+The topology is generated from the services' spans. Each call a service makes is drawn as an edge from the caller to the service that answered it. Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges carry **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_call_sla/100`), measured at the caller. Server-side **RPM** (`otlp_service_relation_server_cpm`) is only on the edges whose caller the callee's span can name: from `User` to a service called from outside, from a broker to its consumer, and from a gateway listed in `gateways.yml` to the service behind it. The databases, caches and brokers the calls reach are conjectured peers, which live in the OpenTelemetry virtual layers.
 
 ## Traces and logs
 
