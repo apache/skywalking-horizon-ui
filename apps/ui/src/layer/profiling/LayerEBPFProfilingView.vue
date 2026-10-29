@@ -41,8 +41,8 @@ import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import type { EBPFTask, LayerDef } from '@/api/client';
-import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
-import ProfileStackTable from '@/layer/profiling/ProfileStackTable.vue';
+import ProfileStackPanel from '@/layer/profiling/ProfileStackPanel.vue';
+import { useHiddenFramePatterns } from '@/layer/profiling/useHiddenFramePatterns';
 import EBPFProcessPicker from '@/layer/profiling/EBPFProcessPicker.vue';
 import NewEBPFTaskModal from '@/layer/profiling/NewEBPFTaskModal.vue';
 import {
@@ -120,7 +120,9 @@ const {
 
 // Display-only toggles owned by the view.
 const displayMode = ref<'flame' | 'tree'>('flame');
-const highlightTop = ref(true);
+const highlightTop = ref(false);
+const hidePatterns = useHiddenFramePatterns();
+const frameSearch = ref('');
 
 const showNewTask = ref(false);
 
@@ -252,13 +254,6 @@ function onPickTask(task: EBPFTask): void {
             >{{ t('Duration') }}</button>
           </div>
         </div>
-        <div class="tb-block">
-          <label class="lbl">{{ t('Display') }}</label>
-          <div class="seg">
-            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
-            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
-          </div>
-        </div>
         <EBPFProcessPicker v-model="selectedProcessIds" :processes="processes" />
         <button
           class="btn-primary"
@@ -278,19 +273,16 @@ function onPickTask(task: EBPFTask): void {
 
       <div class="result">
         <div v-if="analyzeTip" class="tip">{{ analyzeTip }}</div>
-        <template v-if="analyzeTrees.length">
-          <ProfileFlameGraph
-            v-if="displayMode === 'flame'"
-            :trees="profileTrees"
-            metric-key="count"
-          />
-          <ProfileStackTable
-            v-else
-            :trees="profileTrees"
-            :highlight-top="highlightTop"
-            @toggle-highlight="highlightTop = !highlightTop"
-          />
-        </template>
+        <ProfileStackPanel
+          v-if="analyzeTrees.length"
+          v-model:display-mode="displayMode"
+          v-model:hide-patterns="hidePatterns"
+          v-model:highlight-top="highlightTop"
+          v-model:search="frameSearch"
+          :trees="profileTrees"
+          :views="['flame', 'tree']"
+          :popout-title="t('eBPF Profiling') + (serviceName ? ' · ' + serviceName : '')"
+        />
         <div v-else-if="!analyzeTip && !analyzeLoading" class="result-empty">
           {{
             currentTask

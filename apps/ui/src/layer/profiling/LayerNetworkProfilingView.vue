@@ -96,9 +96,11 @@ const currentTask = ref<EBPFTask | null>(null);
 const topologyLoading = ref(false);
 
 // Tasks are listed per SERVICE, not the selected instance — a task's pod
-// may have been replaced; the task carries its own serviceInstanceId.
+// may have been replaced; the task carries its own serviceInstanceId. Keyed on
+// the service the roster resolves, not the bare selected id: opened from a
+// link, the id is known before the roster loads.
 watch(
-  () => layerKey.value + '|' + (serviceId.value ?? ''),
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => void refreshTasks(),
   { immediate: true },
 );

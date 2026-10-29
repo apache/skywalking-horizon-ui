@@ -19,11 +19,11 @@
   `dashboard/related/profile` widget. Layout:
 
     ┌───────────────┬──────────────────────────────────────────────┐
-    │  Task list    │   Trace-ID + display-mode + analyze toolbar  │
+    │  Task list    │   Trace-ID + data-mode + analyze toolbar     │
     │  (top)        │   Span table  (top half of the right pane)   │
     │  ▸ New Task ┼─                                            ─│
-    │  Segments     │   Tree / Flame visualization (bottom half)   │
-    │  (bottom)     │                                              │
+    │  Segments     │   Result bar: Tree|Flame, hide, find, Pop out│
+    │  (bottom)     │   Tree / Flame visualization (bottom half)   │
     └───────────────┴──────────────────────────────────────────────┘
 
   The widget binds to the URL-selected service. Operators kick off a
@@ -52,8 +52,8 @@ import type {
   ProfileTask,
   ProfileTaskLog,
 } from '@/api/client';
-import ProfileStackTable from '@/layer/profiling/ProfileStackTable.vue';
-import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
+import ProfileStackPanel from '@/layer/profiling/ProfileStackPanel.vue';
+import { useHiddenFramePatterns } from '@/layer/profiling/useHiddenFramePatterns';
 import NativeTraceWaterfall from '@/layer/traces/NativeTraceWaterfall.vue';
 import NewTraceProfileTaskModal from '@/layer/profiling/NewTraceProfileTaskModal.vue';
 import type { NewTraceTaskPayload } from '@/layer/profiling/NewTraceProfileTaskModal.vue';
@@ -122,11 +122,22 @@ const taskDetailFor = ref<ProfileTask | null>(null);
 const taskDetailLogs = ref<ProfileTaskLog[]>([]);
 
 const analyzeTrees = ref<ProfileAnalyzationTree[]>([]);
+/** The span the shown result belongs to. Picking another span keeps the
+ *  result until Analyze runs again, so the selection does not name it. */
+const analyzedSpan = ref<ProfileSpan | null>(null);
 const analyzeLoading = ref(false);
 const analyzeMessage = ref('');
 const displayMode = ref<'tree' | 'flame'>('tree');
 const dataMode = ref<'include' | 'exclude'>('include');
-const highlightTop = ref(true);
+const highlightTop = ref(false);
+const hidePatterns = useHiddenFramePatterns();
+const frameSearch = ref('');
+watch(analyzeTrees, (trees) => {
+  if (!trees.length) analyzedSpan.value = null;
+});
+const popoutTitle = computed(() =>
+  analyzedSpan.value ? t('Thread Stack') + ' · ' + analyzedSpan.value.endpointName : t('Thread Stack'),
+);
 
 /** Request tickets. A reply for the service the operator has already navigated
  *  away from must not publish under the new one. */
@@ -147,7 +158,10 @@ watch([currentTask, currentSegment, currentSpan], () => {
 });
 
 watch(
-  () => layerKey.value + '|' + (selectedId.value ?? ''),
+  // Keyed on the service as the layer's roster resolves it, not the bare
+  // selected id: opened from a link, the tab knows the id before the roster has
+  // loaded, and a load keyed on the id never ran again once it had.
+  () => layerKey.value + '|' + (service.value?.id ?? ''),
   () => {
     void refreshTasks();
   },
@@ -282,6 +296,7 @@ async function runAnalyze(): Promise<void> {
       analyzeTrees.value = [];
     } else {
       analyzeTrees.value = resp.trees ?? [];
+      analyzedSpan.value = span;
     }
     if (!resp.reachable && resp.error) analyzeMessage.value = resp.error;
   } catch (e) {
@@ -437,13 +452,6 @@ function fmtTime(ms: number): string {
             <option value="exclude">{{ t('Exclude children') }}</option>
           </select>
         </div>
-        <div class="tb-block">
-          <label class="lbl">{{ t('Display') }}</label>
-          <div class="seg">
-            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
-            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
-          </div>
-        </div>
         <button
           class="btn-primary"
           :disabled="!currentSpan?.profiled || analyzeLoading"
@@ -478,16 +486,19 @@ function fmtTime(ms: number): string {
 
       <div class="result">
         <div v-if="analyzeMessage" class="result-tip">{{ analyzeMessage }}</div>
-        <ProfileStackTable
-          v-if="displayMode === 'tree'"
+        <ProfileStackPanel
+          v-model:display-mode="displayMode"
+          v-model:hide-patterns="hidePatterns"
+          v-model:highlight-top="highlightTop"
+          v-model:search="frameSearch"
           :trees="analyzeTrees"
-          :highlight-top="highlightTop"
-          @toggle-highlight="highlightTop = !highlightTop"
+          duration-unit="ms"
+          :popout-title="popoutTitle"
         />
-        <ProfileFlameGraph v-else :trees="analyzeTrees" metric-key="count" />
       </div>
     </div>
   </div>
+
 
   <NewTraceProfileTaskModal
     v-model:show="showNewTask"
@@ -715,24 +726,6 @@ function fmtTime(ms: number): string {
 }
 .sel {
   min-width: 140px;
-}
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--sw-line-2);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.seg button {
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-2);
-  padding: 4px 10px;
-  font-size: 11px;
-  cursor: pointer;
-}
-.seg button.on {
-  background: var(--sw-accent);
-  color: #fff;
 }
 .btn-primary {
   background: var(--sw-accent);
