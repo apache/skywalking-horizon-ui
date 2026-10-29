@@ -53,7 +53,7 @@ describe('useTraceQLTracePopout', () => {
   });
 
   it('stands aside on the TraceQL row of the datasource it names, whose view opens the id itself', async () => {
-    const { api } = await harness('/layer/otlp_service/traceql-otlp-trace?traceId=abc123&traceType=traceql-otlp');
+    const { api } = await harness('/layer/otlp_general/traceql-otlp-trace?traceId=abc123&traceType=traceql-otlp');
     expect(api.open.value).toBeNull();
   });
 

@@ -19,7 +19,8 @@
   called, and — for the TraceQL rows — which services its picker offers.
 
   A checklist, not a picker: a layer can expose any combination, and each
-  checked store becomes its own sidebar row.
+  checked store becomes its own sidebar row. The OTLP row can also name an OAP
+  layer, which OAP's own service catalog narrows that picker to.
 
   What is ticked when the page opens is what the layer RESOLVES to, not what its
   template literally says — a template written before the checklist carries the
@@ -33,6 +34,8 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   backtracksBadly,
+  OTLP_SERVICE_LAYERS,
+  SERVICE_LAYER_PATTERN,
   TRACE_STORES,
   TRACE_STORE_ROWS,
   resolveTraceStores,
@@ -41,7 +44,7 @@ import {
   type TracesConfig,
 } from '@skywalking-horizon-ui/api-client';
 
-const props = defineProps<{ traces?: TracesConfig; readOnly?: boolean }>();
+const props = defineProps<{ traces?: TracesConfig; readOnly?: boolean; layerKey?: string }>();
 const emit = defineEmits<{ (e: 'update', value: TracesConfig | undefined): void }>();
 const { t } = useI18n({ useScope: 'global' });
 
@@ -87,19 +90,20 @@ const checked = computed(() => new Set(resolveTraceStores(props.traces)));
  *  the first edit: what was implied becomes an explicit `sources`, and the
  *  legacy `source` enum is not written back. */
 function commit(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): void {
+  emit('update', blockOf(sources, stores));
+}
+
+function blockOf(sources: TraceStore[], stores: Partial<Record<TraceStore, TraceStoreConfig>>): TracesConfig {
   const kept: Partial<Record<TraceStore, TraceStoreConfig>> = {};
   for (const s of sources) {
     const cfg = stores[s];
-    if (cfg && (cfg.name || cfg.serviceFilter?.pattern)) kept[s] = cfg;
+    if (cfg && (cfg.name || cfg.serviceFilter?.pattern || cfg.serviceLayer)) kept[s] = cfg;
   }
   // An empty LIST, never an absent block: a template that says nothing about
   // traces resolves to the native store for compatibility, so removing the
   // block would tick native back on rather than turn everything off.
-  if (sources.length === 0 && Object.keys(kept).length === 0) {
-    emit('update', { sources: [] });
-    return;
-  }
-  emit('update', Object.keys(kept).length > 0 ? { sources, stores: kept } : { sources });
+  if (sources.length === 0 && Object.keys(kept).length === 0) return { sources: [] };
+  return Object.keys(kept).length > 0 ? { sources, stores: kept } : { sources };
 }
 
 function currentStores(): Partial<Record<TraceStore, TraceStoreConfig>> {
@@ -133,12 +137,45 @@ function setFilter(store: TraceStore, part: 'pattern' | 'flags', value: string):
   commit([...checked.value], stores);
 }
 
+function setLayer(store: TraceStore, layer: string): void {
+  if (props.readOnly) return;
+  const stores = currentStores();
+  const cfg = { ...(stores[store] ?? {}) };
+  if (layer) cfg.serviceLayer = layer;
+  else delete cfg.serviceLayer;
+  stores[store] = cfg;
+  commit([...checked.value], stores);
+}
+
+function savedLayerOf(store: TraceStore): string {
+  return props.traces?.stores?.[store]?.serviceLayer ?? '';
+}
+/** The sender layers, and a saved one that is not among them, as the dashboard layer the checkbox below sets. */
+function layerOptions(store: TraceStore): string[] {
+  const saved = savedLayerOf(store);
+  const options: string[] = [...OTLP_SERVICE_LAYERS];
+  return saved && !options.includes(saved) ? [...options, saved] : options;
+}
+
 /** The only regular-expression flag worth offering for a service name. The
  *  others are meaningless on one line (`m`, `s`) or change what the pattern
  *  matches under the operator (`g`, `y` carry state between tests). */
 function ignoresCase(store: TraceStore): boolean {
   return (filterOf(store).flags ?? '').includes('i');
 }
+/** The layer of the dashboard being edited, offered as the OTLP store's service layer: the OTLP Service layer's
+ *  services arrive under its own name. Absent when the key is not a layer name. */
+const dashboardLayer = computed(() => {
+  const key = (props.layerKey ?? '').toUpperCase();
+  return SERVICE_LAYER_PATTERN.test(key) ? key : '';
+});
+function usesDashboardLayer(store: TraceStore): boolean {
+  return dashboardLayer.value !== '' && savedLayerOf(store) === dashboardLayer.value;
+}
+function setUseDashboardLayer(store: TraceStore, on: boolean): void {
+  setLayer(store, on ? dashboardLayer.value : '');
+}
+
 function setIgnoreCase(store: TraceStore, on: boolean): void {
   setFilter(store, 'flags', on ? 'i' : '');
 }
@@ -180,19 +217,21 @@ function filterInvalid(store: TraceStore): boolean {
       </label>
       <p class="ts-hint">{{ row.hint }}</p>
       <div v-if="checked.has(row.store)" class="ts-fields">
-        <label class="ts-field">
-          <span>{{ t('Menu name') }}</span>
-          <input
-            type="text"
-            class="alias-input sm"
-            :value="nameOf(row.store)"
-            :placeholder="row.label"
-            :disabled="readOnly"
-            spellcheck="false"
-            @input="setName(row.store, ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <template v-if="row.traceql">
+        <div class="ts-row">
+          <label class="ts-field">
+            <span>{{ t('Menu name') }}</span>
+            <input
+              type="text"
+              class="alias-input sm"
+              :value="nameOf(row.store)"
+              :placeholder="row.label"
+              :disabled="readOnly"
+              spellcheck="false"
+              @input="setName(row.store, ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+        <div v-if="row.traceql" class="ts-row">
           <label class="ts-field">
             <span>{{ t('Service filter') }}</span>
             <input
@@ -214,10 +253,36 @@ function filterInvalid(store: TraceStore): boolean {
               @change="setIgnoreCase(row.store, ($event.target as HTMLInputElement).checked)"
             />
           </label>
-        </template>
+        </div>
+        <div v-if="row.store === 'traceql-otlp'" class="ts-row">
+          <label class="ts-field">
+            <span>{{ t('Service layer') }}</span>
+            <select
+              class="alias-input sm mono"
+              :value="savedLayerOf(row.store)"
+              :disabled="readOnly"
+              @change="setLayer(row.store, ($event.target as HTMLSelectElement).value)"
+            >
+              <option value="">{{ t('All layers') }}</option>
+              <option v-for="layer in layerOptions(row.store)" :key="layer" :value="layer">{{ layer }}</option>
+            </select>
+          </label>
+          <label v-if="dashboardLayer" class="ts-field check">
+            <span>{{ t('Use dashboard layer ({layer})', { layer: dashboardLayer }) }}</span>
+            <input
+              type="checkbox"
+              :checked="usesDashboardLayer(row.store)"
+              :disabled="readOnly"
+              @change="setUseDashboardLayer(row.store, ($event.target as HTMLInputElement).checked)"
+            />
+          </label>
+        </div>
       </div>
-      <p v-if="row.traceql && checked.has(row.store)" class="ts-hint sub">
+      <p v-if="row.traceql && row.store !== 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
         {{ t('The Tempo API has no notion of a layer, so it lists every service of the store. This pattern narrows the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
+      </p>
+      <p v-if="row.store === 'traceql-otlp' && checked.has(row.store)" class="ts-hint sub">
+        {{ t('OAP keeps the service.layer each OTLP service arrived with, UNDEFINED when it set none or one that is not a registered layer. A service layer narrows the picker to the services stored with that layer, before the service filter applies. Both narrow the service PICKER only — result rows are never filtered, so cross-service traces still appear.') }}
       </p>
       <p v-if="filterInvalid(row.store)" class="ts-warn">
         {{ t('Horizon will not run this expression, so the picker keeps showing every service. It either does not compile, or it can backtrack exponentially — avoid a repeat applied to a group that itself repeats or branches, such as (a+)+.') }}
@@ -248,7 +313,8 @@ function filterInvalid(store: TraceStore): boolean {
 .ts-hint { margin: 3px 0 0 22px; font-size: 10.5px; color: var(--sw-fg-3); line-height: 1.4; }
 .ts-hint.sub { margin-top: 5px; }
 .ts-warn { margin: 5px 0 0 22px; font-size: 10.5px; color: var(--sw-warn); line-height: 1.4; }
-.ts-fields { display: flex; flex-wrap: wrap; gap: 8px; margin: 7px 0 0 22px; }
+.ts-fields { display: flex; flex-direction: column; gap: 8px; margin: 7px 0 0 22px; }
+.ts-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .ts-field {
   display: flex;
   flex-direction: column;

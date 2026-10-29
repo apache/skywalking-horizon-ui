@@ -16,13 +16,13 @@ limitations under the License.
 -->
 # OTLP Service
 
-The **OTLP_SERVICE** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP registers a service here from the `service.name` of every OTLP span it receives, derives the metrics below from the spans themselves, and draws the topology from each span's peer. The OTLP trace receiver and the shipped TAL rule file produce the metrics and the topology; the Traces tab also needs OAP's TraceQL module, see [Requirements](#requirements). These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
+The **OTLP_GENERAL** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP analyzes only the spans whose resource carries `service.layer=OTLP_GENERAL`, which an application sets through `OTEL_RESOURCE_ATTRIBUTES`; it registers a service here from their `service.name`, derives the metrics below from the spans themselves, and draws the topology from each span's peer. The OTLP trace receiver and the shipped TAL rule file produce the metrics and the topology; the Traces tab also needs OAP's TraceQL module, see [Requirements](#requirements). These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
 
 In Horizon's sidebar the layer is named **OTLP Service** (grouped under **OpenTelemetry**, with the OTLP Virtual Database, OTLP Virtual Cache and OTLP Virtual MQ layers). It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off in the bundled template; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
 
 This page is the **operator reference** for the bundled OTLP Service dashboard: what you see on each scope and what each widget means.
 
-> The widgets and metrics below are read from the bundled OTLP_SERVICE template; if an operator has published a customized OTLP_SERVICE template to OAP, the live dashboard reflects that copy instead. See [Layer Dashboard Templates](../customization/layer-templates.md) for how the bundled default, your local draft, and the OAP-published copy relate.
+> The widgets and metrics below are read from the bundled OTLP_GENERAL template; if an operator has published a customized OTLP_GENERAL template to OAP, the live dashboard reflects that copy instead. See [Layer Dashboard Templates](../customization/layer-templates.md) for how the bundled default, your local draft, and the OAP-published copy relate.
 
 ## Service list
 
@@ -74,19 +74,19 @@ The primary drill-down for one selected service.
 
 ## Topology
 
-Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges are observed on the client side, from the caller's CLIENT and PRODUCER spans: **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_call_sla/100`). The only server-side edge metric is **RPM** (`otlp_service_relation_server_cpm`), which exists for the calls a root server span receives, drawn from the `User` node, for the calls a consumer receives from its broker, and for the calls that reach a service through an uninstrumented gateway listed in `gateways.yml`; an OTLP server span carries no caller identity, so no other edge has server-side numbers. The map also shows the conjectured peers the calls reach, databases, caches and brokers, which live in the OpenTelemetry virtual layers.
-
-A peer that a client named by address, `cart:7070` or an IP, is folded onto the service that answers there once OAP has learned the address, from the server's own span or by pairing the two spans of one call; the first calls to a freshly seen address can appear on an address-named node for a minute.
+The topology is generated from the services' spans. Each call a service makes is drawn as an edge from the caller to the service that answered it. Nodes carry **RPM**, **SLA** and **Latency** from the service metrics above. Edges carry **RPM** (`otlp_service_relation_client_cpm`), **Avg response time** (`otlp_service_relation_client_resp_time`) and **SLA** (`otlp_service_relation_client_call_sla/100`), measured at the caller. Server-side **RPM** (`otlp_service_relation_server_cpm`) is only on the edges whose caller the callee's span can name: from `User` to a service called from outside, from a broker to its consumer, and from a gateway listed in `gateways.yml` to the service behind it. The databases, caches and brokers the calls reach are conjectured peers, which live in the OpenTelemetry virtual layers.
 
 ## Traces and logs
 
 The Traces tab reads the native OTLP store through OAP's TraceQL endpoint, which is where the receiver keeps spans in its default `otlp` storage mode. OAP ships that endpoint off; [Requirements](#requirements) lists what turns it on. A deployment that runs the receiver in its `zipkin` conversion mode stores no native spans, so switch the layer's trace source to Zipkin in **Dashboard setup → Layer dashboards** there.
 
+The tab's service picker lists the services stored under `OTLP_GENERAL`, the ones this layer analyzes, and leaves out the other layers' services, such as the sidecars of a service mesh that report their spans under `OTLP_MESH`, and those whose spans set no `service.layer`. The bundled template asks OAP for that list through its `serviceLayer` setting, see [Layer templates](../customization/layer-templates.md#traces). Search results are not narrowed, so a trace that passes through a sidecar still shows its spans.
+
 The Logs tab is off in the bundled template. The OAP accepts OTLP logs and stores them by `service.name`, so once a collector exports logs to the OAP, enabling the `logs` component on this layer shows them for the matching service.
 
 ## Requirements
 
-The dashboard is a pure consumer of what OAP reports and invents no data. It needs OAP 11.1.0 or later. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, which produces:
+The dashboard is a pure consumer of what OAP reports and invents no data. It needs OAP 11.1.0 or later. To populate it, OAP needs the OTLP trace receiver with the `trace-analyzer` module's shipped rule file, and each application needs `service.layer=OTLP_GENERAL` among its resource attributes, for example `OTEL_RESOURCE_ATTRIBUTES=service.layer=OTLP_GENERAL`. Spans without it, a service mesh sidecar's among them, are stored and can be opened in a trace but are not analyzed, so they add no service to this layer. The rule file produces:
 
 - **Service, instance and endpoint metrics** — the `otlp_service_*`, `otlp_service_instance_*` and `otlp_endpoint_*` families.
 

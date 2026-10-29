@@ -33,7 +33,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { normalizeZipkinTraceId, serviceFilterOf } from '@skywalking-horizon-ui/api-client';
+import { normalizeZipkinTraceId, serviceFilterOf, serviceLayerOf } from '@skywalking-horizon-ui/api-client';
 import type {
   FetchLike,
   TraceQLDatasource,
@@ -42,6 +42,7 @@ import type {
   TraceQLTraceListResponse,
   TraceQLTagsResponse,
   TraceQLTagValuesResponse,
+  TracesConfig,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
@@ -117,22 +118,23 @@ function storeOf(ds: TraceQLDatasource): TraceStore {
 }
 
 /**
- * Narrow a service list to the layer that asked for it.
+ * The `traces` block that narrows the service picker of the layer that asked.
  *
- * The Tempo API has no notion of a layer: its service-name values are every
- * service of the underlying store, so a layer owning a subset of them can only
- * say which by pattern. Applied to the PICKER alone — never to result rows,
- * which legitimately cross services.
+ * The Tempo API's service-name values are every service of the underlying
+ * store, so a layer owning a subset of them says which by pattern, and on the
+ * OTLP store by layer too, which OAP's service catalog answers. Applied to the
+ * PICKER alone — never to result rows, which legitimately cross services.
+ *
+ * @returns `blocked` when the layer's configuration cannot be read, whose picker
+ * must be emptied; else the block, `null` when nothing narrows it
  */
-async function applyServiceFilter(
+async function layerTracesOf(
   deps: TraceQLRouteDeps,
   req: FastifyRequest,
   layerKey: string | undefined,
-  ds: TraceQLDatasource,
-  values: string[],
   previewConfig?: string,
-): Promise<string[]> {
-  if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) return values;
+): Promise<{ blocked: boolean; traces: TracesConfig | null }> {
+  if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) return { blocked: false, traces: null };
   // In preview the DRAFT is the configuration — an admin editing the filter
   // has to see what it does before publishing. A pattern off the request is
   // code someone else's request runs on this event loop, so it is taken only
@@ -140,19 +142,58 @@ async function applyServiceFilter(
   const preview = req.session && sessionHasVerb(deps.config.current, req.session, 'layer-template:write')
     ? parsePreviewTraces(previewConfig)
     : null;
-  if (preview) {
-    const previewRe = serviceFilterOf(preview, storeOf(ds));
-    return previewRe ? filterByPattern(values, previewRe) : values;
-  }
+  if (preview) return { blocked: false, traces: preview };
   const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
   // A layer whose configuration cannot be read must not have its picker
   // WIDENED: serving every service of the store is the one answer that looks
   // like more access rather than less.
-  if (eff.blocked) return [];
-  if (!eff.template) return values;
-  const re = serviceFilterOf(eff.template.traces ?? null, storeOf(ds));
-  return re ? filterByPattern(values, re) : values;
+  if (eff.blocked) return { blocked: true, traces: null };
+  return { blocked: false, traces: eff.template?.traces ?? null };
 }
+
+/**
+ * The picker's expression narrowed to a layer: the caller's own single spanset
+ * with the layer's condition added to it, since OAP takes one `{...}` only.
+ * Added last: OAP keeps the last condition on an attribute, so a layer the
+ * caller named cannot replace the template's.
+ *
+ * @returns null when the caller's expression is not one spanset, which cannot
+ * be narrowed and so must not be sent widened
+ */
+function withServiceLayer(q: string | undefined, layer: string): string | null {
+  const condition = `resource.service.layer="${layer}"`;
+  const t = (q ?? '').trim();
+  if (!t) return `{${condition}}`;
+  if (!t.startsWith('{') || closingBrace(t) !== t.length - 1) return null;
+  const inner = t.slice(1, -1).trim();
+  return inner ? `{${inner} && ${condition}}` : `{${condition}}`;
+}
+
+/** Where the brace opening `q` closes, skipping string literals; -1 if it never does. A literal is
+ *  OAP's only kind, double-quoted with backslash escapes (its TraceQLLexer `STRING_LITERAL`). */
+function closingBrace(q: string): number {
+  let depth = 0;
+  let inLiteral = false;
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i];
+    if (inLiteral) {
+      if (c === '\\') i++;
+      else if (c === '"') inLiteral = false;
+    } else if (c === '"') {
+      inLiteral = true;
+    } else if (c === '{') {
+      depth++;
+    } else if (c === '}' && --depth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** The tags whose values are service names on every store, narrowed by the layer's settings: OAP resolves the
+ *  unscoped `.service.name` and `.service` to the resource scope first. The plain `service.name` is one on the OTLP
+ *  store only, whose catalog answers it too (`OTLPTraceQLApiHandler.SERVICE_NAME_TAGS`); elsewhere it is a tag. */
+const SERVICE_TAGS = new Set(['resource.service.name', 'resource.service', '.service.name', '.service']);
 
 /** Backtracking cost grows with the SUBJECT as well as the pattern, and a
  *  service name is nowhere near this long. */
@@ -300,11 +341,15 @@ export function registerTraceQLRoutes(app: FastifyInstance, deps: TraceQLRouteDe
       const opts = buildTraceQLOpts(deps.config.current, ds, deps.fetch, clientGone(reply));
       if (!opts) return reply.send({ values: [] } satisfies TraceQLTagValuesResponse);
       try {
-        const values = await traceqlTagValues(opts, q.tag, window, q.q);
-        const shaped = q.tag === 'resource.service.name' || q.tag === 'resource.service'
-          ? await applyServiceFilter(deps, req, q.layer, ds, values, q.previewConfig)
-          : values;
-        return reply.send({ values: shaped } satisfies TraceQLTagValuesResponse);
+        const serviceTag = SERVICE_TAGS.has(q.tag) || (q.tag === 'service.name' && storeOf(ds) === 'traceql-otlp');
+        const narrowing = serviceTag ? await layerTracesOf(deps, req, q.layer, q.previewConfig) : null;
+        if (narrowing?.blocked) return reply.send({ values: [] } satisfies TraceQLTagValuesResponse);
+        const layer = narrowing ? serviceLayerOf(narrowing.traces, storeOf(ds)) : null;
+        const expr = layer ? withServiceLayer(q.q, layer) : q.q;
+        if (expr === null) return reply.send({ values: [] } satisfies TraceQLTagValuesResponse);
+        const values = await traceqlTagValues(opts, q.tag, window, expr);
+        const re = narrowing ? serviceFilterOf(narrowing.traces, storeOf(ds)) : null;
+        return reply.send({ values: re ? filterByPattern(values, re) : values } satisfies TraceQLTagValuesResponse);
       } catch {
         return reply.send({ values: [] } satisfies TraceQLTagValuesResponse);
       }

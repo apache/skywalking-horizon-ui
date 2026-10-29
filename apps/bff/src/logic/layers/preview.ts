@@ -33,7 +33,7 @@
  * config (i.e. preview silently no-ops rather than erroring).
  */
 
-import { TRACE_STORES, type TraceStore } from '@skywalking-horizon-ui/api-client';
+import { SERVICE_LAYER_PATTERN, TRACE_STORES, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import type {
   TopologyConfig,
   EndpointDependencyConfig,
@@ -167,8 +167,8 @@ export function parsePreviewTraces(raw: string | undefined): TracesConfig | null
   return { source } as TracesConfig;
 }
 
-/** The per-store settings of a previewed `traces` block — the row's name and
- *  the service filter, which the picker applies. Taken only in the shapes the
+/** The per-store settings of a previewed `traces` block — the row's name, and
+ *  the service filter and layer, which the picker applies. Taken only in the shapes the
  *  editor writes; anything else is left out rather than trusted. */
 function previewStores(raw: unknown): TracesConfig['stores'] | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -176,7 +176,7 @@ function previewStores(raw: unknown): TracesConfig['stores'] | null {
   for (const store of TRACE_STORES) {
     const v = (raw as Record<string, unknown>)[store];
     if (!v || typeof v !== 'object') continue;
-    const cfg: { name?: string; serviceFilter?: { pattern: string; flags?: string } } = {};
+    const cfg: { name?: string; serviceFilter?: { pattern: string; flags?: string }; serviceLayer?: string } = {};
     const name = (v as { name?: unknown }).name;
     if (typeof name === 'string' && name.trim()) cfg.name = name;
     const filter = (v as { serviceFilter?: unknown }).serviceFilter;
@@ -187,7 +187,11 @@ function previewStores(raw: unknown): TracesConfig['stores'] | null {
         cfg.serviceFilter = { pattern, ...(typeof flags === 'string' ? { flags } : {}) };
       }
     }
-    if (cfg.name || cfg.serviceFilter) out[store] = cfg;
+    const layer = (v as { serviceLayer?: unknown }).serviceLayer;
+    if (store === 'traceql-otlp' && typeof layer === 'string' && SERVICE_LAYER_PATTERN.test(layer)) {
+      cfg.serviceLayer = layer;
+    }
+    if (cfg.name || cfg.serviceFilter || cfg.serviceLayer) out[store] = cfg;
   }
   return Object.keys(out).length > 0 ? out : null;
 }
