@@ -241,7 +241,7 @@
         "id": "bandwidth",
         "title": "HTTP Bandwidth",
         "type": "line",
-        "unit": "KB",
+        "unit": "KB/s",
         "expressions": [
           "meter_nginx_endpoint_http_bandwidth/1024"
         ],

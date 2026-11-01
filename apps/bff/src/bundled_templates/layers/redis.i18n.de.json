@@ -49,7 +49,7 @@
       },
       {
         "id": "net_io",
-        "title": "Netz-I/O (KB)",
+        "title": "Netz-I/O (KB/s)",
         "expressionLabels": [
           "ein",
           "aus"
@@ -101,7 +101,7 @@
       },
       {
         "id": "net_io",
-        "title": "Netz-I/O (KB)",
+        "title": "Netz-I/O (KB/s)",
         "expressionLabels": [
           "ein",
           "aus"

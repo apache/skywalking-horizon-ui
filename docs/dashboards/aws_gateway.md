@@ -70,7 +70,7 @@ For one selected route (an **endpoint** under a gateway).
 
 - **Integration Avg Latency** — average gateway-to-backend integration latency in ms (`aws_gateway_endpoint_integration_latency`).
 
-- **Data Processed** — bytes processed for the route, shown in KB (`aws_gateway_endpoint_DataProcessed/1024`).
+- **Data Processed** — bytes processed for the route, shown in KB (`aws_gateway_endpoint_data_processed/1024`).
 
 - **Cache Hit Rate** — percent of requests served from cache (`aws_gateway_endpoint_cache_hit_rate`).
 

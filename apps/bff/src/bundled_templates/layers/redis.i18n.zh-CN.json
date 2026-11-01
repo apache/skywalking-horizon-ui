@@ -53,7 +53,7 @@
       },
       {
         "id": "net_io",
-        "title": "网络 I/O（KB）",
+        "title": "网络 I/O（KB/s）",
         "expressionLabels": [
           "in",
           "out"
@@ -105,7 +105,7 @@
       },
       {
         "id": "net_io",
-        "title": "网络 I/O（KB）",
+        "title": "网络 I/O（KB/s）",
         "expressionLabels": [
           "in",
           "out"

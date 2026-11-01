@@ -84,7 +84,7 @@ For one selected route. Nginx reports a tighter metric set at route scope — re
 
 - **HTTP Latency** — request latency in ms for the route (`meter_nginx_endpoint_http_latency`).
 
-- **HTTP Bandwidth** — bandwidth in KB for the route (`meter_nginx_endpoint_http_bandwidth`, divided to KB).
+- **HTTP Bandwidth** — bandwidth in KB/s for the route (`meter_nginx_endpoint_http_bandwidth`, divided to KB/s).
 
 - **HTTP Status Trend** — requests by HTTP status for the route (`meter_nginx_endpoint_http_status`).
 

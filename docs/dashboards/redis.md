@@ -58,7 +58,7 @@ The primary drill-down for one selected Redis cluster. All cluster-scope widgets
 
 - **Avg Command Time / s** — mean per-command duration, total command duration divided by total command count, summed over command types (`aggregate_labels(meter_redis_commands_duration,sum(cmd))/aggregate_labels(meter_redis_commands_total,sum(cmd))`).
 
-- **Net I/O (KB)** — network throughput in KB, split into **in** and **out** (`aggregate_labels(meter_redis_net_input_bytes_total,sum)/1024`, `aggregate_labels(meter_redis_net_output_bytes_total,sum)/1024`).
+- **Net I/O (KB/s)** — network throughput in KB/s, split into **in** and **out** (`aggregate_labels(meter_redis_net_input_bytes_total,sum)/1024`, `aggregate_labels(meter_redis_net_output_bytes_total,sum)/1024`). OAP stores bytes/s; the panel divides by 1024 for display.
 
 - **Keys** — keyspace size over time, split into **total** keys, **evicted** keys, and **expired** keys (`aggregate_labels(meter_redis_db_keys,sum)`, `aggregate_labels(meter_redis_evicted_keys_total,sum)`, `aggregate_labels(meter_redis_expired_keys_total,sum)`).
 
@@ -86,7 +86,7 @@ For one selected node (a single Redis process under the cluster).
 
 - **Hit Rate** — keyspace hit rate as a percentage for this node (`meter_redis_instance_hit_rate`).
 
-- **Net I/O (KB)** — network throughput in KB for this node, split into **in** and **out** (`meter_redis_instance_net_input_bytes_total/1024`, `meter_redis_instance_net_output_bytes_total/1024`).
+- **Net I/O (KB/s)** — network throughput in KB/s for this node, split into **in** and **out** (`meter_redis_instance_net_input_bytes_total/1024`, `meter_redis_instance_net_output_bytes_total/1024`). OAP stores bytes/s; the panel divides by 1024 for display.
 
 - **Keys** — keyspace size over time for this node, split into **total**, **evicted**, and **expired** keys (`meter_redis_instance_db_keys`, `meter_redis_instance_evicted_keys_total`, `meter_redis_instance_expired_keys_total`).
 

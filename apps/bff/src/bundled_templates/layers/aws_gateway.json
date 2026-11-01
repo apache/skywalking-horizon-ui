@@ -194,7 +194,7 @@
         "type": "line",
         "unit": "KB",
         "expressions": [
-          "aws_gateway_endpoint_DataProcessed/1024"
+          "aws_gateway_endpoint_data_processed/1024"
         ],
         "span": 4,
         "rowSpan": 2

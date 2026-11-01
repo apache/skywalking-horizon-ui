@@ -53,7 +53,7 @@
       },
       {
         "id": "net_io",
-        "title": "I/O de rede (KB)",
+        "title": "I/O de rede (KB/s)",
         "expressionLabels": [
           "entrada",
           "saída"
@@ -105,7 +105,7 @@
       },
       {
         "id": "net_io",
-        "title": "I/O de rede (KB)",
+        "title": "I/O de rede (KB/s)",
         "expressionLabels": [
           "entrada",
           "saída"

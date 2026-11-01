@@ -123,7 +123,7 @@
       },
       {
         "id": "net_io",
-        "title": "Net I/O (KB)",
+        "title": "Net I/O (KB/s)",
         "type": "line",
         "expressions": [
           "aggregate_labels(meter_redis_net_input_bytes_total,sum)/1024",
@@ -241,7 +241,7 @@
       },
       {
         "id": "net_io",
-        "title": "Net I/O (KB)",
+        "title": "Net I/O (KB/s)",
         "type": "line",
         "expressions": [
           "meter_redis_instance_net_input_bytes_total/1024",
