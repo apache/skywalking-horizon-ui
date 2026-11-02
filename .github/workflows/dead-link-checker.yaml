@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: sudo npm install -g markdown-link-check@3.10.0
       - run: |
           for file in $(find . -name "*.md" -not -path "./node_modules/*" -not -path "*/node_modules/*"); do
