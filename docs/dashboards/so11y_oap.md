@@ -100,7 +100,7 @@ How the alarms this node raises reach their HTTP hooks: Webhook, Slack, WeCom, D
 
 - **Alarm Delivery / min** — deliveries per minute by channel and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
 
-- **Alarm Delivery Responses / min** — HTTP responses per minute by channel and status class, **2xx** to **5xx** (`meter_oap_instance_alarm_http_delivery_status_count`).
+- **Alarm Delivery Responses / min** — HTTP responses per minute by channel and status class: **2xx**, **3xx**, **4xx**, **5xx** or **other** (`meter_oap_instance_alarm_http_delivery_status_count`).
 
 - **Alarm Delivery Latency (ms)** — p50 / p75 / p90 / p95 / p99 delivery time per channel (`meter_oap_instance_alarm_http_delivery_latency_percentile`).
 
