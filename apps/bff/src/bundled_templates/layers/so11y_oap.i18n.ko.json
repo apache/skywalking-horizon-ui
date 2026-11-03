@@ -169,6 +169,20 @@
       {
         "id": "zipkin_drop",
         "title": "Zipkin 스팬 드롭"
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "알람 전송 / 분",
+        "tip": "채널별, 결과별 HTTP 알람 훅 전송 수입니다. 성공 또는 전송에 실패한 이유를 보여 줍니다."
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "알람 전송 응답 / 분",
+        "tip": "채널별, 상태 클래스별 HTTP 알람 훅 응답 수입니다."
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "알람 전송 지연 시간 (ms)"
       }
     ]
   },

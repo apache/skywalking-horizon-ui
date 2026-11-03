@@ -173,6 +173,20 @@
       {
         "id": "zipkin_drop",
         "title": "Zipkin Span 丢弃数"
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "告警投递 / 分钟",
+        "tip": "各通道 HTTP 告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "告警投递响应 / 分钟",
+        "tip": "各通道 HTTP 告警钩子收到的响应次数，按状态码类别区分。"
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "告警投递延迟（ms）"
       }
     ]
   }
