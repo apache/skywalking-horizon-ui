@@ -231,7 +231,7 @@ check_file_has_version() {
 # start rewriting it. A path that no longer exists is a hard error — a deleted
 # workspace must fail HERE, not midway through a version bump.
 for pj in package.json packages/api-client/package.json packages/design-tokens/package.json \
-          apps/bff/package.json apps/ui/package.json; do
+          packages/conversation-view/package.json apps/bff/package.json apps/ui/package.json; do
     if [ ! -f "${PROJECT_DIR}/${pj}" ]; then
         err "${pj} is listed for version bumping but does not exist — update the list in this script"
         CONSISTENT=false
@@ -303,6 +303,7 @@ const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
+  'packages/conversation-view/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];
@@ -629,6 +630,7 @@ const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
+  'packages/conversation-view/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];

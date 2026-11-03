@@ -21,3 +21,12 @@
   * {{ .Name }}@{{ .Version }}
 {{- end }}
 {{ end }}
+========================================================================
+   The proto/ directory carries .proto definitions copied from other
+   projects, which are not npm packages and so are not listed above. They
+   are provided under the Apache License 2.0:
+
+  * proto/banyandb/v1 from apache/skywalking-banyandb-client-proto
+    https://github.com/apache/skywalking-banyandb-client-proto/tree/8fb44091247ebd6d2c0c85d5f3371bd51e0e4afa/proto
+  * proto/validate/validate.proto from bufbuild/protoc-gen-validate
+    https://github.com/bufbuild/protoc-gen-validate/tree/v1.0.4/validate
