@@ -121,7 +121,7 @@ jobs:
       is_highest: ${{ steps.tags.outputs.is_highest }}
       is_promote: ${{ steps.tags.outputs.is_promote }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -269,7 +269,7 @@ jobs:
       BASE: ${{ needs.tags.outputs.base }}
       SHA: ${{ needs.tags.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Build from the resolved ref — a manual dispatch with a tag
           # checks out THAT tag, not main. For pushes, this is the
