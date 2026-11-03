@@ -281,6 +281,8 @@ catalog:
 
   - name: "Release Notes"
     catalog:
+      - name: "1.2.0"
+        path: "/changelog/1.2.0"
       - name: "1.1.0"
         path: "/changelog/1.1.0"
       - name: "1.0.1"
