@@ -94,6 +94,16 @@ The receivers and analyzers turning raw telemetry into metrics.
 
 - **Zipkin Spans Dropped** — Zipkin spans dropped by this node, for deployments running the Zipkin receiver (`meter_oap_instance_spans_dropped_count`).
 
+### Alarm delivery
+
+How the alarms this node raises reach their HTTP hooks: Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty and Discord. These widgets are shown only on an OAP node that has delivered an HTTP alarm; each line is one channel, so a deployment with one notification channel reads one line per result.
+
+- **Alarm Delivery / min** — deliveries per minute by channel and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
+
+- **Alarm Delivery Responses / min** — HTTP responses per minute by channel and status class, **2xx** to **5xx** (`meter_oap_instance_alarm_http_delivery_status_count`).
+
+- **Alarm Delivery Latency (ms)** — p50 / p75 / p90 / p95 / p99 delivery time per channel (`meter_oap_instance_alarm_http_delivery_latency_percentile`).
+
 ### Storage backend
 
 Write latency against whichever storage backend this OAP is configured with. These two widgets are storage-specific and only render when the matching backend is in use — a BanyanDB deployment shows the BanyanDB widget, an Elasticsearch deployment shows the Elasticsearch widget.
@@ -113,6 +123,8 @@ The SO11Y_OAP dashboard is a pure consumer of what OAP reports about itself — 
 - **Query metrics** — `meter_oap_graphql_query_latency_percentile` and `meter_oap_instance_graphql_query_count` / `_error_count` for the GraphQL surface.
 
 - **Ingestion metrics** — the trace, mesh, OTEL, K8s ALS, watermark, and Zipkin families (`meter_oap_instance_trace_*`, `meter_oap_instance_mesh_*`, `meter_oap_otel_*`, `meter_oap_instance_k8s_als_*`, `meter_oap_instance_watermark_circuit_breaker_*`, `meter_oap_instance_spans_dropped_count`). A pipeline that isn't running on a given node simply reports nothing, and its widget reads `no data`.
+
+- **Alarm delivery metrics** — `meter_oap_instance_alarm_http_delivery_count`, `_status_count` and `_latency_percentile`, reported by OAP 11.1.0 and later once a node delivers an HTTP alarm.
 
 - **Storage metrics** — `meter_oap_banyandb_write_latency_percentile` **or** `meter_oap_elasticsearch_write_latency_percentile`, depending on the configured storage backend; only the matching widget renders.
 

@@ -169,6 +169,20 @@
       {
         "id": "zipkin_drop",
         "title": "Zipkin-Spans verworfen"
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "Alarmzustellung / min",
+        "tip": "HTTP-Alarm-Hook-Zustellungen pro Kanal und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "Antworten der Alarmzustellung / min",
+        "tip": "HTTP-Antworten der Alarm-Hooks pro Kanal und Statusklasse."
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "Latenz der Alarmzustellung (ms)"
       }
     ]
   },

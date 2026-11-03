@@ -381,6 +381,42 @@
         ],
         "span": 6,
         "rowSpan": 2
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "Alarm Delivery / min",
+        "tip": "HTTP alarm hook deliveries per channel and result: success, or why the delivery failed.",
+        "type": "line",
+        "expressions": [
+          "meter_oap_instance_alarm_http_delivery_count"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "Alarm Delivery Responses / min",
+        "tip": "HTTP responses of alarm hooks per channel and status class.",
+        "type": "line",
+        "expressions": [
+          "meter_oap_instance_alarm_http_delivery_status_count"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "Alarm Delivery Latency (ms)",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "relabels(meter_oap_instance_alarm_http_delivery_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
+        "span": 4,
+        "rowSpan": 2
       }
     ]
   }

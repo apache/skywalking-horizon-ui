@@ -169,6 +169,20 @@
       {
         "id": "zipkin_drop",
         "title": "Zipkin スパン破棄"
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "アラート配信 / 分",
+        "tip": "チャネル別・結果別の HTTP アラートフック配信数。成功、または配信に失敗した理由。"
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "アラート配信レスポンス / 分",
+        "tip": "チャネル別・ステータスクラス別の HTTP アラートフックのレスポンス数。"
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "アラート配信レイテンシ (ms)"
       }
     ]
   },

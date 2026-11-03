@@ -173,6 +173,20 @@
       {
         "id": "zipkin_drop",
         "title": "Spans Zipkin descartados"
+      },
+      {
+        "id": "alarm_delivery",
+        "title": "Entrega de alarmes / min",
+        "tip": "Entregas dos hooks de alarme HTTP por canal e resultado: sucesso, ou o motivo da falha na entrega."
+      },
+      {
+        "id": "alarm_delivery_status",
+        "title": "Respostas de entrega de alarmes / min",
+        "tip": "Respostas HTTP dos hooks de alarme por canal e classe de status."
+      },
+      {
+        "id": "alarm_delivery_latency",
+        "title": "Latência de entrega de alarmes (ms)"
       }
     ]
   }
