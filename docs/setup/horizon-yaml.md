@@ -292,6 +292,8 @@ layers:
       reason: Deprecated.
     - key: VIRTUAL_GATEWAY   # not planned
       reason: Not planned to set up.
+    - key: OTLP_VIRTUAL_GATEWAY   # not planned
+      reason: Not planned to set up.
 ```
 
 `layers.excluded` hides specific layers from the sidebar even when OAP
@@ -299,8 +301,8 @@ reports them in `listLayers`. Keys are OAP layer keys (UPPER_SNAKE), matched
 case-insensitively. `reason` is a note for whoever reads the file — it is
 not shown in the UI; an excluded layer simply doesn't appear.
 
-- **Defaults**: `FAAS` and `VIRTUAL_GATEWAY` are excluded when the block is
-  omitted. Set `excluded: []` to surface **every** layer OAP reports.
+- **Defaults**: `FAAS`, `VIRTUAL_GATEWAY` and `OTLP_VIRTUAL_GATEWAY` are excluded
+  when the block is omitted. Set `excluded: []` to surface **every** layer OAP reports.
 - This is the only hide list — there is no hard-coded one. The other way a
   layer disappears is an admin explicitly disabling its template on the
   Layer dashboards page.

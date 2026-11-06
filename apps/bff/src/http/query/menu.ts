@@ -458,8 +458,8 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
     const queryUrl = cfg.oap.queryUrl;
     const opts = buildOapOpts(cfg, deps.fetch);
     const locale = localeFromRequest(req);
-    // Operator-configured hidden layers (horizon.yaml `layers.excluded`).
-    // Defaults to FaaS (deprecated) + Virtual Gateway (not planned). Matched
+    // Operator-configured hidden layers (horizon.yaml `layers.excluded`; the
+    // default list is DEFAULT_EXCLUDED_LAYERS in the config schema). Matched
     // case-insensitively against the canonical layer key.
     const excludedLayers = new Set(
       (cfg.layers?.excluded ?? []).map((e) => e.key.toUpperCase()),

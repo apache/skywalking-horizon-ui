@@ -800,6 +800,7 @@ const excludedLayerSchema = z
 const DEFAULT_EXCLUDED_LAYERS = [
   { key: 'FAAS', reason: 'Deprecated.' },
   { key: 'VIRTUAL_GATEWAY', reason: 'Not planned to set up.' },
+  { key: 'OTLP_VIRTUAL_GATEWAY', reason: 'Not planned to set up.' },
 ];
 const layersSchema = z
   .object({
