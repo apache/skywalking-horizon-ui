@@ -107,7 +107,7 @@ describe('env-native config (horizon.yaml + env)', () => {
     const cfg = load({});
     expect(cfg.oap.auth).toBeUndefined();
     expect(cfg.performance.bulk.dashboard.bulkSize).toBe(6);
-    expect(cfg.layers.excluded.map((e) => e.key)).toEqual(['FAAS', 'VIRTUAL_GATEWAY']);
+    expect(cfg.layers.excluded.map((e) => e.key)).toEqual(['FAAS', 'VIRTUAL_GATEWAY', 'OTLP_VIRTUAL_GATEWAY']);
   });
 
   it('malformed JSON env throws at parse (fail loud, not silently default)', () => {

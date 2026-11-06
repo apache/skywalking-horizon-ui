@@ -111,7 +111,7 @@ oap:
   auth: ${HORIZON_OAP_AUTH:null}
 
 # Layers hidden from the sidebar even when OAP reports them. JSON array of
-# {key, reason}; `:null` keeps the built-in default (FAAS, VIRTUAL_GATEWAY).
+# {key, reason}; `:null` keeps the built-in default (FAAS, VIRTUAL_GATEWAY, OTLP_VIRTUAL_GATEWAY).
 # HORIZON_LAYERS_EXCLUDED='[]' surfaces every reported layer.
 layers:
   excluded: ${HORIZON_LAYERS_EXCLUDED:null}

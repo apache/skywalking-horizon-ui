@@ -81,7 +81,7 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_RBAC_BUILTIN_ROLES` | `replace` | enum | `replace` or `keep` — whether a configured role map replaces the built-in roles or is merged onto them. |
 | `HORIZON_RBAC_ROLES` | (built-in) | JSON | Role → verb-grants map. |
 | `HORIZON_RBAC_LANDING_BY_ROLE` | (built-in) | JSON | Post-login landing route per role. |
-| `HORIZON_LAYERS_EXCLUDED` | `FAAS`, `VIRTUAL_GATEWAY` | JSON | Layers hidden from the sidebar; `[]` shows all. |
+| `HORIZON_LAYERS_EXCLUDED` | `FAAS`, `VIRTUAL_GATEWAY`, `OTLP_VIRTUAL_GATEWAY` | JSON | Layers hidden from the sidebar; `[]` shows all. |
 | `HORIZON_SESSION_TTL_MINUTES` | `60` | int | Session lifetime. |
 | `HORIZON_SESSION_COOKIE_NAME` | `horizon_sid` | string | Session cookie name. |
 | `HORIZON_SESSION_COOKIE_SECURE` | `false` | bool | Set `true` behind HTTPS. |
