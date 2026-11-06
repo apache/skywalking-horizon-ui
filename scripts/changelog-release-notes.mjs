@@ -22,6 +22,9 @@
  * Usage: node scripts/changelog-release-notes.mjs <version> [file]
  *          → reflows docs/changelog/<version>.md, minus its `# <version>`
  *            page title, to stdout (exits 1 if the file is not there)
+ *          [--max-chars <n> --full-notes-url <url>]
+ *          → keeps the result within n characters (see fit() below); the URL
+ *            is where the complete file is read, e.g. its blob at the tag
  *        node scripts/changelog-release-notes.mjs --whole-file <file>
  *          → prints the WHOLE file reflowed (one line per paragraph / item);
  *            pipe it back over the file to normalize it to the one-line
@@ -56,11 +59,22 @@ import { fileURLToPath } from 'node:url';
 const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const argv = process.argv.slice(2);
+const takeFlag = (name) => {
+  const i = argv.indexOf(name);
+  return i === -1 ? undefined : argv.splice(i, 2)[1];
+};
+const maxChars = takeFlag('--max-chars');
+const fullNotesUrl = takeFlag('--full-notes-url');
 const wholeFile = argv[0] === '--whole-file';
 const version = wholeFile ? null : argv[0];
 const path = argv[1];
-if (wholeFile ? !path : !version) {
-  process.stderr.write('usage: changelog-release-notes.mjs <version> [file] | --whole-file <file>\n');
+if (
+  (wholeFile ? !path : !version) ||
+  (maxChars !== undefined && !(Number(maxChars) > 0 && fullNotesUrl))
+) {
+  process.stderr.write(
+    'usage: changelog-release-notes.mjs <version> [file] [--max-chars <n> --full-notes-url <url>] | --whole-file <file>\n',
+  );
   process.exit(2);
 }
 
@@ -138,6 +152,74 @@ function reflow(lines) {
   return out;
 }
 
+/** GitHub's heading anchors (github-slugger): line index → slug. */
+function headingSlugs(lines) {
+  const seen = new Map();
+  const slugs = new Map();
+  let inFence = false;
+  lines.forEach((l, i) => {
+    if (isFence(l)) inFence = !inFence;
+    if (inFence || !isHeading(l)) return;
+    const base = l
+      .replace(/^#{1,6}\s+/, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+      .replace(/ /g, '-');
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    slugs.set(i, n ? `${base}-${n}` : base);
+  });
+  return slugs;
+}
+
+/**
+ * GitHub refuses a release body over its length limit, and says so only after
+ * the operator has confirmed the release (1.1.0's notes were 129k characters
+ * against a 125k limit). A body that is too long keeps the `## ` sections that
+ * fit, in their original order, and names the ones left out at the top, each
+ * linked to its place in the complete file — a reader must not take a partial
+ * page for the whole release.
+ */
+function fit(lines, max, url) {
+  const size = (ls) => ls.reduce((n, l) => n + l.length + 1, 0);
+  if (size(lines) <= max) return lines;
+
+  const slugs = headingSlugs(lines);
+  const preamble = [];
+  const sections = [];
+  lines.forEach((l, i) => {
+    if (slugs.has(i) && /^##\s/.test(l)) sections.push({ title: l.replace(/^##\s+/, '').trim(), slug: slugs.get(i), lines: [l] });
+    else (sections.at(-1)?.lines ?? preamble).push(l);
+  });
+  while (preamble.length && isBlank(preamble[0])) preamble.shift();
+
+  const file = url.slice(url.lastIndexOf('/') + 1);
+  const notice = (left) => [
+    `> These notes are longer than a GitHub release description allows, so ${left.length === 1 ? 'one section is' : `${left.length} sections are`} not shown here: ${left.map((s) => `[${s.title}](${url}#${s.slug})`).join(', ')}. The complete notes are in [${file}](${url}).`,
+    '',
+  ];
+  // Reserve room for the longest notice — every section listed — so whatever
+  // ends up left out, the notice that names it still fits.
+  let used = size(notice(sections)) + size(preamble);
+  const kept = new Set();
+  for (const s of sections) {
+    if (used + size(s.lines) <= max) {
+      kept.add(s);
+      used += size(s.lines);
+    }
+  }
+  const left = sections.filter((s) => !kept.has(s));
+  if (!kept.size) {
+    process.stderr.write(`changelog-release-notes: no section fits in ${max} characters.\n`);
+    process.exit(3);
+  }
+  process.stderr.write(
+    `changelog-release-notes: the notes are ${size(lines)} characters, over the ${max} that fit; not shown: ${left.map((s) => `${s.title} (${size(s.lines)})`).join(', ')}\n`,
+  );
+  return [...notice(left), ...preamble, ...sections.filter((s) => kept.has(s)).flatMap((s) => s.lines)];
+}
+
 if (wholeFile) {
   const content = readFileSync(path, 'utf8');
   // split/join round-trips the trailing newline (a final '\n' yields a
@@ -151,4 +233,6 @@ if (!existsSync(notes)) {
   process.stderr.write(`changelog-release-notes: ${notes} does not exist — ${version} has no changelog file.\n`);
   process.exit(1);
 }
-process.stdout.write(reflow(body(readFileSync(notes, 'utf8'))).join('\n') + '\n');
+const reflowed = reflow(body(readFileSync(notes, 'utf8')));
+const out = maxChars === undefined ? reflowed : fit(reflowed, Number(maxChars), fullNotesUrl);
+process.stdout.write(out.join('\n') + '\n');
