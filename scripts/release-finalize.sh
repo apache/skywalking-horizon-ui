@@ -422,13 +422,18 @@ fi
 # written one physical line per paragraph / list item for that reason; the
 # helper joins any that were hard-wrapped anyway, as a backstop — see
 # scripts/changelog-release-notes.mjs.
+#
+# GitHub refuses a body over 125,000 characters, with an HTTP 422 that arrives
+# only after the confirm below, so the helper is told how much room is left
+# beyond the footer. The footer's byte count is never below its character count.
+GH_RELEASE_BODY_MAX=125000
 NOTES_FILE="${WORK_DIR}/release-notes.md"
+NOTES_FOOTER="${WORK_DIR}/release-notes-footer.md"
 NOTES_SOURCE="${WORK_DIR}/changelog-${RELEASE_VERSION}.md"
 if ! git -C "${PROJECT_DIR}" show "${TAG}:docs/changelog/${RELEASE_VERSION}.md" > "${NOTES_SOURCE}" 2>/dev/null; then
     err "Tag ${TAG} carries no docs/changelog/${RELEASE_VERSION}.md — cannot build the release notes."
     exit 1
 fi
-node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${NOTES_SOURCE}" > "${NOTES_FILE}"
 {
     echo ""
     echo "---"
@@ -438,7 +443,12 @@ node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${NOTES_S
     echo "* KEYS: ${SVN_KEYS_URL}"
     echo ""
     echo "Container image: \`docker pull ${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}\`"
-} >> "${NOTES_FILE}"
+} > "${NOTES_FOOTER}"
+node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${NOTES_SOURCE}" \
+    --max-chars $((GH_RELEASE_BODY_MAX - $(wc -c < "${NOTES_FOOTER}"))) \
+    --full-notes-url "https://github.com/${GH_REPO}/blob/${TAG}/docs/changelog/${RELEASE_VERSION}.md" \
+    > "${NOTES_FILE}"
+cat "${NOTES_FOOTER}" >> "${NOTES_FILE}"
 
 if gh release view "${TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
     # A previous run may have created the release and died mid-upload, so
