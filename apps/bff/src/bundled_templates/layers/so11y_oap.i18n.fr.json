@@ -173,7 +173,7 @@
       {
         "id": "alarm_delivery",
         "title": "Envoi d'alarmes / min",
-        "tip": "Envois des hooks d'alarme HTTP par canal et par résultat : succès, ou la raison de l'échec de l'envoi."
+        "tip": "Envois des hooks d'alarme par canal (HTTP et gRPC) et par résultat : succès, ou la raison de l'échec de l'envoi."
       },
       {
         "id": "alarm_delivery_status",
@@ -182,7 +182,8 @@
       },
       {
         "id": "alarm_delivery_latency",
-        "title": "Latence d'envoi d'alarmes (ms)"
+        "title": "Latence d'envoi d'alarmes (ms)",
+        "tip": "Latence d'envoi du hook d'alarme par canal (HTTP et gRPC)."
       }
     ]
   },

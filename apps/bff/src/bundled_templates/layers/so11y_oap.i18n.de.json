@@ -173,7 +173,7 @@
       {
         "id": "alarm_delivery",
         "title": "Alarmzustellung / min",
-        "tip": "HTTP-Alarm-Hook-Zustellungen pro Kanal und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."
+        "tip": "Alarm-Hook-Zustellungen pro Kanal (HTTP und gRPC) und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."
       },
       {
         "id": "alarm_delivery_status",
@@ -182,7 +182,8 @@
       },
       {
         "id": "alarm_delivery_latency",
-        "title": "Latenz der Alarmzustellung (ms)"
+        "title": "Latenz der Alarmzustellung (ms)",
+        "tip": "Latenz der Alarm-Hook-Zustellung pro Kanal (HTTP und gRPC)."
       }
     ]
   },

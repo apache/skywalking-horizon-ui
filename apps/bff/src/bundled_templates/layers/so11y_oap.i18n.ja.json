@@ -173,7 +173,7 @@
       {
         "id": "alarm_delivery",
         "title": "アラート配信 / 分",
-        "tip": "チャネル別・結果別の HTTP アラートフック配信数。成功、または配信に失敗した理由。"
+        "tip": "チャネル別（HTTP および gRPC）・結果別のアラートフック配信数。成功、または配信に失敗した理由。"
       },
       {
         "id": "alarm_delivery_status",
@@ -182,7 +182,8 @@
       },
       {
         "id": "alarm_delivery_latency",
-        "title": "アラート配信レイテンシ (ms)"
+        "title": "アラート配信レイテンシ (ms)",
+        "tip": "チャネル別（HTTP および gRPC）のアラートフック配信レイテンシ。"
       }
     ]
   },

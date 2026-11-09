@@ -96,13 +96,13 @@ The receivers and analyzers turning raw telemetry into metrics.
 
 ### Alarm delivery
 
-How the alarms this node raises reach their HTTP hooks: Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty and Discord. These widgets are shown only on an OAP node that has delivered an HTTP alarm; each line is one channel, so a deployment with one notification channel reads one line per result.
+How the alarms this node raises reach their hooks: HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. These widgets are shown only on an OAP node that has delivered an alarm, and the Responses widget only once an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
 
-- **Alarm Delivery / min** — deliveries per minute by channel and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
+- **Alarm Delivery / min** — deliveries per minute by channel (HTTP and gRPC) and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
 
-- **Alarm Delivery Responses / min** — HTTP responses per minute by channel and status class: **2xx**, **3xx**, **4xx**, **5xx** or **other** (`meter_oap_instance_alarm_http_delivery_status_count`).
+- **Alarm Delivery Responses / min** — HTTP hook responses per minute by channel and status class: **2xx**, **3xx**, **4xx**, **5xx** or **other** (`meter_oap_instance_alarm_http_delivery_status_count`). HTTP hooks only; gRPC deliveries have no HTTP status series.
 
-- **Alarm Delivery Latency (ms)** — p50 / p75 / p90 / p95 / p99 delivery time per channel (`meter_oap_instance_alarm_http_delivery_latency_percentile`).
+- **Alarm Delivery Latency (ms)** — p50 / p75 / p90 / p95 / p99 delivery time per channel, HTTP and gRPC (`meter_oap_instance_alarm_http_delivery_latency_percentile`).
 
 ### Storage backend
 
@@ -124,7 +124,7 @@ The SO11Y_OAP dashboard is a pure consumer of what OAP reports about itself — 
 
 - **Ingestion metrics** — the trace, mesh, OTEL, K8s ALS, watermark, and Zipkin families (`meter_oap_instance_trace_*`, `meter_oap_instance_mesh_*`, `meter_oap_otel_*`, `meter_oap_instance_k8s_als_*`, `meter_oap_instance_watermark_circuit_breaker_*`, `meter_oap_instance_spans_dropped_count`). A pipeline that isn't running on a given node simply reports nothing, and its widget reads `no data`.
 
-- **Alarm delivery metrics** — `meter_oap_instance_alarm_http_delivery_count`, `_status_count` and `_latency_percentile`, reported by OAP 11.1.0 and later once a node delivers an HTTP alarm.
+- **Alarm delivery metrics** — `meter_oap_instance_alarm_http_delivery_count` / `_status_count` / `_latency_percentile` (OAP 11.1.0+ after a hook delivery). With OAP 11.2.0+, gRPC deliveries appear as `hook_type=gRPC` on the delivery and latency meters.
 
 - **Storage metrics** — `meter_oap_banyandb_write_latency_percentile` **or** `meter_oap_elasticsearch_write_latency_percentile`, depending on the configured storage backend; only the matching widget renders.
 
