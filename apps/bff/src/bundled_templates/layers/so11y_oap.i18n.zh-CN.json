@@ -177,7 +177,7 @@
       {
         "id": "alarm_delivery",
         "title": "告警投递 / 分钟",
-        "tip": "各通道 HTTP 告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
+        "tip": "各通道（HTTP 与 gRPC）告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
       },
       {
         "id": "alarm_delivery_status",
@@ -186,7 +186,8 @@
       },
       {
         "id": "alarm_delivery_latency",
-        "title": "告警投递延迟（ms）"
+        "title": "告警投递延迟（ms）",
+        "tip": "各通道（HTTP 与 gRPC）告警钩子的投递延迟。"
       }
     ]
   }

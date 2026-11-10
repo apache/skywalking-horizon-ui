@@ -335,7 +335,7 @@
       {
         "id": "alarm_delivery",
         "title": "Alarm Delivery / min",
-        "tip": "HTTP alarm hook deliveries per channel and result: success, or why the delivery failed.",
+        "tip": "Alarm hook deliveries per channel (HTTP and gRPC) and result: success, or why the delivery failed.",
         "type": "line",
         "expressions": [
           "meter_oap_instance_alarm_http_delivery_count"
@@ -352,13 +352,14 @@
         "expressions": [
           "meter_oap_instance_alarm_http_delivery_status_count"
         ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_status_count", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
       {
         "id": "alarm_delivery_latency",
         "title": "Alarm Delivery Latency (ms)",
+        "tip": "Alarm hook delivery latency per channel (HTTP and gRPC).",
         "type": "line",
         "unit": "ms",
         "expressions": [

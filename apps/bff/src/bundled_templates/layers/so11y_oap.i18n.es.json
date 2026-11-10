@@ -173,7 +173,7 @@
       {
         "id": "alarm_delivery",
         "title": "Entrega de alarmas / min",
-        "tip": "Entregas de hooks de alarma HTTP por canal y resultado: éxito, o el motivo por el que falló la entrega."
+        "tip": "Entregas de hooks de alarma por canal (HTTP y gRPC) y resultado: éxito, o el motivo por el que falló la entrega."
       },
       {
         "id": "alarm_delivery_status",
@@ -182,7 +182,8 @@
       },
       {
         "id": "alarm_delivery_latency",
-        "title": "Latencia de entrega de alarmas (ms)"
+        "title": "Latencia de entrega de alarmas (ms)",
+        "tip": "Latencia de entrega del hook de alarma por canal (HTTP y gRPC)."
       }
     ]
   },
