@@ -53,10 +53,10 @@ All conditions are staged in the toolbar and only take effect on **Run query** �
 | Endpoint | Restrict to one endpoint. Defaults to All. A dropdown of the service's endpoints (capped at 50). |
 | Status | `ALL`, `SUCCESS`, or `ERROR` — the trace state. |
 | Order | `BY_START_TIME` (Newest) or `BY_DURATION` (Slowest). |
-| Limit | Cap on result rows: 30 by default. The server caps a single page at 200. The list says when the window held more traces than the limit returned — there is no total on the wire, only "there is more". |
+| Limit | Result cap: 20, 30, 50, or 100, with 30 by default. The list says when the window held more traces than the limit returned — there is no total on the wire, only "there is more". |
 | Time range | A rolling preset (Last 15 min through Last 24 hours) or a Custom… absolute start/end pair. |
 | Duration range (ms) | Min–max trace duration, in milliseconds. |
-| Tag | Free-form span tags as `key=value` (for example `http.status_code=500`). Press Enter to add; each committed tag shows as an Active-tag chip. Multiple tags are AND-joined. |
+| Tag | Span tags as `key=value` (for example `http.status_code=500`), with suggested keys and, once you type `=`, that key's values. Press Enter to add; each committed tag shows as an **Active tags** chip, and multiple tags are AND-joined. Only the chips reach the query: when you press Enter on text that is not `key=value`, the text stays and a note over the field says why; **Run query** with a tag still in the field runs without it and says so in a note over the field for five seconds. Typing, or clicking the note, takes it away. |
 
 The time window is evaluated at second precision so a trace that just finished still falls inside it — minute rounding would drop the most recent (and usually most interesting) traces during triage.
 
@@ -109,9 +109,9 @@ When a layer enables Zipkin, the Zipkin tab queries an upstream Zipkin store thr
 | Remote service | Narrow to spans calling a given remote service. Requires a service to be picked first. |
 | Span name | Narrow to one span/operation name. Requires a service to be picked first. |
 | Min duration (ms) / Max duration (ms) | Duration bounds, entered in milliseconds. |
-| Annotations | Zipkin annotation query — `error` or `key=value` terms, AND-joined. |
-| Limit | Result cap: 10, 30, 50, 100, or 200. The list says when the window held more traces than the limit returned. |
+| Limit | Result cap: 20, 30, 50, or 100, with 30 by default. The list says when the window held more traces than the limit returned. |
 | Time range | A lookback preset (Last 15 min through Last 24 hours) or a Custom range… absolute window. |
+| Annotations | Zipkin annotation query — `error` or `key=value` terms, AND-joined. The same field as the native tab's **Tag**: it suggests the keys OAP is configured to index and, once you type `=`, that key's values; Enter adds the term as an **Active annotations** chip, and several terms typed at once with ` and ` become one chip each. Only the chips reach the query. |
 
 As with the native tab, conditions are staged and only applied on **Run query**, and the **Filter** / **Trace ID** switch beside the title picks between them and a lookup by id.
 
@@ -169,7 +169,7 @@ The page is laid out like the native one — conditions and a duration distribut
 
 The switch beside the title picks between:
 
-- **Builder** — rows filled from the store: service, span name, status, a duration range, and span tags, with a result **Limit** and the **Time range**. The expression it produces is shown under the rows, and **Edit as TraceQL** carries it into the editor.
+- **Builder** — rows filled from the store: service, span name, status, a duration range, and span tags, with a result **Limit** (20, 30, 50, or 100, with 30 by default) and the **Time range**. The **Tag** field works as on the native tab: `key=value` with suggestions, Enter adds it as an **Active tags** chip, and only the chips reach the query. The expression it produces is shown under the rows, and **Edit as TraceQL** carries it into the editor.
 - **TraceQL** — the expression by hand, with highlighting, a **Schema reference** listing the fields and tags this store reports, and autocomplete for fields and for a tag's values. **Shift+Enter** runs it.
 - **Trace ID** — up to 20 ids, each locked in with **Enter**, with a **Time range** that starts at **No time range**. This API reads one id per request, so the ids are read one after another; anything past the 20th is reported as skipped rather than read.
 

@@ -71,6 +71,8 @@ import { permissionDeniedText } from '@/api/permissionDenied';
 import { useColdStageStore } from '@/controls/coldStage';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
+import ActiveTags from '@/components/primitives/ActiveTags.vue';
+import { parseTagPair } from '@/components/primitives/tagFilter';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
@@ -171,6 +173,7 @@ const traceIdInput = ref<string>('');
 const traceIdFilter = ref<string | null>(null);
 const tagsInput = ref<string>('');
 const tagsList = ref<Array<{ key: string; value: string }>>([]);
+const tagField = ref<InstanceType<typeof TagInput> | null>(null);
 
 // Committed snapshot — what useLayerTraces actually reads. Written by
 // commitConditions(): on Run query, and on a service switch so the
@@ -409,6 +412,11 @@ function runQuery(): void {
   }
   commitConditions();
   hasQueried.value = true;
+  // A tag typed but never added with Enter is not in this run; say so rather
+  // than let the results read as filtered by it.
+  if (!isTraceIdMode.value && tagsInput.value.trim()) {
+    tagField.value?.notify(t('Not included in this query — press Enter to add it.'));
+  }
   // The open trace and the distribution pick belong to the previous result
   // set; left up, a run that finds nothing reads as that trace being its answer.
   closeDetail();
@@ -417,12 +425,13 @@ function runQuery(): void {
 }
 function addTag(): void {
   const raw = tagsInput.value.trim();
-  if (!raw || !raw.includes('=')) return;
-  const idx = raw.indexOf('=');
-  const key = raw.slice(0, idx).trim();
-  const value = raw.slice(idx + 1).trim();
-  if (!key) return;
-  tagsList.value = [...tagsList.value, { key, value }];
+  if (!raw) return;
+  const tag = parseTagPair(raw);
+  if (!tag) {
+    tagField.value?.notify(t('Not a tag — enter it as key=value.'), 'err');
+    return;
+  }
+  tagsList.value = [...tagsList.value, tag];
   tagsInput.value = '';
 }
 function removeTag(i: number): void {
@@ -692,6 +701,7 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
           <label class="cf cf-wide">
             <span>{{ t('Tag') }}</span>
             <TagInput
+              ref="tagField"
               v-model="tagsInput"
               kind="trace"
               :window-minutes="windowMinutes"
@@ -701,15 +711,11 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
           </label>
           </template>
         </div>
-        <div v-if="!isTraceIdMode && tagsList.length > 0" class="tr-tag-row">
-          <span class="tag-row-label">{{ t('Active tags') }}</span>
-          <span class="tag-chips">
-            <span v-for="(tag, i) in tagsList" :key="i" class="tag-chip">
-              <span class="mono">{{ tag.key }}={{ tag.value }}</span>
-              <button type="button" class="tag-x" @click="removeTag(i)">×</button>
-            </span>
-          </span>
-        </div>
+        <ActiveTags
+          v-if="!isTraceIdMode && tagsList.length > 0"
+          :tags="tagsList.map((tag) => `${tag.key}=${tag.value}`)"
+          @remove="removeTag"
+        />
       </header>
 
       <section class="tr-scatter sw-card">
@@ -916,37 +922,6 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
 .cf-range { display: flex; align-items: center; gap: 4px; }
 .cf-range-num { flex: 1; min-width: 0; }
 .cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
-.tr-tag-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 6px;
-  border-top: 1px dashed var(--sw-line);
-}
-.tag-row-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3); }
-.tag-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 6px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 11px;
-  font-size: 10.5px;
-}
-.tag-x {
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  padding: 0;
-}
-.tag-x:hover { color: var(--sw-err); }
-
 .sw-btn.primary {
   background: var(--sw-accent);
   color: var(--sw-bg-0);

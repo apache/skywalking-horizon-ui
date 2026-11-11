@@ -33,6 +33,9 @@ import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import ChipInput from '@/components/primitives/ChipInput.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
+import ActiveTags from '@/components/primitives/ActiveTags.vue';
+import { parseTagPair, type TagSuggestions } from '@/components/primitives/tagFilter';
 import { TIME_RANGE_PRESETS } from '@/layer/logs/useLogTimeRange';
 import { MAX_RECORD_RANGE_DAYS, resolveRecordRange } from '@/utils/recordTimeRange';
 import TraceQLTraceDetail from './TraceQLTraceDetail.vue';
@@ -75,6 +78,9 @@ type Mode = 'builder' | 'traceql' | 'traceId';
 const mode = ref<Mode>('builder');
 const limit = ref(30);
 const rows = ref<BuilderRows>({ tags: [] });
+/** The builder's tag being typed; only the ones added with Enter are rows. */
+const tagInput = ref('');
+const tagField = ref<InstanceType<typeof TagInput> | null>(null);
 const expression = ref('');
 
 /** What Run was pressed with. Null until then: nothing queries on mount. */
@@ -197,6 +203,11 @@ const spanNameModel = computed({
   get: () => rows.value.spanName ?? '',
   set: (v: string) => { rows.value.spanName = v; },
 });
+const tagSuggestions = computed<TagSuggestions>(() => ({
+  keys: options.tagKeys.value,
+  valuesFor: options.valuesFor,
+  loadValues: (key) => void options.loadTagValues(key),
+}));
 
 const schemaOpen = ref(false);
 /** What the editor knows about this store — its tags, its services, its span
@@ -337,6 +348,7 @@ watch([ds, layerKey], () => {
   statusResolver.stop();
   openTraceId.value = null;
   rows.value = { tags: [] };
+  tagInput.value = '';
   expression.value = '';
 });
 
@@ -399,6 +411,11 @@ function run(): void {
   const window = currentWindow();
   if (!window) return;
   submitted.value = { q: editorText.value, window, limit: limit.value, nonce: runs };
+  // A tag typed but never added with Enter is not in this run; say so rather
+  // than let the results read as filtered by it.
+  if (mode.value === 'builder' && tagInput.value.trim()) {
+    tagField.value?.notify(t('Not included in this query — press Enter to add it.'));
+  }
 }
 
 function editAsTraceQL(): void {
@@ -407,7 +424,17 @@ function editAsTraceQL(): void {
 }
 
 function addTag(): void {
-  rows.value.tags = [...(rows.value.tags ?? []), { key: '', value: '' }];
+  const raw = tagInput.value;
+  if (!raw.trim()) return;
+  // Verbatim, as the builder's value box took it: the condition is an exact
+  // equality, and a value picked from the store can carry its own spaces.
+  const tag = parseTagPair(raw, { exactValue: true });
+  if (!tag) {
+    tagField.value?.notify(t('Not a tag — enter it as key=value.'), 'err');
+    return;
+  }
+  rows.value.tags = [...(rows.value.tags ?? []), tag];
+  tagInput.value = '';
 }
 function removeTag(i: number): void {
   rows.value.tags = (rows.value.tags ?? []).filter((_, n) => n !== i);
@@ -505,34 +532,22 @@ const issueText: Record<string, string> = {
               <input v-model="rows.maxDuration" class="cf-input cf-range-num mono" type="text" :placeholder="t('max')" />
             </div>
           </div>
-          <div class="cf cf-full tql-tag-row">
-            <span>{{ t('Tags') }}</span>
-            <div class="tql-taglist">
-              <div v-for="(tag, i) in rows.tags ?? []" :key="i" class="tql-tag">
-                <input
-                  v-model="tag.key"
-                  list="tql-tagkeys"
-                  class="cf-input mono"
-                  :placeholder="t('key')"
-                  @change="options.loadTagValues(tag.key)"
-                />
-                <input
-                  v-model="tag.value"
-                  :list="`tql-tagvals-${i}`"
-                  class="cf-input mono"
-                  :placeholder="t('value')"
-                />
-                <datalist :id="`tql-tagvals-${i}`">
-                  <option v-for="v in options.valuesFor(tag.key)" :key="v" :value="v" />
-                </datalist>
-                <button type="button" class="sw-btn small ghost" :aria-label="t('Remove')" @click="removeTag(i)">×</button>
-              </div>
-              <button type="button" class="sw-btn small ghost" @click="addTag">+ {{ t('Tag') }}</button>
-              <datalist id="tql-tagkeys">
-                <option v-for="k in options.tagKeys.value" :key="k" :value="k" />
-              </datalist>
-            </div>
-          </div>
+          <label class="cf cf-wide row-break">
+            <span>{{ t('Tag') }}</span>
+            <TagInput
+              ref="tagField"
+              v-model="tagInput"
+              :suggestions="tagSuggestions"
+              :placeholder="t('key=value, then Enter')"
+              @commit="addTag"
+            />
+          </label>
+          <ActiveTags
+            v-if="rows.tags && rows.tags.length > 0"
+            class="tql-active-tags"
+            :tags="rows.tags.map((tag) => `${tag.key}=${tag.value}`)"
+            @remove="removeTag"
+          />
           <div class="cf cf-full">
             <span>{{ t('TraceQL query') }}</span>
             <div class="tql-generated">
@@ -738,7 +753,9 @@ const issueText: Record<string, string> = {
 .tql-top-strip .tql-scatter { min-height: var(--sw-trace-strip-h); }
 @media (max-width: 1100px) { .tql-top-strip { grid-template-columns: 1fr; } }
 
-.tql-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+/* `min-width: 0`: with overflow visible, a grid item is otherwise at least as
+   wide as its content, and one long chip would widen the whole strip. */
+.tql-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; min-width: 0; }
 /* Centred rather than baseline-aligned: the switch and the button are the same
    height here, so they read as one bar. */
 .tql-toolbar-head { display: flex; align-items: center; gap: 10px; }
@@ -816,12 +833,9 @@ const issueText: Record<string, string> = {
   border-radius: 4px;
 }
 .tql-editor { height: auto; padding: 6px 8px; line-height: 1.5; resize: vertical; }
-/* Three key/value pairs to a row, each pair sized to its share rather than to
-   a fixed width, so a long tag key is readable instead of clipped. */
-.tql-taglist { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; align-items: center; }
-.tql-tag { display: flex; gap: 4px; align-items: center; min-width: 0; }
-.tql-tag .cf-input { min-width: 0; flex: 1 1 auto; }
-.tql-taglist > .sw-btn { justify-self: start; }
+/* Starts a fresh row, two columns wide, with its chips directly under it. */
+.cf.row-break { grid-column: 1 / span 2; }
+.tql-active-tags { grid-column: 1 / -1; }
 .tql-generated { display: flex; align-items: center; gap: 8px; }
 .tql-generated code {
   flex: 1;

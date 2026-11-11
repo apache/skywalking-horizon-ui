@@ -791,6 +791,7 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
                 <TagInput
                   v-model="cond.tags"
                   kind="trace"
+                  separator=","
                   :window-minutes="cond.windowMinutes"
                   :placeholder="t('http.status_code=500, …')"
                   @commit="onTagCommit"

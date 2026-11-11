@@ -16,6 +16,7 @@
  */
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { bffClient } from '@/api/client';
+import type { TagSuggestions } from '@/components/primitives/tagFilter';
 
 /**
  * The autocomplete behind the Zipkin search inputs — the Zipkin Traces tab
@@ -175,6 +176,13 @@ export function useZipkinAutocomplete(opts: {
   // Eagerly load keys once we know the layer — keys aren't service-
   // scoped, so a single load on mount is enough.
   watch(layerKey, (k) => { if (enabled && k) void loadAnnotationKeys(); }, { immediate: true });
+  /** The same keys and values for a {@link TagInput}, which completes the
+   *  term being typed itself. Only one key's values are held at a time. */
+  const annotationSuggestions = computed<TagSuggestions>(() => ({
+    keys: annotationKeyOptions.value,
+    valuesFor: (key) => (key === annotationValueKey.value ? annotationValueOptions.value : []),
+    loadValues: (key) => void loadAnnotationValues(key),
+  }));
 
   onBeforeUnmount(() => {
     if (autocompleteTimer) clearTimeout(autocompleteTimer);
@@ -186,5 +194,6 @@ export function useZipkinAutocomplete(opts: {
     remoteSvcOptions,
     annotationDatalistOptions,
     onAnnotationInput,
+    annotationSuggestions,
   };
 }

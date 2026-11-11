@@ -44,10 +44,13 @@ import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTr
 import { useZipkinAutocomplete } from '@/layer/traces/useZipkinAutocomplete';
 import { NO_TIME_RANGE, useTraceQueryMode } from '@/layer/traces/useTraceQueryMode';
 import { zipkinRowToListRow } from '@/layer/traces/zipkinTraceRows';
+import { ANNOTATION_TERM_SEPARATOR, parseAnnotationTerms } from '@/layer/traces/zipkinAnnotationTerms';
 import { useColdStageStore } from '@/controls/coldStage';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import DateTimeField from '@/components/primitives/DateTimeField.vue';
 import ChipInput from '@/components/primitives/ChipInput.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
+import ActiveTags from '@/components/primitives/ActiveTags.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
@@ -129,7 +132,10 @@ const spanName = ref<string>('');
 const remoteServiceName = ref<string>('');
 const minDurationMs = ref<number | null>(null);
 const maxDurationMs = ref<number | null>(null);
-const annotationQuery = ref<string>('');
+/** The term being typed; only the terms added with Enter reach the query. */
+const annotationInput = ref<string>('');
+const annotationTerms = ref<string[]>([]);
+const annotationField = ref<InstanceType<typeof TagInput> | null>(null);
 /** The ids of a lookup by trace id, each locked in with Enter. */
 const traceIds = ref<string[]>([]);
 const traceIdChips = ref<InstanceType<typeof ChipInput> | null>(null);
@@ -266,16 +272,35 @@ function runQuery(): void {
   cLimit.value = limit.value;
   cSpan.value = byId ? null : spanName.value.trim() || null;
   cRemote.value = byId ? null : remoteServiceName.value.trim() || null;
-  cAnno.value = byId ? null : annotationQuery.value.trim() || null;
+  cAnno.value = byId ? null : annotationTerms.value.join(ANNOTATION_TERM_SEPARATOR) || null;
   cMinDurUs.value = !byId && minDurationMs.value != null ? Math.max(0, minDurationMs.value * 1000) : null;
   cMaxDurUs.value = !byId && maxDurationMs.value != null ? Math.max(0, maxDurationMs.value * 1000) : null;
   cTraceIds.value = byId ? [...traceIds.value] : null;
   hasQueried.value = true;
+  // A term typed but never added with Enter is not in this run; say so rather
+  // than let the results read as filtered by it.
+  if (!byId && annotationInput.value.trim()) {
+    annotationField.value?.notify(t('Not included in this query — press Enter to add it.'));
+  }
   // The open trace and the distribution pick belong to the previous result
   // set; left up, a run that finds nothing reads as that trace being its answer.
   closeDetail();
   resetPick();
   void refetch();
+}
+function addAnnotation(): void {
+  const raw = annotationInput.value.trim();
+  if (!raw) return;
+  const terms = parseAnnotationTerms(raw);
+  if (!terms) {
+    annotationField.value?.notify(t('Not an annotation — enter a word such as error, or key=value.'), 'err');
+    return;
+  }
+  annotationTerms.value = [...annotationTerms.value, ...terms];
+  annotationInput.value = '';
+}
+function removeAnnotation(i: number): void {
+  annotationTerms.value = annotationTerms.value.filter((_, idx) => idx !== i);
 }
 
 // No auto-fire (traces are expensive); a layer switch resets to the prompt.
@@ -290,12 +315,11 @@ const {
   serviceOptions: zipkinServiceOptions,
   spanNameOptions,
   remoteSvcOptions,
-  annotationDatalistOptions,
-  onAnnotationInput,
+  annotationSuggestions,
 } = useZipkinAutocomplete({
   layerKey,
   serviceFilter: zipkinServiceFilter,
-  annotationQuery,
+  annotationQuery: annotationInput,
   spanName,
   remoteServiceName,
   // Embedded (chat) hides the whole toolbar, so skip the autocomplete fetches
@@ -489,20 +513,6 @@ const visibleRows = computed<TraceListRow[]>(() => {
           <span>{{ t('Max duration (ms)') }}</span>
           <input v-model.number.lazy="maxDurationMs" class="cf-input" type="number" min="0" placeholder="—" />
         </label>
-        <label class="cf cf-wide">
-          <span>{{ t('Annotations') }}</span>
-          <input
-            v-model="annotationQuery"
-            class="cf-input mono"
-            type="text"
-            :placeholder="t('error or key=value, AND-joined')"
-            list="ztr-annotation-suggest"
-            @input="onAnnotationInput"
-          />
-          <datalist id="ztr-annotation-suggest">
-            <option v-for="opt in annotationDatalistOptions" :key="opt" :value="opt" />
-          </datalist>
-        </label>
         <label class="cf">
           <span>{{ t('Limit') }}</span>
           <select v-model.number="limit" class="cf-input">
@@ -513,7 +523,7 @@ const visibleRows = computed<TraceListRow[]>(() => {
           </select>
         </label>
         </template>
-        <label class="cf" :class="{ 'row-break': !isTraceIdMode }">
+        <label class="cf">
           <span>{{ t('Time range') }}</span>
           <select v-model.number="timeChoice" class="cf-input">
             <option v-if="isTraceIdMode" :value="NO_TIME_RANGE">{{ t('No time range') }}</option>
@@ -539,7 +549,24 @@ const visibleRows = computed<TraceListRow[]>(() => {
           <span>{{ t('To') }}</span>
           <DateTimeField v-model="customEnd" />
         </label>
+        <label v-if="!isTraceIdMode" class="cf cf-wide row-break">
+          <span>{{ t('Annotations') }}</span>
+          <TagInput
+            ref="annotationField"
+            v-model="annotationInput"
+            :suggestions="annotationSuggestions"
+            :separator="ANNOTATION_TERM_SEPARATOR"
+            :placeholder="t('error or key=value, then Enter')"
+            @commit="addAnnotation"
+          />
+        </label>
       </div>
+      <ActiveTags
+        v-if="!isTraceIdMode && annotationTerms.length > 0"
+        :tags="annotationTerms"
+        :label="t('Active annotations')"
+        @remove="removeAnnotation"
+      />
     </header>
 
       <section class="ztr-scatter sw-card">
@@ -663,7 +690,9 @@ const visibleRows = computed<TraceListRow[]>(() => {
 .ztr-top-strip .ztr-toolbar,
 .ztr-top-strip .ztr-scatter { margin: 0; }
 .ztr-top-strip .ztr-scatter { min-height: var(--sw-trace-strip-h); }
-.ztr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+/* `min-width: 0`: with overflow visible, a grid item is otherwise at least as
+   wide as its content, and one long chip would widen the whole strip. */
+.ztr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; min-width: 0; }
 .ztr-head { display: flex; align-items: center; gap: 10px; }
 .ztr-run-btn { margin-left: auto; }
 .seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }
@@ -707,11 +736,9 @@ const visibleRows = computed<TraceListRow[]>(() => {
   min-width: 0;
 }
 .cf.cf-wide { grid-column: span 2; }
-/* Force-break: place the next condition at column 1 of a fresh row.
-   Used to pin Time range (+ optional custom-range pair) to its own
-   last line so the controls don't wrap mid-line. */
-.cf.row-break { grid-column: 1 / span 1; }
-@media (max-width: 900px) { .cf.row-break { grid-column: 1 / span 1; } }
+/* Starts a fresh row, two columns wide: the annotation field is the last
+   condition, so its chips sit directly under it. */
+.cf.row-break { grid-column: 1 / span 2; }
 .cf-input {
   height: 28px;
   padding: 0 8px;

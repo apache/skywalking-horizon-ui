@@ -17,29 +17,37 @@
 <!--
   On-theme tag input with custom (non-`<datalist>`) autocomplete.
 
-  Suggests OAP trace/log tag KEYS (rendered `key=`) before the operator
-  types `=`, and per-key VALUES (rendered `key=value`) after. The
-  suggestion targets the LAST comma-fragment of `modelValue`, so it works
-  both for a single in-progress tag (per-layer Traces/Logs) and a
-  comma-separated `key=value, key=value` list (cross-layer inspect).
+  Suggests tag KEYS (rendered `key=`) before the operator types `=`, and
+  per-key VALUES (rendered `key=value`) after — OAP's native trace/log tags
+  by `kind`, or whatever a host passes as `suggestions`. The suggestion
+  completes the whole text, or — for a host whose field holds several terms
+  — the term after the last `separator`: `,` for cross-layer inspect's
+  list, ` and ` for Zipkin's annotation query. A single tag's value may hold
+  a comma, so a host without a list must not pass one.
 
   `commit` fires on bare Enter when no suggestion is highlighted — a host
   with a chip model uses it to add a chip; single-field hosts can ignore it.
+  A host that refuses the text, or runs without it, says so with the exposed
+  `notify`: the note covers the field for five seconds, or until the text
+  changes or the note is clicked.
 -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 import { bffClient } from '@/api/client';
+import type { TagSuggestions } from './tagFilter';
 
 const props = withDefaults(
   defineProps<{
     modelValue: string;
-    kind: 'trace' | 'log';
+    kind?: 'trace' | 'log';
+    suggestions?: TagSuggestions | null;
+    separator?: string;
     windowMinutes?: number;
     placeholder?: string;
     disabled?: boolean;
   }>(),
-  { windowMinutes: 30, placeholder: '', disabled: false },
+  { kind: undefined, suggestions: null, separator: '', windowMinutes: 30, placeholder: '', disabled: false },
 );
 
 const emit = defineEmits<{
@@ -100,15 +108,15 @@ const winMinutes = computed<number>(() =>
   props.windowMinutes && props.windowMinutes > 0 ? props.windowMinutes : 30,
 );
 
-// Suggestions operate on the text after the last comma; everything
+// Suggestions operate on the text after the last separator; everything
 // before it is preserved verbatim when a suggestion is applied.
-const lastComma = computed<number>(() => props.modelValue.lastIndexOf(','));
-const prefix = computed<string>(() =>
-  lastComma.value === -1 ? '' : props.modelValue.slice(0, lastComma.value + 1),
-);
-const fragment = computed<string>(() =>
-  (lastComma.value === -1 ? props.modelValue : props.modelValue.slice(lastComma.value + 1)).replace(/^\s+/, ''),
-);
+const prefixEnd = computed<number>(() => {
+  if (!props.separator) return 0;
+  const at = props.modelValue.lastIndexOf(props.separator);
+  return at === -1 ? 0 : at + props.separator.length;
+});
+const prefix = computed<string>(() => props.modelValue.slice(0, prefixEnd.value));
+const fragment = computed<string>(() => props.modelValue.slice(prefixEnd.value).replace(/^\s+/, ''));
 const fragmentEq = computed<number>(() => fragment.value.indexOf('='));
 const fragmentKey = computed<string>(() =>
   fragmentEq.value === -1 ? '' : fragment.value.slice(0, fragmentEq.value).trim(),
@@ -124,7 +132,7 @@ const loadingValuesFor = ref<string | null>(null);
 let valueDebounce: ReturnType<typeof setTimeout> | null = null;
 
 async function ensureKeys(): Promise<void> {
-  if (keyCache.value !== null) return;
+  if (props.suggestions || !props.kind || keyCache.value !== null) return;
   keyCache.value = [];
   try {
     const res =
@@ -138,7 +146,12 @@ async function ensureKeys(): Promise<void> {
 }
 
 async function ensureValues(key: string): Promise<void> {
-  if (!key || valueCache.has(key) || loadingValuesFor.value === key) return;
+  if (!key) return;
+  if (props.suggestions) {
+    props.suggestions.loadValues(key);
+    return;
+  }
+  if (!props.kind || valueCache.has(key) || loadingValuesFor.value === key) return;
   loadingValuesFor.value = key;
   try {
     const res =
@@ -165,7 +178,7 @@ const suggestions = computed<string[]>(() => {
   const frag = fragment.value;
   if (fragmentEq.value === -1) {
     const q = frag.trim().toLowerCase();
-    const keys = keyCache.value ?? [];
+    const keys = props.suggestions ? props.suggestions.keys : (keyCache.value ?? []);
     return keys
       .filter((k) => k.toLowerCase().startsWith(q))
       .map((k) => `${k}=`);
@@ -173,7 +186,7 @@ const suggestions = computed<string[]>(() => {
   const key = fragmentKey.value;
   if (!key) return [];
   const typed = frag.slice(fragmentEq.value + 1).trim().toLowerCase();
-  const values = valueCache.get(key) ?? [];
+  const values = props.suggestions ? props.suggestions.valuesFor(key) : (valueCache.get(key) ?? []);
   return values
     .filter((v) => v.toLowerCase().startsWith(typed))
     .map((v) => `${key}=${v}`);
@@ -197,7 +210,7 @@ watch(
 );
 
 function applySuggestion(s: string): void {
-  const next = `${prefix.value}${prefix.value ? ' ' : ''}${s}`;
+  const next = `${prefix.value}${prefix.value && !/\s$/.test(prefix.value) ? ' ' : ''}${s}`;
   emit('update:modelValue', next);
   activeIdx.value = -1;
   // Keep the dropdown alive so a key pick (`key=`) flows into value
@@ -219,6 +232,10 @@ function onFocus(): void {
 }
 
 function onKeydown(e: KeyboardEvent): void {
+  // Keys pressed while an IME composes are the IME's: Enter confirms its
+  // candidate and the arrows move through them. Safari sends the confirming
+  // Enter after `compositionend`, flagged only by keyCode 229.
+  if (e.isComposing || e.keyCode === 229) return;
   const list = suggestions.value;
   if (e.key === 'ArrowDown') {
     if (!open.value) open.value = true;
@@ -255,9 +272,32 @@ function onBlur(): void {
   open.value = false;
 }
 
-// Clear the in-flight value-fetch debounce if the field unmounts mid-wait.
+const NOTE_MS = 5000;
+const note = ref<{ text: string; tone: 'warn' | 'err' } | null>(null);
+let noteTimer: ReturnType<typeof setTimeout> | null = null;
+function clearNote(): void {
+  if (noteTimer) clearTimeout(noteTimer);
+  noteTimer = null;
+  note.value = null;
+}
+function notify(text: string, tone: 'warn' | 'err' = 'warn'): void {
+  clearNote();
+  note.value = { text, tone };
+  noteTimer = setTimeout(clearNote, NOTE_MS);
+}
+/** The note covers the field, so a click on it is a click meant for the field. */
+function dismissNote(): void {
+  clearNote();
+  inputEl.value?.focus();
+}
+// The note is about the text it was raised over; once that changes — the
+// operator fixed it, or Enter added it — it no longer describes the field.
+watch(() => props.modelValue, clearNote);
+defineExpose({ notify });
+
 onBeforeUnmount(() => {
   if (valueDebounce) clearTimeout(valueDebounce);
+  clearNote();
 });
 </script>
 
@@ -277,6 +317,16 @@ onBeforeUnmount(() => {
       @blur="onBlur"
       @keydown="onKeydown"
     />
+    <Transition name="tgi-note">
+      <span
+        v-if="note"
+        class="tgi__note"
+        :class="`tgi__note--${note.tone}`"
+        role="status"
+        :title="note.text"
+        @mousedown.prevent="dismissNote"
+      >{{ note.text }}</span>
+    </Transition>
     <Teleport to="body">
       <div v-if="open && suggestions.length > 0" class="tgi__panel" :style="panelStyle">
         <ul class="tgi__list" role="listbox">
@@ -311,6 +361,27 @@ onBeforeUnmount(() => {
 }
 .tgi__input.mono { font-family: var(--sw-mono); }
 .tgi__input:focus { outline: none; border-color: var(--sw-accent); }
+/* Drawn over the field rather than under it, so raising one never moves the
+   form. The soft tints are translucent, hence the opaque field colour beneath
+   them: the text under the note must not show through. */
+.tgi__note {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; padding: 0 8px; box-sizing: border-box;
+  border: 1px solid; border-radius: 4px;
+  font-size: 11px; font-weight: 500; line-height: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: text;
+}
+.tgi__note--warn {
+  color: var(--sw-warn); border-color: var(--sw-warn);
+  background: linear-gradient(var(--sw-warn-soft), var(--sw-warn-soft)), var(--sw-bg-2);
+}
+.tgi__note--err {
+  color: var(--sw-err); border-color: var(--sw-err);
+  background: linear-gradient(var(--sw-err-soft), var(--sw-err-soft)), var(--sw-bg-2);
+}
+.tgi-note-enter-active, .tgi-note-leave-active { transition: opacity 0.15s ease; }
+.tgi-note-enter-from, .tgi-note-leave-to { opacity: 0; }
 
 /* Fixed, in `body`: the coordinates come from `place()` because the panel no
    longer sits next to the input in the DOM. The z-index clears the cards and
