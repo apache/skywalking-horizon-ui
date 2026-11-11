@@ -784,6 +784,7 @@ watch(logSource, (next, prev) => {
                 <TagInput
                   v-model="cond.tags"
                   kind="log"
+                  separator=","
                   :window-minutes="cond.windowMinutes"
                   :placeholder="t('level=ERROR, …')"
                   @commit="onTagCommit"
