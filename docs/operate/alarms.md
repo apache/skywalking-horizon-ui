@@ -48,7 +48,7 @@ Clicking a tile or a tab narrows the timeline and the list to it; the selection 
 
 Above the timeline is a filter row. What it offers depends on the connected OAP version:
 
-- On a current OAP, you get a cascading **Layer → Service → Instance → Endpoint** picker plus a free-text **Keyword** match on the alarm message. A picked service, instance or endpoint, and the keyword, narrow what the page reads; a layer on its own keeps the alarms of that layer's services, the way its tile counts them.
+- On a current OAP, you get a cascading **Layer → Service → Instance → Endpoint** picker plus a free-text **Keyword** match on the alarm message. A picked service, instance or endpoint, and the keyword, narrow what the page reads; a layer on its own keeps the alarms of that layer's services, the way its tile counts them. Each picker's list has a filter box: type to narrow a long list of services, instances or endpoints.
 - On an older OAP that does not support entity-scoped alarm queries, the row collapses to **Keyword** only, with a note inviting an upgrade for the full layer and entity filters. A role limited to some layers cannot read alarms from such an OAP.
 
 The filter is a draft until you press **apply** — nothing refires while you are composing it. **clear** resets every field.

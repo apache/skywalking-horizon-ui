@@ -178,6 +178,8 @@ const tiles = (w: VueWrapper) =>
 const tabs = (w: VueWrapper) =>
   w.findAll('.ax__tab').map((c) => [c.get('.ax__tab-label').text(), Number(c.get('.ax__tab-count').text())]);
 const rowNames = (w: VueWrapper) => w.findAll('.ax__row').map((r) => r.get('.ax__row-msg').text());
+const offeredLayers = (pick: VueWrapper) =>
+  (pick.props() as { options: Array<{ value: string }> }).options.map((o) => o.value);
 
 describe('Alarms page — layers of each alarm', () => {
   it('counts every rule and every relation, and each alarm under each of its layers', async () => {
@@ -332,7 +334,7 @@ describe('Alarms page — the pages a reader is served', () => {
       return servePages(service ? MSGS.filter((m) => m.name.includes(service)) : MSGS, { mesh: ['MESH'] })(q);
     };
     const w = await mountAlarms();
-    const [layerPick, servicePick] = w.findAll('.ax__filters select');
+    const [layerPick, servicePick] = w.findAllComponents({ name: 'TypeaheadSelect' });
     await layerPick!.setValue('GENERAL');
     await flushPromises();
     await servicePick!.setValue('payments::checkout');
@@ -368,7 +370,7 @@ describe('Alarms page — the pages a reader is served', () => {
     expect(Number(read.get('endTime')) - Number(read.get('startTime'))).toBe(14_400_000);
     expect(read.get('layer')).toBeNull();
     expect(read.get('service')).toBeNull();
-    expect((w.findAll('.ax__filters select')[0]!.element as HTMLSelectElement).value).toBe('');
+    expect(w.findAllComponents({ name: 'TypeaheadSelect' })[0]!.props('modelValue')).toBe('');
   });
 
   it('links to the page setup only for a reader who may open it', async () => {
@@ -440,17 +442,17 @@ describe('Alarms page — a named page lists only what its pins cover', () => {
 
   it('offers only the page\'s layers to filter by, and asks for the services of the page', async () => {
     const w = await mountAlarms('payments');
-    const layerSelect = w.findAll('.ax__filter select')[0]!;
-    const offered = layerSelect.findAll('option').map((o) => o.attributes('value'));
-    expect(offered).toEqual(['', 'GENERAL']);
-    await layerSelect.setValue('GENERAL');
+    const layerPick = w.findAllComponents({ name: 'TypeaheadSelect' })[0]!;
+    expect(offeredLayers(layerPick)).toEqual(['', 'GENERAL']);
+    await layerPick.setValue('GENERAL');
     await flushPromises();
     expect(serviceReads.at(-1)!.get('page')).toBe('payments');
 
     // The default page offers every layer the reader reads, and asks for no page.
     const d = await mountAlarms();
-    expect(d.findAll('.ax__filter select')[0]!.findAll('option').map((o) => o.attributes('value'))).toEqual(['', 'GENERAL', 'MESH']);
-    await d.findAll('.ax__filter select')[0]!.setValue('GENERAL');
+    const defaultPick = d.findAllComponents({ name: 'TypeaheadSelect' })[0]!;
+    expect(offeredLayers(defaultPick)).toEqual(['', 'GENERAL', 'MESH']);
+    await defaultPick.setValue('GENERAL');
     await flushPromises();
     expect(serviceReads.at(-1)!.get('page')).toBeNull();
   });
@@ -472,7 +474,7 @@ describe('Alarms page — a named page lists only what its pins cover', () => {
     await w.get('.ax__refresh').trigger('click');
     await flushPromises();
     expect(tiles(w)).toEqual({ Active: 1, Mesh: 1 });
-    expect(w.findAll('.ax__filter select')[0]!.findAll('option').map((o) => o.attributes('value'))).toEqual(['', 'MESH']);
+    expect(offeredLayers(w.findAllComponents({ name: 'TypeaheadSelect' })[0]!)).toEqual(['', 'MESH']);
     expect(pagesReads).toBeGreaterThan(pagesBefore);
     release();
     await flushPromises();
@@ -482,8 +484,7 @@ describe('Alarms page — a named page lists only what its pins cover', () => {
 
   it('drops a filter the page no longer offers when its pins change, before reading again', async () => {
     const w = await mountAlarms('payments');
-    const layerSelect = w.findAll('.ax__filter select')[0]!;
-    await layerSelect.setValue('GENERAL');
+    await w.findAllComponents({ name: 'TypeaheadSelect' })[0]!.setValue('GENERAL');
     await flushPromises();
     await w.get('.ax__filter-apply').trigger('click');
     await flushPromises();
