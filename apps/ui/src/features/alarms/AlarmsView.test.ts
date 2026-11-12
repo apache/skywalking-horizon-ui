@@ -127,11 +127,10 @@ async function mountAlarms(): Promise<VueWrapper> {
 
 /** Drive the filter row the way an operator does, then commit it. */
 async function filterBy(w: VueWrapper, service: string | null): Promise<void> {
-  const selects = w.findAll('.ax__filters select');
-  await selects[0]!.setValue(LAYER);
+  await w.findAllComponents({ name: 'TypeaheadSelect' })[0]!.setValue(LAYER);
   await flushPromises();
   if (service !== null) {
-    await w.findAll('.ax__filters select')[1]!.setValue(service);
+    await w.findAllComponents({ name: 'TypeaheadSelect' })[1]!.setValue(service);
     await flushPromises();
   }
   await w.get('.ax__filter-apply').trigger('click');
@@ -201,13 +200,14 @@ describe('Alarms page — a layer split by service group is one filter option', 
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountAlarms();
 
-    const options = w.findAll('.ax__filters select')[0]!.findAll('option').slice(1);
-    expect(options.map((o) => [o.attributes('value'), o.text()])).toEqual([
+    const layerPick = w.findAllComponents({ name: 'TypeaheadSelect' })[0]!;
+    const options = (layerPick.props('options') as Array<{ value: string; label: string }>).slice(1);
+    expect(options.map((o) => [o.value, o.label])).toEqual([
       ['GENERAL', 'General'],
       ['VIRTUAL_DATABASE', 'Database'],
     ]);
 
-    await w.findAll('.ax__filters select')[0]!.setValue('GENERAL');
+    await layerPick.setValue('GENERAL');
     await flushPromises();
     await w.get('.ax__filter-apply').trigger('click');
     await flushPromises();

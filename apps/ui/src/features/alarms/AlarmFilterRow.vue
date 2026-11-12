@@ -30,6 +30,7 @@ import { computed } from 'vue';
 import { useLayers } from '@/shell/useLayers';
 import { useAuthStore } from '@/state/auth';
 import { canonicalLayerKey } from '@/state/verbGrammar';
+import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import type { AlarmFilters } from './useAlarmFilters';
 import { entryLayerName, entryOf } from '@/utils/layerRoute';
 
@@ -71,43 +72,85 @@ const layerOptions = computed(() => {
   // The page's pins are already narrowed to what the reader reaches.
   return only.map((key) => readableLayers.value.find((L) => L.key === key) ?? { key, name: baseLayers.value.get(key) ?? key });
 });
+
+const layerPicks = computed(() => [
+  { value: '', label: t('any layer') },
+  ...layerOptions.value.map((L) => ({ value: L.key, label: L.name })),
+]);
+const servicePicks = computed(() => {
+  const d = draft.value;
+  const any = !d.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : t('any service');
+  // A normal and a conjectural service can share a name, and the filter binds
+  // the name alone: one row per name.
+  const names = new Set(f.serviceOptions.value.map((s) => s.name));
+  return [{ value: '', label: any }, ...[...names].map((name) => ({ value: name, label: name }))];
+});
+function entityPicks(names: readonly string[], fetching: boolean, any: string): Array<{ value: string; label: string }> {
+  const first = !draft.value.service ? t('pick a service first') : fetching ? t('loading…') : any;
+  return [{ value: '', label: first }, ...names.map((name) => ({ value: name, label: name }))];
+}
+const instancePicks = computed(() => entityPicks(f.instanceOptions.value, f.instancesFetching.value, t('any instance')));
+const endpointPicks = computed(() => entityPicks(f.endpointOptions.value, f.endpointsFetching.value, t('any endpoint')));
+
+// The picker emits on every pick, the same value included; re-picking the
+// layer or service must not clear what was picked below it.
+function pickLayer(v: string): void {
+  if (v === draft.value.layer) return;
+  draft.value.layer = v;
+  f.onLayerChange();
+}
+function pickService(v: string): void {
+  if (v === draft.value.service) return;
+  draft.value.service = v;
+  f.onServiceChange();
+}
 </script>
 
 <template>
   <div v-if="hasQueryAlarms" class="ax__filters">
     <label class="ax__filter">
       <span>{{ t('Layer') }}</span>
-      <select v-model="draft.layer" @change="f.onLayerChange()">
-        <option value="">{{ t('any layer') }}</option>
-        <option v-for="L in layerOptions" :key="L.key" :value="L.key">{{ L.name }}</option>
-      </select>
+      <TypeaheadSelect
+        :model-value="draft.layer"
+        :options="layerPicks"
+        :aria-label="t('Layer')"
+        block
+        @update:model-value="pickLayer"
+      />
     </label>
     <label class="ax__filter" :class="{ 'is-disabled': !draft.layer }">
       <span>{{ t('Service') }}</span>
-      <select v-model="draft.service" :disabled="!draft.layer" @change="f.onServiceChange()">
-        <option value="">
-          {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : t('any service') }}
-        </option>
-        <option v-for="s in f.serviceOptions.value" :key="`${s.name}/${s.normal}`" :value="s.name">{{ s.name }}</option>
-      </select>
+      <TypeaheadSelect
+        :model-value="draft.service"
+        :options="servicePicks"
+        :disabled="!draft.layer"
+        :aria-label="t('Service')"
+        :min-panel-width="300"
+        block
+        @update:model-value="pickService"
+      />
     </label>
     <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
       <span>{{ t('Instance') }}</span>
-      <select v-model="draft.instance" :disabled="!draft.service">
-        <option value="">
-          {{ !draft.service ? t('pick a service first') : f.instancesFetching.value ? t('loading…') : t('any instance') }}
-        </option>
-        <option v-for="name in f.instanceOptions.value" :key="name" :value="name">{{ name }}</option>
-      </select>
+      <TypeaheadSelect
+        v-model="draft.instance"
+        :options="instancePicks"
+        :disabled="!draft.service"
+        :aria-label="t('Instance')"
+        :min-panel-width="300"
+        block
+      />
     </label>
     <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
       <span>{{ t('Endpoint') }}</span>
-      <select v-model="draft.endpoint" :disabled="!draft.service">
-        <option value="">
-          {{ !draft.service ? t('pick a service first') : f.endpointsFetching.value ? t('loading…') : t('any endpoint') }}
-        </option>
-        <option v-for="name in f.endpointOptions.value" :key="name" :value="name">{{ name }}</option>
-      </select>
+      <TypeaheadSelect
+        v-model="draft.endpoint"
+        :options="endpointPicks"
+        :disabled="!draft.service"
+        :aria-label="t('Endpoint')"
+        :min-panel-width="300"
+        block
+      />
     </label>
     <label class="ax__filter ax__filter--wide">
       <span>{{ t('Keyword') }}</span>
@@ -179,7 +222,6 @@ const layerOptions = computed(() => {
   color: var(--sw-fg-3);
   font-weight: 600;
 }
-.ax__filter select,
 .ax__filter input[type='text'] {
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -194,14 +236,19 @@ const layerOptions = computed(() => {
   width: 100%;
   outline: none;
 }
-.ax__filter select {
-  cursor: pointer;
-  padding-right: 16px;
-  background: transparent
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%23818a9c' stroke-width='1.4' fill='none' stroke-linecap='round'/></svg>")
-    right 2px center / 9px no-repeat;
+/* The card draws the box; the picker's trigger sits flat inside it. */
+.ax__filter :deep(.tas__trigger) {
+  min-width: 0;
+  padding: 1px 0;
+  background: transparent;
+  border: 0;
+  color: var(--sw-fg-0);
+  font-size: 12px;
 }
-.ax__filter select:disabled { cursor: not-allowed; background-image: none; color: var(--sw-fg-2); }
+/* The card already dims a disabled picker. */
+.ax__filter :deep(.tas__trigger:disabled) { opacity: 1; color: var(--sw-fg-2); }
+/* Focus moves into the open list's search box, which is outside the card. */
+.ax__filter:has(.tas.is-open) { border-color: var(--sw-accent); }
 .ax__filter-apply {
   align-self: stretch;
   display: inline-flex;
