@@ -144,6 +144,20 @@ verify:
       expected: expected/metrics-has-value.yml
 
     # 7. The browser suite: the tab and the dashboard, on screen.
+    # READINESS: each OpenTelemetry caller's log lines are stored with the
+    #    trace id their OTLP record carries — what the OTLP and Zipkin
+    #    popouts' Logs and Related logs read. A line lands only after the
+    #    OTLP log exporter's batch flushes, independently of the trace.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql \
+          logs list --service-name=e2e-otel-python \
+          | yq -P '{"hasTraceLogs": ([.logs[] | select((.traceId // "") != "")] | length > 0)}'
+      expected: expected/has-otlp-trace-logs.yml
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql \
+          logs list --service-name=e2e-zipkin-python \
+          | yq -P '{"hasTraceLogs": ([.logs[] | select((.traceId // "") != "")] | length > 0)}'
+      expected: expected/has-zipkin-trace-logs.yml
     - query: |
         bash test/e2e/script/prepare/playwright.sh genai
       expected: expected/passed.yml

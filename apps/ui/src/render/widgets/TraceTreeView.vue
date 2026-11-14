@@ -21,7 +21,7 @@
   d3.zoom (owned by useTraceTreeZoom); explicit +/-/⊙ controls top-right.
 -->
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import * as d3 from 'd3';
 import type { NativeSpan } from '@/api/client';
@@ -30,10 +30,12 @@ import {
   buildServiceColors, serviceColorFrom, fmtMs, latencyColor,
 } from './traceDetailShared';
 import { useTraceTreeZoom } from './useTraceTreeZoom';
+import { revealFirstHighlighted } from './useServiceFocus';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{ spans: NativeSpan[] }>();
+// focusService — the service picked in the legend; its nodes are filled with its colour.
+const props = defineProps<{ spans: NativeSpan[]; focusService?: string | null }>();
 const emit = defineEmits<{ (e: 'select-span', span: NativeSpan): void }>();
 
 const serviceColors = computed(() => buildServiceColors(props.spans));
@@ -161,18 +163,30 @@ const nativeTreeLayout = computed<TreeLayout>(() => {
   };
 });
 
-const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset } = useTraceTreeZoom();
+const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset, revealNode } = useTraceTreeZoom();
 // Attach d3.zoom once the SVG mounts. The tree view only renders while
 // active, so mount == active; re-attach if the SVG ref swaps.
 watch(treeSvgEl, async () => {
   await nextTick();
   ensureZoom();
 }, { immediate: true });
+// The picked service's first node: panned to inside the canvas when zoomed
+// away from it, then scrolled into the window — the canvas runs taller than a
+// laptop screen.
+const canvasEl = ref<HTMLElement | null>(null);
+function revealFocused(): void {
+  const service = props.focusService;
+  const layout = nativeTreeLayout.value;
+  const n = service ? layout.nodes.find((node) => node.span.serviceCode === service) : undefined;
+  if (n) revealNode(n.x, n.y, NODE_W, NODE_H, layout.width, layout.height, () => revealFirstHighlighted(canvasEl.value));
+}
+watch(() => props.focusService, revealFocused, { flush: 'post' });
+onMounted(async () => { await nextTick(); revealFocused(); });
 </script>
 
 <template>
   <div v-if="nativeTreeLayout.nodes.length === 0" class="tr-empty">{{ t('no span data') }}</div>
-  <div v-else class="tr-tree-canvas">
+  <div v-else ref="canvasEl" class="tr-tree-canvas">
     <div class="tree-zoom-ctrls">
       <button class="sw-btn small ghost" type="button" :title="t('Zoom in')" @click="zoomBy(1.25)">+</button>
       <button class="sw-btn small ghost" type="button" :title="t('Zoom out')" @click="zoomBy(1 / 1.25)">−</button>
@@ -202,17 +216,17 @@ watch(treeSvgEl, async () => {
         :key="`${n.span.segmentId}/${n.span.spanId}`"
         :transform="`translate(${n.x}, ${n.y})`"
         class="tree-node"
-        :class="{ err: n.span.isError }"
+        :class="{ err: n.span.isError, 'svc-hl': n.span.serviceCode === focusService }"
         @click="emit('select-span', n.span)"
       >
         <rect
           :width="NODE_W"
           :height="NODE_H"
           rx="4"
-          fill="var(--sw-bg-2)"
-          fill-opacity="0.7"
+          :fill="n.span.serviceCode === focusService ? serviceColor(n.span.serviceCode) : 'var(--sw-bg-2)'"
+          :fill-opacity="n.span.serviceCode === focusService ? 0.32 : 0.7"
           :stroke="n.span.isError ? 'var(--sw-err)' : serviceColor(n.span.serviceCode)"
-          stroke-width="1.6"
+          :stroke-width="n.span.serviceCode === focusService ? 2.4 : 1.6"
         />
         <clipPath :id="`tree-clip-${n.span.segmentId}-${n.span.spanId}`">
           <rect :width="NODE_W" :height="NODE_H" rx="4" />

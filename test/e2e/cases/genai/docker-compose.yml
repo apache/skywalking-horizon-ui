@@ -55,8 +55,13 @@ services:
       AI_EVALUATION_ENDPOINT: http://mock-llm-server:9090/llm/evaluation/v1/chat/completions
       AI_EVALUATION_MODEL: e2e-judge
       AI_EVALUATION_API_KEY: e2e-api-key
+      # The OTLP caller declares OTLP_GENERAL (below), so its logs are that
+      # layer's, and OAP bundles no LAL rule for it: `genai` stores them. The
+      # list REPLACES base-compose's, so the fixture's own rule is named too.
+      SW_LOG_LAL_FILES: horizon-e2e,genai
     volumes:
       - ./ai-evaluation.yml:/skywalking/config/ai-evaluation.yml
+      - ./lal.yaml:/skywalking/config/lal/genai.yaml
     depends_on:
       banyandb:
         condition: service_healthy
@@ -122,13 +127,17 @@ services:
       OPENAI_BASE_URL: http://mock-llm-server:9090/llm/otlp/v1
       OPENAI_API_KEY: e2e-not-a-key
       OTEL_SERVICE_NAME: e2e-otel-python
+      # OAP evaluates natively stored OTLP spans only for services that declare
+      # this layer (apache/skywalking#14170, #14208).
+      OTEL_RESOURCE_ATTRIBUTES: service.layer=OTLP_GENERAL
       OTEL_TRACES_EXPORTER: otlp
       OTEL_EXPORTER_OTLP_ENDPOINT: http://oap:11800
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-      # Traces are the fixture; the SDK's default metric and log exporters
-      # would only add streams nothing here reads.
+      # Logs are read from the trace they belong to; the SDK's metric
+      # exporter would only add a stream nothing here reads.
       OTEL_METRICS_EXPORTER: none
-      OTEL_LOGS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
     healthcheck:
       test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
       interval: 5s
@@ -158,7 +167,11 @@ services:
       OTEL_TRACES_EXPORTER: zipkin_json
       OTEL_EXPORTER_ZIPKIN_ENDPOINT: http://oap:9411/api/v2/spans
       OTEL_METRICS_EXPORTER: none
-      OTEL_LOGS_EXPORTER: none
+      # Zipkin carries no logs, so they go over OTLP.
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://oap:11800
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: grpc
+      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
     healthcheck:
       test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
       interval: 5s

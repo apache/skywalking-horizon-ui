@@ -1,6 +1,6 @@
 ---
 name: local-boot
-description: Boot the Horizon UI dev env (BFF + UI) against a local OAP or the public Apache demo OAP. Uses the repo's committed, env-driven horizon.yaml — the same config the image ships — and injects the OAP target + dev users purely via HORIZON_* environment variables. Handles the apps/bff cwd / HORIZON_CONFIG gotcha and the demo OAP password (kept out of git via the cached oap-demo-env-auth.key). Also covers booting with the AI assistant enabled (Amazon Bedrock / DeepSeek), keyed from the git-ignored bedrocks-api.key.
+description: Boot the Horizon UI dev env (BFF + UI) against a local OAP or the public Apache demo OAP. Uses the repo's committed, env-driven horizon.yaml — the same config the image ships — and injects the OAP target + dev users purely via HORIZON_* environment variables. Handles the apps/bff cwd / HORIZON_CONFIG gotcha and the demo OAP password (kept out of git via the cached oap-demo-env-auth.key). Also covers booting with the AI assistant enabled (Amazon Bedrock / DeepSeek), keyed from the git-ignored bedrocks-api.key, and two local OAP stacks with data generators: rbac-demo (layer/group grants) and trace-log-demo (native, OTLP and Zipkin traces with the logs written inside them, on the latest pinned OAP).
 user-invocable: true
 ---
 
@@ -378,6 +378,44 @@ SO11Y_OAP (a Platform monitoring layer), and a BFF on **:10083** + Vite on
 ```
 
 `up.sh` ends by pushing GENERAL's bundled template with `splitByServiceGroup: true` to that OAP, the way the Layer dashboards admin would, so the sidebar shows one entry per group. The first metrics appear a minute or two after the load generator starts. Images come from `test/e2e/script/env`; export a variable first to override a pin (`SW_OTEL_COLLECTOR_IMAGE=…`).
+
+## Boot the trace + log demo (traces with their logs, all three stores)
+
+For working on anything that joins traces and logs — a trace's **Logs**, a
+span's **Related logs**, log rows opening their trace. The public demo cannot
+serve it: its OAP predates the OTLP log ids, and none of its OTLP or Zipkin
+services report logs. `trace-log-demo/` stands up a local OAP at the e2e pin
+(`SW_OAP_COMMIT` in `test/e2e/script/env`, so it moves with the pin) with
+generators for each store, then a BFF on **:10084** + Vite on **:10094** from
+this checkout (dev users, password == username):
+
+| Store | Service | What it writes |
+|---|---|---|
+| native | `e2e-service-consumer` → `e2e-service-provider` | Java-agent traces; the provider's `/logs/trigger` logs inside its traced request, with trace, segment and span id |
+| OTLP | `e2e-otel-python` (`service.layer=OTLP_GENERAL`) | OTLP spans, read on **OTLP Service → OTLP traces**; one OTLP log line per LLM call, inside the LLM span |
+| Zipkin | `e2e-zipkin-python` | Zipkin spans, read on **Operate → Trace inspect** (target Zipkin); the same OTLP log line |
+
+A load generator drives all four calls every few seconds for as long as the
+stack runs; lines land about a minute after the OAP is up.
+
+```bash
+.claude/skills/local-boot/trace-log-demo/up.sh     # compose up → BFF → Vite
+.claude/skills/local-boot/trace-log-demo/down.sh   # stop both processes, compose down -v
+```
+
+Needs the e2e demo images (`make -C test/e2e images-demo`; `up.sh` says so
+when they are missing) and the OTel Python image, which compose builds on
+first use. OAP ports are offset to run beside the other envs: GraphQL
+:12830, admin :17148, OTLP / agent gRPC :11820, Zipkin :9422, TraceQL :3210.
+
+Two OAP facts this stack encodes, both of which silently empty a page:
+
+- **OTLP span analysis is opt-in by `service.layer`.** OAP analyses (and
+  AI-evaluates) natively stored OTLP spans only for a service that declares
+  its layer; the OTLP caller sets `OTEL_RESOURCE_ATTRIBUTES=service.layer=OTLP_GENERAL`.
+- **A log is stored only by a LAL rule of its layer, and OAP bundles none for
+  `OTLP_GENERAL`.** That caller's logs would be accepted and dropped; the
+  stack loads a store-only `OTLP_GENERAL` rule beside the fixture's GENERAL one.
 
 ## Boot against an LDAP directory (test)
 

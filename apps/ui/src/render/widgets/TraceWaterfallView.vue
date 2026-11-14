@@ -23,17 +23,19 @@
   detail modal.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan } from '@/api/client';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import {
   buildServiceColors, serviceColorFrom, kindColor, kindFamily, fmtMs,
 } from './traceDetailShared';
+import { useRevealHighlighted } from './useServiceFocus';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{ spans: NativeSpan[] }>();
+// focusService — the service picked in the legend; its rows are highlighted.
+const props = defineProps<{ spans: NativeSpan[]; focusService?: string | null }>();
 const emit = defineEmits<{ (e: 'select-span', span: NativeSpan): void }>();
 
 interface WaterfallRow {
@@ -44,6 +46,8 @@ interface WaterfallRow {
 }
 const serviceColors = computed(() => buildServiceColors(props.spans));
 function serviceColor(c: string): string { return serviceColorFrom(serviceColors.value, c); }
+const listEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(listEl, () => props.focusService);
 
 const nativeWaterfall = computed<WaterfallRow[]>(() => {
   const spans = props.spans;
@@ -101,12 +105,13 @@ const nativeWaterfallDuration = computed(() => {
 
 <template>
   <div v-if="nativeWaterfall.length === 0" class="tr-empty">{{ t('no span data') }}</div>
-  <div v-else class="tr-default-list">
+  <div v-else ref="listEl" class="tr-default-list">
     <div
       v-for="row in nativeWaterfall"
       :key="`${row.span.segmentId}/${row.span.spanId}`"
       class="tr-default-row"
-      :class="{ err: row.span.isError }"
+      :class="{ err: row.span.isError, 'svc-hl': row.span.serviceCode === focusService }"
+      :style="row.span.serviceCode === focusService ? { '--svc-hl': serviceColor(row.span.serviceCode) } : undefined"
       @click="emit('select-span', row.span)"
     >
       <span class="svc-stripe" :style="{ background: serviceColor(row.span.serviceCode) }" />
@@ -229,6 +234,7 @@ const nativeWaterfallDuration = computed(() => {
 }
 .tr-default-row:hover { background: var(--sw-bg-2); }
 .tr-default-row.err { background: rgba(239, 68, 68, 0.06); }
+.tr-default-row.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 .svc-stripe { width: 4px; height: 18px; flex: 0 0 auto; }
 .kind-glyph {
   width: 14px;

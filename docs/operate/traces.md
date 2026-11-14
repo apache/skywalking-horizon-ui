@@ -87,12 +87,14 @@ Selecting a trace opens the detail view, which offers three layouts:
 
 Span kinds are grouped into entry (server), exit (client), local, producer, and consumer families, each with its own glyph and color. The waterfall stitches spans across segments using their parent references, so a single trace that spans multiple services renders as one connected timeline.
 
+Above the spans, a legend lists the trace's services in their colors. Click a service to highlight its spans in its color — the waterfall rows, the Tree nodes and the Statistics rows — and the first of them is brought into view. The highlight stays while you switch between the three layouts; click the service again to clear it. The Zipkin and TraceQL trace details, and the trace overlay a link opens, have the same legend.
+
 Click any span row to open its detail panel:
 
 - **Meta** — service, instance, endpoint, kind, component, peer, layer, start time, duration, and error flag.
 - **Cross-trace refs** — when a span references a parent in a *different* trace, those references are listed with the parent trace id, parent segment, parent span, and ref type. The trace id is a link that opens that other trace.
 - **Tags** — the span's key/value tags.
-- **Logs** — per-span log entries with their timestamps.
+- **Logs** — per-span log entries with their timestamps, sent by the agent as part of the span.
 - **Attached Events** — named events on the span with their start/end times and summary key/values.
 
 The detail view's header KPIs report the trace's start time, total duration, span count, and the number of distinct services it touched. You can copy the trace id or a shareable URL from there; opening a shared `?traceId=` link lands directly on the trace in an overlay. The URL names the trace source that reads it in `traceType` — `native`, `zipkin`, `traceql-native`, `traceql-zipkin` or `traceql-otlp`, the names a layer template's `traces.sources` uses — so it opens in the same view on any page. A `?traceId=` without it, or with a value not in that list, opens a notice that asks which trace source to query, and the trace opens from the one you pick.
@@ -209,6 +211,46 @@ On the **Traces** and **Zipkin Traces** tabs, the **Filter** / **Trace ID** swit
 
 With **No time range**, OAP 11.0.0 and earlier on BanyanDB look an id up in the last 24 hours only, and no lookup reaches the cold stage. On OAP 11.0.0 and earlier a Zipkin lookup ignores the time range you pick.
 
+## A trace's logs
+
+Every trace detail has a **Logs** button in its header — on the **Traces**, **Zipkin Traces** and TraceQL tabs, on [Trace Inspect](trace-inspect.md), and on the trace overlay a link opens. It opens a box over the trace listing the stored log lines that carry the trace's id. Nothing is read when a trace opens: the lines are read when you open the box, with a spinner until they arrive, and **Escape** closes the box and leaves the trace as it was.
+
+The lines are listed oldest first, in the same stream as the [Logs](logs.md#reading-the-stream) tab — **Inline** / **Pop out**, a format chip per line — 50 to a page, with **Prev** / **Next** when there is more. The search covers the trace's own time span, from its first span's start to its last span's end, widened by 5 minutes on each side because a log line is often written a little outside its span's clock; the range is shown as **searched … → …** above the list. One read searches at most a week, so a trace longer than that is searched over its last week only, and the box says so. With **Cold** on, the search reads the cold stage.
+
+A span's detail has a **Related logs** button beside its close button, opening the same box with only the lines that span wrote. A **native** span's lines are matched by its segment id and span id, on any OAP. A **Zipkin** or **OTLP** span's are matched by its hex span id, which OAP stores and searches from SkyWalking 11.2; against an older OAP the button is there but disabled, and says it requires SkyWalking 11.2.
+
+A trace crosses services, so its logs can come from several. Lines from a service your role cannot read are left out, and the box says how many were left out on the page; a page can come back with none you may read while a later page holds some. Reading any of them needs `logs:read`.
+
+### Getting logs linked to traces
+
+A line appears here only if OAP stored it with the trace's id, and under **Related logs** only if it also stored the span that wrote it — a native span's segment id and span id, or a Zipkin or OTLP span's hex span id. Lines without them still show on the Logs tab — they just cannot be found from a trace.
+
+- **SkyWalking agents' log reporters** — the Java agent's log4j, log4j2 and logback toolkits, for example — store all three for a line written inside a traced request. Nothing to configure.
+- **OpenTelemetry logs** carry the trace id and span id in fields of their own. OAP stores both from SkyWalking 11.2 — over OTLP gRPC and OTLP/HTTP alike — so a line written inside a traced span is found from its trace and from that span with nothing more to configure. OAP stores an OpenTelemetry log through the LAL rules of the layer its service declares in the `service.layer` resource attribute — `GENERAL` when it declares none — and ships no rule for `OTLP_GENERAL`. A service that sets `service.layer=OTLP_GENERAL`, as OAP's AI evaluation of OpenTelemetry spans asks a GenAI application to, therefore needs a rule for that layer whose `sink` stores its logs. An older OAP drops the ids; see the next item.
+- **Logs from anywhere else** — Fluent Bit, a file shipper, or OpenTelemetry logs on an OAP before 11.2 — get a trace id when a [LAL](https://skywalking.apache.org/docs/main/next/en/concepts-and-designs/lal/) rule extracts it with `traceId`, and the rule's `sink` stores the log. A span is stored with `segmentId` and `spanId` for a SkyWalking span (its numeric span id), or with `otlpSpanId` for a Zipkin or OpenTelemetry span's hex id (SkyWalking 11.2 and later). When the id is only in the text, extract it with a rule such as:
+
+```yaml
+rules:
+  - name: trace-id-from-text
+    layer: GENERAL
+    dsl: |
+      filter {
+        text {
+          abortOnFailure false
+          regexp $/trace_id=(?<traceId>[0-9a-f]{32})/$
+        }
+        extractor {
+          if (parsed.traceId != null) {
+            traceId parsed.traceId
+          }
+        }
+        sink {
+        }
+      }
+```
+
+Keep the `if`: `traceId` sets the value even when the pattern did not match, and an empty value replaces a trace id a reporter had already set.
+
 ## Troubleshooting
 
 - **"No traces in window."** — the query ran but matched nothing. Widen the time range, relax the Status / Duration / Tag conditions, or confirm the service is actually reporting traces.
@@ -220,6 +262,7 @@ With **No time range**, OAP 11.0.0 and earlier on BanyanDB look an id up in the 
 - **Rows are segments, not whole traces** — that is expected on storage backends without whole-trace support; the banner says so. Click a segment to fetch its full trace.
 - **A trace looked up by its id is not found** — a time range you picked has to cover when the trace happened, so widen it or pick **No time range**. With no time range, OAP 11.0.0 and earlier on BanyanDB cover only the last 24 hours, and the cold stage is not read. Open the trace from the log row that named it (which carries its timestamp), or pick a time range around when it happened, with **Cold** on if it has aged into cold storage.
 - **A trace opens to *No trace with that id.*** — the source asked does not hold that trace. A trace link names the source in `traceType`; an id that source cannot hold at all — a SkyWalking trace id with dashes asked of Zipkin, which takes hex ids only — is answered at once, while one it could hold is looked up first. Open it from the source that holds it.
+- **A trace's Logs view says no logs carry its trace id** — the trace's lines were stored without its id, or outside the searched range. See [Getting logs linked to traces](#getting-logs-linked-to-traces); for a line written long after its trace, open the [Logs](logs.md) tab and filter by the trace id over a wider time range.
 - **No data even with a valid service** — double-check the time range first; this tab does not follow the global topbar, so the window is whatever the tab's own Time range control says.
 
 ## Related

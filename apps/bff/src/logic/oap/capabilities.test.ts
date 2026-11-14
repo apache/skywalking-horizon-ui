@@ -30,10 +30,19 @@ function json(body: unknown): Response {
 /** An OAP whose schema carries `fields` and whose storage answers
  *  `supportQueryLogsByKeywords` with `keywords`. Counts the value query so a
  *  test can prove it was skipped. */
-function fakeOap(fields: string[], keywords: boolean | null): { fetch: FetchLike; asks: () => number } {
+function fakeOap(
+  fields: string[],
+  keywords: boolean | null,
+  traceScopeFields: string[] | null = ['traceId', 'segmentId', 'spanId'],
+): { fetch: FetchLike; asks: () => number; documents: string[] } {
   let asks = 0;
+  const documents: string[] = [];
   const fetch: FetchLike = async (_url, init) => {
     const query = String(JSON.parse(String(init?.body ?? '{}')).query ?? '');
+    documents.push(query);
+    if (query.includes('HorizonTraceScopeFields')) {
+      return json({ data: { __type: traceScopeFields ? { inputFields: traceScopeFields.map((name) => ({ name })) } : null } });
+    }
     if (query.includes('__type')) {
       return json({ data: { __type: { fields: fields.map((name) => ({ name })) } } });
     }
@@ -43,7 +52,7 @@ function fakeOap(fields: string[], keywords: boolean | null): { fetch: FetchLike
     }
     return json({ data: {} });
   };
-  return { fetch, asks: () => asks };
+  return { fetch, asks: () => asks, documents };
 }
 
 const config = { oap: { queryUrl: 'http://oap:12800' } } as unknown as HorizonConfig;
@@ -58,6 +67,7 @@ describe('OAP capability probe', () => {
       queryAlarms: true,
       logKeywords: true,
       aiConversations: false,
+      logOtlpSpanId: false,
     });
   });
 
@@ -79,12 +89,46 @@ describe('OAP capability probe', () => {
     expect(oap.asks()).toBe(0);
   });
 
+  it('reports logs by OTLP span id only where TraceScopeCondition takes otlpSpanId', async () => {
+    _resetCapabilitiesCache();
+    const withIt = fakeOap(['queryAlarms'], null, ['traceId', 'segmentId', 'spanId', 'otlpSpanId']);
+    expect((await getOapCapabilities(config, withIt.fetch)).logOtlpSpanId).toBe(true);
+    _resetCapabilitiesCache();
+    const without = fakeOap(['queryAlarms'], null);
+    expect((await getOapCapabilities(config, without.fetch)).logOtlpSpanId).toBe(false);
+    _resetCapabilitiesCache();
+    const noType = fakeOap(['queryAlarms'], null, null);
+    expect((await getOapCapabilities(config, noType.fetch)).logOtlpSpanId).toBe(false);
+  });
+
+  it('names __type at most once per document — OAP refuses a second as bad-faith introspection', async () => {
+    const oap = fakeOap(['queryAlarms', 'supportQueryLogsByKeywords'], true);
+    await getOapCapabilities(config, oap.fetch);
+    for (const doc of oap.documents) expect(doc.match(/__type/g)?.length ?? 0, doc).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps the other capabilities when only the TraceScopeCondition lookup fails', async () => {
+    const fetch: FetchLike = async (_url, init) => {
+      const query = String(JSON.parse(String(init?.body ?? '{}')).query ?? '');
+      if (query.includes('HorizonTraceScopeFields')) return new Response('nope', { status: 500 });
+      if (query.includes('__type')) return json({ data: { __type: { fields: [{ name: 'queryAlarms' }] } } });
+      return json({ data: {} });
+    };
+    await expect(getOapCapabilities(config, fetch)).resolves.toEqual({
+      queryAlarms: true,
+      logKeywords: false,
+      aiConversations: false,
+      logOtlpSpanId: false,
+    });
+  });
+
   it('falls back to all-false when introspection fails', async () => {
     const fetch: FetchLike = async () => new Response('nope', { status: 500 });
     await expect(getOapCapabilities(config, fetch)).resolves.toEqual({
       queryAlarms: false,
       logKeywords: false,
       aiConversations: false,
+      logOtlpSpanId: false,
     });
   });
 
@@ -97,7 +141,7 @@ describe('OAP capability probe', () => {
     const all = await Promise.all(
       Array.from({ length: 6 }, () => getOapCapabilities(config, oap.fetch)),
     );
-    for (const caps of all) expect(caps).toEqual({ queryAlarms: true, logKeywords: true, aiConversations: false });
+    for (const caps of all) expect(caps).toEqual({ queryAlarms: true, logKeywords: true, aiConversations: false, logOtlpSpanId: false });
     expect(oap.asks(), 'each caller ran its own keyword probe').toBe(1);
   });
 
@@ -113,6 +157,7 @@ describe('OAP capability probe', () => {
       queryAlarms: true,
       logKeywords: true,
       aiConversations: false,
+      logOtlpSpanId: false,
     });
   });
 

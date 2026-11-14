@@ -32,6 +32,8 @@
     rows         — LogRow[] to render.
     selectedKey  — `logRowKey(...)` of the row the host has popped out
                    (null when none); highlighted in the stream.
+    traceLinks   — false drops the trace-id chip, for a stream that is
+                   already one trace's logs.
 
   Emits:
     open         — { row, key } from a row click in Pop out mode, or from
@@ -50,10 +52,14 @@ import { useLogOpenMode } from './useLogOpenMode';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{
-  rows: LogRow[];
-  selectedKey?: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    rows: LogRow[];
+    selectedKey?: string | null;
+    traceLinks?: boolean;
+  }>(),
+  { selectedKey: null, traceLinks: true },
+);
 const emit = defineEmits<{
   (e: 'open', payload: { row: LogRow; key: string }): void;
   (e: 'jump-trace', payload: { traceId: string; ts: number }): void;
@@ -156,7 +162,7 @@ function onClick(e: MouseEvent, it: StreamItem): void {
           {{ it.row.serviceName ? parseServiceName(it.row.serviceName).base : '—' }}
         </span>
         <span
-          v-if="it.row.traceId"
+          v-if="traceLinks && it.row.traceId"
           class="lg-trace mono"
           @click.stop="emit('jump-trace', { traceId: it.row.traceId, ts: it.row.timestamp })"
         >{{ t('↗ trace') }}</span>

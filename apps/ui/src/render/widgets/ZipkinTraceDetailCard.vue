@@ -18,13 +18,18 @@
   Shared Zipkin trace-detail card. Given a flat ZipkinSpan[] it renders
   the parent-id-walked waterfall (depth-indented), KPIs, the per-service
   colour legend, and a span-detail modal — mirroring TraceDetailCard's
-  chrome but for the Zipkin v2 span shape. Used by BOTH the per-layer
+  chrome but for the Zipkin v2 span shape. Its Logs button opens the stored
+  logs carrying the trace id; a Zipkin span id is not something a log
+  records, so they are the whole trace's. Used by BOTH the per-layer
   Traces · Zipkin tab and the cross-layer Trace inspect view.
 
   Props:
     spans    — the flat ZipkinSpan[] of the resolved trace.
     traceId  — the active trace id (header label + copy).
-    loading  — show a "loading…" hint while detail fetches.
+    loading  — the detail is being read; "loading spans…" shows only while
+               the trace has no spans yet, never beside the Logs button.
+    replay   — a captured trace (an AI chat block): no live log reads, so
+               no Logs or Related logs.
 
   Emits:
     close — the × was clicked.
@@ -38,6 +43,11 @@ import LongValue from '@/components/primitives/LongValue.vue';
 import type { ZipkinSpan } from '@/api/client';
 import { copyText } from '@/utils/clipboard';
 import { traceLink } from '@/layer/traces/tracePopoutQuery';
+import TraceLogsPopout from './TraceLogsPopout.vue';
+import SpanLogsButton from './SpanLogsButton.vue';
+import Icon from '@/components/icons/Icon.vue';
+import { useRevealHighlighted, useServiceFocus } from './useServiceFocus';
+import { zipkinLogTraceIds } from './useTraceLogs';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -46,8 +56,9 @@ const props = withDefaults(
     spans: ZipkinSpan[];
     traceId: string | null;
     loading?: boolean;
+    replay?: boolean;
   }>(),
-  { loading: false },
+  { loading: false, replay: false },
 );
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -144,6 +155,30 @@ const detailServiceColors = computed<Map<string, string>>(() => {
   }
   return m;
 });
+const { focusService, toggleFocus } = useServiceFocus(() => props.traceId);
+function spanService(s: ZipkinSpan): string { return s.localEndpoint?.serviceName ?? '—'; }
+const rowsEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(rowsEl, () => focusService.value);
+const logsOpen = ref(false);
+/** The span whose logs the box shows; null shows the whole trace's. */
+const logsSpan = ref<string | null>(null);
+function openSpanLogs(id: string): void {
+  logsSpan.value = id;
+  logsOpen.value = true;
+}
+function closeLogs(): void {
+  logsOpen.value = false;
+  logsSpan.value = null;
+}
+// A typed id may be one OAP pads or shortens to find the trace; a log is
+// matched on the id exactly, so it is read by the spellings OAP keeps.
+const logsIds = computed(() => (props.traceId ? zipkinLogTraceIds(props.traceId) : null));
+/** The span range in epoch ms — Zipkin keeps microseconds. */
+const logWindow = computed(() => {
+  const { t0, t1 } = detailBounds.value;
+  return t0 > 0 ? { startMs: Math.floor(t0 / 1000), endMs: Math.ceil(t1 / 1000) } : null;
+});
+
 const detailRootStart = computed<number | null>(() => {
   const ts = props.spans.map((s) => s.timestamp ?? 0).filter(Boolean);
   return ts.length ? Math.min(...ts) : null;
@@ -196,7 +231,8 @@ function selectSpan(s: ZipkinSpan): void {
   selectedSpanId.value = selectedSpanId.value === s.id ? null : s.id;
 }
 function clearSpan(): void { selectedSpanId.value = null; }
-watch(() => props.traceId, () => { selectedSpanId.value = null; });
+// An open logs box would otherwise read this trace by the previous trace's span.
+watch(() => props.traceId, () => { selectedSpanId.value = null; closeLogs(); });
 useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
 </script>
 
@@ -207,7 +243,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
       <code class="ztr-tid mono" :title="traceId ?? ''">{{ traceId }}</code>
       <button class="sw-btn small copy-btn" type="button" :title="t('Copy trace id')" @click="copyTraceId">⧉ {{ t('id') }}</button>
       <button class="sw-btn small copy-btn" type="button" :title="t('Copy shareable URL')" @click="copyShareableUrl">⧉ {{ t('url') }}</button>
-      <span v-if="loading" class="hint">{{ t('loading…') }}</span>
+      <button v-if="!replay && detailRows.length > 0" class="sw-btn small logs-btn ztr-view" type="button" :title="t('Logs carrying this trace id')" @click="logsSpan = null; logsOpen = true"><Icon name="log" :size="12" />{{ t('Logs') }}</button>
       <button class="sw-btn small ghost ztr-detail-close" type="button" :title="t('Close')" @click="emit('close')">×</button>
     </header>
     <div v-if="loading && detailRows.length === 0" class="ztr-empty hint">{{ t('loading spans…') }}</div>
@@ -220,13 +256,23 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
         <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ detailServiceColors.size }}</div></div>
       </div>
       <div v-if="detailServiceColors.size > 0" class="ztr-svc-legend">
-        <span v-for="[code, color] in detailServiceColors" :key="code" class="svc-chip">
+        <button
+          v-for="[code, color] in detailServiceColors"
+          :key="code"
+          type="button"
+          class="svc-chip"
+          :class="{ on: focusService === code }"
+          :style="{ '--svc-hl': color }"
+          :aria-pressed="focusService === code"
+          :title="t('Highlight the spans of this service')"
+          @click="toggleFocus(code)"
+        >
           <span class="svc-swatch" :style="{ background: color }" />
           <span class="mono">{{ code }}</span>
-        </span>
+        </button>
       </div>
       <div class="ztr-detail-body">
-        <div class="ztr-waterfall">
+        <div ref="rowsEl" class="ztr-waterfall">
           <div class="tp-time-axis">
             <span class="t-tick first">0</span>
             <span class="t-tick">{{ fmtMs(detailBounds.totalUs * 0.25) }}</span>
@@ -238,7 +284,8 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
             v-for="row in detailRows"
             :key="row.span.id"
             class="tp-row"
-            :class="{ err: tagsReportError(row.span.tags), on: selectedSpanId === row.span.id }"
+            :class="{ err: tagsReportError(row.span.tags), 'svc-hl': spanService(row.span) === focusService, on: selectedSpanId === row.span.id }"
+            :style="spanService(row.span) === focusService ? { '--svc-hl': detailColor(spanService(row.span)) } : undefined"
             @click="selectSpan(row.span)"
           >
             <div class="tp-track">
@@ -284,6 +331,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
           <article class="span-modal sw-card">
             <header class="span-modal-head">
               <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
+              <SpanLogsButton v-if="!replay" kind="otlp" @open="openSpanLogs(selectedSpan.id)" />
               <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
             </header>
             <div class="span-modal-body">
@@ -331,6 +379,15 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
         </div>
       </div>
     </template>
+    <TraceLogsPopout
+      :open="logsOpen"
+      :trace-id="logsIds?.traceId ?? null"
+      :alt-trace-id="logsIds?.altTraceId"
+      :otlp-span-id="logsSpan ?? undefined"
+      :start-ms="logWindow?.startMs ?? null"
+      :end-ms="logWindow?.endMs ?? null"
+      @close="closeLogs"
+    />
   </article>
 </template>
 
@@ -373,6 +430,9 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
 }
 .ztr-tid { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-fg-1); font-size: 12px; }
 .ztr-detail-close { margin-left: auto; }
+.ztr-view + .ztr-detail-close { margin-left: 0; }
+.ztr-view { margin-left: auto; }
+.logs-btn { display: inline-flex; align-items: center; gap: 5px; }
 .ztr-empty {
   padding: 36px;
   text-align: center;
@@ -425,6 +485,14 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
   border: 1px solid var(--sw-line-2);
   border-radius: 10px;
   background: var(--sw-bg-2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.svc-chip:hover { border-color: var(--sw-fg-3); }
+.svc-chip.on {
+  color: var(--sw-fg-1);
+  border-color: var(--svc-hl);
+  background: color-mix(in srgb, var(--svc-hl) 22%, var(--sw-bg-2));
 }
 .svc-swatch { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
 .svc-swatch.inline { display: inline-block; margin-right: 4px; vertical-align: middle; }
@@ -457,6 +525,7 @@ useEscapeToClose(() => selectedSpanId.value !== null, clearSpan);
 .tp-row { padding: 3px 12px; cursor: pointer; font-size: 11px; }
 .tp-row:hover { background: var(--sw-bg-2); }
 .tp-row.err { background: rgba(239, 68, 68, 0.06); }
+.tp-row.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 .tp-row.on { background: var(--sw-accent-soft); }
 .tp-track { position: relative; height: 22px; background: transparent; }
 .t-grid {

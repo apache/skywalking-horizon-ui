@@ -44,6 +44,11 @@ import { useRoute } from 'vue-router';
 import { TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from './tracePopoutQuery';
 import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
 import { copyText } from '@/utils/clipboard';
+import TraceLogsPopout from '@/render/widgets/TraceLogsPopout.vue';
+import SpanLogsButton from '@/render/widgets/SpanLogsButton.vue';
+import Icon from '@/components/icons/Icon.vue';
+import { useRevealHighlighted, useServiceFocus } from '@/render/widgets/useServiceFocus';
+import { zipkinLogTraceIds } from '@/render/widgets/useTraceLogs';
 
 const { openTraceId, openTraceWindow, closeTrace } = useZipkinTracePopout();
 const route = useRoute();
@@ -70,6 +75,27 @@ interface WaterfallRow {
   startOffsetUs: number;
   durationUs: number;
 }
+
+const logsOpen = ref(false);
+/** The span whose logs the box shows; null shows the whole trace's. */
+const logsSpan = ref<string | null>(null);
+watch(openTraceId, () => { logsOpen.value = false; logsSpan.value = null; });
+// A link may carry an id OAP pads or shortens to find the trace; a log is
+// matched on the id exactly, so it is read by the spellings OAP keeps.
+const logsIds = computed(() => (openTraceId.value ? zipkinLogTraceIds(openTraceId.value) : null));
+function openSpanLogs(id: string): void {
+  logsSpan.value = id;
+  logsOpen.value = true;
+}
+function closeLogs(): void {
+  logsOpen.value = false;
+  logsSpan.value = null;
+}
+/** The span range in epoch ms — Zipkin keeps microseconds. */
+const logWindow = computed(() => {
+  const { t0, t1 } = bounds.value;
+  return t0 > 0 ? { startMs: Math.floor(t0 / 1000), endMs: Math.ceil(t1 / 1000) } : null;
+});
 
 /** Window bounds derived from the span set: earliest timestamp →
  *  latest end. Used to compute each row's left% / width%. */
@@ -179,6 +205,10 @@ const serviceColors = computed<Map<string, string>>(() => {
   }
   return m;
 });
+const { focusService, toggleFocus } = useServiceFocus(openTraceId);
+function spanService(s: ZipkinSpan): string { return s.localEndpoint?.serviceName ?? '—'; }
+const rowsEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(rowsEl, () => focusService.value);
 const rootStart = computed<number | null>(() => {
   const ts = spans.value.map((s) => s.timestamp ?? 0).filter(Boolean);
   return ts.length ? Math.min(...ts) : null;
@@ -250,6 +280,7 @@ function copyTraceId(): void {
         <button class="sw-btn small ghost" type="button" :title="t('Copy shareable URL')" @click="copyShareableUrl">⧉ {{ t('url') }}</button>
         <span v-if="isLoading" class="hint">{{ t('loading…') }}</span>
         <span v-if="error" class="hint err">{{ String(error) }}</span>
+        <button v-if="spans.length > 0" class="sw-btn small ghost logs-btn zk-view" type="button" :title="t('Logs carrying this trace id')" @click="logsSpan = null; logsOpen = true"><Icon name="log" :size="12" />{{ t('Logs') }}</button>
         <button class="sw-btn small ghost zk-close" type="button" @click="closeTrace">×</button>
       </header>
 
@@ -265,12 +296,22 @@ function copyTraceId(): void {
           <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
         </div>
         <div v-if="serviceColors.size > 0" class="tp-svc-legend">
-          <span v-for="[code, color] in serviceColors" :key="code" class="svc-chip">
+          <button
+            v-for="[code, color] in serviceColors"
+            :key="code"
+            type="button"
+            class="svc-chip"
+            :class="{ on: focusService === code }"
+            :style="{ '--svc-hl': color }"
+            :aria-pressed="focusService === code"
+            :title="t('Highlight the spans of this service')"
+            @click="toggleFocus(code)"
+          >
             <span class="svc-swatch" :style="{ background: color }" />
             <span class="mono">{{ code }}</span>
-          </span>
+          </button>
         </div>
-        <div class="zk-waterfall">
+        <div ref="rowsEl" class="zk-waterfall">
           <div class="tp-time-axis">
             <span class="t-tick first">0</span>
             <span class="t-tick">{{ fmtMs(bounds.totalUs * 0.25) }}</span>
@@ -282,7 +323,8 @@ function copyTraceId(): void {
             v-for="row in waterfall"
             :key="row.span.id"
             class="tp-row"
-            :class="{ on: selectedSpanId === row.span.id, err: tagsReportError(row.span.tags) }"
+            :class="{ on: selectedSpanId === row.span.id, err: tagsReportError(row.span.tags), 'svc-hl': spanService(row.span) === focusService }"
+            :style="spanService(row.span) === focusService ? { '--svc-hl': serviceColor(spanService(row.span)) } : undefined"
             @click="selectSpan(row.span)"
           >
             <div class="tp-track">
@@ -327,6 +369,7 @@ function copyTraceId(): void {
         <article class="span-modal sw-card">
           <header class="span-modal-head">
             <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
+            <SpanLogsButton kind="otlp" @open="openSpanLogs(selectedSpan.id)" />
             <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
           </header>
           <div class="span-modal-body">
@@ -373,6 +416,15 @@ function copyTraceId(): void {
         </article>
       </div>
     </article>
+    <TraceLogsPopout
+      :open="logsOpen"
+      :trace-id="logsIds?.traceId ?? null"
+      :alt-trace-id="logsIds?.altTraceId"
+      :otlp-span-id="logsSpan ?? undefined"
+      :start-ms="logWindow?.startMs ?? null"
+      :end-ms="logWindow?.endMs ?? null"
+      @close="closeLogs"
+    />
   </div>
 </template>
 
@@ -403,6 +455,9 @@ function copyTraceId(): void {
 }
 .zk-tid { color: var(--sw-fg-2); font-size: 11px; }
 .zk-close { margin-left: auto; }
+.zk-view { margin-left: auto; }
+.zk-view + .zk-close { margin-left: 0; }
+.logs-btn { display: inline-flex; align-items: center; gap: 5px; }
 .hint { font-size: 10.5px; color: var(--sw-fg-3); }
 .hint.err { color: var(--sw-err); }
 .zk-empty {
@@ -446,6 +501,14 @@ function copyTraceId(): void {
   border: 1px solid var(--sw-line-2);
   border-radius: 10px;
   background: var(--sw-bg-2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.svc-chip:hover { border-color: var(--sw-fg-3); }
+.svc-chip.on {
+  color: var(--sw-fg-1);
+  border-color: var(--svc-hl);
+  background: color-mix(in srgb, var(--svc-hl) 22%, var(--sw-bg-2));
 }
 .svc-swatch { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
 .svc-swatch.inline { display: inline-block; margin-right: 4px; vertical-align: middle; }
@@ -469,6 +532,7 @@ function copyTraceId(): void {
 .tp-row { padding: 3px 12px; cursor: pointer; }
 .tp-row:hover { background: var(--sw-bg-2); }
 .tp-row.err { background: rgba(239, 68, 68, 0.06); }
+.tp-row.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 .tp-row.on { background: var(--sw-accent-soft); }
 .tp-track { position: relative; height: 22px; background: transparent; }
 .t-grid {

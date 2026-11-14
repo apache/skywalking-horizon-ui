@@ -80,7 +80,6 @@ import { logRowKey } from '@/utils/logRow';
 const { t } = useI18n();
 const { availableLayers } = useLayers();
 const { openTrace } = useTracePopout();
-const pageTraceSource = usePageTraceSource();
 
 // ── source. `raw` = queryLogs (any service across layers); `browser` =
 // BROWSER-layer JS errors; `pods` = on-demand Kubernetes Pod logs (a
@@ -120,6 +119,13 @@ const {
   seedTypeFromPick,
   currentEntity,
 } = useExploreEntity();
+// A row's trace opens in the store of the layer of the service the rows were
+// queried for — OTLP Service's through TraceQL. A layer alone does not narrow
+// the rows to it, so rows of no picked service open natively, where an id the
+// native store does not hold is offered to the others. Taken when the query
+// runs: the rows are that query's, whatever the picker says since.
+const rowsLayer = ref<string | null>(null);
+const pageTraceSource = usePageTraceSource(() => rowsLayer.value);
 
 // No layer seed for the browser source: this is an inspect tool, so it
 // exposes every layer/service rather than pinning BROWSER (which left the
@@ -390,6 +396,7 @@ async function runQuery(): Promise<void> {
   logsResp.value = null;
   browserResp.value = null;
   podLines.value = [];
+  rowsLayer.value = entityMode.value === 'pick' && pickServiceId.value ? pickLayer.value || null : null;
   if (logSource.value === 'pods') {
     // A manual Run is a one-shot — pause any live tail first so the two
     // never double-fetch; the operator re-arms Start when they want tailing.

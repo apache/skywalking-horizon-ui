@@ -25,10 +25,14 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 import { buildServiceColors, fmtMs, kindLabel, otlpKindName, serviceColorFrom, spanStatus } from './traceqlDetailShared';
+import { useRevealHighlighted } from '@/render/widgets/useServiceFocus';
 
-const props = defineProps<{ spans: TraceQLSpan[] }>();
+// focusService — the service picked in the legend; its rows are highlighted.
+const props = defineProps<{ spans: TraceQLSpan[]; focusService?: string | null }>();
 const { t } = useI18n({ useScope: 'global' });
 const colors = computed(() => buildServiceColors(props.spans));
+const wrapEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(wrapEl, () => props.focusService);
 
 interface StatRow {
   name: string;
@@ -80,7 +84,7 @@ const rows = computed<StatRow[]>(() => {
 </script>
 
 <template>
-  <div class="tqs-wrap">
+  <div ref="wrapEl" class="tqs-wrap">
     <table class="tqs-table">
       <thead>
         <tr>
@@ -95,7 +99,12 @@ const rows = computed<StatRow[]>(() => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="r in rows" :key="`${r.service}/${r.name}/${r.kind}`">
+        <tr
+          v-for="r in rows"
+          :key="`${r.service}/${r.name}/${r.kind}`"
+          :class="{ 'svc-hl': r.service === focusService }"
+          :style="r.service === focusService ? { '--svc-hl': serviceColorFrom(colors, r.service) } : undefined"
+        >
           <td class="mono">{{ r.name }}</td>
           <td class="mono">
             <span class="dot" :style="{ background: serviceColorFrom(colors, r.service) }" />{{ r.service || '—' }}
@@ -130,6 +139,7 @@ th {
   text-transform: uppercase;
   font-weight: 600;
 }
+tr.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 th.sortable { cursor: pointer; }
 th.on { color: var(--sw-accent); }
 .num { text-align: right; }

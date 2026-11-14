@@ -23,7 +23,8 @@
 
   Popout layout (intentionally different from in-page):
     - Waterfall on the left (always List view — no Tree/Table/Stats
-      tabs; the popout is a glance-link experience).
+      tabs; the popout is a glance-link experience). Its Logs button,
+      and a span's Related logs, open the stored logs in a box above.
     - Span detail in a sticky right panel (no nested modal). Click
       a span row in the waterfall → the right panel updates. Cross-
       trace refs there hot-swap the popout to the linked trace.
@@ -34,6 +35,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
+import type { TraceStore } from '@skywalking-horizon-ui/api-client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useEmptyTraceRetry } from '@/components/primitives/useEmptyTraceRetry';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
@@ -41,10 +43,18 @@ import { TRACE_POPOUT_SEGMENT, TRACE_POPOUT_SPAN, TRACE_POPOUT_SPAN_INDEX } from
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
 import { copyText } from '@/utils/clipboard';
+import TraceLogsPopout from '@/render/widgets/TraceLogsPopout.vue';
+import SpanLogsButton from '@/render/widgets/SpanLogsButton.vue';
+import { useRevealHighlighted, useServiceFocus } from '@/render/widgets/useServiceFocus';
+import Icon from '@/components/icons/Icon.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const { openTraceId, openTraceAtMs, openTrace, closeTrace } = useTracePopout();
+// A bare trace id — a log row's, most often — names no store, and an OTLP or
+// Zipkin trace's logs carry its id too: an id the native store does not hold
+// is offered to the stores it may be in.
+const OTHER_STORES: TraceStore[] = ['zipkin', 'traceql-otlp'];
 
 const sourceRef = computed<'native'>(() => 'native');
 const traceIdRef = computed<string | null>(() => openTraceId.value);
@@ -69,6 +79,9 @@ const { pending: stillLooking } = useEmptyTraceRetry({
 
 // Reset selected span when the trace changes (cross-trace ref jump).
 const selectedSpan = ref<NativeSpan | null>(null);
+// Which logs box is open: the trace's, or the selected span's.
+const logsOpen = ref<'trace' | 'span' | null>(null);
+watch([traceIdRef, selectedSpan], () => { logsOpen.value = null; });
 watch([traceIdRef, spans], () => {
   selectedSpan.value = null;
   const segmentId = String(route.query[TRACE_POPOUT_SEGMENT] ?? '');
@@ -138,6 +151,10 @@ const rootStart = computed(() => {
   const s = spans.value;
   return s.length > 0 ? Math.min(...s.map((x) => x.startTime)) : null;
 });
+const lastEnd = computed(() => {
+  const s = spans.value;
+  return s.length > 0 ? Math.max(...s.map((x) => x.endTime)) : null;
+});
 
 // Service color palette (matches the trace tab so the operator sees
 // the same colours across the in-page detail and the popout).
@@ -166,6 +183,9 @@ const serviceColors = computed<Map<string, string>>(() => {
 function serviceColor(c: string): string {
   return serviceColors.value.get(c) ?? 'var(--sw-fg-2)';
 }
+const { focusService, toggleFocus } = useServiceFocus(openTraceId);
+const rowsEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(rowsEl, () => focusService.value);
 function kindColor(type: string | null | undefined): string {
   const t = (type ?? '').toUpperCase();
   if (t.includes('SERVER') || t === 'ENTRY') return 'var(--sw-accent)';
@@ -234,8 +254,9 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
           <transition name="copy-flash">
             <span v-if="copyFlash" class="copy-flash-chip">{{ copyFlash === 'url' ? t('url copied') : t('id copied') }}</span>
           </transition>
-          <span v-if="isFetching" class="hint">{{ t('loading…') }}</span>
+          <span v-if="isFetching && waterfall.length === 0" class="hint">{{ t('loading spans…') }}</span>
         </div>
+        <button v-if="waterfall.length > 0" class="sw-btn small ghost logs-btn" type="button" :title="t('Logs carrying this trace id')" @click="logsOpen = 'trace'"><Icon name="log" :size="12" />{{ t('Logs') }}</button>
         <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="closeTrace">×</button>
       </header>
 
@@ -247,18 +268,38 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
       </div>
 
       <div v-if="serviceColors.size > 0" class="tp-svc-legend">
-        <span v-for="[code, color] in serviceColors" :key="code" class="svc-chip">
+        <button
+          v-for="[code, color] in serviceColors"
+          :key="code"
+          type="button"
+          class="svc-chip"
+          :class="{ on: focusService === code }"
+          :style="{ '--svc-hl': color }"
+          :aria-pressed="focusService === code"
+          :title="t('Highlight the spans of this service')"
+          @click="toggleFocus(code)"
+        >
           <span class="svc-swatch" :style="{ background: color }" />
           <span class="mono">{{ code }}</span>
-        </span>
+        </button>
       </div>
 
       <div class="tp-body">
         <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">
           {{ stillLooking ? t('No spans yet — the trace may still be landing; looking again…') : t('no span data') }}
+          <p class="tp-elsewhere">
+            {{ t('Not a SkyWalking trace? Query this id from:') }}
+            <button
+              v-for="s in OTHER_STORES"
+              :key="s"
+              class="sw-btn small mono"
+              type="button"
+              @click="openTrace(openTraceId!, s, { at: openTraceAtMs ?? undefined })"
+            >{{ s }}</button>
+          </p>
         </div>
         <div v-else class="tp-split" :class="{ 'no-selection': !selectedSpan }">
-          <div class="tp-waterfall">
+          <div ref="rowsEl" class="tp-waterfall">
             <div class="tp-time-axis">
               <span class="t-tick first">0</span>
               <span class="t-tick">{{ fmtMs(totalDuration * 0.25) }}</span>
@@ -270,7 +311,8 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
               v-for="row in waterfall"
               :key="`${row.span.segmentId}/${row.span.spanId}`"
               class="tp-row"
-              :class="{ err: row.span.isError, on: selectedSpan && selectedSpan.segmentId === row.span.segmentId && selectedSpan.spanId === row.span.spanId }"
+              :class="{ err: row.span.isError, 'svc-hl': row.span.serviceCode === focusService, on: selectedSpan && selectedSpan.segmentId === row.span.segmentId && selectedSpan.spanId === row.span.spanId }"
+              :style="row.span.serviceCode === focusService ? { '--svc-hl': serviceColor(row.span.serviceCode) } : undefined"
               @click="selectSpan(row.span)"
             >
               <div class="tp-track">
@@ -337,6 +379,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
           <aside v-if="selectedSpan" class="tp-span-panel">
             <header class="tp-span-head">
               <h5>{{ t('Span detail') }}</h5>
+              <SpanLogsButton class="span-logs" kind="native" @open="logsOpen = 'span'" />
               <button class="sw-btn small ghost" type="button" @click="clearSpan">×</button>
             </header>
             <div class="tp-span-body">
@@ -425,6 +468,15 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
         </div>
       </div>
     </article>
+    <TraceLogsPopout
+      :open="logsOpen !== null"
+      :trace-id="logsOpen === 'span' && selectedSpan ? selectedSpan.traceId || openTraceId : openTraceId"
+      :segment-id="logsOpen === 'span' ? selectedSpan?.segmentId : undefined"
+      :span-id="logsOpen === 'span' ? selectedSpan?.spanId : undefined"
+      :start-ms="rootStart"
+      :end-ms="lastEnd"
+      @close="logsOpen = null"
+    />
   </div>
 </template>
 
@@ -504,6 +556,14 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
   border: 1px solid var(--sw-line-2);
   border-radius: 10px;
   background: var(--sw-bg-2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.svc-chip:hover { border-color: var(--sw-fg-3); }
+.svc-chip.on {
+  color: var(--sw-fg-1);
+  border-color: var(--svc-hl);
+  background: color-mix(in srgb, var(--svc-hl) 22%, var(--sw-bg-2));
 }
 .svc-swatch {
   width: 8px;
@@ -522,7 +582,10 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
   color: var(--sw-fg-3);
   font-size: 12px;
 }
+.tp-elsewhere { margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
 .tp-body { flex: 1; overflow: hidden; min-height: 0; display: flex; }
+.logs-btn { display: inline-flex; align-items: center; gap: 5px; }
+.span-logs { margin-right: 6px; }
 
 .tp-split {
   display: grid;
@@ -568,6 +631,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 }
 .tp-row:hover { background: var(--sw-bg-2); }
 .tp-row.err { background: rgba(239, 68, 68, 0.06); }
+.tp-row.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 .tp-row.on { background: var(--sw-accent-soft); }
 .tp-track {
   position: relative;

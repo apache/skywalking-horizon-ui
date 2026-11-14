@@ -84,7 +84,9 @@ const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : routeEntryKey.value,
 );
 const { openTrace } = useTracePopout();
-const pageTraceSource = usePageTraceSource();
+// The logs' own layer, not the host page's: an embedded block may show
+// another layer's logs.
+const pageTraceSource = usePageTraceSource(() => layerKey.value);
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();

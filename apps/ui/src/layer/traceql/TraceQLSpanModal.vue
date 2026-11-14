@@ -30,9 +30,12 @@ import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { fmtDateTime, fmtMs, kindColor, kindLabel, otlpKindName, spanStatus, statusColor } from './traceqlDetailShared';
 import LongValue from '@/components/primitives/LongValue.vue';
+import SpanLogsButton from '@/render/widgets/SpanLogsButton.vue';
 
-defineProps<{ span: TraceQLSpan; traceId: string }>();
-const emit = defineEmits<{ (e: 'close'): void }>();
+/** `logs` offers the span's Related logs — for the stores whose span id is one a
+ *  log records (OTLP and Zipkin), not the native store's converted composite id. */
+defineProps<{ span: TraceQLSpan; traceId: string; logs?: boolean }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'related-logs', spanId: string): void }>();
 const { t } = useI18n({ useScope: 'global' });
 useEscapeToClose(
   () => true,
@@ -50,6 +53,7 @@ useEscapeToClose(
         </h4>
         <span class="tqm-kind mono">{{ kindLabel(span.kind) }}</span>
         <span class="tqm-status mono" :style="{ color: statusColor(spanStatus(span)) }">{{ spanStatus(span) }}</span>
+        <SpanLogsButton v-if="logs" class="tqm-logs" kind="otlp" @open="emit('related-logs', span.spanId)" />
         <button type="button" class="sw-btn small ghost tqm-close" @click="emit('close')">×</button>
       </header>
 
@@ -166,6 +170,7 @@ useEscapeToClose(
 .tqm-kind-raw { margin-left: 8px; font-size: 10px; color: var(--sw-fg-3); }
 .tqm-status { font-size: 10.5px; }
 .tqm-close { margin-left: auto; }
+.tqm-logs + .tqm-close { margin-left: 0; }
 .tqm-fields {
   display: grid;
   grid-template-columns: max-content 1fr;

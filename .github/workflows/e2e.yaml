@@ -50,7 +50,9 @@
 #             service picker, traces, logs, topology, instance topology,
 #             alarms and their timeline, trace profiling (task create ->
 #             list), the trace DETAIL — duration scatter, waterfall, tree,
-#             statistics and the span modal — the services overview
+#             statistics and the span modal — the logs a trace wrote, read
+#             from the popout and the in-page detail, whole-trace and one
+#             native span's (segment id + span id), the services overview
 #             dashboard, shell and login, plus three live debug CAPTURES:
 #             LAL live debug over logs driven while the session is open,
 #             OAL live debug entered the way an operator reaches it — the
@@ -70,7 +72,7 @@
 #             LayerDashboardsView, LayerInstancePicker, LayerEndpointPicker,
 #             AlarmsView, AlarmsTimeline, LayerTraceProfilingView,
 #             TraceDistribution, TraceDetailCard, TraceWaterfallView,
-#             TraceTreeView, TraceStatsView, SpanDetailModal,
+#             TraceTreeView, TraceStatsView, SpanDetailModal, TraceLogsPanel,
 #             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
 #             AlarmsWidget, SectionBreak, AppShell, DebugView,
 #             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
@@ -100,10 +102,15 @@
 #             the Evaluation records tab: the page-owned provider picker,
 #             the judged rows from each store, each record's trace link
 #             opening that store's popout with the judged span selected,
-#             and the trace-id condition narrowed to one span of each
+#             and the trace-id condition narrowed to one span of each; and
+#             the OTLP and Zipkin traces' logs — the callers log over OTLP
+#             from inside the LLM span, and OAP stores the record's trace id
+#             and span id — read whole-trace and from the LLM span's Related
+#             logs (by its hex span id)
 #             components: LayerEvaluationRecordView,
 #             EvaluationRecordStreamPanel, RelatedTraceSpanPicker,
 #             TracePopout, ZipkinTracePopout, TraceQLTracePopout,
+#             TraceLogsPanel,
 #             LayerWidgetTile's card branch
 #
 #   ai-agent  plus a real AI Sessionizer, pushing two conversations  ACTIVE
