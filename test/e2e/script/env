@@ -74,8 +74,12 @@ SW_AI_SESSIONIZER_COMMIT=fc04fa1248ddf495736106f17fd70057212bc97e
 # Must be at or after v0.11.0 (3b83e18f), the first release carrying the
 # schema-consistency surface the BanyanDB client depends on: SchemaBarrierService,
 # STATUS_SCHEMA_NOT_APPLIED, and created_at on schema objects.
+# Must also be at or after 88245d39 (apache/skywalking-banyandb#1476). Before
+# it, a stream query in time order applied its tag filter after the limit, so a
+# log read by trace id missed stored lines (apache/skywalking#14215): the
+# `trace-logs` specs list the lines a trace wrote.
 # A main-branch commit, ahead of the v0.11.0 release OAP's own e2e pins.
-SW_BANYANDB_COMMIT=aa8c827d92b963837b0779e9dd47d09836a4ea37
+SW_BANYANDB_COMMIT=88245d3965b6a28c329d1c9ef36aaafecec6144f
 
 # Java agent image. Carries the agent at /skywalking/agent and presets
 # JAVA_TOOL_OPTIONS, so the demo services need no -javaagent of their own.

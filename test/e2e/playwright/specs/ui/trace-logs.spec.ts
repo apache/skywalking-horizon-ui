@@ -23,10 +23,9 @@ import { selectService } from '../support/layer.js';
 // Trace -> logs, on the native store. The provider's `/logs/trigger` writes a
 // log4j2 line and a logback line inside its own entry span, reported with the
 // trace id, segment id and span id. A whole-trace read and a one-span read
-// (segment id + numeric span id) are checked for what Horizon owns: the read
-// it sends, and that the box renders the answer as a list. That the lines come
-// back is checked by the `fixme` test at the end, skipped until BanyanDB stops
-// missing stored lines when filtering by trace id (apache/skywalking#14215).
+// (segment id + numeric span id) are checked for the read Horizon sends and
+// that the box renders the answer as a list; the last test checks that both
+// lines come back.
 //
 // The way in is the operator's: a log row's trace chip, then back out to the
 // trace's logs. The log row is also where the spec learns which trace to open.
@@ -162,10 +161,7 @@ test('the in-page trace detail opens its logs in a box, and the span dialog one 
   expect(pageErrors).toEqual([]);
 });
 
-// Skipped, not dropped: BanyanDB can miss a stored line when a log query filters
-// by trace id (apache/skywalking#14215), so whether the lines come back is the
-// storage's answer for now. Re-enable once BanyanDB is fixed.
-test.fixme('the trace\'s logs, and its span\'s, list the two lines /logs/trigger wrote', async ({ page, pageErrors }) => {
+test('the trace\'s logs, and its span\'s, list the two lines /logs/trigger wrote', async ({ page, pageErrors }) => {
   await openTriggerTrace(page);
   const popout = page.locator('.tp-card');
   await popout.getByRole('button', { name: 'Logs', exact: true }).click();
