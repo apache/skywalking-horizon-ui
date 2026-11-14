@@ -24,10 +24,8 @@ import { GENAI_LAYER, GENAI_PROVIDER, NATIVE_GENAI_CALLER, OTLP_GENAI_CALLER, ZI
 // record's own trace id and span id with it (from 11.2.0). A trace's Logs and
 // its LLM span's Related logs are checked for what Horizon owns: the read it
 // sends — the trace id, and the span's hex id — and that the box renders the
-// answer as a list. That the line comes back is checked by the `fixme` tests
-// at the end, skipped until BanyanDB stops missing stored lines when filtering
-// by trace id (apache/skywalking#14215). A native span is found by segment id
-// and numeric span id, on any OAP.
+// answer as a list; the tests at the end check that the line comes back. A
+// native span is found by segment id and numeric span id, on any OAP.
 
 
 async function openRecordTrace(page: Page, caller: string): Promise<void> {
@@ -125,11 +123,8 @@ for (const s of STORES) {
   });
 }
 
-// Skipped, not dropped: BanyanDB can miss a stored line when a log query filters
-// by trace id (apache/skywalking#14215), so whether the line comes back is the
-// storage's answer for now. Re-enable once BanyanDB is fixed.
 for (const s of STORES) {
-  test.fixme(`a trace in the ${s.store} store, and its LLM span, list the line that span wrote`, async ({ page, pageErrors }) => {
+  test(`a trace in the ${s.store} store, and its LLM span, list the line that span wrote`, async ({ page, pageErrors }) => {
     await openRecordTrace(page, s.caller);
     const card = page.locator(s.card);
     await expect(card.locator(s.span).first()).toBeVisible({ timeout: 45_000 });
