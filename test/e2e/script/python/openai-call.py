@@ -16,12 +16,32 @@
 #
 
 
+import logging
 import socketserver
 from http.server import BaseHTTPRequestHandler
+
+import httpx
 from openai import OpenAI
+from opentelemetry import trace
+
+# One log line per LLM call, exported over OTLP with the rest of the app's
+# telemetry. It is written from the HTTP client's request hook, which runs
+# inside the instrumentation's LLM span, so the record carries that span's
+# trace id and span id, which OAP stores with the line. The text names the
+# trace id too, so a spec can tell the line is this trace's own.
+log = logging.getLogger('e2e.openai-call')
+log.setLevel(logging.INFO)
+
+
+def log_llm_call(request):
+    ctx = trace.get_current_span().get_span_context()
+    if ctx.is_valid:
+        log.info('calling the LLM at %s trace_id=%s', request.url.path, trace.format_trace_id(ctx.trace_id))
+
 
 client = OpenAI(
     timeout=120.0,
+    http_client=httpx.Client(timeout=120.0, event_hooks={'request': [log_llm_call]}),
 )
 
 class AIRequestHandler(BaseHTTPRequestHandler):

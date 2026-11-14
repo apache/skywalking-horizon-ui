@@ -24,7 +24,7 @@
   screen, and scrollbars alone cannot follow one branch across it.
 -->
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import * as d3 from 'd3';
 import { useI18n } from 'vue-i18n';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
@@ -32,6 +32,7 @@ import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 // about a span, so both tree views bind the same behaviour without either
 // knowing the other's model.
 import { useTraceTreeZoom } from '@/render/widgets/useTraceTreeZoom';
+import { revealFirstHighlighted } from '@/render/widgets/useServiceFocus';
 import {
   buildServiceColors,
   fmtMs,
@@ -42,8 +43,9 @@ import {
   statusColor,
 } from './traceqlDetailShared';
 
-/** The selected SPAN OBJECT rather than its id — see the waterfall. */
-const props = defineProps<{ spans: TraceQLSpan[]; selectedSpan?: TraceQLSpan | null }>();
+/** The selected SPAN OBJECT rather than its id — see the waterfall. `focusService`
+ *  is the service picked in the legend; its nodes are filled with its colour. */
+const props = defineProps<{ spans: TraceQLSpan[]; selectedSpan?: TraceQLSpan | null; focusService?: string | null }>();
 const emit = defineEmits<{ (e: 'select-span', span: TraceQLSpan): void }>();
 const { t } = useI18n({ useScope: 'global' });
 
@@ -146,17 +148,28 @@ const layout = computed<{ nodes: TreeNode[]; links: TreeLink[]; width: number; h
   };
 });
 
-const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset } = useTraceTreeZoom();
+const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset, revealNode } = useTraceTreeZoom();
 // The view is mounted only while it is the chosen one, so mount is activation;
 // re-attach if the element swaps under a re-render.
 watch(treeSvgEl, async () => {
   await nextTick();
   ensureZoom();
 }, { immediate: true });
+// The picked service's first node: panned to inside the canvas when zoomed
+// away from it, then scrolled into the window.
+const canvasEl = ref<HTMLElement | null>(null);
+function revealFocused(): void {
+  const service = props.focusService;
+  const l = layout.value;
+  const n = service ? l.nodes.find((node) => node.span.service === service) : undefined;
+  if (n) revealNode(n.x, n.y, NODE_W, NODE_H, l.width, l.height, () => revealFirstHighlighted(canvasEl.value));
+}
+watch(() => props.focusService, revealFocused, { flush: 'post' });
+onMounted(async () => { await nextTick(); revealFocused(); });
 </script>
 
 <template>
-  <div class="tqt">
+  <div ref="canvasEl" class="tqt">
     <div class="tqt-zoom">
       <button class="sw-btn small ghost" type="button" :title="t('Zoom in')" @click="zoomBy(1.25)">+</button>
       <button class="sw-btn small ghost" type="button" :title="t('Zoom out')" @click="zoomBy(1 / 1.25)">−</button>
@@ -179,10 +192,18 @@ watch(treeSvgEl, async () => {
         :key="n.key"
         :transform="`translate(${n.x}, ${n.y})`"
         class="tqt-node"
-        :class="{ on: selectedSpan === n.span }"
+        :class="{ on: selectedSpan === n.span, 'svc-hl': n.span.service === focusService }"
         @click="emit('select-span', n.span)"
       >
-        <rect :width="NODE_W" :height="NODE_H" rx="4" class="tqt-box" :style="{ stroke: serviceColorFrom(colors, n.span.service) }" />
+        <rect
+          :width="NODE_W"
+          :height="NODE_H"
+          rx="4"
+          class="tqt-box"
+          :style="n.span.service === focusService
+            ? { stroke: serviceColorFrom(colors, n.span.service), fill: serviceColorFrom(colors, n.span.service), fillOpacity: 0.32, strokeWidth: 2.4 }
+            : { stroke: serviceColorFrom(colors, n.span.service) }"
+        />
         <rect :width="3" :height="NODE_H" rx="1" :style="{ fill: serviceColorFrom(colors, n.span.service) }" />
         <circle :cx="NODE_W - 8" :cy="10" :r="3.5" :style="{ fill: statusColor(spanStatus(n.span)) }" />
         <!-- The text lives in HTML, not in <text>: an SVG string neither wraps

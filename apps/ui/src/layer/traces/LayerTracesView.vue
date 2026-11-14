@@ -832,6 +832,7 @@ useEscapeToClose(() => selectedTraceId.value !== null, closeDetail);
         :trace-id="selectedTraceId"
         :trace-ids="selectedTraceIds"
         :loading="detailFetching"
+        :replay="replay"
         @close="closeDetail"
         @change-trace-id="changeSelectedTraceId"
       />

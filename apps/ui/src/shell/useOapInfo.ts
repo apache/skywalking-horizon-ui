@@ -94,6 +94,7 @@ export function useOapInfo() {
     queryAlarms: info.value?.capabilities?.queryAlarms ?? false,
     logKeywords: info.value?.capabilities?.logKeywords ?? false,
     aiConversations: info.value?.capabilities?.aiConversations ?? false,
+    logOtlpSpanId: info.value?.capabilities?.logOtlpSpanId ?? false,
   }));
 
   /** Storage backend probed via TTL response shape. `unknown` until the

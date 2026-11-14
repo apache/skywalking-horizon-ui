@@ -39,8 +39,12 @@ import type {
   LogRow,
   LogTagFilter,
   LogsResponse,
+  TraceLogsResponse,
 } from '@skywalking-horizon-ui/api-client';
+import { TRACE_LOG_WINDOW_PAD_MS } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
+import { clientGone } from '../client-gone.js';
+import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -165,8 +169,25 @@ export interface LogFetchScope {
   serviceInstanceId?: string | null;
   endpointId?: string | null;
   traceId?: string | null;
+  /** Narrow `traceId` to one native span; ignored without a trace id. */
+  segmentId?: string | null;
+  spanId?: number | null;
+  /** Narrow `traceId` to one OTLP or Zipkin span. */
+  otlpSpanId?: string | null;
   keywordsOfContent?: string[];
   tags?: LogTagFilter[];
+  /** OAP orders by timestamp, newest first unless told otherwise. */
+  queryOrder?: 'ASC' | 'DES';
+}
+
+/** `TraceScopeCondition`. Span id 0 is a span — a segment's first. */
+function relatedTraceOf(traceId: string, scope: LogFetchScope): Record<string, unknown> {
+  return {
+    traceId,
+    ...(scope.segmentId ? { segmentId: scope.segmentId } : {}),
+    ...(typeof scope.spanId === 'number' ? { spanId: scope.spanId } : {}),
+    ...(scope.otlpSpanId ? { otlpSpanId: scope.otlpSpanId } : {}),
+  };
 }
 
 /** Build the `LogQueryCondition` for one paging pair. Curried over the
@@ -181,11 +202,12 @@ function logCondition(
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.serviceInstanceId ? { serviceInstanceId: scope.serviceInstanceId } : {}),
     ...(scope.endpointId ? { endpointId: scope.endpointId } : {}),
-    ...(scope.traceId ? { relatedTrace: { traceId: scope.traceId } } : {}),
+    ...(scope.traceId ? { relatedTrace: relatedTraceOf(scope.traceId, scope) } : {}),
     ...(scope.keywordsOfContent && scope.keywordsOfContent.length > 0
       ? { keywordsOfContent: scope.keywordsOfContent }
       : {}),
     ...(scope.tags && scope.tags.length > 0 ? { tags: scope.tags } : {}),
+    ...(scope.queryOrder ? { queryOrder: scope.queryOrder } : {}),
     queryDuration: {
       start: window.start,
       end: window.end,
@@ -414,6 +436,110 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           error: err instanceof Error ? err.message : String(err),
         } satisfies LogFacetsResponse);
       }
+    },
+  );
+
+  /**
+   * GET /api/trace/:traceId/logs?startMs&endMs[&segmentId&spanId | &otlpSpanId][&altTraceId][&page&pageSize]
+   *
+   * The log lines carrying a trace's id, or one span's: a native span by segment
+   * id and span id, an OTLP or Zipkin span by its hex id. A trace crosses
+   * services, so the read names none and keeps the rows whose services the
+   * caller may read. The window is always sent: without one, OAP 11.0.0 on
+   * BanyanDB searches only the last day, and cold storage is never reached.
+   */
+  app.get(
+    '/api/trace/:traceId/logs',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { traceId } = req.params as { traceId: string };
+      const q = req.query as Record<string, string | undefined>;
+      const startMs = Number(q.startMs);
+      const endMs = Number(q.endMs);
+      if (!traceId || !(startMs > 0) || !Number.isFinite(endMs) || endMs < startMs) {
+        return reply.code(400).send({ error: 'invalid_trace_window' });
+      }
+      const segmentId = q.segmentId || undefined;
+      const spanId = q.spanId === undefined || q.spanId === '' ? undefined : Number(q.spanId);
+      // A native span is its segment AND its number within it: either alone is
+      // a partial address, which OAP refuses too.
+      if ((segmentId || spanId !== undefined) && (!segmentId || spanId === undefined || !Number.isInteger(spanId))) {
+        return reply.code(400).send({ error: 'invalid_span' });
+      }
+      const otlpSpanId = q.otlpSpanId || undefined;
+      if (otlpSpanId !== undefined && (!/^[0-9a-f]{16}$/.test(otlpSpanId) || segmentId || spanId !== undefined)) {
+        return reply.code(400).send({ error: 'invalid_otlp_span' });
+      }
+      const altTraceId = q.altTraceId && q.altTraceId !== traceId ? q.altTraceId : undefined;
+      const pageNum = Math.max(1, Math.round(Number(q.page) || 1));
+      const pageSize = clampPageSize(Number(q.pageSize), 50, deps.config.current.performance.limits.maxPageSize.logs);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
+      const to = endMs + TRACE_LOG_WINDOW_PAD_MS;
+      // One read searches at most a week, its last one — the reply names the
+      // start actually searched, so a longer trace is not shown as covered.
+      const from = Math.max(startMs - TRACE_LOG_WINDOW_PAD_MS, to - MAX_WINDOW_MIN * 60_000);
+      const windowClipped = from > startMs - TRACE_LOG_WINDOW_PAD_MS;
+      // An OAP without the field rejects the whole query, so it is not sent there.
+      if (otlpSpanId && !(await getOapCapabilities(deps.config.current, deps.fetch, signal)).logOtlpSpanId) {
+        return reply.send({
+          generatedAt: Date.now(),
+          pageNum,
+          pageSize,
+          traceId,
+          startMs: from,
+          endMs: to,
+          windowClipped,
+          hasNext: false,
+          logs: [],
+          withheld: 0,
+          reachable: false,
+          error: 'Reading the logs of an OTLP or Zipkin span requires SkyWalking 11.2.0 or later.',
+        } satisfies TraceLogsResponse);
+      }
+      const window = defaultWindow(offset, undefined, { startMs: from, endMs: to });
+      const read = (id: string) => fetchLogs(
+        opts,
+        { traceId: id, segmentId, spanId, otlpSpanId, queryOrder: 'ASC' },
+        window,
+        { pageNum, pageSize },
+        !!req.coldStage,
+      );
+      let readBy = traceId;
+      let res = await read(traceId);
+      // OAP keeps a log under the id spelling its storage setting gives, which
+      // the caller cannot know: the other spelling is tried once, on the first
+      // page, and the reply names the one that answered for the pages after.
+      if (altTraceId && pageNum === 1 && res.reachable && res.logs.length === 0 && !res.hasNext) {
+        const alt = await read(altTraceId);
+        // A failed second read is reported, not hidden behind the first's
+        // empty answer: the lines may be exactly where it could not look.
+        if (!alt.reachable || alt.logs.length > 0 || alt.hasNext) {
+          res = alt;
+          readBy = altTraceId;
+        }
+      }
+      const base = { generatedAt: res.generatedAt, pageNum: res.pageNum, pageSize: res.pageSize, traceId: readBy, startMs: from, endMs: to, windowClipped };
+      let logs = res.logs;
+      if (req.access) {
+        try {
+          logs = await req.access.keepReadable(['logs:read'], logs, (r) => ({ id: r.serviceId ?? '' }));
+        } catch (err) {
+          if (!(err instanceof ServiceLookupUnavailable)) throw err;
+          return reply.send({ ...base, hasNext: false, logs: [], withheld: 0, reachable: false, error: err.message } satisfies TraceLogsResponse);
+        }
+      }
+      // Filtered after OAP paged, so the count travels with the page: an empty
+      // page of withheld lines is not a trace without logs.
+      return reply.send({
+        ...base,
+        hasNext: res.hasNext,
+        logs,
+        withheld: res.logs.length - logs.length,
+        reachable: res.reachable,
+        ...(res.error ? { error: res.error } : {}),
+      } satisfies TraceLogsResponse);
     },
   );
 

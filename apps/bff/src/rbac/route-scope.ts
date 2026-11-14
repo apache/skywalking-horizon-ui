@@ -142,6 +142,8 @@ export const ROUTE_SCOPE: Record<string, ScopeRule> = {
     ids: [...byId(b), { childId: b('serviceInstanceId') }, { childId: b('endpointId') }],
     requireService: true,
   },
+  // A trace's logs come from every service it crossed, and none is named.
+  'GET /api/trace/:traceId/logs': { handler: 'keeps only the rows of services the caller may read' },
   'GET /api/layer/:key/pod-logs/containers': { layer: true, ids: [{ childId: q('instance') }], requireService: true },
   'POST /api/layer/:key/pod-logs': { layer: true, ids: [{ childId: b('serviceInstanceId') }], requireService: true },
   // A record is one call from an application service to a GenAI provider.

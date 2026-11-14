@@ -19,6 +19,8 @@ import type {
   LogFacetsResponse,
   LogQueryRequest,
   LogsResponse,
+  TraceLogsRequest,
+  TraceLogsResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
 
@@ -45,6 +47,26 @@ export class LogApi {
       'POST',
       `/api/layer/${encodeURIComponent(layerKey)}/logs/facets`,
       body,
+    );
+  }
+
+  /** The log lines carrying a trace's id — or one span's: a native span by its
+   *  segment and span id, an OTLP or Zipkin span by its hex id — read around
+   *  the trace's own span range. */
+  forTrace(traceId: string, req: TraceLogsRequest, signal?: AbortSignal): Promise<TraceLogsResponse> {
+    const q = new URLSearchParams({ startMs: String(req.startMs), endMs: String(req.endMs) });
+    if (req.segmentId) q.set('segmentId', req.segmentId);
+    if (req.spanId !== undefined) q.set('spanId', String(req.spanId));
+    if (req.otlpSpanId) q.set('otlpSpanId', req.otlpSpanId);
+    if (req.altTraceId) q.set('altTraceId', req.altTraceId);
+    if (req.page) q.set('page', String(req.page));
+    if (req.pageSize) q.set('pageSize', String(req.pageSize));
+    return this.bff.request<TraceLogsResponse>(
+      'GET',
+      `/api/trace/${encodeURIComponent(traceId)}/logs?${q.toString()}`,
+      undefined,
+      undefined,
+      signal,
     );
   }
 

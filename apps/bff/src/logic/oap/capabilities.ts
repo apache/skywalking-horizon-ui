@@ -21,7 +21,10 @@
  * newer field need to know whether the connected OAP exposes it.
  *
  * The probe runs a minimal `__type(name: "Query") { fields { name } }`
- * introspection call and reports per-feature booleans. Result is cached
+ * introspection call, then one more per input type whose growth matters, and
+ * reports per-feature booleans. One `__type` per request: OAP's GraphQL engine
+ * refuses a document that names it twice as bad-faith introspection, which
+ * would fail every capability at once. Result is cached
  * per `queryUrl` for `CAPS_TTL_MS` — the GraphQL schema is fixed for an
  * OAP process lifetime, so the TTL only matters across OAP restarts
  * (and the staleness is harmless: legacy-mode fallback works against
@@ -47,6 +50,9 @@ export interface OapCapabilities {
   logKeywords: boolean;
   /** `Query.listConversations` — AI agent conversations (OAP 11.1.0+). */
   aiConversations: boolean;
+  /** `TraceScopeCondition.otlpSpanId` — the logs one OTLP or Zipkin span wrote
+   *  (OAP 11.2.0+). Sending it to an OAP without it fails the whole query. */
+  logOtlpSpanId: boolean;
 }
 
 const INTROSPECTION_QUERY = /* GraphQL */ `
@@ -55,8 +61,18 @@ const INTROSPECTION_QUERY = /* GraphQL */ `
   }
 `;
 
+const TRACE_SCOPE_QUERY = /* GraphQL */ `
+  query HorizonTraceScopeFields {
+    __type(name: "TraceScopeCondition") { inputFields { name } }
+  }
+`;
+
+type NameList = Array<{ name?: string | null } | null> | null;
 interface IntrospectionRaw {
-  __type?: { fields?: Array<{ name?: string | null } | null> | null } | null;
+  __type?: { fields?: NameList } | null;
+}
+interface InputFieldsRaw {
+  __type?: { inputFields?: NameList } | null;
 }
 
 /** The storage-answered half. Asked only when introspection proved the field
@@ -137,7 +153,7 @@ async function probeCapabilities(
       INTROSPECTION_QUERY,
     );
   } catch {
-    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false, aiConversations: false };
+    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false, aiConversations: false, logOtlpSpanId: false };
     cache = { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS };
     return conservative;
   }
@@ -162,10 +178,18 @@ async function probeCapabilities(
       probeFailed = true;
     }
   }
+  let logOtlpSpanId = false;
+  try {
+    const env = await graphqlPost<InputFieldsRaw>(buildOapOpts(config, fetchImpl), TRACE_SCOPE_QUERY);
+    logOtlpSpanId = (env.__type?.inputFields ?? []).some((f) => f?.name === 'otlpSpanId');
+  } catch {
+    probeFailed = true;
+  }
   const result: OapCapabilities = {
     queryAlarms: fieldSet.has('queryAlarms'),
     logKeywords,
     aiConversations: fieldSet.has('listConversations'),
+    logOtlpSpanId,
   };
   // A false that came from a TIMEOUT expires on the short TTL, not the long
   // one: caching it for the full window would hide content search on a

@@ -16,7 +16,8 @@
 -->
 <!--
   Span-detail modal — meta, cross-trace refs, tags, logs and attached
-  events for a single span. Opened by clicking a row / tree node in the
+  events for a single span, and a Related logs button opening the stored
+  logs this span wrote. Opened by clicking a row / tree node in the
   trace-detail card. Cross-trace refs route through openTrace() → the
   global popout.
 
@@ -26,27 +27,39 @@
                     whose traceId differs from it.
     serviceColors — the card's service → colour map, so the swatch
                     matches the legend.
+    traceStartMs / traceEndMs — the trace's span range, the window its
+                    logs are searched around.
+    replay        — a captured trace: no live log reads, so no Related logs.
 
   Emits:
     close         — the × / backdrop click closed the modal.
 -->
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import LongValue from '@/components/primitives/LongValue.vue';
+import TraceLogsPopout from './TraceLogsPopout.vue';
+import SpanLogsButton from './SpanLogsButton.vue';
 import {
   serviceColorFrom, kindColor, fmtMs, fmtDateTime, fmtAttachedTs,
 } from './traceDetailShared';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{
-  span: NativeSpan;
-  traceId: string | null;
-  serviceColors: Map<string, string>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    span: NativeSpan;
+    traceId: string | null;
+    serviceColors: Map<string, string>;
+    traceStartMs?: number | null;
+    traceEndMs?: number | null;
+    replay?: boolean;
+  }>(),
+  { traceStartMs: null, traceEndMs: null, replay: false },
+);
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 const { openTrace } = useTracePopout();
@@ -55,6 +68,9 @@ useEscapeToClose(() => true, () => emit('close'));
 
 function serviceColor(c: string): string { return serviceColorFrom(props.serviceColors, c); }
 function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
+
+const logsOpen = ref(false);
+watch(() => props.span, () => { logsOpen.value = false; });
 </script>
 
 <template>
@@ -65,6 +81,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
           <span class="dim">{{ t('Span detail') }}</span>
           <span class="mono">{{ span.endpointName || '—' }}</span>
         </h4>
+        <SpanLogsButton v-if="!replay" class="span-logs" kind="native" @open="logsOpen = true" />
         <button class="sw-btn small ghost" type="button" @click="$emit('close')">×</button>
       </header>
       <div class="span-modal-body">
@@ -153,6 +170,15 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
       </div>
     </article>
   </div>
+  <TraceLogsPopout
+    :open="logsOpen"
+    :trace-id="span.traceId || traceId"
+    :segment-id="span.segmentId"
+    :span-id="span.spanId"
+    :start-ms="traceStartMs"
+    :end-ms="traceEndMs"
+    @close="logsOpen = false"
+  />
 </template>
 
 <style scoped>
@@ -245,6 +271,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 }
 .span-modal-body { padding: 12px 14px 16px; overflow-y: auto; }
 .sd-section { margin-bottom: 18px; }
+.span-logs { margin-right: 8px; }
 .sd-section h5 {
   margin: 0 0 6px;
   font-size: 9.5px;

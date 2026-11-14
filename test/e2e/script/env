@@ -57,7 +57,10 @@
 # Must also be at or after f34b9c7ef0 (#14152), whose GenAI evaluation records
 # name the store holding the judged span (`ZIPKIN` among them): the `genai`
 # case reads all three stores.
-SW_OAP_COMMIT=f34b9c7ef04792fcd48869aaa44c88f2e802ebc4
+# Must also be at or after edf43f3f30 (#14213), which stores an OTLP log
+# record's trace id and span id and reads logs by an OTLP or Zipkin span: the
+# `genai` case opens both from its traces.
+SW_OAP_COMMIT=edf43f3f30ecf2ec729c79dabeb15ed57270d814
 
 # The AI Sessionizer, which builds a conversation and pushes it to OAP. Only
 # the `ai-agent` case runs it, and only once: a conversation is a chain of
@@ -68,10 +71,11 @@ SW_AI_SESSIONIZER_COMMIT=fc04fa1248ddf495736106f17fd70057212bc97e
 # BanyanDB — the storage every case runs on. OAP's own default selector is
 # banyandb, so no SW_STORAGE override is needed anywhere.
 #
-# This is the v0.11.0 RELEASE commit. 0.11 is the first release carrying the
+# Must be at or after v0.11.0 (3b83e18f), the first release carrying the
 # schema-consistency surface the BanyanDB client depends on: SchemaBarrierService,
 # STATUS_SCHEMA_NOT_APPLIED, and created_at on schema objects.
-SW_BANYANDB_COMMIT=3b83e18fb0481d02e44eaa5df137fcf7b000754b
+# A main-branch commit, ahead of the v0.11.0 release OAP's own e2e pins.
+SW_BANYANDB_COMMIT=aa8c827d92b963837b0779e9dd47d09836a4ea37
 
 # Java agent image. Carries the agent at /skywalking/agent and presets
 # JAVA_TOOL_OPTIONS, so the demo services need no -javaagent of their own.

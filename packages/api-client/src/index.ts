@@ -192,7 +192,10 @@ export type {
   LogQueryRequest,
   LogsResponse,
   LogFacetsResponse,
+  TraceLogsRequest,
+  TraceLogsResponse,
 } from './logs.js';
+export { TRACE_LOG_WINDOW_PAD_MS } from './logs.js';
 export type {
   GenAITraceRefType,
   EvaluationRecordQueryRequest,

@@ -23,15 +23,22 @@
   spans. Converting OTLP into SkyWalking's span model is OAP's job, not
   Horizon's; here a span is an OTLP span, and every field on screen is one the
   protocol actually defines.
+
+  Its Logs button opens the stored logs carrying the trace id. An OTLP span
+  id is not something a log records, so they are the whole trace's.
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TraceQLDatasource, TraceQLSpan } from '@skywalking-horizon-ui/api-client';
+import { zipkinLogTraceIds } from '@/render/widgets/useTraceLogs';
 import TraceQLWaterfall from './TraceQLWaterfall.vue';
 import TraceQLTreeView from './TraceQLTreeView.vue';
 import TraceQLStatsView from './TraceQLStatsView.vue';
 import TraceQLSpanModal from './TraceQLSpanModal.vue';
+import TraceLogsPopout from '@/render/widgets/TraceLogsPopout.vue';
+import Icon from '@/components/icons/Icon.vue';
+import { useServiceFocus } from '@/render/widgets/useServiceFocus';
 import { buildServiceColors, fmtDateTime, fmtMs, serviceColorFrom, traceqlSource } from './traceqlDetailShared';
 import { traceLink } from '@/layer/traces/tracePopoutQuery';
 import { copyText } from '@/utils/clipboard';
@@ -48,16 +55,37 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n({ useScope: 'global' });
 
 type ViewMode = 'default' | 'tree' | 'statistics';
+const logsOpen = ref(false);
+/** The span whose logs the box shows; null shows the whole trace's. */
+const logsSpan = ref<string | null>(null);
+function openLogs(spanId: string | null): void {
+  logsSpan.value = spanId;
+  logsOpen.value = true;
+}
+function closeLogs(): void {
+  logsOpen.value = false;
+  logsSpan.value = null;
+}
+// OAP finds a Zipkin trace by an id it pads or shortens, and an OTLP one by
+// its lowercase form; a log is matched on the id exactly, so it is read by the
+// spellings OAP keeps. A native id is taken as it is.
+const logsIds = computed<{ traceId: string; altTraceId?: string }>(() => {
+  if (props.ds === 'zipkin') return zipkinLogTraceIds(props.traceId);
+  if (props.ds === 'otlp') return { traceId: props.traceId.trim().toLowerCase() };
+  return { traceId: props.traceId };
+});
 const viewMode = ref<ViewMode>('default');
 const selected = ref<TraceQLSpan | null>(null);
+const { focusService, toggleFocus } = useServiceFocus(() => props.traceId);
 
 // Keeping the picked span would show the previous trace's span under this
-// trace's id.
+// trace's id — and an open logs box would read this trace by that span.
 watch(
   () => props.traceId,
   () => {
     selected.value = null;
     viewMode.value = 'default';
+    closeLogs();
   },
 );
 
@@ -85,6 +113,8 @@ const durationUs = computed(() => {
   if (props.spans.length === 0) return 0;
   return Math.max(...props.spans.map((s) => s.startUs + s.durationUs)) - startedUs.value;
 });
+const logStartMs = computed(() => (props.spans.length ? Math.floor(startedUs.value / 1000) : null));
+const logEndMs = computed(() => (props.spans.length ? Math.ceil((startedUs.value + durationUs.value) / 1000) : null));
 
 /** Copy the id, and a URL that reopens this trace on THIS store — the two
  *  TraceQL rows are different pages over different stores, so a link without
@@ -118,6 +148,7 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
       <transition name="copy-flash">
         <span v-if="copyFlash" class="copy-chip">{{ copyFlash === 'url' ? t('url copied') : t('id copied') }}</span>
       </transition>
+      <button v-if="spans.length > 0" class="sw-btn small ghost logs-btn" type="button" :title="t('Logs carrying this trace id')" @click="openLogs(null)"><Icon name="log" :size="12" />{{ t('Logs') }}</button>
       <div class="view-toggle">
         <button :class="['vt-btn', { on: viewMode === 'default' }]" type="button" @click="viewMode = 'default'">{{ t('Default') }}</button>
         <button :class="['vt-btn', { on: viewMode === 'tree' }]" type="button" @click="viewMode = 'tree'">{{ t('Tree') }}</button>
@@ -134,9 +165,19 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
     </div>
 
     <div class="tqc-legend">
-      <span v-for="svc in services" :key="svc" class="lg">
+      <button
+        v-for="svc in services"
+        :key="svc"
+        type="button"
+        class="lg"
+        :class="{ on: focusService === svc }"
+        :style="{ '--svc-hl': serviceColorFrom(colors, svc) }"
+        :aria-pressed="focusService === svc"
+        :title="t('Highlight the spans of this service')"
+        @click="toggleFocus(svc)"
+      >
         <span class="dot" :style="{ background: serviceColorFrom(colors, svc) }" />{{ svc || '—' }}
-      </span>
+      </button>
     </div>
 
     <p v-if="loading" class="tqc-note">{{ t('Reading data…') }}</p>
@@ -144,17 +185,35 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
       v-else-if="viewMode === 'default'"
       :spans="spans"
       :selected-span="selected"
+      :focus-service="focusService"
       @select-span="selected = $event"
     />
     <TraceQLTreeView
       v-else-if="viewMode === 'tree'"
       :spans="spans"
       :selected-span="selected"
+      :focus-service="focusService"
       @select-span="selected = $event"
     />
-    <TraceQLStatsView v-else :spans="spans" />
+    <TraceQLStatsView v-else :spans="spans" :focus-service="focusService" />
 
-    <TraceQLSpanModal v-if="selected" :span="selected" :trace-id="traceId" @close="selected = null" />
+    <TraceQLSpanModal
+      v-if="selected"
+      :span="selected"
+      :trace-id="traceId"
+      :logs="ds !== 'native'"
+      @close="selected = null"
+      @related-logs="openLogs"
+    />
+    <TraceLogsPopout
+      :open="logsOpen"
+      :trace-id="logsIds.traceId"
+      :alt-trace-id="logsIds.altTraceId"
+      :otlp-span-id="logsSpan ?? undefined"
+      :start-ms="logStartMs"
+      :end-ms="logEndMs"
+      @close="closeLogs"
+    />
   </article>
 </template>
 
@@ -172,6 +231,8 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
 }
 .tqc-label { font-size: 12px; font-weight: 500; color: var(--sw-fg-3); }
 .tqc-head h3 { margin: 0; font-size: 12px; font-weight: 400; color: var(--sw-fg-1); overflow-wrap: anywhere; }
+.logs-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; }
+.logs-btn + .view-toggle { margin-left: 0; }
 .copy-chip { font-size: 10px; color: var(--sw-accent); border: 1px solid var(--sw-accent); border-radius: 3px; padding: 0 5px; }
 .copy-flash-enter-active, .copy-flash-leave-active { transition: opacity 0.2s; }
 .copy-flash-enter-from, .copy-flash-leave-to { opacity: 0; }
@@ -204,6 +265,13 @@ onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
   border: 1px solid var(--sw-line-2);
   border-radius: 10px;
   padding: 1px 6px 1px 4px;
+  cursor: pointer;
+}
+.tqc-legend .lg:hover { border-color: var(--sw-fg-3); }
+.tqc-legend .lg.on {
+  color: var(--sw-fg-1);
+  border-color: var(--svc-hl);
+  background: color-mix(in srgb, var(--svc-hl) 22%, var(--sw-bg-2));
 }
 .tqc-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
 .tqc-note { padding: 16px 12px; font-size: 11.5px; color: var(--sw-fg-3); }

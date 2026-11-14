@@ -17,21 +17,34 @@
 
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { traceRowIsZipkin } from '@skywalking-horizon-ui/api-client';
+import { resolveTraceStores, type TraceStore } from '@skywalking-horizon-ui/api-client';
 import { useLayers } from '@/shell/useLayers';
-import { resolveEntry, routeRow } from '@/utils/layerRoute';
+import { findEntry, resolveEntry, routeRow } from '@/utils/layerRoute';
 
-/** The trace source of this page's own traces, for a link from something
- *  that carries only a trace id — a log row: Zipkin on the Zipkin Traces row
- *  or on a layer whose trace row is Zipkin, native everywhere else. */
-export function usePageTraceSource() {
+/** The trace store of a view's own traces, for a link from something that
+ *  carries only a trace id — a log row: on a layer, its native store when it
+ *  has one, else the first store it does have (Zipkin on a Zipkin layer, OTLP
+ *  through TraceQL on an OTLP layer); native where no layer is known.
+ *  `entryKey` is the menu entry the view reads — a layer, or `layer/group` —
+ *  when it is not the route's: a logs block embedded in another page, or the
+ *  service picked on Log inspect. Without one, the route decides, and the
+ *  Zipkin Traces row is Zipkin. */
+export function usePageTraceSource(entryKey?: () => string | null | undefined) {
   const route = useRoute();
   const { layers } = useLayers();
-  return computed<'native' | 'zipkin'>(() => {
-    if (routeRow(route) === 'zipkin-trace') return 'zipkin';
-    const layer = route.params.layerKey;
-    if (typeof layer !== 'string') return 'native';
-    const group = typeof route.params.group === 'string' ? route.params.group : undefined;
-    return traceRowIsZipkin(resolveEntry(layers.value, layer, group).def?.traces) ? 'zipkin' : 'native';
+  return computed<TraceStore>(() => {
+    const key = entryKey?.();
+    let traces;
+    if (key) {
+      traces = findEntry(layers.value, key)?.traces;
+    } else {
+      if (routeRow(route) === 'zipkin-trace') return 'zipkin';
+      const layer = route.params.layerKey;
+      if (typeof layer !== 'string' || !layer) return 'native';
+      const group = typeof route.params.group === 'string' ? route.params.group : undefined;
+      traces = resolveEntry(layers.value, layer, group).def?.traces;
+    }
+    const stores = resolveTraceStores(traces);
+    return stores.length === 0 || stores.includes('native') ? 'native' : stores[0]!;
   });
 }

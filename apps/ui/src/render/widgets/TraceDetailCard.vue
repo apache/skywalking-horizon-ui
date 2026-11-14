@@ -22,14 +22,17 @@
       one trace id), copy-id / copy-url buttons, the
       Default / Tree / Statistics view toggle, and a × close,
     • KPIs (started / duration / spans / services),
-    • a per-service colour legend,
+    • a per-service colour legend; clicking a service highlights its
+      spans in whichever view is open, and clicking it again clears it,
     • the Default service-striped waterfall (TraceWaterfallView),
     • the Tree view (TraceTreeView — d3 horizontal hierarchical layout),
     • the Statistics view (TraceStatsView — per-span-name roll-up),
+    • a Logs button opening TraceLogsPopout — the stored logs carrying the
+      trace id, read only once it is opened,
     • a span-detail modal (SpanDetailModal) opened by clicking a row /
       tree node.
 
-  The card owns its own view-mode, span-modal and copy-flash state;
+  The card owns its own view-mode, highlighted-service, span-modal and copy-flash state;
   each sub-view owns its own sort / zoom state — callers only feed the
   trace + emit the close.
 
@@ -38,21 +41,29 @@
     traceId   — the active trace id (drives the header label + url copy).
     traceIds  — every trace id carried by the selected segment; >1
                 renders the trace-id select.
-    loading   — show a "loading…" hint in the header while detail fetches.
+    loading   — the detail is being read; the header says so only while the
+                trace has no spans yet, so a re-read of a shown trace (a
+                window refocus after it went stale) never sits beside the
+                Logs button as if the logs were loading.
+    replay    — a captured trace (an AI chat block): no live log reads, so
+                no Logs or Related logs.
 
   Emits:
     close            — the × was clicked.
     change-trace-id  — a different id was picked from the multi-id select.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan } from '@/api/client';
 import TraceWaterfallView from './TraceWaterfallView.vue';
 import TraceTreeView from './TraceTreeView.vue';
 import TraceStatsView from './TraceStatsView.vue';
 import SpanDetailModal from './SpanDetailModal.vue';
+import TraceLogsPopout from './TraceLogsPopout.vue';
+import Icon from '@/components/icons/Icon.vue';
 import { buildServiceColors, fmtMs, fmtDateTime } from './traceDetailShared';
+import { useServiceFocus } from './useServiceFocus';
 import { copyText } from '@/utils/clipboard';
 import { traceLink } from '@/layer/traces/tracePopoutQuery';
 
@@ -64,8 +75,9 @@ const props = withDefaults(
     traceId: string | null;
     traceIds: string[];
     loading?: boolean;
+    replay?: boolean;
   }>(),
-  { loading: false },
+  { loading: false, replay: false },
 );
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -95,9 +107,11 @@ function copyShareableUrl(): void {
 onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
 
 type ViewMode = 'default' | 'tree' | 'statistics';
+const logsOpen = ref(false);
 const viewMode = ref<ViewMode>('default');
 
 const serviceColors = computed<Map<string, string>>(() => buildServiceColors(nativeSpans.value));
+const { focusService, toggleFocus } = useServiceFocus(() => props.traceId);
 
 const nativeWaterfallDuration = computed(() => {
   const spans = nativeSpans.value;
@@ -109,6 +123,10 @@ const nativeRootStart = computed(() => {
   const spans = nativeSpans.value;
   return spans.length > 0 ? Math.min(...spans.map((s) => s.startTime)) : null;
 });
+const nativeLastEnd = computed(() => {
+  const spans = nativeSpans.value;
+  return spans.length > 0 ? Math.max(...spans.map((s) => s.endTime)) : null;
+});
 
 // The modal registers its own Escape with the shared helper, which answers
 // the innermost open box — so the host needs neither to be told it opened nor
@@ -116,6 +134,9 @@ const nativeRootStart = computed(() => {
 const openSpan = ref<NativeSpan | null>(null);
 function openNativeSpan(s: NativeSpan): void { openSpan.value = s; }
 function closeSpan(): void { openSpan.value = null; }
+// Another trace closes what belongs to this one: a span dialog left open would
+// search its span's logs in the new trace's window.
+watch(() => props.traceId, () => { openSpan.value = null; logsOpen.value = false; });
 </script>
 
 <template>
@@ -134,7 +155,8 @@ function closeSpan(): void { openSpan.value = null; }
         </transition>
       </div>
       <div class="tr-detail-tools">
-        <span v-if="loading" class="hint">{{ t('loading…') }}</span>
+        <span v-if="loading && spans.length === 0" class="hint">{{ t('loading spans…') }}</span>
+        <button v-if="!replay && spans.length > 0" class="sw-btn small ghost logs-btn" type="button" :title="t('Logs carrying this trace id')" @click="logsOpen = true"><Icon name="log" :size="12" />{{ t('Logs') }}</button>
         <div class="view-toggle">
           <button :class="['vt-btn', { on: viewMode === 'default' }]" type="button" @click="viewMode = 'default'">{{ t('Default') }}</button>
           <button :class="['vt-btn', { on: viewMode === 'tree' }]" type="button" @click="viewMode = 'tree'">{{ t('Tree') }}</button>
@@ -152,23 +174,35 @@ function closeSpan(): void { openSpan.value = null; }
     </div>
 
     <div v-if="serviceColors.size > 0" class="tr-svc-legend">
-      <span v-for="[code, color] in serviceColors" :key="code" class="svc-chip">
+      <button
+        v-for="[code, color] in serviceColors"
+        :key="code"
+        type="button"
+        class="svc-chip"
+        :class="{ on: focusService === code }"
+        :style="{ '--svc-hl': color }"
+        :aria-pressed="focusService === code"
+        :title="t('Highlight the spans of this service')"
+        @click="toggleFocus(code)"
+      >
         <span class="svc-swatch" :style="{ background: color }" />
         <span class="mono">{{ code }}</span>
-      </span>
+      </button>
     </div>
 
     <TraceWaterfallView
       v-if="viewMode === 'default'"
       :spans="nativeSpans"
+      :focus-service="focusService"
       @select-span="openNativeSpan"
     />
     <TraceTreeView
       v-else-if="viewMode === 'tree'"
       :spans="nativeSpans"
+      :focus-service="focusService"
       @select-span="openNativeSpan"
     />
-    <TraceStatsView v-else :spans="nativeSpans" />
+    <TraceStatsView v-else :spans="nativeSpans" :focus-service="focusService" />
   </article>
 
   <SpanDetailModal
@@ -176,8 +210,12 @@ function closeSpan(): void { openSpan.value = null; }
     :span="openSpan"
     :trace-id="traceId"
     :service-colors="serviceColors"
+    :trace-start-ms="nativeRootStart"
+    :trace-end-ms="nativeLastEnd"
+    :replay="replay"
     @close="closeSpan"
   />
+  <TraceLogsPopout :open="logsOpen" :trace-id="traceId" :start-ms="nativeRootStart" :end-ms="nativeLastEnd" @close="logsOpen = false" />
 </template>
 
 <style scoped>
@@ -225,6 +263,7 @@ function closeSpan(): void { openSpan.value = null; }
   min-width: 320px;
 }
 .tr-detail-tools { display: flex; align-items: center; gap: 10px; }
+.logs-btn { display: inline-flex; align-items: center; gap: 5px; }
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--sw-line-2);
@@ -288,6 +327,14 @@ function closeSpan(): void { openSpan.value = null; }
   border: 1px solid var(--sw-line-2);
   border-radius: 10px;
   background: var(--sw-bg-2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.svc-chip:hover { border-color: var(--sw-fg-3); }
+.svc-chip.on {
+  color: var(--sw-fg-1);
+  border-color: var(--svc-hl);
+  background: color-mix(in srgb, var(--svc-hl) 22%, var(--sw-bg-2));
 }
 .svc-swatch {
   width: 8px;

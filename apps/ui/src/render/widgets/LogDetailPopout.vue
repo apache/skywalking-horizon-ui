@@ -26,7 +26,9 @@
   owns the trace jump — the popout just emits `jump-trace`.
 
   Props:
-    row  — the LogRow to show; `null` keeps the popout closed.
+    row        — the LogRow to show; `null` keeps the popout closed.
+    traceLink  — false drops the trace link, for a row opened from inside
+                 its own trace.
   Emits:
     close      — dismiss (× button, Escape, backdrop).
     jump-trace — { traceId, ts } when the operator clicks the trace link.
@@ -41,7 +43,7 @@ import { copyText } from '@/utils/clipboard';
 
 const { t } = useI18n();
 
-const props = defineProps<{ row: LogRow | null }>();
+const props = withDefaults(defineProps<{ row: LogRow | null; traceLink?: boolean }>(), { traceLink: true });
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'jump-trace', payload: { traceId: string; ts: number }): void;
@@ -89,7 +91,7 @@ function onJumpTrace(): void {
         </div>
         <div class="ld-ctrls">
           <button class="sw-btn small" :class="{ 'is-copied': copied }" type="button" @click="copyContent">{{ copied ? t('Copied') : t('Copy') }}</button>
-          <button v-if="row.traceId" class="sw-btn small" type="button" @click="onJumpTrace">↗ {{ t('trace') }}</button>
+          <button v-if="traceLink && row.traceId" class="sw-btn small" type="button" @click="onJumpTrace">↗ {{ t('trace') }}</button>
         </div>
       </div>
       <div class="ld-meta">

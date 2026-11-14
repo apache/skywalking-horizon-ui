@@ -653,6 +653,7 @@ const visibleRows = computed<TraceListRow[]>(() => {
         :spans="selectedSpans"
         :trace-id="selectedTraceId"
         :loading="selectedLoading"
+        :replay="replay"
         @close="closeDetail"
       />
     </section>

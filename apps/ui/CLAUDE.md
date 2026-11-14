@@ -19,7 +19,7 @@ The scopes are not organised by screen, and several screens legitimately share o
 | `overview` | the overview renderer, and its admin editor |
 | `layer` | the layer shell's landing / services / instances / endpoints, both maps, layer dashboards, **and the overview renderer** |
 | `trace`, `zipkin` | the Traces tab, plus trace popouts from other screens |
-| `log`, `browserErrors` | the Logs, Pod logs and Browser errors tabs |
+| `log`, `browserErrors` | the Logs, Pod logs and Browser errors tabs, and every trace detail's Logs view |
 | `events` | the Events page |
 | `profile`, `ebpf`, `networkProfile`, `asyncProfile`, `pprof`, `continuousProfiling` | the profiling tabs, and the AI chat's proposal blocks |
 | `alarms` | the Alarms pages, the dashboard alarms widget, the 3D map, the sidebar count and the sidebar's named alarm pages, the Alert pages admin's group picker |

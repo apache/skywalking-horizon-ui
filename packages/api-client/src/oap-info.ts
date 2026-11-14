@@ -80,6 +80,9 @@ export interface OapCapabilities {
    *  without it lists no `AI_AGENT` layer either, so the sidebar row disappears
    *  on its own; this is what lets a bookmarked conversation page say why. */
   aiConversations: boolean;
+  /** `TraceScopeCondition.otlpSpanId` — the logs one OTLP or Zipkin span
+   *  wrote (OAP 11.2.0+). Older OAPs read logs by trace, or by native span. */
+  logOtlpSpanId: boolean;
 }
 
 /** Storage backend the connected OAP runs on, as far as the BFF can

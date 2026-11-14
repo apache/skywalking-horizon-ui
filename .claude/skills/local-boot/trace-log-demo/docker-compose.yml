@@ -1,0 +1,203 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# A throwaway OAP with traces AND the logs written inside them, from all three
+# trace stores, for working on trace <-> log features. Images are the ones the
+# e2e fixture pins (test/e2e/script/env); `up.sh` exports them from that file.
+#
+#   native  e2e-service-consumer -> e2e-service-provider on the Java agent. The
+#           provider's /logs/trigger writes log lines inside its traced request,
+#           reported with the trace id, segment id and span id.
+#   OTLP    e2e-otel-python: OpenTelemetry traces kept as OTLP spans (read on
+#           the TraceQL tabs), its logs exported over OTLP carrying the trace
+#           and span ids.
+#   Zipkin  e2e-zipkin-python: the same caller exporting Zipkin spans to OAP's
+#           Zipkin receiver, its logs over OTLP.
+#
+# The two Python callers make one OpenAI call per request against the mock LLM
+# and log one line inside that call's span.
+#
+# Host ports are offset so this runs beside the other local environments:
+# GraphQL 12830, admin 17148, agent gRPC / OTLP 11820, Zipkin query 9422,
+# TraceQL 3210.
+
+services:
+  banyandb:
+    image: "ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}"
+    command: standalone --measure-metadata-cache-wait-duration 1m --stream-metadata-cache-wait-duration 1m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -nz 127.0.0.1 17912"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  oap:
+    image: "ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}"
+    ports:
+      - "12830:12800"
+      - "17148:17128"
+      - "11820:11800"
+      - "9422:9412"
+      - "3210:3200"
+    environment:
+      SW_HEALTH_CHECKER: default
+      SW_STORAGE_BANYANDB_TARGETS: banyandb:17912
+      SW_TRACEQL: default
+      SW_TRACEQL_ENABLE_DATASOURCE_OTLP: "true"
+      SW_RECEIVER_ZIPKIN: default
+      SW_QUERY_ZIPKIN: default
+      # Replaces OAP's bundled list. `horizon-e2e` stores the GENERAL layer's
+      # logs (the Java services and the Zipkin caller); `otlp-general` stores
+      # the OTLP caller's, which declares OTLP_GENERAL — a layer OAP bundles
+      # no LAL rule for, so its logs are otherwise accepted and dropped.
+      SW_LOG_LAL_FILES: horizon-e2e,otlp-general
+    volumes:
+      - ../../../../test/e2e/script/docker-compose/lal.yaml:/skywalking/config/lal/horizon-e2e.yaml
+      - ../../../../test/e2e/cases/genai/lal.yaml:/skywalking/config/lal/otlp-general.yaml
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/11800"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+      start_period: 90s
+    depends_on:
+      banyandb:
+        condition: service_healthy
+
+  provider:
+    image: "horizon-e2e-demo-provider:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    environment:
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_AGENT_NAME: e2e-service-provider
+      SW_AGENT_INSTANCE_NAME: provider1
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_METER_ACTIVE: 'true'
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9090"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+    depends_on:
+      oap:
+        condition: service_healthy
+
+  consumer:
+    image: "horizon-e2e-demo-consumer:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    environment:
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_AGENT_NAME: e2e-service-consumer
+      SW_AGENT_INSTANCE_NAME: consumer1
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_METER_ACTIVE: 'true'
+      PROVIDER_URL: http://provider:9090
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9092"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+    depends_on:
+      provider:
+        condition: service_healthy
+
+  mock-llm-server:
+    image: "ghcr.io/apache/skywalking/e2e-mock-llm-server:${SW_E2E_SERVICE_COMMIT}"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9090"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  otelpy:
+    build:
+      context: ../../../../test/e2e/script
+      dockerfile: Dockerfile.otel-python
+    image: horizon-e2e-otel-python:e2e
+    environment:
+      OPENAI_BASE_URL: http://mock-llm-server:9090/llm/otlp/v1
+      OPENAI_API_KEY: demo-not-a-key
+      OTEL_SERVICE_NAME: e2e-otel-python
+      # OAP analyses natively stored OTLP spans only for a declared layer.
+      OTEL_RESOURCE_ATTRIBUTES: service.layer=OTLP_GENERAL
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://oap:11800
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+    depends_on:
+      oap:
+        condition: service_healthy
+      mock-llm-server:
+        condition: service_healthy
+
+  zipkinpy:
+    build:
+      context: ../../../../test/e2e/script
+      dockerfile: Dockerfile.otel-python
+    image: horizon-e2e-otel-python:e2e
+    environment:
+      OPENAI_BASE_URL: http://mock-llm-server:9090/llm/otlp/v1
+      OPENAI_API_KEY: demo-not-a-key
+      OTEL_SERVICE_NAME: e2e-zipkin-python
+      OTEL_TRACES_EXPORTER: zipkin_json
+      OTEL_EXPORTER_ZIPKIN_ENDPOINT: http://oap:9411/api/v2/spans
+      OTEL_METRICS_EXPORTER: none
+      # Zipkin carries no logs, so they go over OTLP.
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://oap:11800
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: grpc
+      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 9091), 2).close()"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+    depends_on:
+      oap:
+        condition: service_healthy
+      mock-llm-server:
+        condition: service_healthy
+
+  # Every generator in turn, for as long as the stack runs: a cross-service
+  # native call, a native request that logs, one OTLP and one Zipkin LLM call.
+  loadgen:
+    image: "${TRAFFIC_GEN_IMAGE}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          curl -sf -m 30 -o /dev/null -X POST http://consumer:9092/users \
+            -H 'Content-Type: application/json' -d '{"id":"123","name":"skywalking"}' || true
+          curl -sf -m 30 -o /dev/null http://provider:9090/logs/trigger || true
+          curl -sf -m 60 -o /dev/null http://otelpy:9091/ || true
+          curl -sf -m 60 -o /dev/null http://zipkinpy:9091/ || true
+          sleep 3
+        done
+    depends_on:
+      consumer:
+        condition: service_healthy
+      otelpy:
+        condition: service_healthy
+      zipkinpy:
+        condition: service_healthy

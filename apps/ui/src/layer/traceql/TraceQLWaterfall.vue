@@ -21,9 +21,10 @@
   three-valued status.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import SpanKindGlyph from '@/components/primitives/SpanKindGlyph.vue';
+import { useRevealHighlighted } from '@/render/widgets/useServiceFocus';
 import type { TraceQLSpan } from '@skywalking-horizon-ui/api-client';
 import {
   buildServiceColors,
@@ -39,13 +40,16 @@ import {
 } from './traceqlDetailShared';
 
 /** The selected SPAN OBJECT rather than its id: two Zipkin records can share a
- *  span id, and comparing ids highlights both. */
-const props = defineProps<{ spans: TraceQLSpan[]; selectedSpan?: TraceQLSpan | null }>();
+ *  span id, and comparing ids highlights both. `focusService` is the service
+ *  picked in the legend; its rows are highlighted. */
+const props = defineProps<{ spans: TraceQLSpan[]; selectedSpan?: TraceQLSpan | null; focusService?: string | null }>();
 const emit = defineEmits<{ (e: 'select-span', span: TraceQLSpan): void }>();
 
 const { t } = useI18n({ useScope: 'global' });
 const rows = computed(() => buildSpanTree(props.spans));
 const colors = computed(() => buildServiceColors(props.spans));
+const listEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(listEl, () => props.focusService);
 const total = computed(() => {
   const r = rows.value;
   if (r.length === 0) return 1;
@@ -55,12 +59,13 @@ const pct = (v: number): string => `${Math.min(100, (v / total.value) * 100)}%`;
 </script>
 
 <template>
-  <ul class="tqw">
+  <ul ref="listEl" class="tqw">
     <li
       v-for="row in rows"
       :key="row.key"
       class="tqw-row"
-      :class="{ on: selectedSpan === row.span, err: spanStatus(row.span) === 'error' }"
+      :class="{ on: selectedSpan === row.span, err: spanStatus(row.span) === 'error', 'svc-hl': row.span.service === focusService }"
+      :style="row.span.service === focusService ? { '--svc-hl': serviceColorFrom(colors, row.span.service) } : undefined"
       @click="emit('select-span', row.span)"
     >
       <span class="tqw-svc" :style="{ background: serviceColorFrom(colors, row.span.service) }" />
@@ -117,6 +122,7 @@ const pct = (v: number): string => `${Math.min(100, (v / total.value) * 100)}%`;
   min-height: 28px;
 }
 .tqw-row:hover { background: var(--sw-bg-2); }
+.tqw-row.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 .tqw-row.on { background: var(--sw-bg-3); }
 .tqw-row.err .tqw-name { color: var(--sw-err); }
 .tqw-svc { width: 3px; height: 16px; border-radius: 1px; flex: 0 0 auto; }

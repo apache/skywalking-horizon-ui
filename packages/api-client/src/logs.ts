@@ -92,6 +92,57 @@ export interface LogsResponse {
   error?: string;
 }
 
+/** `GET /api/trace/:traceId/logs` — the log lines that carry a trace's id.
+ *  `segmentId` + `spanId` narrow it to one native span, `otlpSpanId` to one
+ *  OTLP or Zipkin span (OAP 11.2.0+, see `OapCapabilities.logOtlpSpanId`). */
+export interface TraceLogsRequest {
+  segmentId?: string;
+  spanId?: number;
+  /** 16 lowercase hex characters. */
+  otlpSpanId?: string;
+  /** Another spelling OAP may hold the trace's logs under — a 64-bit Zipkin
+   *  id's zero-padded 32-character form, which OAP keeps for an OTLP log when
+   *  it stores OTLP traces natively. Read on page 1 only when `traceId` finds
+   *  nothing; the reply's `traceId` names the one that answered. */
+  altTraceId?: string;
+  /** The trace's own span range (epoch ms): earliest span start, latest span
+   *  end. The BFF widens it by {@link TRACE_LOG_WINDOW_PAD_MS} each side. */
+  startMs: number;
+  endMs: number;
+  page?: number;
+  pageSize?: number;
+}
+
+/** A log is written around the span that wrote it, not strictly inside the
+ *  span's own clock — async appenders and clock skew between hosts both land
+ *  lines a little outside. */
+export const TRACE_LOG_WINDOW_PAD_MS = 5 * 60_000;
+
+export interface TraceLogsResponse {
+  generatedAt: number;
+  pageNum: number;
+  pageSize: number;
+  /** The trace id the lines were read by — the request's, or its
+   *  `altTraceId` when that is where they were. Later pages send this one. */
+  traceId: string;
+  /** OAP holds another page after this one; there is no total. */
+  hasNext: boolean;
+  /** Oldest first, so the lines read in the order the request ran. */
+  logs: LogRow[];
+  /** Lines OAP returned on this page that were left out because their
+   *  service is one the caller may not read. Paging happens before that, so a
+   *  page can come back empty while the trace still has readable lines. */
+  withheld: number;
+  /** The window searched, epoch ms — the trace's range widened. */
+  startMs: number;
+  endMs: number;
+  /** The widened range was longer than one read may search (a week), so only
+   *  its last week was searched — `startMs` is where that began. */
+  windowClipped: boolean;
+  reachable: boolean;
+  error?: string;
+}
+
 /**
  * Per-level and per-service counts derived from a server-side facet
  * sample. The BFF pulls a larger window (default 200 rows) and folds

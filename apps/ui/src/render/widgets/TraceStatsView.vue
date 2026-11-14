@@ -26,13 +26,17 @@ import { useI18n } from 'vue-i18n';
 import type { NativeSpan } from '@/api/client';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { buildServiceColors, serviceColorFrom, fmtMs } from './traceDetailShared';
+import { useRevealHighlighted } from './useServiceFocus';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{ spans: NativeSpan[] }>();
+// focusService — the service picked in the legend; its rows are highlighted.
+const props = defineProps<{ spans: NativeSpan[]; focusService?: string | null }>();
 
 const serviceColors = computed(() => buildServiceColors(props.spans));
 function serviceColor(c: string): string { return serviceColorFrom(serviceColors.value, c); }
+const tableEl = ref<HTMLElement | null>(null);
+useRevealHighlighted(tableEl, () => props.focusService);
 
 type StatSortKey = 'total' | 'avg' | 'max';
 const statSortKey = ref<StatSortKey>('total');
@@ -106,7 +110,7 @@ const nativeStats = computed<StatRow[]>(() => {
 
 <template>
   <div v-if="nativeStats.length === 0" class="tr-empty">{{ t('no span data') }}</div>
-  <table v-else class="tr-table">
+  <table v-else ref="tableEl" class="tr-table">
     <thead>
       <tr>
         <th class="endpoint-col">{{ t('Span name') }}</th>
@@ -140,7 +144,12 @@ const nativeStats = computed<StatRow[]>(() => {
       </tr>
     </thead>
     <tbody>
-      <tr v-for="(r, i) in nativeStats" :key="i">
+      <tr
+        v-for="(r, i) in nativeStats"
+        :key="i"
+        :class="{ 'svc-hl': r.service === focusService }"
+        :style="r.service === focusService ? { '--svc-hl': serviceColor(r.service) } : undefined"
+      >
         <td class="mono endpoint-col" :title="r.name">{{ r.name }}</td>
         <td class="mono" :style="{ color: serviceColor(r.service) }" :title="r.service">
           <span class="svc-swatch inline" :style="{ background: serviceColor(r.service) }" />
@@ -238,6 +247,7 @@ const nativeStats = computed<StatRow[]>(() => {
 .tr-table tbody tr { cursor: pointer; }
 .tr-table tbody tr:hover { background: var(--sw-bg-2); }
 .tr-table tbody tr.err { background: rgba(239, 68, 68, 0.06); }
+.tr-table tbody tr.svc-hl { background: color-mix(in srgb, var(--svc-hl) 18%, transparent); }
 /* Statistics — components column. */
 .stat-comp-stack {
   display: inline-flex;

@@ -24,7 +24,7 @@ import * as d3 from 'd3';
  *
  * Returns the svg element ref to bind to the <svg>, the live transform to
  * project onto the inner <g>, `ensureZoom()` to (re)attach on activation,
- * and the zoom-by / reset controls.
+ * the zoom-by / reset controls, and `revealNode()` to pan a node into view.
  */
 export function useTraceTreeZoom() {
   const treeSvgEl = ref<SVGSVGElement | null>(null);
@@ -61,6 +61,24 @@ export function useTraceTreeZoom() {
     treeTransform.value = { x: 0, y: 0, k: 1 };
   }
 
+  /** Pans a node — its box in layout coordinates — to the middle of the view,
+   *  unless the whole box is in view already, then calls `then` (once the pan
+   *  has landed). `viewW` / `viewH` are the SVG's viewBox size, which is also
+   *  d3.zoom's extent. */
+  function revealNode(x: number, y: number, w: number, h: number, viewW: number, viewH: number, then?: () => void): void {
+    const el = treeSvgEl.value;
+    const { x: tx, y: ty, k } = treeTransform.value;
+    const left = x * k + tx;
+    const top = y * k + ty;
+    if (!el || !treeZoomBehavior || (left >= 0 && top >= 0 && left + w * k <= viewW && top + h * k <= viewH)) {
+      then?.();
+      return;
+    }
+    d3.select(el).transition().duration(240)
+      .call(treeZoomBehavior.translateTo, x + w / 2, y + h / 2)
+      .on('end', () => then?.());
+  }
+
   onBeforeUnmount(() => {
     if (treeZoomBoundEl) d3.select(treeZoomBoundEl).on('.zoom', null);
     treeZoomBoundEl = null;
@@ -73,5 +91,6 @@ export function useTraceTreeZoom() {
     ensureZoom,
     zoomBy,
     zoomReset,
+    revealNode,
   };
 }
