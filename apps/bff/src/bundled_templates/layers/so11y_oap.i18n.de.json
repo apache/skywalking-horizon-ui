@@ -171,6 +171,44 @@
         "title": "Zipkin-Spans verworfen"
       },
       {
+        "id": "cluster_size",
+        "title": "Clustergröße",
+        "tip": "OAP-Clustergröße aus Sicht dieses Knotens."
+      },
+      {
+        "id": "remote_traffic",
+        "title": "Cluster-Remote-Traffic / min",
+        "tip": "Cluster-RPC-Zaehler pro Minute: Peer-/lokaler Out, Peer-Out-Fehler und Inbound Empfang/Fehler/Ziel fehlt.",
+        "expressionLabels": [
+          "Peer-Ausgang",
+          "Lokal-Ausgang",
+          "Ausgangfehler",
+          "Eingang",
+          "Eingangsfehler",
+          "Ziel fehlt"
+        ]
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "Cluster-Remote-Ausgangsdruck",
+        "tip": "Peer-Out-Druck: Inflight-Streams, hoechste Queue-%, und Stream-Block-Wartezeit.",
+        "expressionLabels": [
+          "Inflight",
+          "Queue",
+          "Block"
+        ]
+      },
+      {
+        "id": "remote_latency",
+        "title": "Cluster-Remote-Latenz (ms)",
+        "tip": "Cluster-RPC-Latenz: schlechtester Peer-Out p50/p99 und Top-Ziele, plus Inbound p99.",
+        "expressionLabels": [
+          "Ausgang worst",
+          "Ausgang nach Dest",
+          "Eingang p99"
+        ]
+      },
+      {
         "id": "alarm_delivery",
         "title": "Alarmzustellung / min",
         "tip": "Alarm-Hook-Zustellungen pro Kanal (HTTP und gRPC) und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."

@@ -175,6 +175,44 @@
         "title": "Zipkin Span 丢弃数"
       },
       {
+        "id": "cluster_size",
+        "title": "集群规模",
+        "tip": "当前节点看到的 OAP 集群节点数。"
+      },
+      {
+        "id": "remote_traffic",
+        "title": "集群 Remote 流量 / 分钟",
+        "tip": "集群 RPC 每分钟计数：peer/本地发送、peer 发送错误，以及入站接收/错误/目标未找到。",
+        "expressionLabels": [
+          "对端出站",
+          "本地出站",
+          "出站错误",
+          "入站",
+          "入站错误",
+          "目标缺失"
+        ]
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "集群 Remote 出站压力",
+        "tip": "Peer 发送压力：inflight 流、最高队列占用 %、流阻塞等待。",
+        "expressionLabels": [
+          "进行中流",
+          "队列",
+          "阻塞"
+        ]
+      },
+      {
+        "id": "remote_latency",
+        "title": "集群 Remote 延迟（ms）",
+        "tip": "集群 RPC 延迟：peer 发送最差 p50/p99 与热点目标，以及入站 p99。",
+        "expressionLabels": [
+          "出站最差",
+          "出站按目标",
+          "入站 p99"
+        ]
+      },
+      {
         "id": "alarm_delivery",
         "title": "告警投递 / 分钟",
         "tip": "各通道（HTTP 与 gRPC）告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
