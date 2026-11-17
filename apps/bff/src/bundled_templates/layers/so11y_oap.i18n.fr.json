@@ -171,6 +171,44 @@
         "title": "Spans Zipkin rejetés"
       },
       {
+        "id": "cluster_size",
+        "title": "Taille du cluster",
+        "tip": "Taille du cluster OAP vue par ce nœud."
+      },
+      {
+        "id": "remote_traffic",
+        "title": "Trafic distant du cluster / min",
+        "tip": "Comptes RPC cluster / min : sortie peer/locale, erreurs de sortie peer, et reception/erreur/cible absente en entree.",
+        "expressionLabels": [
+          "sortie pair",
+          "sortie locale",
+          "erreur sortie",
+          "entrée",
+          "erreur entrée",
+          "cible manquante"
+        ]
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "Pression de sortie distante du cluster",
+        "tip": "Pression de sortie peer : flux inflight, % de file max et attente de blocage.",
+        "expressionLabels": [
+          "inflight",
+          "file",
+          "blocage"
+        ]
+      },
+      {
+        "id": "remote_latency",
+        "title": "Latence distante du cluster (ms)",
+        "tip": "Latence RPC cluster : pire p50/p99 de sortie peer et top destinations, plus p99 entrant.",
+        "expressionLabels": [
+          "sortie pire",
+          "sortie par dest",
+          "entrée p99"
+        ]
+      },
+      {
         "id": "alarm_delivery",
         "title": "Envoi d'alarmes / min",
         "tip": "Envois des hooks d'alarme par canal (HTTP et gRPC) et par résultat : succès, ou la raison de l'échec de l'envoi."

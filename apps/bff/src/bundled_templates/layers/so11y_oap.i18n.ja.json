@@ -171,6 +171,44 @@
         "title": "Zipkin スパン破棄"
       },
       {
+        "id": "cluster_size",
+        "title": "クラスタサイズ",
+        "tip": "このノードから見た OAP クラスタサイズ。"
+      },
+      {
+        "id": "remote_traffic",
+        "title": "クラスタ Remote トラフィック / 分",
+        "tip": "クラスタ RPC の分あたり件数: peer/local 送信、peer 送信エラー、受信/エラー/ターゲット未検出。",
+        "expressionLabels": [
+          "対向送信",
+          "ローカル送信",
+          "送信エラー",
+          "受信",
+          "受信エラー",
+          "ターゲット欠落"
+        ]
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "クラスタ Remote 送信圧力",
+        "tip": "Peer 送信圧力: inflight ストリーム、最大キュー %、ストリームブロック待ち。",
+        "expressionLabels": [
+          "進行中",
+          "キュー",
+          "ブロック"
+        ]
+      },
+      {
+        "id": "remote_latency",
+        "title": "クラスタ Remote レイテンシ (ms)",
+        "tip": "クラスタ RPC レイテンシ: peer 送信の最悪 p50/p99 と上位宛先、および受信 p99。",
+        "expressionLabels": [
+          "送信最悪",
+          "送信 dest 別",
+          "受信 p99"
+        ]
+      },
+      {
         "id": "alarm_delivery",
         "title": "アラート配信 / 分",
         "tip": "チャネル別（HTTP および gRPC）・結果別のアラートフック配信数。成功、または配信に失敗した理由。"

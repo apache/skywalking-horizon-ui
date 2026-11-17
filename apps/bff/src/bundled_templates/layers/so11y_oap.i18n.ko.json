@@ -171,6 +171,44 @@
         "title": "Zipkin 스팬 드롭"
       },
       {
+        "id": "cluster_size",
+        "title": "클러스터 크기",
+        "tip": "이 노드가 보는 OAP 클러스터 크기."
+      },
+      {
+        "id": "remote_traffic",
+        "title": "클러스터 Remote 트래픽 / 분",
+        "tip": "클러스터 RPC 분당 건수: peer/local 송신, peer 송신 오류, 수신/오류/대상 없음.",
+        "expressionLabels": [
+          "피어 송신",
+          "로컬 송신",
+          "송신 오류",
+          "수신",
+          "수신 오류",
+          "대상 없음"
+        ]
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "클러스터 Remote 송신 압력",
+        "tip": "Peer 송신 압력: inflight 스트림, 최고 큐 %, 스트림 블록 대기.",
+        "expressionLabels": [
+          "진행 중",
+          "큐",
+          "차단"
+        ]
+      },
+      {
+        "id": "remote_latency",
+        "title": "클러스터 Remote 지연 (ms)",
+        "tip": "클러스터 RPC 지연: peer 송신 최악 p50/p99와 상위 목적지, 수신 p99.",
+        "expressionLabels": [
+          "송신 최악",
+          "송신 dest별",
+          "수신 p99"
+        ]
+      },
+      {
         "id": "alarm_delivery",
         "title": "알람 전송 / 분",
         "tip": "채널별(HTTP 및 gRPC), 결과별 알람 훅 전송 수입니다. 성공 또는 전송에 실패한 이유를 보여 줍니다."

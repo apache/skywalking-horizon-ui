@@ -333,6 +333,84 @@
         "rowSpan": 2
       },
       {
+        "id": "cluster_size",
+        "title": "Cluster Size",
+        "tip": "OAP cluster size seen by this node.",
+        "type": "line",
+        "expressions": [
+          "meter_oap_instance_cluster_size"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_cluster_size", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "remote_traffic",
+        "title": "Cluster Remote Traffic / min",
+        "tip": "Cluster RPC counts per minute: peer/local out, peer out errors, and inbound receive/error/target-not-found.",
+        "type": "line",
+        "expressions": [
+          "aggregate_labels(meter_oap_instance_remote_out_count{self='N'}, sum(dest))",
+          "aggregate_labels(meter_oap_instance_remote_out_count{self='Y'}, sum(dest))",
+          "aggregate_labels(meter_oap_instance_remote_out_error_count{self='N'}, sum(dest))",
+          "meter_oap_instance_remote_in_count",
+          "meter_oap_instance_remote_in_error_count",
+          "meter_oap_instance_remote_in_target_not_found_count"
+        ],
+        "expressionLabels": [
+          "peer out",
+          "self out",
+          "out error",
+          "in",
+          "in error",
+          "target missing"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_cluster_size", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "remote_out_pressure",
+        "title": "Cluster Remote Out Pressure",
+        "tip": "Peer out pressure: inflight streams, hottest queue %, and stream block wait.",
+        "type": "line",
+        "expressions": [
+          "aggregate_labels(meter_oap_instance_remote_out_stream_inflight{self='N'}, sum(dest))",
+          "aggregate_labels(meter_oap_instance_remote_out_queue_used_per_ten_thousand{self='N'}, max(dest))/100",
+          "aggregate_labels(meter_oap_instance_remote_out_stream_block_milliseconds{self='N'}, sum(dest))"
+        ],
+        "expressionLabels": [
+          "inflight",
+          "queue",
+          "block"
+        ],
+        "expressionUnits": ["", "%", "ms"],
+        "expressionAxes": [0, 1, 1],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_cluster_size", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "remote_latency",
+        "title": "Cluster Remote Latency (ms)",
+        "tip": "Cluster RPC latency: peer out worst p50/p99 and top destinations, plus inbound p99.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "relabels(aggregate_labels(meter_oap_instance_remote_out_latency_percentile{self='N',p='50,99'}, max(dest, self)),p='50,99',percentile='50,99')",
+          "sort_values(meter_oap_instance_remote_out_latency_percentile{self='N',p='99'},5,des,avg)",
+          "relabels(meter_oap_instance_remote_in_latency_percentile{p='99'},p='99',percentile='99')"
+        ],
+        "expressionLabels": [
+          "out worst",
+          "out by dest",
+          "in p99"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_cluster_size", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
         "id": "alarm_delivery",
         "title": "Alarm Delivery / min",
         "tip": "Alarm hook deliveries per channel (HTTP and gRPC) and result: success, or why the delivery failed.",

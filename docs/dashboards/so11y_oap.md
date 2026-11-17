@@ -94,6 +94,18 @@ The receivers and analyzers turning raw telemetry into metrics.
 
 - **Zipkin Spans Dropped** — Zipkin spans dropped by this node, for deployments running the Zipkin receiver (`meter_oap_instance_spans_dropped_count`).
 
+### Cluster remote
+
+Internal cluster RPC between OAP nodes (and local fan-out). Four widgets in one row (OAP 11.2.0+), shown only when this node reports cluster size. Overview series roll up `dest`; out latency lists top 5 destinations.
+
+- **Cluster Size** — OAP cluster size seen by this node (`meter_oap_instance_cluster_size`).
+
+- **Cluster Remote Traffic / min** — peer and local fan-out (`self=Y`), peer out errors (`self=N`), and inbound receives/errors/target-not-found, counts per minute (`meter_oap_instance_remote_out_*`, `meter_oap_instance_remote_in_*`).
+
+- **Cluster Remote Out Pressure** — peer clients (`self=N`): inflight streams (sum), hottest queue % (max, from `meter_oap_instance_remote_out_queue_used_per_ten_thousand` / 100), and block wait ms/min (`meter_oap_instance_remote_out_stream_inflight`, `_queue_used_per_ten_thousand`, `_stream_block_milliseconds`).
+
+- **Cluster Remote Latency (ms)** — out worst-peer p50/p99 and top-5 dest p99, plus inbound p99 (`meter_oap_instance_remote_out_latency_percentile`, `meter_oap_instance_remote_in_latency_percentile`).
+
 ### Alarm delivery
 
 How the alarms this node raises reach their hooks: HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. These widgets are shown only on an OAP node that has delivered an alarm, and the Responses widget only once an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
@@ -125,6 +137,8 @@ The SO11Y_OAP dashboard is a pure consumer of what OAP reports about itself — 
 - **Ingestion metrics** — the trace, mesh, OTEL, K8s ALS, watermark, and Zipkin families (`meter_oap_instance_trace_*`, `meter_oap_instance_mesh_*`, `meter_oap_otel_*`, `meter_oap_instance_k8s_als_*`, `meter_oap_instance_watermark_circuit_breaker_*`, `meter_oap_instance_spans_dropped_count`). A pipeline that isn't running on a given node simply reports nothing, and its widget reads `no data`.
 
 - **Alarm delivery metrics** — `meter_oap_instance_alarm_http_delivery_count` / `_status_count` / `_latency_percentile` (OAP 11.1.0+ after a hook delivery). With OAP 11.2.0+, gRPC deliveries appear as `hook_type=gRPC` on the delivery and latency meters.
+
+- **Cluster remote metrics** — `meter_oap_instance_cluster_size`, `meter_oap_instance_remote_out_*`, `meter_oap_instance_remote_in_*` (OAP 11.2.0+).
 
 - **Storage metrics** — `meter_oap_banyandb_write_latency_percentile` **or** `meter_oap_elasticsearch_write_latency_percentile`, depending on the configured storage backend; only the matching widget renders.
 
