@@ -16,7 +16,7 @@
     "endpointDependency": false,
     "topology": true,
     "traces": true,
-    "logs": false,
+    "logs": true,
     "traceProfiling": false,
     "ebpfProfiling": false,
     "asyncProfiling": false,

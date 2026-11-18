@@ -18,7 +18,7 @@ limitations under the License.
 
 The **OTLP_GENERAL** layer holds the services whose spans arrive over the OpenTelemetry protocol and are analyzed by SkyWalking's Trace Analysis Language (TAL). OAP analyzes only the spans whose resource carries `service.layer=OTLP_GENERAL`, which an application sets through `OTEL_RESOURCE_ATTRIBUTES`; it registers a service here from their `service.name`, derives the metrics below from the spans themselves, and draws the topology from each span's peer. The OTLP trace receiver and the shipped TAL rule file produce the metrics and the topology; the Traces tab also needs OAP's TraceQL module, see [Requirements](#requirements). These services are kept apart from the **General Service** layer because their metrics come from a different engine under their own `otlp_*` names; a process that runs both a SkyWalking agent and an OpenTelemetry SDK appears in both layers.
 
-In Horizon's sidebar the layer is named **OTLP Service** (grouped under **OpenTelemetry**, with the OTLP Virtual Database, OTLP Virtual Cache and OTLP Virtual MQ layers). It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology** and **Traces** tabs, and no profiling tabs, since those need SkyWalking agents. The Logs tab is off in the bundled template; see [Traces and logs](#traces-and-logs) for turning it on. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
+In Horizon's sidebar the layer is named **OTLP Service** (grouped under **OpenTelemetry**, with the OTLP Virtual Database, OTLP Virtual Cache and OTLP Virtual MQ layers). It enables the **Service**, **Instance** and **Endpoint** scopes, the **Topology**, **Traces** and **Logs** tabs, and no profiling tabs, since those need SkyWalking agents. The API-dependency tab is off: an OTLP span carries no parent endpoint, so there are no endpoint-to-endpoint relations to draw.
 
 This page is the **operator reference** for the bundled OTLP Service dashboard: what you see on each scope and what each widget means.
 
@@ -82,7 +82,7 @@ The Traces tab reads the native OTLP store through OAP's TraceQL endpoint, which
 
 The tab's service picker lists the services stored under `OTLP_GENERAL`, the ones this layer analyzes, and leaves out the other layers' services, such as the sidecars of a service mesh that report their spans under `OTLP_MESH`, and those whose spans set no `service.layer`. The bundled template asks OAP for that list through its `serviceLayer` setting, see [Layer templates](../customization/layer-templates.md#traces). Search results are not narrowed, so a trace that passes through a sidecar still shows its spans.
 
-The Logs tab is off in the bundled template. The OAP accepts OTLP logs and stores them by `service.name`, so once a collector exports logs to the OAP, enabling the `logs` component on this layer shows them for the matching service.
+The Logs tab lists the logs of the picked service that OAP stores under `OTLP_GENERAL`: the OpenTelemetry log records whose resource carries `service.layer=OTLP_GENERAL`, the same attribute that puts the service's spans in this layer. OAP keeps them by `service.name` through the `otlp-general` rule of its shipped LAL file `lal/default.yaml`, from SkyWalking 11.2; an earlier OAP has no rule for this layer and drops them, so the tab stays empty. A record that carries a trace id and span id is stored with them, so its row links to its trace and the trace's **Logs** button lists it. See [Logs](../operate/logs.md).
 
 ## Requirements
 
@@ -93,5 +93,7 @@ The dashboard is a pure consumer of what OAP reports and invents no data. It nee
 - **Relation metrics** — `otlp_service_relation_client_*` and `otlp_service_relation_server_cpm`, which back the topology.
 
 The Traces tab needs more, since OAP ships the TraceQL module and its OTLP datasource off: set `SW_TRACEQL=default` and `SW_TRACEQL_ENABLE_DATASOURCE_OTLP=true` on OAP, and point Horizon's `oap.traceql` settings at it, see [OAP Connection → TraceQL trace stores](../setup/oap.md#traceql-trace-stores-oaptraceql).
+
+The Logs tab needs SkyWalking 11.2 or later, whose `otlp-general` LAL rule keeps these logs, and a collector or SDK that exports the services' logs to OAP over OTLP with `service.layer=OTLP_GENERAL` on their resource.
 
 Each metric is queried at its own OAP scope. For the upstream setup — the rule file, its settings and the conventions it reads — see the [OpenTelemetry trace analysis documentation](https://skywalking.apache.org/docs/main/next/en/setup/backend/trace-analyzer/).
