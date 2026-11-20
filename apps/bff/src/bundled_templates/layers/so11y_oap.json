@@ -393,11 +393,6 @@
                 "expressions": [
                   "meter_oap_instance_cluster_size"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_cluster_size",
-                  "op": "exists"
-                },
                 "span": 2,
                 "rowSpan": 2
               },
@@ -430,11 +425,6 @@
                   1,
                   1
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_cluster_size",
-                  "op": "exists"
-                },
                 "span": 5,
                 "rowSpan": 2
               },
@@ -452,11 +442,6 @@
                   "send p99",
                   "handling p99"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_cluster_size",
-                  "op": "exists"
-                },
                 "span": 5,
                 "rowSpan": 2
               },
@@ -481,11 +466,6 @@
                   0,
                   1
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_cluster_size",
-                  "op": "exists"
-                },
                 "span": 6,
                 "rowSpan": 2
               },
@@ -498,11 +478,6 @@
                 "expressions": [
                   "sort_values(meter_oap_instance_remote_out_queue_used_per_ten_thousand{self='N'},5,des,avg)/100"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_cluster_size",
-                  "op": "exists"
-                },
                 "span": 6,
                 "rowSpan": 2
               }
@@ -545,11 +520,6 @@
                 "expressions": [
                   "meter_oap_instance_alarm_http_delivery_count"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_alarm_http_delivery_count",
-                  "op": "exists"
-                },
                 "span": 4,
                 "rowSpan": 2
               },
@@ -561,11 +531,6 @@
                 "expressions": [
                   "meter_oap_instance_alarm_http_delivery_status_count"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_alarm_http_delivery_status_count",
-                  "op": "exists"
-                },
                 "span": 4,
                 "rowSpan": 2
               },
@@ -578,11 +543,6 @@
                 "expressions": [
                   "relabels(meter_oap_instance_alarm_http_delivery_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
                 ],
-                "visibleWhen": {
-                  "kind": "mqe",
-                  "expression": "meter_oap_instance_alarm_http_delivery_count",
-                  "op": "exists"
-                },
                 "span": 4,
                 "rowSpan": 2
               }

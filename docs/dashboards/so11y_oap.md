@@ -86,7 +86,7 @@ How much this node writes, and how fast the storage backend takes it.
 
 ### Aggregation & Cluster
 
-How much this node aggregates, and how the aggregated metrics move between the OAP nodes of a cluster. The five cluster widgets need OAP 11.2.0+ and show only when this node reports its cluster size; a standalone OAP 11.2.0+ shows them too, with a cluster of one.
+How much this node aggregates, and how the aggregated metrics move between the OAP nodes of a cluster. The five cluster widgets need OAP 11.2.0+ and read `no data` against an older OAP; a standalone OAP 11.2.0+ fills them too, with a cluster of one.
 
 - **Aggregation / min** — metrics aggregated per minute (`meter_oap_instance_metrics_aggregation`).
 
@@ -110,7 +110,7 @@ The GraphQL API that Horizon (and any GraphQL client) queries, and the hooks thi
 
 - **GraphQL Query Count** — GraphQL queries per minute, split into total **queries** and **errors** (`meter_oap_instance_graphql_query_count`, `meter_oap_instance_graphql_query_error_count`).
 
-The alarm delivery widgets cover HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. They are shown only on an OAP node that has delivered an alarm, and the Responses widget only once an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
+The alarm delivery widgets cover HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. They read `no data` on an OAP node that has not delivered an alarm, and the Responses widget does until an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
 
 - **Alarm Delivery / min** — deliveries per minute by channel (HTTP and gRPC) and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
 
