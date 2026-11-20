@@ -168,6 +168,11 @@
             "name": "Agregação e cluster",
             "widgets": [
               {
+                "id": "cluster_size_now",
+                "title": "Tamanho do cluster",
+                "tip": "Nós de agregação (papel Mixed ou Aggregator) que este nó vê no cluster, pelo último valor reportado. Inclui este nó, a menos que ele rode com o papel Receiver."
+              },
+              {
                 "id": "aggregation",
                 "title": "Agregação / min"
               },
@@ -181,13 +186,13 @@
               },
               {
                 "id": "cluster_size",
-                "title": "Tamanho do cluster",
-                "tip": "Nós OAP que este nó vê no cluster, incluindo ele mesmo."
+                "title": "Histórico do tamanho do cluster",
+                "tip": "O tamanho do cluster ao longo do tempo; uma queda indica que um nó saiu do cluster."
               },
               {
                 "id": "remote_traffic",
                 "title": "Tráfego remoto do cluster / min",
-                "tip": "Mensagens que este nó envia a outros nós e a si mesmo, e recebe de outros nós (eixo esquerdo); erros de envio e de recebimento, e mensagens recebidas para um worker que este nó não tem, o que indica que os nós executam regras OAL / MAL diferentes (eixo direito).",
+                "tip": "Mensagens que este nó envia a outros nós (tentativas) e a si mesmo, e recebe de outros nós (eixo esquerdo). Eixo direito: erros de envio — um por envio ou stream com falha, independentemente de quantas mensagens levava —, erros de recebimento e mensagens recebidas para um worker que este nó não tem, muitas vezes sinal de que os nós executam regras OAL / MAL diferentes.",
                 "expressionLabels": [
                   "enviados a pares",
                   "enviados localmente",
@@ -199,17 +204,13 @@
               },
               {
                 "id": "remote_latency",
-                "title": "Latência remota do cluster (ms)",
-                "tip": "Tempo p99 até concluir um lote enviado a um par, incluindo o processamento no par, para os cinco pares mais lentos; e tempo p99 que este nó leva para processar uma mensagem recebida. Um par mostra 0 num minuto em que nenhum lote para ele foi concluído.",
-                "expressionLabels": [
-                  "envio p99",
-                  "processamento p99"
-                ]
+                "title": "Latência de envio remoto do cluster p99 (ms)",
+                "tip": "Tempo p99 até concluir um lote enviado a cada um dos cinco pares mais lentos, incluindo o processamento no par. Um par mostra 0 num minuto em que nenhum lote para ele foi concluído; um par para o qual nenhum lote jamais foi concluído não tem linha."
               },
               {
                 "id": "remote_streams",
                 "title": "Streams remotos do cluster",
-                "tip": "Streams gRPC abertos para outros nós, no máximo 10 por par (eixo esquerdo), e tempo de espera por um slot de stream livre, em ms por minuto (eixo direito).",
+                "tip": "Streams gRPC abertos para outros nós, no máximo 10 por par (eixo esquerdo), e tempo de espera por um slot de stream livre, em ms por minuto (eixo direito). Um nó autônomo não tem pares e não mostra dados.",
                 "expressionLabels": [
                   "em andamento",
                   "espera de bloqueio"
@@ -218,7 +219,7 @@
               {
                 "id": "remote_queue",
                 "title": "Fila de envio remoto do cluster (%)",
-                "tip": "Nível de ocupação da fila de envio para cada outro nó, para as cinco mais cheias."
+                "tip": "Nível de ocupação da fila de envio para cada outro nó, para as cinco mais cheias. Um nó autônomo não tem pares e não mostra dados."
               }
             ]
           },

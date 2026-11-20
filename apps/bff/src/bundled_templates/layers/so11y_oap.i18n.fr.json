@@ -164,6 +164,11 @@
             "name": "Agrégation et cluster",
             "widgets": [
               {
+                "id": "cluster_size_now",
+                "title": "Taille du cluster",
+                "tip": "Nœuds d'agrégation (rôle Mixed ou Aggregator) que ce nœud voit dans le cluster, selon la dernière valeur remontée. Ce nœud est compté aussi, sauf s'il tourne avec le rôle Receiver."
+              },
+              {
                 "id": "aggregation",
                 "title": "Agrégation / min"
               },
@@ -177,13 +182,13 @@
               },
               {
                 "id": "cluster_size",
-                "title": "Taille du cluster",
-                "tip": "Nœuds OAP que ce nœud voit dans le cluster, lui-même compris."
+                "title": "Historique de la taille du cluster",
+                "tip": "La taille du cluster dans le temps ; une baisse signifie qu'un nœud a quitté le cluster."
               },
               {
                 "id": "remote_traffic",
                 "title": "Trafic distant du cluster / min",
-                "tip": "Messages que ce nœud envoie aux autres nœuds et à lui-même, et reçoit des autres nœuds (axe de gauche) ; erreurs d'envoi et de réception, et messages reçus pour un worker que ce nœud n'a pas, signe que les nœuds exécutent des règles OAL / MAL différentes (axe de droite).",
+                "tip": "Messages que ce nœud envoie aux autres nœuds (tentatives) et à lui-même, et reçoit des autres nœuds (axe de gauche). Axe de droite : erreurs d'envoi — une par envoi ou flux en échec, quel que soit le nombre de messages qu'il portait —, erreurs de réception, et messages reçus pour un worker que ce nœud n'a pas, souvent signe que les nœuds exécutent des règles OAL / MAL différentes.",
                 "expressionLabels": [
                   "envoyés aux pairs",
                   "envoyés en local",
@@ -195,17 +200,13 @@
               },
               {
                 "id": "remote_latency",
-                "title": "Latence distante du cluster (ms)",
-                "tip": "Durée p99 jusqu'à l'achèvement d'un lot envoyé à un pair, traitement chez le pair compris, pour les cinq pairs les plus lents ; et durée p99 que ce nœud passe à traiter un message reçu. Un pair affiche 0 sur une minute où aucun lot vers lui ne s'est achevé.",
-                "expressionLabels": [
-                  "envoi p99",
-                  "traitement p99"
-                ]
+                "title": "Latence d'envoi distant du cluster p99 (ms)",
+                "tip": "Durée p99 jusqu'à l'achèvement d'un lot envoyé à chacun des cinq pairs les plus lents, traitement chez le pair compris. Un pair affiche 0 sur une minute où aucun lot vers lui ne s'est achevé ; un pair vers lequel aucun lot ne s'est jamais achevé n'a pas de ligne."
               },
               {
                 "id": "remote_streams",
                 "title": "Flux distants du cluster",
-                "tip": "Flux gRPC ouverts vers les autres nœuds, au plus 10 par pair (axe de gauche), et temps d'attente d'un emplacement de flux libre, en ms par minute (axe de droite).",
+                "tip": "Flux gRPC ouverts vers les autres nœuds, au plus 10 par pair (axe de gauche), et temps d'attente d'un emplacement de flux libre, en ms par minute (axe de droite). Un nœud autonome n'a pas de pair et n'affiche aucune donnée.",
                 "expressionLabels": [
                   "en cours",
                   "attente de blocage"
@@ -214,7 +215,7 @@
               {
                 "id": "remote_queue",
                 "title": "File d'envoi distante du cluster (%)",
-                "tip": "Taux de remplissage de la file d'envoi vers chaque autre nœud, pour les cinq plus pleines."
+                "tip": "Taux de remplissage de la file d'envoi vers chaque autre nœud, pour les cinq plus pleines. Un nœud autonome n'a pas de pair et n'affiche aucune donnée."
               }
             ]
           },

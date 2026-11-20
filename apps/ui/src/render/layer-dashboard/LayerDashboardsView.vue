@@ -40,6 +40,7 @@ import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageO
 import { useInstanceCascade } from '@/render/layer-dashboard/useInstanceCascade';
 import { useEndpointCascade } from '@/render/layer-dashboard/useEndpointCascade';
 import { useCompareEngine } from '@/render/layer-dashboard/useCompareEngine';
+import { useNarrowViewport } from '@/render/layer-dashboard/useNarrowViewport';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore } from '@/controls/timeRange';
@@ -509,12 +510,33 @@ const errorText = computed(() => {
   return failed?.error ?? data.value?.error ?? (error.value ? String(error.value) : null);
 });
 
+/** `.grid`'s row track and gap, below. */
+const GRID_ROW_PX = 120;
+const GRID_GAP_PX = 10;
+/** A tab box keeps its authored height on a wide screen. Below the collapse
+ *  breakpoint its charts stack full width, so it takes the height its open
+ *  panel measures rather than scrolling inside a box sized for columns. */
+const narrow = useNarrowViewport();
+const tabContentPx = ref<Record<string, number>>({});
+function onTabContentHeight(id: string, px: number): void {
+  if (tabContentPx.value[id] !== px) tabContentPx.value = { ...tabContentPx.value, [id]: px };
+}
+
 /** Map a widget's grid footprint into the new 12-col flow grid. Honors
  *  `span` / `rowSpan` first; falls back to legacy `w` / `h` (24-col
  *  scaled to 12 by halving) so older templates still render. */
-function gridStyle(w: { span?: number; rowSpan?: number; w?: number; h?: number }): Record<string, string> {
+function gridStyle(w: {
+  id?: string;
+  type?: string;
+  span?: number;
+  rowSpan?: number;
+  w?: number;
+  h?: number;
+}): Record<string, string> {
   const span = w.span ?? (w.w ? Math.max(1, Math.min(12, Math.round(w.w / 2))) : 4);
-  const rowSpan = w.rowSpan ?? (w.h ? Math.max(1, Math.round(w.h / 8)) : 1);
+  let rowSpan = w.rowSpan ?? (w.h ? Math.max(1, Math.round(w.h / 8)) : 1);
+  const tabPx = w.type === 'tab' && narrow.value && w.id ? tabContentPx.value[w.id] : 0;
+  if (tabPx) rowSpan = Math.max(1, Math.ceil((tabPx + GRID_GAP_PX) / (GRID_ROW_PX + GRID_GAP_PX)));
   return {
     gridColumn: `span ${span}`,
     gridRow: `span ${rowSpan}`,
@@ -939,6 +961,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         :on-drill-point="onDrillPoint"
         :drill-open-id="drill?.widgetId ?? null"
         @switch-tab="setActiveTab(w.id, $event)"
+        @tab-content-height="onTabContentHeight(w.id, $event)"
       />
     </div>
     </template>

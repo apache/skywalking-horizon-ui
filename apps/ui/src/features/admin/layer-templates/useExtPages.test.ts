@@ -21,7 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import { ref } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
-import { componentOwnedCount, disableEntityComponent, type EntityScope } from './componentDisable';
+import { componentOwnedCount, countWidgets, disableEntityComponent, type EntityScope } from './componentDisable';
 import { useExtPages, suggestPageId, extPageIdIssue, isPageableScope } from './useExtPages';
 
 const w = (id: string) => ({ id, type: 'line' as const, title: id, expressions: ['x'] });
@@ -310,5 +310,26 @@ describe('disabling a component takes its settings, not only its widgets', () =>
     // configuration is one takes the silent "nothing to delete" path.
     expect(owned.settings).toBe(1);
     expect(owned.grid).toBeGreaterThan(0);
+  });
+
+  it('counts the charts inside a tab container, not the container', () => {
+    const tab = (id: string, panels: string[][]) => ({
+      id,
+      type: 'tab' as const,
+      title: id,
+      expressions: [],
+      tabs: panels.map((ids, i) => ({ name: `T${i}`, widgets: ids.map(w) })),
+    });
+    const { template } = setup({
+      dashboards: { instance: [tab('node', [['a', 'b'], ['c']]), w('d'), tab('empty', [])] },
+      dashboardExtPages: { instance: [{ id: 'p', name: 'P', widgets: [tab('pt', [['x', 'y', 'z']])] }] },
+    });
+
+    const owned = componentOwnedCount(template.value!, 'instance');
+    // 3 charts in the container + 1 plain widget + an empty container,
+    // which still goes and so still counts as one.
+    expect(owned.grid).toBe(5);
+    expect(owned.pageWidgets).toBe(3);
+    expect(countWidgets(template.value!.dashboardExtPages!.instance![0].widgets)).toBe(3);
   });
 });

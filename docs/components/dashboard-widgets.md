@@ -265,6 +265,8 @@ Renders columns `Condition | Node` (one per label key). A widget like Deployment
 
 **Renders:** A container slot holding several named tab panels, each with its own set of leaf widgets (`card` / `line` / `top` / `record` / `table`) laid out in their own 12-column grid. A `tab` carries no MQE of its own, and tabs nest only one level deep. Only the active tab is queried; switching loads a tab's widgets on demand.
 
+The box keeps the height its `rowSpan` gives it, so size it for the tallest panel. Below the 1100 px collapse the panel's widgets stack full width like every other widget, and the box grows to fit the open panel.
+
 See [Layer Dashboard Templates → Tab widgets](../customization/layer-templates.md#tab-widgets) for the stored shape and how to author one in the editor.
 
 ## Visibility predicates

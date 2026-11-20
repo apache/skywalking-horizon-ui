@@ -360,13 +360,25 @@
             "name": "Aggregation & Cluster",
             "widgets": [
               {
+                "id": "cluster_size_now",
+                "title": "Cluster Size",
+                "tip": "Aggregation nodes (Mixed or Aggregator role) this node sees in the cluster, as last reported. It counts this node too, unless it runs with the Receiver role.",
+                "type": "card",
+                "expressions": [
+                  "latest(meter_oap_instance_cluster_size)"
+                ],
+                "format": "int",
+                "span": 2,
+                "rowSpan": 2
+              },
+              {
                 "id": "aggregation",
                 "title": "Aggregation / min",
                 "type": "line",
                 "expressions": [
                   "meter_oap_instance_metrics_aggregation"
                 ],
-                "span": 6,
+                "span": 5,
                 "rowSpan": 2
               },
               {
@@ -382,13 +394,13 @@
                   "L1",
                   "L2"
                 ],
-                "span": 6,
+                "span": 5,
                 "rowSpan": 2
               },
               {
                 "id": "cluster_size",
-                "title": "Cluster Size",
-                "tip": "OAP nodes this node sees in the cluster, itself included.",
+                "title": "Cluster Size History",
+                "tip": "The cluster size over time; a dip means a node dropped out of the cluster.",
                 "type": "line",
                 "expressions": [
                   "meter_oap_instance_cluster_size"
@@ -399,7 +411,7 @@
               {
                 "id": "remote_traffic",
                 "title": "Cluster Remote Traffic / min",
-                "tip": "Messages this node sends to other nodes and to itself, and receives from other nodes (left axis); send and receive errors, and received messages for a worker this node does not have, which means the nodes run different OAL / MAL rules (right axis).",
+                "tip": "Messages this node sends to other nodes (attempts) and to itself, and receives from other nodes (left axis). Right axis: send errors — one per failed send or failed stream, however many messages it carried — receive errors, and received messages for a worker this node does not have, often a sign that the nodes run different OAL / MAL rules.",
                 "type": "line",
                 "expressions": [
                   "aggregate_labels(meter_oap_instance_remote_out_count{self='N'}, sum)",
@@ -430,17 +442,12 @@
               },
               {
                 "id": "remote_latency",
-                "title": "Cluster Remote Latency (ms)",
-                "tip": "p99 time for a batch sent to a peer to complete, the peer's handling included, for the five slowest peers; and p99 time this node spends handling one received message. A peer reads 0 in a minute where no batch to it completed.",
+                "title": "Cluster Remote Send Latency p99 (ms)",
+                "tip": "p99 time for a batch sent to each of the five slowest peers to complete, the peer's handling included. A peer reads 0 in a minute where no batch to it completed; a peer that no batch has ever completed to has no line.",
                 "type": "line",
                 "unit": "ms",
                 "expressions": [
-                  "sort_values(meter_oap_instance_remote_out_latency_percentile{self='N',p='99'},5,des,avg)",
-                  "relabels(meter_oap_instance_remote_in_latency_percentile{p='99'},p='99',percentile='99')"
-                ],
-                "expressionLabels": [
-                  "send p99",
-                  "handling p99"
+                  "sort_values(aggregate_labels(meter_oap_instance_remote_out_latency_percentile{self='N',p='99'}, max(dest)),5,des,avg)"
                 ],
                 "span": 5,
                 "rowSpan": 2
@@ -448,7 +455,7 @@
               {
                 "id": "remote_streams",
                 "title": "Cluster Remote Streams",
-                "tip": "gRPC streams open to other nodes, at most 10 per peer (left axis), and time spent waiting for a free stream slot, in ms per minute (right axis).",
+                "tip": "gRPC streams open to other nodes, at most 10 per peer (left axis), and time spent waiting for a free stream slot, in ms per minute (right axis). A standalone node has no peers and reads no data.",
                 "type": "line",
                 "expressions": [
                   "aggregate_labels(meter_oap_instance_remote_out_stream_inflight{self='N'}, sum)",
@@ -472,11 +479,11 @@
               {
                 "id": "remote_queue",
                 "title": "Cluster Remote Send Queue (%)",
-                "tip": "How full the send queue to each other node is, for the five fullest.",
+                "tip": "How full the send queue to each other node is, for the five fullest. A standalone node has no peers and reads no data.",
                 "type": "line",
                 "unit": "%",
                 "expressions": [
-                  "sort_values(meter_oap_instance_remote_out_queue_used_per_ten_thousand{self='N'},5,des,avg)/100"
+                  "sort_values(aggregate_labels(meter_oap_instance_remote_out_queue_used_per_ten_thousand{self='N'}, max(dest)),5,des,avg)/100"
                 ],
                 "span": 6,
                 "rowSpan": 2

@@ -254,18 +254,30 @@ function onSelectOverviewWidget(payload: { widget: OverviewWidget; el: HTMLEleme
   );
 }
 
-function onSelectLayerWidget(payload: { widget: DashboardWidget; idx: number; el: HTMLElement; event: MouseEvent }): void {
+function onSelectLayerWidget(payload: {
+  widget: DashboardWidget;
+  idx: number;
+  el: HTMLElement;
+  event: MouseEvent;
+  child?: { tab: number; index: number };
+}): void {
   const eff = effective.value;
   if (!eff) return;
   const tpl = eff.source as unknown as AdminLayerTemplate & { dashboards?: Record<string, DashboardWidget[]> };
   const pageIdx = page.value ? scopePages.value.findIndex((p) => p.id === page.value) : -1;
-  const prefix = pageIdx >= 0
+  const base = pageIdx >= 0
     ? `dashboardExtPages.${scope.value}[${pageIdx}].widgets[${payload.idx}]`
     : tpl.dashboards
       ? `dashboards.${scope.value}[${payload.idx}]`
       : `widgets[${payload.idx}]`;
+  const prefix = payload.child ? `${base}.tabs[${payload.child.tab}].widgets[${payload.child.index}]` : base;
+  // A `tab` widget's own fields are its title and its panel names; the
+  // charts in its panels each open on their own.
+  const fields = !payload.child && payload.widget.type === 'tab'
+    ? fieldsForPrefix(base).filter((f) => !f.path.startsWith(`${base}.tabs[`) || /^\.tabs\[\d+\]\.name$/.test(f.path.slice(base.length)))
+    : fieldsForPrefix(prefix);
   openPanel(
-    fieldsForPrefix(prefix),
+    fields,
     payload.widget.title || payload.widget.id || `widget ${payload.idx + 1}`,
     payload.el,
     pointFromEvent(payload.event),

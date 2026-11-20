@@ -91,7 +91,10 @@ const props = defineProps<{
   compareTableRows: (id: string) => TableRow[];
   compareTableEntities: CompareTableEntity[];
 }>();
-const emit = defineEmits<{ (e: 'switch-tab', index: number): void }>();
+const emit = defineEmits<{
+  (e: 'switch-tab', index: number): void;
+  (e: 'tab-content-height', px: number): void;
+}>();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -294,6 +297,7 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
           :compare-mode="compareMode"
           :host="tabHost"
           @switch="emit('switch-tab', $event)"
+          @content-height="emit('tab-content-height', $event)"
         />
       </template>
     </div>

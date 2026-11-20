@@ -164,6 +164,11 @@
             "name": "Agregación y clúster",
             "widgets": [
               {
+                "id": "cluster_size_now",
+                "title": "Tamaño del clúster",
+                "tip": "Nodos de agregación (rol Mixed o Aggregator) que este nodo ve en el clúster, según el último valor reportado. Incluye a este nodo, salvo que se ejecute con el rol Receiver."
+              },
+              {
                 "id": "aggregation",
                 "title": "Agregación / min"
               },
@@ -177,13 +182,13 @@
               },
               {
                 "id": "cluster_size",
-                "title": "Tamaño del clúster",
-                "tip": "Nodos OAP que este nodo ve en el clúster, incluido él mismo."
+                "title": "Historial del tamaño del clúster",
+                "tip": "El tamaño del clúster a lo largo del tiempo; una caída indica que un nodo salió del clúster."
               },
               {
                 "id": "remote_traffic",
                 "title": "Tráfico remoto del clúster / min",
-                "tip": "Mensajes que este nodo envía a otros nodos y a sí mismo, y que recibe de otros nodos (eje izquierdo); errores de envío y de recepción, y mensajes recibidos para un worker que este nodo no tiene, lo que significa que los nodos ejecutan reglas OAL / MAL distintas (eje derecho).",
+                "tip": "Mensajes que este nodo envía a otros nodos (intentos) y a sí mismo, y que recibe de otros nodos (eje izquierdo). Eje derecho: errores de envío —uno por cada envío o stream fallido, sin importar cuántos mensajes llevara—, errores de recepción y mensajes recibidos para un worker que este nodo no tiene, a menudo señal de que los nodos ejecutan reglas OAL / MAL distintas.",
                 "expressionLabels": [
                   "enviados a pares",
                   "enviados localmente",
@@ -195,17 +200,13 @@
               },
               {
                 "id": "remote_latency",
-                "title": "Latencia remota del clúster (ms)",
-                "tip": "Tiempo p99 hasta que se completa un lote enviado a un par, incluido su procesamiento en el par, para los cinco pares más lentos; y tiempo p99 que este nodo tarda en procesar un mensaje recibido. Un par marca 0 en un minuto en el que no se completó ningún lote hacia él.",
-                "expressionLabels": [
-                  "envío p99",
-                  "procesamiento p99"
-                ]
+                "title": "Latencia de envío remoto del clúster p99 (ms)",
+                "tip": "Tiempo p99 hasta que se completa un lote enviado a cada uno de los cinco pares más lentos, incluido su procesamiento en el par. Un par marca 0 en un minuto en el que no se completó ningún lote hacia él; un par hacia el que nunca se ha completado un lote no tiene línea."
               },
               {
                 "id": "remote_streams",
                 "title": "Streams remotos del clúster",
-                "tip": "Streams gRPC abiertos hacia otros nodos, como máximo 10 por par (eje izquierdo), y tiempo de espera de un hueco libre de stream, en ms por minuto (eje derecho).",
+                "tip": "Streams gRPC abiertos hacia otros nodos, como máximo 10 por par (eje izquierdo), y tiempo de espera de un hueco libre de stream, en ms por minuto (eje derecho). Un nodo independiente no tiene pares y no muestra datos.",
                 "expressionLabels": [
                   "en curso",
                   "espera de bloqueo"
@@ -214,7 +215,7 @@
               {
                 "id": "remote_queue",
                 "title": "Cola de envío remoto del clúster (%)",
-                "tip": "Nivel de ocupación de la cola de envío hacia cada otro nodo, para las cinco más llenas."
+                "tip": "Nivel de ocupación de la cola de envío hacia cada otro nodo, para las cinco más llenas. Un nodo independiente no tiene pares y no muestra datos."
               }
             ]
           },

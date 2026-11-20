@@ -164,6 +164,11 @@
             "name": "Aggregation und Cluster",
             "widgets": [
               {
+                "id": "cluster_size_now",
+                "title": "Clustergröße",
+                "tip": "Aggregationsknoten (Rolle Mixed oder Aggregator), die dieser Knoten im Cluster sieht, nach dem zuletzt gemeldeten Wert. Dieser Knoten zählt mit, sofern er nicht mit der Rolle Receiver läuft."
+              },
+              {
                 "id": "aggregation",
                 "title": "Aggregation / min"
               },
@@ -177,13 +182,13 @@
               },
               {
                 "id": "cluster_size",
-                "title": "Clustergröße",
-                "tip": "OAP-Knoten, die dieser Knoten im Cluster sieht, einschließlich sich selbst."
+                "title": "Clustergröße im Verlauf",
+                "tip": "Die Clustergröße im Zeitverlauf; ein Einbruch bedeutet, dass ein Knoten den Cluster verlassen hat."
               },
               {
                 "id": "remote_traffic",
                 "title": "Cluster-Remote-Traffic / min",
-                "tip": "Nachrichten, die dieser Knoten an andere Knoten und an sich selbst sendet und von anderen Knoten empfängt (linke Achse); Sende- und Empfangsfehler sowie empfangene Nachrichten für einen Worker, den dieser Knoten nicht hat – die Knoten laufen dann mit unterschiedlichen OAL- / MAL-Regeln (rechte Achse).",
+                "tip": "Nachrichten, die dieser Knoten an andere Knoten (Versuche) und an sich selbst sendet und von anderen Knoten empfängt (linke Achse). Rechte Achse: Sendefehler – einer pro fehlgeschlagenem Senden oder Stream, egal wie viele Nachrichten er enthielt –, Empfangsfehler sowie empfangene Nachrichten für einen Worker, den dieser Knoten nicht hat, oft ein Zeichen für unterschiedliche OAL- / MAL-Regeln auf den Knoten.",
                 "expressionLabels": [
                   "an Peers gesendet",
                   "lokal gesendet",
@@ -195,17 +200,13 @@
               },
               {
                 "id": "remote_latency",
-                "title": "Cluster-Remote-Latenz (ms)",
-                "tip": "p99-Dauer, bis ein an einen Peer gesendeter Batch abgeschlossen ist, einschließlich der Verarbeitung beim Peer, für die fünf langsamsten Peers; dazu die p99-Dauer, die dieser Knoten für eine empfangene Nachricht braucht. Ein Peer zeigt 0 in einer Minute, in der kein Batch an ihn abgeschlossen wurde.",
-                "expressionLabels": [
-                  "Senden p99",
-                  "Verarbeitung p99"
-                ]
+                "title": "Cluster-Remote-Sendelatenz p99 (ms)",
+                "tip": "p99-Dauer, bis ein an einen der fünf langsamsten Peers gesendeter Batch abgeschlossen ist, einschließlich der Verarbeitung beim Peer. Ein Peer zeigt 0 in einer Minute, in der kein Batch an ihn abgeschlossen wurde; ein Peer, an den noch nie ein Batch abgeschlossen wurde, hat keine Linie."
               },
               {
                 "id": "remote_streams",
                 "title": "Cluster-Remote-Streams",
-                "tip": "Offene gRPC-Streams zu anderen Knoten, höchstens 10 pro Peer (linke Achse), und Wartezeit auf einen freien Stream-Slot in ms pro Minute (rechte Achse).",
+                "tip": "Offene gRPC-Streams zu anderen Knoten, höchstens 10 pro Peer (linke Achse), und Wartezeit auf einen freien Stream-Slot in ms pro Minute (rechte Achse). Ein Einzelknoten hat keine Peers und zeigt keine Daten.",
                 "expressionLabels": [
                   "aktiv",
                   "Blockierwartezeit"
@@ -214,7 +215,7 @@
               {
                 "id": "remote_queue",
                 "title": "Cluster-Remote-Sendewarteschlange (%)",
-                "tip": "Füllstand der Sendewarteschlange zu jedem anderen Knoten, für die fünf vollsten."
+                "tip": "Füllstand der Sendewarteschlange zu jedem anderen Knoten, für die fünf vollsten. Ein Einzelknoten hat keine Peers und zeigt keine Daten."
               }
             ]
           },
