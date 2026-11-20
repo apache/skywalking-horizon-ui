@@ -16,7 +16,7 @@ limitations under the License.
 -->
 # OAP (Self-Observability)
 
-The **SO11Y_OAP** layer is SkyWalking's own self-observability — the OAP backend reporting metrics about itself. It answers "is the backend healthy?": each OAP node's JVM, the analysis pipelines it runs (trace / mesh / OTEL / K8s ALS), the GraphQL query surface the UI itself hits, and the storage backend it persists to. This is the layer you watch to tell whether OAP — not the services it monitors — is the bottleneck.
+The **SO11Y_OAP** layer is SkyWalking's own self-observability — the OAP backend reporting metrics about itself. It answers "is the backend healthy?": each OAP node's JVM, the analysis pipelines it runs (trace / mesh / OTEL / K8s ALS), the GraphQL query surface the UI itself hits, the storage backend it persists to, and the traffic between the nodes of a cluster. This is the layer you watch to tell whether OAP — not the services it monitors — is the bottleneck.
 
 In Horizon's sidebar this layer is named **OAP**, grouped under **Self-Observability**. Its services are listed as **OAP services** and its instances as **OAP nodes** — one node per running OAP backend in the cluster.
 
@@ -30,9 +30,11 @@ This page is the **operator reference** for the bundled SO11Y_OAP dashboard: wha
 
 For one selected OAP node. Every widget on this dashboard is OAP-node-scoped, fed by the `meter_oap_*` self-observability meter family.
 
-### JVM health
+The widgets sit in one box with four tabs: **Receivers & JVM**, **Persistence & Storage**, **Aggregation & Cluster** and **Query & Alarms**. The dashboard opens on **Receivers & JVM**, and only the open tab's widgets are read from OAP, so switching tabs reads that tab's widgets afresh.
 
-The runtime the OAP node runs on.
+### Receivers & JVM
+
+Start here: when the JVM and the receivers look healthy, the OAP node usually is.
 
 - **CPU (%)** — process CPU utilization for the OAP node (`meter_oap_instance_cpu_percentage`).
 
@@ -50,33 +52,7 @@ The runtime the OAP node runs on.
 
 - **Class Count** — **loaded**, **unloaded total**, and **loaded total** classes (`meter_oap_jvm_class_loaded_count`, `meter_oap_jvm_class_total_unloaded_count`, `meter_oap_jvm_class_total_loaded_count`).
 
-### Metrics aggregation and persistence
-
-How much work the analysis-and-write pipeline is doing on this node.
-
-- **Aggregation / min** — metrics aggregated per minute (`meter_oap_instance_metrics_aggregation`).
-
-- **Persistence Counts / min** — persistence operations per minute, split into **prepare** and **execute** (`meter_oap_instance_persistence_prepare_count`, `meter_oap_instance_persistence_execute_count`).
-
-- **Persistent Cache / min** — persistent-cache activity per minute (`meter_oap_instance_metrics_persistent_cache`).
-
-- **Persistence Prepare Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of the persistence prepare phase (`meter_oap_instance_persistence_prepare_percentile`).
-
-- **Persistence Execute Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of the persistence execute phase (`meter_oap_instance_persistence_execute_percentile`).
-
-- **Aggregation Queue Usage (%)** — fill level of the L1 and L2 metrics-aggregation queues, top-10 worst series each (`meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand`, level 1 and level 2). A queue trending toward 100% is back-pressure — OAP is ingesting faster than it can aggregate.
-
-### Query surface (GraphQL)
-
-The query API that Horizon (and any GraphQL client) hits.
-
-- **GraphQL Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of GraphQL queries served by this node (`meter_oap_graphql_query_latency_percentile`).
-
-- **GraphQL Query Count** — GraphQL queries per minute, split into total **queries** and **errors** (`meter_oap_instance_graphql_query_count`, `meter_oap_instance_graphql_query_error_count`).
-
-### Ingestion and analysis pipelines
-
-The receivers and analyzers turning raw telemetry into metrics.
+- **Watermark Circuit Breaker** — cumulative **break** and **recover** counters per listener; when OAP sheds load under memory pressure, breaks climb (`meter_oap_instance_watermark_circuit_breaker_break_count`, `meter_oap_instance_watermark_circuit_breaker_recover_count`).
 
 - **Trace Analysis / min** — traces analyzed per minute, **total** vs **errors** (`meter_oap_instance_trace_count`, `meter_oap_instance_trace_analysis_error_count`).
 
@@ -90,39 +66,57 @@ The receivers and analyzers turning raw telemetry into metrics.
 
 - **K8S ALS** — Kubernetes Access Log Service throughput: **count**, **dropped**, **streams**, and **err streams** (`meter_oap_instance_k8s_als_count`, `meter_oap_instance_k8s_als_drop`, `meter_oap_instance_k8s_als_streams`, `meter_oap_instance_k8s_als_error_streams`).
 
-- **Watermark Circuit Breaker** — cumulative **break** and **recover** counters per listener; when OAP sheds load under memory pressure, breaks climb (`meter_oap_instance_watermark_circuit_breaker_break_count`, `meter_oap_instance_watermark_circuit_breaker_recover_count`).
-
 - **Zipkin Spans Dropped** — Zipkin spans dropped by this node, for deployments running the Zipkin receiver (`meter_oap_instance_spans_dropped_count`).
 
-### Cluster remote
+### Persistence & Storage
 
-Internal cluster RPC between OAP nodes (and local fan-out). Four widgets in one row (OAP 11.2.0+), shown only when this node reports cluster size. Overview series roll up `dest`; out latency lists top 5 destinations.
+How much this node writes, and how fast the storage backend takes it.
 
-- **Cluster Size** — OAP cluster size seen by this node (`meter_oap_instance_cluster_size`).
+- **Persistence Counts / min** — persistence operations per minute, split into **prepare** and **execute** (`meter_oap_instance_persistence_prepare_count`, `meter_oap_instance_persistence_execute_count`).
 
-- **Cluster Remote Traffic / min** — peer and local fan-out (`self=Y`), peer out errors (`self=N`), and inbound receives/errors/target-not-found, counts per minute (`meter_oap_instance_remote_out_*`, `meter_oap_instance_remote_in_*`).
+- **Persistent Cache / min** — persistent-cache activity per minute (`meter_oap_instance_metrics_persistent_cache`).
 
-- **Cluster Remote Out Pressure** — peer clients (`self=N`): inflight streams (sum), hottest queue % (max, from `meter_oap_instance_remote_out_queue_used_per_ten_thousand` / 100), and block wait ms/min (`meter_oap_instance_remote_out_stream_inflight`, `_queue_used_per_ten_thousand`, `_stream_block_milliseconds`).
+- **Persistence Prepare Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of the persistence prepare phase (`meter_oap_instance_persistence_prepare_percentile`).
 
-- **Cluster Remote Latency (ms)** — out worst-peer p50/p99 and top-5 dest p99, plus inbound p99 (`meter_oap_instance_remote_out_latency_percentile`, `meter_oap_instance_remote_in_latency_percentile`).
+- **Persistence Execute Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of the persistence execute phase (`meter_oap_instance_persistence_execute_percentile`).
 
-### Alarm delivery
+- **BanyanDB Write Latency (ms)** — write latency by catalog and operation: **measure bulk**, **stream bulk**, **trace bulk**, **stream single**, and **property** (`meter_oap_banyandb_write_latency_percentile`). Shown only when BanyanDB write metrics are present.
 
-How the alarms this node raises reach their hooks: HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. These widgets are shown only on an OAP node that has delivered an alarm, and the Responses widget only once an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
+- **Elasticsearch Write Latency (ms)** — write latency split into **single** (single write / update / delete) and **bulk** (`meter_oap_elasticsearch_write_latency_percentile`). Shown only when Elasticsearch write metrics are present.
+
+### Aggregation & Cluster
+
+How much this node aggregates, and how the aggregated metrics move between the OAP nodes of a cluster. The five cluster widgets need OAP 11.2.0+ and show only when this node reports its cluster size; a standalone OAP 11.2.0+ shows them too, with a cluster of one.
+
+- **Aggregation / min** — metrics aggregated per minute (`meter_oap_instance_metrics_aggregation`).
+
+- **Aggregation Queue Usage (%)** — fill level of the L1 and L2 metrics-aggregation queues, top-10 worst series each (`meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand`, level 1 and level 2). A queue trending toward 100% is back-pressure — OAP is ingesting faster than it can aggregate.
+
+- **Cluster Size** — the OAP nodes this node sees in the cluster, itself included (`meter_oap_instance_cluster_size`). A dip means a node dropped out of the cluster coordinator's list.
+
+- **Cluster Remote Traffic / min** — messages per minute. Left axis: **sent to peers** (to the other nodes, all peers added together), **sent locally** (this node's own share, handed to its own workers without a network call) and **received** (from the other nodes). Right axis: **send errors** (a send to a peer that failed, or that the send queue refused), **receive errors**, and **target missing** — a received message for a worker this node does not have, which means the nodes run different OAL / MAL rules (`meter_oap_instance_remote_out_count`, `meter_oap_instance_remote_out_error_count`, `meter_oap_instance_remote_in_count`, `meter_oap_instance_remote_in_error_count`, `meter_oap_instance_remote_in_target_not_found_count`). Sent and received describe the two sides of one node, so they need not match: a local send never shows up as received. Across the cluster, the nodes' **sent to peers** add up to roughly their **received**.
+
+- **Cluster Remote Latency (ms)** — **send p99**, one line per peer for the five slowest: the time from a batch's gRPC stream opening to the peer confirming it, the peer's handling included, but not the wait for a free stream slot (that is **block wait** below). **handling p99**: the time this node spends handling one received message, without the network (`meter_oap_instance_remote_out_latency_percentile`, `meter_oap_instance_remote_in_latency_percentile`). Both read in the steps of OAP's latency buckets (5, 10, 25, 50, 75, 100 ms and up), each value meaning "at most". A peer reads 0 in a minute in which no batch to it completed — a peer this node sends nothing to reads 0 throughout.
+
+- **Cluster Remote Streams** — left axis, **in flight**: the gRPC streams open to the other nodes, all peers added together; each peer allows at most 10 at a time. Right axis, **block wait**: milliseconds per minute spent waiting for a free stream slot, which climbs when a peer is slow to accept or cannot be reached (`meter_oap_instance_remote_out_stream_inflight`, `meter_oap_instance_remote_out_stream_block_milliseconds`). In flight is kept per minute, so a short burst can read lower than it peaked.
+
+- **Cluster Remote Send Queue (%)** — how full the send queue to each other node is, for the five fullest (`meter_oap_instance_remote_out_queue_used_per_ten_thousand`). A send the queue refuses counts as a **send error** on the traffic widget.
+
+### Query & Alarms
+
+The GraphQL API that Horizon (and any GraphQL client) queries, and the hooks this node's alarms go out through.
+
+- **GraphQL Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of GraphQL queries served by this node (`meter_oap_graphql_query_latency_percentile`).
+
+- **GraphQL Query Count** — GraphQL queries per minute, split into total **queries** and **errors** (`meter_oap_instance_graphql_query_count`, `meter_oap_instance_graphql_query_error_count`).
+
+The alarm delivery widgets cover HTTP channels (Webhook, Slack, WeCom, DingTalk, Feishu, WeLink, PagerDuty, Discord) and **gRPC**. They are shown only on an OAP node that has delivered an alarm, and the Responses widget only once an HTTP hook has answered; each line is one channel, so a deployment with one notification channel reads one line per result.
 
 - **Alarm Delivery / min** — deliveries per minute by channel (HTTP and gRPC) and result: **success**, or why a delivery failed — **auth_failed** (a bad token, key, signature or IP whitelist), **rate_limited**, **rejected** (the channel refused the message, for example a missing keyword), **server_error**, **token_error** (WeLink could not get its access token), **timeout**, **io_error** or **interrupted** (`meter_oap_instance_alarm_http_delivery_count`). DingTalk, WeCom, Feishu and WeLink often refuse a message with HTTP 200 and an error code; those count as failures too.
 
 - **Alarm Delivery Responses / min** — HTTP hook responses per minute by channel and status class: **2xx**, **3xx**, **4xx**, **5xx** or **other** (`meter_oap_instance_alarm_http_delivery_status_count`). HTTP hooks only; gRPC deliveries have no HTTP status series.
 
 - **Alarm Delivery Latency (ms)** — p50 / p75 / p90 / p95 / p99 delivery time per channel, HTTP and gRPC (`meter_oap_instance_alarm_http_delivery_latency_percentile`).
-
-### Storage backend
-
-Write latency against whichever storage backend this OAP is configured with. These two widgets are storage-specific and only render when the matching backend is in use — a BanyanDB deployment shows the BanyanDB widget, an Elasticsearch deployment shows the Elasticsearch widget.
-
-- **BanyanDB Write Latency (ms)** — write latency by catalog and operation: **measure bulk**, **stream bulk**, **trace bulk**, **stream single**, and **property** (`meter_oap_banyandb_write_latency_percentile`). Shown only when BanyanDB write metrics are present.
-
-- **Elasticsearch Write Latency (ms)** — write latency split into **single** (single write / update / delete) and **bulk** (`meter_oap_elasticsearch_write_latency_percentile`). Shown only when Elasticsearch write metrics are present.
 
 ## Requirements
 

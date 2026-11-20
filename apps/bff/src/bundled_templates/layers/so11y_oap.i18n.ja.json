@@ -4,224 +4,253 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU (%)"
-      },
-      {
-        "id": "mem",
-        "title": "JVM メモリ (MB)"
-      },
-      {
-        "id": "gc_count",
-        "title": "GC 回数 / 分"
-      },
-      {
-        "id": "gc_time",
-        "title": "GC 時間 (ms / 分)"
-      },
-      {
-        "id": "buffer_pool",
-        "title": "バッファプール (MB)"
-      },
-      {
-        "id": "threads",
-        "title": "スレッド数",
-        "expressionLabels": [
-          "ライブ",
-          "ピーク",
-          "デーモン"
+        "id": "oap_node",
+        "title": "OAP ノード",
+        "tabs": [
+          {
+            "name": "レシーバーと JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU (%)"
+              },
+              {
+                "id": "mem",
+                "title": "JVM メモリ (MB)"
+              },
+              {
+                "id": "gc_count",
+                "title": "GC 回数 / 分"
+              },
+              {
+                "id": "gc_time",
+                "title": "GC 時間 (ms / 分)"
+              },
+              {
+                "id": "buffer_pool",
+                "title": "バッファプール (MB)"
+              },
+              {
+                "id": "threads",
+                "title": "スレッド数",
+                "expressionLabels": [
+                  "ライブ",
+                  "ピーク",
+                  "デーモン"
+                ]
+              },
+              {
+                "id": "thread_states",
+                "title": "スレッド状態",
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "ブロック",
+                  "待機"
+                ]
+              },
+              {
+                "id": "classes",
+                "title": "クラス数",
+                "expressionLabels": [
+                  "ロード済み",
+                  "アンロード合計",
+                  "ロード合計"
+                ]
+              },
+              {
+                "id": "watermark",
+                "title": "Watermark サーキットブレーカー",
+                "tip": "リスナー単位の break + recover 累積カウンタ。",
+                "expressionLabels": [
+                  "ブレーク",
+                  "リカバリ"
+                ]
+              },
+              {
+                "id": "trace_analysis",
+                "title": "Trace 解析 / 分",
+                "expressionLabels": [
+                  "合計",
+                  "エラー"
+                ]
+              },
+              {
+                "id": "trace_latency",
+                "title": "Trace 解析レイテンシ (ms)"
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "Mesh 解析 / 分",
+                "expressionLabels": [
+                  "合計",
+                  "エラー"
+                ]
+              },
+              {
+                "id": "mesh_latency",
+                "title": "Mesh 解析レイテンシ (ms)"
+              },
+              {
+                "id": "otel_received",
+                "title": "OTEL 受信 / s",
+                "expressionLabels": [
+                  "メトリクス",
+                  "ログ",
+                  "スパン"
+                ]
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8s ALS",
+                "expressionLabels": [
+                  "件数",
+                  "破棄",
+                  "ストリーム",
+                  "エラーストリーム"
+                ]
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Zipkin スパン破棄"
+              }
+            ]
+          },
+          {
+            "name": "永続化とストレージ",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "永続化回数 / 分",
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ]
+              },
+              {
+                "id": "persistence_cache",
+                "title": "永続キャッシュ / 分"
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "永続化 Prepare レイテンシ (ms)"
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "永続化 Execute レイテンシ (ms)"
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "BanyanDB 書き込みレイテンシ (ms)",
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "プロパティ"
+                ]
+              },
+              {
+                "id": "es_latency",
+                "title": "Elasticsearch 書き込みレイテンシ (ms)",
+                "expressionLabels": [
+                  "single",
+                  "バルク"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "集約とクラスタ",
+            "widgets": [
+              {
+                "id": "aggregation",
+                "title": "集約 / 分"
+              },
+              {
+                "id": "aggr_queue",
+                "title": "集約キュー使用率 (%)",
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ]
+              },
+              {
+                "id": "cluster_size",
+                "title": "クラスタサイズ",
+                "tip": "このノードから見えるクラスタ内の OAP ノード数（自身を含む）。"
+              },
+              {
+                "id": "remote_traffic",
+                "title": "クラスタ Remote トラフィック / 分",
+                "tip": "このノードが他ノードと自身へ送信し、他ノードから受信したメッセージ数（左軸）。送信エラー、受信エラー、およびこのノードに存在しない worker 宛ての受信メッセージ数（右軸）。最後のものはノード間で OAL / MAL ルールが異なることを示します。",
+                "expressionLabels": [
+                  "ピアへ送信",
+                  "ローカル送信",
+                  "受信",
+                  "送信エラー",
+                  "受信エラー",
+                  "ターゲット欠落"
+                ]
+              },
+              {
+                "id": "remote_latency",
+                "title": "クラスタ Remote レイテンシ (ms)",
+                "tip": "ピアへ送信したバッチが完了するまでの p99 時間（ピア側の処理を含む、遅い順に上位 5 ピア）と、このノードが受信メッセージ 1 件の処理にかかる p99 時間。その分にバッチが 1 件も完了しなかったピアは 0 になります。",
+                "expressionLabels": [
+                  "送信 p99",
+                  "処理 p99"
+                ]
+              },
+              {
+                "id": "remote_streams",
+                "title": "クラスタ Remote ストリーム",
+                "tip": "他ノードへ開いている gRPC ストリーム数（ピアあたり最大 10、左軸）と、空きストリーム枠を待った時間（ms / 分、右軸）。",
+                "expressionLabels": [
+                  "進行中",
+                  "ブロック待ち"
+                ]
+              },
+              {
+                "id": "remote_queue",
+                "title": "クラスタ Remote 送信キュー (%)",
+                "tip": "他ノードごとの送信キュー使用率（使用率が高い上位 5 件）。"
+              }
+            ]
+          },
+          {
+            "name": "クエリとアラート",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "GraphQL レイテンシ (ms)"
+              },
+              {
+                "id": "graphql_count",
+                "title": "GraphQL クエリ数",
+                "expressionLabels": [
+                  "クエリ",
+                  "エラー"
+                ]
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "アラート配信 / 分",
+                "tip": "チャネル別（HTTP および gRPC）・結果別のアラートフック配信数。成功、または配信に失敗した理由。"
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "アラート配信レスポンス / 分",
+                "tip": "チャネル別・ステータスクラス別の HTTP アラートフックのレスポンス数。"
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "アラート配信レイテンシ (ms)",
+                "tip": "チャネル別（HTTP および gRPC）のアラートフック配信レイテンシ。"
+              }
+            ]
+          }
         ]
-      },
-      {
-        "id": "thread_states",
-        "title": "スレッド状態",
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "ブロック",
-          "待機"
-        ]
-      },
-      {
-        "id": "classes",
-        "title": "クラス数",
-        "expressionLabels": [
-          "ロード済み",
-          "アンロード合計",
-          "ロード合計"
-        ]
-      },
-      {
-        "id": "aggregation",
-        "title": "集約 / 分"
-      },
-      {
-        "id": "persistence_counts",
-        "title": "永続化回数 / 分",
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ]
-      },
-      {
-        "id": "persistence_cache",
-        "title": "永続キャッシュ / 分"
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "永続化 Prepare レイテンシ (ms)"
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "永続化 Execute レイテンシ (ms)"
-      },
-      {
-        "id": "graphql_latency",
-        "title": "GraphQL レイテンシ (ms)"
-      },
-      {
-        "id": "graphql_count",
-        "title": "GraphQL クエリ数",
-        "expressionLabels": [
-          "クエリ",
-          "エラー"
-        ]
-      },
-      {
-        "id": "trace_analysis",
-        "title": "Trace 解析 / 分",
-        "expressionLabels": [
-          "合計",
-          "エラー"
-        ]
-      },
-      {
-        "id": "trace_latency",
-        "title": "Trace 解析レイテンシ (ms)"
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "Mesh 解析 / 分",
-        "expressionLabels": [
-          "合計",
-          "エラー"
-        ]
-      },
-      {
-        "id": "mesh_latency",
-        "title": "Mesh 解析レイテンシ (ms)"
-      },
-      {
-        "id": "otel_received",
-        "title": "OTEL 受信 / s",
-        "expressionLabels": [
-          "メトリクス",
-          "ログ",
-          "スパン"
-        ]
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8s ALS",
-        "expressionLabels": [
-          "件数",
-          "破棄",
-          "ストリーム",
-          "エラーストリーム"
-        ]
-      },
-      {
-        "id": "watermark",
-        "title": "Watermark サーキットブレーカー",
-        "tip": "リスナー単位の break + recover 累積カウンタ。",
-        "expressionLabels": [
-          "ブレーク",
-          "リカバリ"
-        ]
-      },
-      {
-        "id": "aggr_queue",
-        "title": "集約キュー使用率 (%)",
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ]
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "BanyanDB 書き込みレイテンシ (ms)",
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "プロパティ"
-        ]
-      },
-      {
-        "id": "es_latency",
-        "title": "Elasticsearch 書き込みレイテンシ (ms)",
-        "expressionLabels": [
-          "single",
-          "バルク"
-        ]
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Zipkin スパン破棄"
-      },
-      {
-        "id": "cluster_size",
-        "title": "クラスタサイズ",
-        "tip": "このノードから見た OAP クラスタサイズ。"
-      },
-      {
-        "id": "remote_traffic",
-        "title": "クラスタ Remote トラフィック / 分",
-        "tip": "クラスタ RPC の分あたり件数: peer/local 送信、peer 送信エラー、受信/エラー/ターゲット未検出。",
-        "expressionLabels": [
-          "対向送信",
-          "ローカル送信",
-          "送信エラー",
-          "受信",
-          "受信エラー",
-          "ターゲット欠落"
-        ]
-      },
-      {
-        "id": "remote_out_pressure",
-        "title": "クラスタ Remote 送信圧力",
-        "tip": "Peer 送信圧力: inflight ストリーム、最大キュー %、ストリームブロック待ち。",
-        "expressionLabels": [
-          "進行中",
-          "キュー",
-          "ブロック"
-        ]
-      },
-      {
-        "id": "remote_latency",
-        "title": "クラスタ Remote レイテンシ (ms)",
-        "tip": "クラスタ RPC レイテンシ: peer 送信の最悪 p50/p99 と上位宛先、および受信 p99。",
-        "expressionLabels": [
-          "送信最悪",
-          "送信 dest 別",
-          "受信 p99"
-        ]
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "アラート配信 / 分",
-        "tip": "チャネル別（HTTP および gRPC）・結果別のアラートフック配信数。成功、または配信に失敗した理由。"
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "アラート配信レスポンス / 分",
-        "tip": "チャネル別・ステータスクラス別の HTTP アラートフックのレスポンス数。"
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "アラート配信レイテンシ (ms)",
-        "tip": "チャネル別（HTTP および gRPC）のアラートフック配信レイテンシ。"
       }
     ]
   },

@@ -8,224 +8,253 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU（%）"
-      },
-      {
-        "id": "mem",
-        "title": "JVM 内存（MB）"
-      },
-      {
-        "id": "gc_count",
-        "title": "GC 次数 / 分钟"
-      },
-      {
-        "id": "gc_time",
-        "title": "GC 时间（ms / 分钟）"
-      },
-      {
-        "id": "buffer_pool",
-        "title": "Buffer Pool（MB）"
-      },
-      {
-        "id": "threads",
-        "title": "线程数",
-        "expressionLabels": [
-          "live",
-          "peak",
-          "daemon"
+        "id": "oap_node",
+        "title": "OAP 节点",
+        "tabs": [
+          {
+            "name": "接收器与 JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU（%）"
+              },
+              {
+                "id": "mem",
+                "title": "JVM 内存（MB）"
+              },
+              {
+                "id": "gc_count",
+                "title": "GC 次数 / 分钟"
+              },
+              {
+                "id": "gc_time",
+                "title": "GC 时间（ms / 分钟）"
+              },
+              {
+                "id": "buffer_pool",
+                "title": "Buffer Pool（MB）"
+              },
+              {
+                "id": "threads",
+                "title": "线程数",
+                "expressionLabels": [
+                  "live",
+                  "peak",
+                  "daemon"
+                ]
+              },
+              {
+                "id": "thread_states",
+                "title": "线程状态",
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "blocked",
+                  "waiting"
+                ]
+              },
+              {
+                "id": "classes",
+                "title": "类数量",
+                "expressionLabels": [
+                  "loaded",
+                  "unloaded total",
+                  "loaded total"
+                ]
+              },
+              {
+                "id": "watermark",
+                "title": "Watermark 熔断器",
+                "tip": "每个监听器累计 break + recover 计数。",
+                "expressionLabels": [
+                  "break",
+                  "recover"
+                ]
+              },
+              {
+                "id": "trace_analysis",
+                "title": "Trace 分析 / 分钟",
+                "expressionLabels": [
+                  "total",
+                  "errors"
+                ]
+              },
+              {
+                "id": "trace_latency",
+                "title": "Trace 分析延迟（ms）"
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "Mesh 分析 / 分钟",
+                "expressionLabels": [
+                  "total",
+                  "errors"
+                ]
+              },
+              {
+                "id": "mesh_latency",
+                "title": "Mesh 分析延迟（ms）"
+              },
+              {
+                "id": "otel_received",
+                "title": "OTel 接收 / 秒",
+                "expressionLabels": [
+                  "metrics",
+                  "logs",
+                  "spans"
+                ]
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8s ALS",
+                "expressionLabels": [
+                  "count",
+                  "dropped",
+                  "streams",
+                  "err streams"
+                ]
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Zipkin Span 丢弃数"
+              }
+            ]
+          },
+          {
+            "name": "持久化与存储",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "持久化次数 / 分钟",
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ]
+              },
+              {
+                "id": "persistence_cache",
+                "title": "持久化缓存 / 分钟"
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "持久化 Prepare 延迟（ms）"
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "持久化 Execute 延迟（ms）"
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "BanyanDB 写延迟（ms）",
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "property"
+                ]
+              },
+              {
+                "id": "es_latency",
+                "title": "Elasticsearch 写延迟（ms）",
+                "expressionLabels": [
+                  "single",
+                  "bulk"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "聚合与集群",
+            "widgets": [
+              {
+                "id": "aggregation",
+                "title": "聚合 / 分钟"
+              },
+              {
+                "id": "aggr_queue",
+                "title": "聚合队列使用率（%）",
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ]
+              },
+              {
+                "id": "cluster_size",
+                "title": "集群规模",
+                "tip": "当前节点看到的集群 OAP 节点数，包含自身。"
+              },
+              {
+                "id": "remote_traffic",
+                "title": "集群 Remote 流量 / 分钟",
+                "tip": "当前节点发往其他节点和自身的消息数，以及从其他节点收到的消息数（左轴）；发送错误、接收错误，以及收到的、本节点不存在对应 worker 的消息数（右轴）——后者说明各节点运行的 OAL / MAL 规则不一致。",
+                "expressionLabels": [
+                  "发往对端",
+                  "本地发送",
+                  "接收",
+                  "发送错误",
+                  "接收错误",
+                  "目标缺失"
+                ]
+              },
+              {
+                "id": "remote_latency",
+                "title": "集群 Remote 延迟（ms）",
+                "tip": "发往对端的一个批次从发出到完成的 p99 耗时（含对端处理），取最慢的五个对端；以及当前节点处理一条收到的消息的 p99 耗时。某分钟内没有批次完成的对端显示为 0。",
+                "expressionLabels": [
+                  "发送 p99",
+                  "处理 p99"
+                ]
+              },
+              {
+                "id": "remote_streams",
+                "title": "集群 Remote 流",
+                "tip": "发往其他节点的已打开 gRPC 流数，每个对端最多 10 个（左轴）；以及等待空闲流槽位的时间，单位为每分钟 ms（右轴）。",
+                "expressionLabels": [
+                  "进行中",
+                  "阻塞等待"
+                ]
+              },
+              {
+                "id": "remote_queue",
+                "title": "集群 Remote 发送队列（%）",
+                "tip": "发往每个其他节点的发送队列占用率，取最满的五个。"
+              }
+            ]
+          },
+          {
+            "name": "查询与告警",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "GraphQL 延迟（ms）"
+              },
+              {
+                "id": "graphql_count",
+                "title": "GraphQL 查询数",
+                "expressionLabels": [
+                  "queries",
+                  "errors"
+                ]
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "告警投递 / 分钟",
+                "tip": "各通道（HTTP 与 gRPC）告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "告警投递响应 / 分钟",
+                "tip": "各通道 HTTP 告警钩子收到的响应次数，按状态码类别区分。"
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "告警投递延迟（ms）",
+                "tip": "各通道（HTTP 与 gRPC）告警钩子的投递延迟。"
+              }
+            ]
+          }
         ]
-      },
-      {
-        "id": "thread_states",
-        "title": "线程状态",
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "blocked",
-          "waiting"
-        ]
-      },
-      {
-        "id": "classes",
-        "title": "类数量",
-        "expressionLabels": [
-          "loaded",
-          "unloaded total",
-          "loaded total"
-        ]
-      },
-      {
-        "id": "aggregation",
-        "title": "聚合 / 分钟"
-      },
-      {
-        "id": "persistence_counts",
-        "title": "持久化次数 / 分钟",
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ]
-      },
-      {
-        "id": "persistence_cache",
-        "title": "持久化缓存 / 分钟"
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "持久化 Prepare 延迟（ms）"
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "持久化 Execute 延迟（ms）"
-      },
-      {
-        "id": "graphql_latency",
-        "title": "GraphQL 延迟（ms）"
-      },
-      {
-        "id": "graphql_count",
-        "title": "GraphQL 查询数",
-        "expressionLabels": [
-          "queries",
-          "errors"
-        ]
-      },
-      {
-        "id": "trace_analysis",
-        "title": "Trace 分析 / 分钟",
-        "expressionLabels": [
-          "total",
-          "errors"
-        ]
-      },
-      {
-        "id": "trace_latency",
-        "title": "Trace 分析延迟（ms）"
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "Mesh 分析 / 分钟",
-        "expressionLabels": [
-          "total",
-          "errors"
-        ]
-      },
-      {
-        "id": "mesh_latency",
-        "title": "Mesh 分析延迟（ms）"
-      },
-      {
-        "id": "otel_received",
-        "title": "OTel 接收 / 秒",
-        "expressionLabels": [
-          "metrics",
-          "logs",
-          "spans"
-        ]
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8s ALS",
-        "expressionLabels": [
-          "count",
-          "dropped",
-          "streams",
-          "err streams"
-        ]
-      },
-      {
-        "id": "watermark",
-        "title": "Watermark 熔断器",
-        "tip": "每个监听器累计 break + recover 计数。",
-        "expressionLabels": [
-          "break",
-          "recover"
-        ]
-      },
-      {
-        "id": "aggr_queue",
-        "title": "聚合队列使用率（%）",
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ]
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "BanyanDB 写延迟（ms）",
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "property"
-        ]
-      },
-      {
-        "id": "es_latency",
-        "title": "Elasticsearch 写延迟（ms）",
-        "expressionLabels": [
-          "single",
-          "bulk"
-        ]
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Zipkin Span 丢弃数"
-      },
-      {
-        "id": "cluster_size",
-        "title": "集群规模",
-        "tip": "当前节点看到的 OAP 集群节点数。"
-      },
-      {
-        "id": "remote_traffic",
-        "title": "集群 Remote 流量 / 分钟",
-        "tip": "集群 RPC 每分钟计数：peer/本地发送、peer 发送错误，以及入站接收/错误/目标未找到。",
-        "expressionLabels": [
-          "对端出站",
-          "本地出站",
-          "出站错误",
-          "入站",
-          "入站错误",
-          "目标缺失"
-        ]
-      },
-      {
-        "id": "remote_out_pressure",
-        "title": "集群 Remote 出站压力",
-        "tip": "Peer 发送压力：inflight 流、最高队列占用 %、流阻塞等待。",
-        "expressionLabels": [
-          "进行中流",
-          "队列",
-          "阻塞"
-        ]
-      },
-      {
-        "id": "remote_latency",
-        "title": "集群 Remote 延迟（ms）",
-        "tip": "集群 RPC 延迟：peer 发送最差 p50/p99 与热点目标，以及入站 p99。",
-        "expressionLabels": [
-          "出站最差",
-          "出站按目标",
-          "入站 p99"
-        ]
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "告警投递 / 分钟",
-        "tip": "各通道（HTTP 与 gRPC）告警钩子的投递次数，按结果区分：成功，或投递失败的原因。"
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "告警投递响应 / 分钟",
-        "tip": "各通道 HTTP 告警钩子收到的响应次数，按状态码类别区分。"
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "告警投递延迟（ms）",
-        "tip": "各通道（HTTP 与 gRPC）告警钩子的投递延迟。"
       }
     ]
   }
