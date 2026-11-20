@@ -409,7 +409,7 @@
                   "aggregate_labels(meter_oap_instance_remote_out_count{self='N'}, sum)",
                   "aggregate_labels(meter_oap_instance_remote_out_count{self='Y'}, sum)",
                   "meter_oap_instance_remote_in_count",
-                  "aggregate_labels(meter_oap_instance_remote_out_error_count{self='N'}, sum)",
+                  "aggregate_labels(meter_oap_instance_remote_out_error_count, sum)",
                   "meter_oap_instance_remote_in_error_count",
                   "meter_oap_instance_remote_in_target_not_found_count"
                 ],

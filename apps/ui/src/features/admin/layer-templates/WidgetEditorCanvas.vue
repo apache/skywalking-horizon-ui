@@ -53,6 +53,7 @@ import { nextFreeId } from './free-id';
 import { retypeWidget } from './retypeWidget';
 import { type AdminScope, scopeLabelOf } from './layer-dashboards.scopes';
 import TimeChart from '@/components/charts/TimeChart.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import TopList from '@/components/charts/TopList.vue';
 import { fmtMetric } from '@/utils/formatters';
 import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './widget-mock';
@@ -907,7 +908,14 @@ onBeforeUnmount(() => {
           </header>
           <div class="cw-body">
             <template v-if="w.type === 'line' && w.expressions.length > 0">
+              <LineStat
+                v-if="w.showValue"
+                :widget="w"
+                :series="mockLineSeries(w)"
+                :height="Math.max(60, widgetRowSpan(w) * 120 - 50)"
+              />
               <TimeChart
+                v-else
                 :series="mockLineSeries(w)"
                 :unit="w.unit"
                 :height="Math.max(60, widgetRowSpan(w) * 120 - 50)"
@@ -970,7 +978,8 @@ onBeforeUnmount(() => {
                       <div class="cw-card-value"><span class="num">{{ fmtMetric(mockCardValue(sw)) }}</span><span v-if="sw.unit" class="unit">{{ sw.unit }}</span></div>
                     </template>
                     <template v-else-if="sw.type === 'line' && sw.expressions.length > 0">
-                      <TimeChart :series="mockLineSeries(sw)" :unit="sw.unit" :height="Math.max(48, widgetRowSpan(sw) * 100 - 44)" />
+                      <LineStat v-if="sw.showValue" :widget="sw" :series="mockLineSeries(sw)" :height="Math.max(48, widgetRowSpan(sw) * 100 - 44)" />
+                      <TimeChart v-else :series="mockLineSeries(sw)" :unit="sw.unit" :height="Math.max(48, widgetRowSpan(sw) * 100 - 44)" />
                     </template>
                     <template v-else-if="sw.type === 'top' && sw.expressions.length > 0">
                       <TopList :groups="mockTopGroups(sw, Math.max(3, widgetRowSpan(sw) * 3))" :unit="sw.unit" />

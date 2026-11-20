@@ -37,6 +37,8 @@ import { NEUTRAL_METRIC_COLOR } from '@/utils/metricColor';
 /** Height of the number's text row. A top margin below this puts the line
  *  behind the number, and the line is drawn fainter so the number reads. */
 const NUMBER_BLOCK_PX = 32;
+/** The least height the line keeps, however large the top margin. */
+const MIN_CHART_PX = 24;
 
 const props = defineProps<{
   widget: DashboardWidget;
@@ -66,7 +68,7 @@ const CAPTION: Record<LineValueCalculation, string> = {
 const opts = computed(() => props.widget.showValue ?? { calculation: 'avg' as const });
 const layout = computed(() => opts.value.layout ?? LINE_VALUE_DEFAULTS.layout);
 const topMargin = computed(() => opts.value.topMargin ?? LINE_VALUE_DEFAULTS.topMargin);
-const behind = computed(() => layout.value === 'stacked' && topMargin.value < NUMBER_BLOCK_PX);
+
 const value = computed(() => lineShowValue(props.series[0]?.data, opts.value.calculation));
 /** A metric with no colour of its own draws in the theme's series blue, as
  *  the data lines beside it do; the text colour it would otherwise take
@@ -86,6 +88,13 @@ onMounted(() => {
 });
 onBeforeUnmount(() => observer?.disconnect());
 const fullHeight = computed(() => measured.value ?? props.height);
+/** The margin the card has room for: on a short card a large margin would
+ *  push the line out of the body, where it is clipped. */
+const top = computed(() => Math.min(topMargin.value, Math.max(0, fullHeight.value - MIN_CHART_PX)));
+const behind = computed(() => layout.value === 'stacked' && top.value < NUMBER_BLOCK_PX);
+/** The number comes from the first series, so its unit does too: an
+ *  expression's own unit overrides the widget's. */
+const unit = computed(() => props.series[0]?.unit || props.widget.unit);
 const text = computed(() => fmtMetricAs(value.value, props.widget.format as MetricFormat | undefined));
 </script>
 
@@ -94,17 +103,17 @@ const text = computed(() => fmtMetricAs(value.value, props.widget.format as Metr
     ref="root"
     class="line-stat"
     :class="layout"
-    :style="{ minHeight: `${height}px`, '--split': `${opts.split ?? LINE_VALUE_DEFAULTS.split}%`, '--top': `${topMargin}px` }"
+    :style="{ minHeight: `${height}px`, '--split': `${opts.split ?? LINE_VALUE_DEFAULTS.split}%`, '--top': `${top}px` }"
   >
     <div class="ls-num" :class="{ behind }">
-      <span class="num" :class="{ muted: value == null }">{{ text }}<span v-if="widget.unit" class="unit">{{ widget.unit }}</span></span>
+      <span class="num" :class="{ muted: value == null }">{{ text }}<span v-if="unit" class="unit">{{ unit }}</span></span>
       <span class="cap">{{ t(CAPTION[opts.calculation]) }}</span>
     </div>
     <div class="ls-chart">
       <TimeChart
         :series="series"
         :unit="widget.unit"
-        :height="layout === 'stacked' ? Math.max(24, fullHeight - topMargin) : fullHeight"
+        :height="layout === 'stacked' ? Math.max(MIN_CHART_PX, fullHeight - top) : fullHeight"
         :accent="lineColor"
         :format="widget.format"
         :x-labels="xLabels"

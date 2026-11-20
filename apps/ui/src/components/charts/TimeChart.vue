@@ -192,16 +192,19 @@ const SECONDARY = ENTITY_PALETTE;
 const container = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
 
-function buildOption(): echarts.EChartsCoreOption {
-  // X-axis labels: callers that know the window (e.g. the layer
-  // dashboard, which reconstructs per-bucket times from the active
-  // step + range) pass explicit `xLabels`. When absent, fall back to
-  // relative "-Nm" markers.
+/** X-axis labels: callers that know the window (e.g. the layer dashboard,
+ *  which reconstructs per-bucket times from the active step + range) pass
+ *  explicit `xLabels`. When absent, fall back to relative "-Nm" markers. */
+function axisLabels(): string[] {
   const length = props.series[0]?.data.length ?? 0;
-  const xLabels =
-    props.xLabels && props.xLabels.length === length
-      ? props.xLabels
-      : Array.from({ length }, (_, i) => `-${length - i - 1}m`);
+  return props.xLabels && props.xLabels.length === length
+    ? props.xLabels
+    : Array.from({ length }, (_, i) => `-${length - i - 1}m`);
+}
+
+function buildOption(): echarts.EChartsCoreOption {
+  const xLabels = axisLabels();
+  const length = xLabels.length;
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -356,12 +359,17 @@ function buildOption(): echarts.EChartsCoreOption {
      * single-axis multi-series like relabeled percentiles. Bare
      * single-series widgets keep the axis name since the legend is
      * hidden there. */
-    yAxis: props.sparkline ? [{
-      type: 'value',
-      show: false,
-      min: (v: { min: number; max: number }) => sparkRange(v).min,
-      max: (v: { min: number; max: number }) => sparkRange(v).max,
-    }] : (() => {
+    // One hidden axis per axis the series use: a series on axis 1 with no
+    // axis 1 makes ECharts throw and the chart never renders.
+    yAxis: props.sparkline ? Array.from(
+      { length: Math.max(1, ...props.series.map((s) => (s.yAxisIndex ?? 0) + 1)) },
+      () => ({
+        type: 'value',
+        show: false,
+        min: (v: { min: number; max: number }) => sparkRange(v).min,
+        max: (v: { min: number; max: number }) => sparkRange(v).max,
+      }),
+    ) : (() => {
       // Whole-number ticks for an `int` axis: rounding the default half
       // steps printed every label twice on a small range (3, 3, 2, 2, …).
       const intTicks = props.format === 'int' ? { minInterval: 1 } : {};
@@ -465,10 +473,18 @@ function seriesFingerprint(series: Series[]): string {
 }
 let prevFingerprint = '';
 
+/** Colours are resolved from CSS variables when the option is built, so a
+ *  theme switch has to rebuild it or the canvas keeps the old theme's ink. */
+let themeObserver: MutationObserver | null = null;
+
 onMounted(() => {
   if (!container.value) return;
   chart = echarts.init(container.value, null, { renderer: 'canvas' });
   chart.setOption(buildOption());
+  if (typeof MutationObserver !== 'undefined') {
+    themeObserver = new MutationObserver(() => chart?.setOption(buildOption(), true));
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-appearance'] });
+  }
   prevFingerprint = seriesFingerprint(props.series);
   // A line-body click may lack dataIndex/value — recover from the click pixel
   // and read the value from series data.
@@ -499,6 +515,7 @@ onMounted(() => {
   ro.observe(container.value);
   onBeforeUnmount(() => {
     ro.disconnect();
+    themeObserver?.disconnect();
     chart?.dispose();
     chart = null;
   });
@@ -513,7 +530,9 @@ watch(
       // Same structure — just update data values. ECharts animates
       // point-by-point so a polling refresh reads as a smooth slide,
       // not a full re-render.
+      // The labels move with the window even when the bucket count does not.
       chart.setOption({
+        xAxis: { data: axisLabels() },
         series: next.map((s, i) => ({
           name: s.label,
           data: s.data.map((v) => (v === null ? '-' : v)),
@@ -540,6 +559,10 @@ watch(
     chart?.setOption(buildOption(), { replaceMerge: ['series'] });
     prevFingerprint = seriesFingerprint(props.series);
   },
+);
+watch(
+  () => props.xLabels?.join('|'),
+  () => chart?.setOption({ xAxis: { data: axisLabels() } }),
 );
 watch(
   () => [props.sparkline, props.dim],
