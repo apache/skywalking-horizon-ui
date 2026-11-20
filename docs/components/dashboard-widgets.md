@@ -140,7 +140,7 @@ When any expression sets `expressionAxes` to `1`, the right axis appears. Use fo
 
 ### A number with the line (`showValue`)
 
-`showValue` shows one big number together with the line: the number to read at a glance, the line for its trend. The number is taken from the line's first series, so it is meant for a one-series line; it uses the widget's `format` and `unit`, and a small caption beside it says which value it is. When several entities are being compared the number is not shown, and the lines carry the comparison.
+`showValue` shows one big number together with the line: the number to read at a glance, the line for its trend. The number is taken from the line's first series, so it is meant for a one-series line; it uses the widget's `format` and `unit`, and a small caption beside it says which value it is: **average** or **latest** (both latest calculations read **latest**). When several entities are being compared the number is not shown, and the lines carry the comparison.
 
 | Field | Meaning | Default |
 |---|---|---|

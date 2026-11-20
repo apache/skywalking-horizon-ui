@@ -54,10 +54,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' });
 
+/** Both latest calculations read "latest" on the card; which bucket they
+ *  take is the widget author's choice, not something to read at a glance. */
 const CAPTION: Record<LineValueCalculation, string> = {
   avg: 'average',
   latest: 'latest',
-  latestNotNull: 'latest non-null',
+  latestNotNull: 'latest',
 };
 
 const opts = computed(() => props.widget.showValue ?? { calculation: 'avg' as const });
