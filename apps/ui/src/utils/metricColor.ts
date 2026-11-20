@@ -48,6 +48,9 @@ export const ENTITY_PALETTE = [
  * Falls back to fg-0 for anything we don't recognise — operators can
  * still add custom metrics without the page going monochrome.
  */
+/** What {@link colorForMetric} returns for a metric it does not recognise. */
+export const NEUTRAL_METRIC_COLOR = 'var(--sw-fg-0)';
+
 export function colorForMetric(metricKey: string): string {
   const k = metricKey.toLowerCase();
   if (k === 'cpm' || k.endsWith('.msg-rate') || k.endsWith('.qps') || k.endsWith('.req') || k.endsWith('.invocations') || k.endsWith('.tokens') || k.endsWith('.pv')) {
@@ -65,7 +68,7 @@ export function colorForMetric(metricKey: string): string {
   if (k === 'services' || k === 'instances' || k === 'endpoints') {
     return 'var(--sw-info)';
   }
-  return 'var(--sw-fg-0)';
+  return NEUTRAL_METRIC_COLOR;
 }
 
 /**

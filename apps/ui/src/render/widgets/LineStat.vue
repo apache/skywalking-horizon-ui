@@ -32,6 +32,7 @@ import {
 } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
+import { NEUTRAL_METRIC_COLOR } from '@/utils/metricColor';
 
 /** Height of the number's text row. A top margin below this puts the line
  *  behind the number, and the line is drawn fainter so the number reads. */
@@ -67,6 +68,10 @@ const layout = computed(() => opts.value.layout ?? LINE_VALUE_DEFAULTS.layout);
 const topMargin = computed(() => opts.value.topMargin ?? LINE_VALUE_DEFAULTS.topMargin);
 const behind = computed(() => layout.value === 'stacked' && topMargin.value < NUMBER_BLOCK_PX);
 const value = computed(() => lineShowValue(props.series[0]?.data, opts.value.calculation));
+/** A metric with no colour of its own draws in the theme's series blue, as
+ *  the data lines beside it do; the text colour it would otherwise take
+ *  reads as black on a light theme. */
+const lineColor = computed(() => (!props.accent || props.accent === NEUTRAL_METRIC_COLOR ? 'var(--sw-series-3)' : props.accent));
 
 const root = ref<HTMLElement | null>(null);
 const measured = ref<number | null>(null);
@@ -100,7 +105,7 @@ const text = computed(() => fmtMetricAs(value.value, props.widget.format as Metr
         :series="series"
         :unit="widget.unit"
         :height="layout === 'stacked' ? Math.max(24, fullHeight - topMargin) : fullHeight"
-        :accent="accent"
+        :accent="lineColor"
         :format="widget.format"
         :x-labels="xLabels"
         :clickable="clickable"
@@ -136,12 +141,13 @@ const text = computed(() => fmtMetricAs(value.value, props.widget.format as Metr
   white-space: nowrap;
 }
 .num.muted {
-  color: var(--sw-fg-3);
+  /* fg-3 falls under the 3:1 large-text contrast on most themes. */
+  color: var(--sw-fg-2);
 }
 .unit {
   font-size: 12px;
   font-weight: 500;
-  color: var(--sw-fg-2);
+  color: var(--sw-fg-1);
   margin-left: 3px;
   letter-spacing: 0;
 }
