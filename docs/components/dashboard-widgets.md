@@ -32,6 +32,7 @@ Six widget types render on per-layer dashboards. Each `widget.type` you set in a
 | `recordTrace` | `record` only — `{ "source": "<trace store>" }` names the store a record's trace id opens in. See [Which store a record's trace opens in](#which-store-a-records-trace-opens-in-recordtrace). |
 | `tabs[]` | `tab` only — the named panels, each `{ "name": "…", "widgets": [ … ] }`. See [`tab`](#tab). |
 | `tableHeaders` | `table` only — `[, valueHeader]`; the value column's header. Label columns are headed by their dimension name. |
+| `showValue` | `line` only — show one big number with the line, taken from its first series, stacked over the line or side by side with it. See [A number with the line](#a-number-with-the-line-showvalue). |
 | `showTableValues` | `table` only — show the value column. `false` for presence-only lists (e.g. node conditions). Default `true`. |
 | `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` hides the widget unless the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` hides it unless the selected entity has that attribute (Instance-scope only). |
 
@@ -136,6 +137,37 @@ When any expression sets `expressionAxes` to `1`, the right axis appears. Use fo
 - Tooltip is positioned so it does not clip near grid edges.
 - **Synced crosshairs**: pointing at a time on this chart highlights the same time on every other `line` chart on the page.
 - Data-only updates (same structure, new values) animate smoothly. Structure changes do a full replace.
+
+### A number with the line (`showValue`)
+
+`showValue` shows one big number together with the line: the number to read at a glance, the line for its trend. The number is taken from the line's first series, so it is meant for a one-series line; it uses the widget's `format` and `unit`, and a small caption beside it says which value it is. When several entities are being compared the number is not shown, and the lines carry the comparison.
+
+| Field | Meaning | Default |
+|---|---|---|
+| `calculation` | `avg` — the average of the buckets that hold a value; `latest` — the range's last bucket, even while it is still empty (the number then reads `—`); `latestNotNull` — the last bucket that holds a value, the same value MQE's `latest()` returns | required |
+| `layout` | `stacked` — the number at the top and its line below it; `sideBySide` — the number on the left and the line chart on the right | `stacked` |
+| `topMargin` | `stacked` only — pixels kept above the line for the number. Smaller than the number's own height (about 32 px) lets the line run behind the number, and the line is then drawn fainter so the number stays readable | `40` |
+| `axes` | `stacked` only — draw the line's axes. Off, the line is a bare trend: no axes or point markers, an area fading downward, and a range from the data's minimum to its maximum so a small change stays visible; hovering still shows each exact value | `false` |
+| `split` | `sideBySide` only — the percentage of the width the number takes, 15 to 70; the line, with its axes, takes the rest | `35` |
+
+In the Layer dashboards editor these are the **Number** controls on a line widget: **Show**, **Layout** (**Stacked** or **Side by side**), and **Top margin (px)** and **Axes** for stacked, or **Number width (%)** side by side.
+
+```json
+{
+  "id": "pod_total",
+  "title": "Pod Total",
+  "type": "line",
+  "expressions": ["k8s_cluster_pod_total"],
+  "showValue": { "calculation": "latestNotNull" },
+  "format": "int",
+  "span": 3,
+  "rowSpan": 1
+}
+```
+
+```json
+"showValue": { "calculation": "avg", "layout": "sideBySide", "split": 30 }
+```
 
 ### When `line` is wrong
 

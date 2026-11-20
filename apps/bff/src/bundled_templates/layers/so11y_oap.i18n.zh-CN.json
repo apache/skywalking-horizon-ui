@@ -168,9 +168,9 @@
             "name": "聚合与集群",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "集群规模",
-                "tip": "当前节点看到的集群中聚合节点（Mixed 或 Aggregator 角色）数，取最新上报值。除非当前节点以 Receiver 角色运行，否则包含自身。"
+                "tip": "当前节点看到的集群中聚合节点（Mixed 或 Aggregator 角色）数：最新上报值及其变化趋势。除非当前节点以 Receiver 角色运行，否则包含自身；出现下降说明有节点退出了集群。"
               },
               {
                 "id": "aggregation",
@@ -183,11 +183,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "集群规模趋势",
-                "tip": "集群规模随时间的变化；出现下降说明有节点退出了集群。"
               },
               {
                 "id": "remote_traffic",

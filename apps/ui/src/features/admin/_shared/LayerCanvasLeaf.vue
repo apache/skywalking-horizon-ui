@@ -25,6 +25,7 @@ import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import { fmtMetric } from '@/utils/formatters';
 import {
   mockCardValue,
@@ -50,7 +51,14 @@ const { t } = useI18n({ useScope: 'global' });
   </header>
   <div class="ldc-body">
     <template v-if="widget.type === 'line' && widget.expressions.length > 0">
+      <LineStat
+        v-if="widget.showValue"
+        :widget="widget"
+        :series="mockLineSeries(widget)"
+        :height="Math.max(60, rowSpan * rowPx - 50)"
+      />
       <TimeChart
+        v-else
         :series="mockLineSeries(widget)"
         :unit="widget.unit"
         :height="Math.max(60, rowSpan * rowPx - 50)"

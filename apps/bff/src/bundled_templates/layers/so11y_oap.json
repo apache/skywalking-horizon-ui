@@ -360,13 +360,16 @@
             "name": "Aggregation & Cluster",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "Cluster Size",
-                "tip": "Aggregation nodes (Mixed or Aggregator role) this node sees in the cluster, as last reported. It counts this node too, unless it runs with the Receiver role.",
-                "type": "card",
+                "tip": "Aggregation nodes (Mixed or Aggregator role) this node sees in the cluster: the latest reported count, and the count over time. It counts this node too, unless it runs with the Receiver role; a dip means a node dropped out of the cluster.",
+                "type": "line",
                 "expressions": [
-                  "latest(meter_oap_instance_cluster_size)"
+                  "meter_oap_instance_cluster_size"
                 ],
+                "showValue": {
+                  "calculation": "latestNotNull"
+                },
                 "format": "int",
                 "span": 2,
                 "rowSpan": 2
@@ -398,17 +401,6 @@
                 "rowSpan": 2
               },
               {
-                "id": "cluster_size",
-                "title": "Cluster Size History",
-                "tip": "The cluster size over time; a dip means a node dropped out of the cluster.",
-                "type": "line",
-                "expressions": [
-                  "meter_oap_instance_cluster_size"
-                ],
-                "span": 2,
-                "rowSpan": 2
-              },
-              {
                 "id": "remote_traffic",
                 "title": "Cluster Remote Traffic / min",
                 "tip": "Messages this node sends to other nodes (attempts) and to itself, and receives from other nodes (left axis). Right axis: send errors — one per failed send or failed stream, however many messages it carried — receive errors, and received messages for a worker this node does not have, often a sign that the nodes run different OAL / MAL rules.",
@@ -437,7 +429,7 @@
                   1,
                   1
                 ],
-                "span": 5,
+                "span": 6,
                 "rowSpan": 2
               },
               {
@@ -449,7 +441,7 @@
                 "expressions": [
                   "sort_values(aggregate_labels(meter_oap_instance_remote_out_latency_percentile{self='N',p='99'}, max(dest)),5,des,avg)"
                 ],
-                "span": 5,
+                "span": 6,
                 "rowSpan": 2
               },
               {

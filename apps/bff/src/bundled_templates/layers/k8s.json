@@ -51,10 +51,13 @@
       {
         "id": "node_total",
         "title": "Node Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_node_total)"
+          "k8s_cluster_node_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -62,10 +65,13 @@
       {
         "id": "namespace_total",
         "title": "Namespace Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_namespace_total)"
+          "k8s_cluster_namespace_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -73,10 +79,13 @@
       {
         "id": "deployment_total",
         "title": "Deployment Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_deployment_total)"
+          "k8s_cluster_deployment_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -84,10 +93,13 @@
       {
         "id": "statefulset_total",
         "title": "StatefulSet Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_statefulset_total)"
+          "k8s_cluster_statefulset_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -95,10 +107,13 @@
       {
         "id": "daemonset_total",
         "title": "DaemonSet Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_daemonset_total)"
+          "k8s_cluster_daemonset_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -106,10 +121,13 @@
       {
         "id": "service_total",
         "title": "Service Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_service_total)"
+          "k8s_cluster_service_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -117,10 +135,13 @@
       {
         "id": "pod_total",
         "title": "Pod Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_pod_total)"
+          "k8s_cluster_pod_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"
@@ -128,10 +149,13 @@
       {
         "id": "container_total",
         "title": "Container Total",
-        "type": "card",
+        "type": "line",
         "expressions": [
-          "latest(k8s_cluster_container_total)"
+          "k8s_cluster_container_total"
         ],
+        "showValue": {
+          "calculation": "latestNotNull"
+        },
         "span": 3,
         "rowSpan": 1,
         "format": "int"

@@ -22,7 +22,7 @@ import { retypeWidget } from './retypeWidget';
 /** What the editor shows each type, besides id / title / span / rowSpan. */
 const SHOWN: Record<DashboardWidgetType, string[]> = {
   card: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen', 'valueMap', 'valueColors'],
-  line: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen', 'expressionAxes', 'traceDrill'],
+  line: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen', 'expressionAxes', 'traceDrill', 'showValue'],
   top: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen'],
   record: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen', 'recordTrace'],
   table: ['tip', 'expressions', 'expressionLabels', 'expressionUnits', 'unit', 'format', 'visibleWhen', 'labelTopN', 'tableHeaders', 'showTableValues'],
@@ -44,6 +44,7 @@ function full(type: DashboardWidgetType): DashboardWidget {
     valueColors: { '1': 'ok' },
     expressionAxes: [0, 1],
     traceDrill: { mode: 'latency' },
+    showValue: { calculation: 'latestNotNull', layout: 'sideBySide', split: 40 },
     recordTrace: { source: 'traceql-otlp' },
     labelTopN: 3,
     tableHeaders: ['Node', 'Ready'],

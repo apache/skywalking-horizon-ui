@@ -34,6 +34,7 @@ import TopList from '@/components/charts/TopList.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
@@ -205,8 +206,16 @@ function loadingOrEmpty(w: DashboardWidget): string {
               </div>
             </template>
             <template v-else-if="w.type === 'line'">
+              <LineStat
+                v-if="w.showValue && !compare && resultOf(w)?.series?.length"
+                :widget="w"
+                :series="resultOf(w)!.series!"
+                :height="chartHeight(w)"
+                :accent="host.widgetColor(w)"
+                :x-labels="xLabelsForLen(lineDataLen(w))"
+              />
               <TimeChart
-                v-if="compare ? compare.lineSeries(w.id).length : resultOf(w)?.series?.length"
+                v-else-if="compare ? compare.lineSeries(w.id).length : resultOf(w)?.series?.length"
                 :series="compare ? compare.lineSeries(w.id) : resultOf(w)!.series!"
                 :unit="w.unit"
                 :height="chartHeight(w)"

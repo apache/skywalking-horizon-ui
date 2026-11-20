@@ -38,7 +38,8 @@ import type {
   DashboardWidget,
   DashboardTab,
 } from '@skywalking-horizon-ui/api-client';
-import { TRACE_STORES, tracesInclude, collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import { TRACE_STORES, tracesInclude, collectWidgetIds, LINE_VALUE_DEFAULTS } from '@skywalking-horizon-ui/api-client';
+import { setShowValueCalculation, setShowValueOption, type ShowValueOption } from './showValueEdit';
 import { useExtPages } from './useExtPages';
 import { useCanvasResize } from './useCanvasResize';
 import { useCanvasReorder } from './useCanvasReorder';
@@ -398,6 +399,15 @@ function setWidgetFormat(v: string): void {
     delete w.valueMap;
     delete w.valueColors;
   }
+}
+
+function setShowValueCalc(v: string): void {
+  if (props.readOnly || !editingWidget.value) return;
+  setShowValueCalculation(editingWidget.value, v);
+}
+function setShowValueOpt(key: ShowValueOption, raw: string | boolean): void {
+  if (props.readOnly || !editingWidget.value) return;
+  setShowValueOption(editingWidget.value, key, String(raw));
 }
 
 function setWidgetTraceDrill(v: string): void {
@@ -1193,6 +1203,73 @@ onBeforeUnmount(() => {
                   {{ t('For') }} <code>top</code> {{ t('widgets each expression is a switchable tab; for') }}
                   <code>line</code> {{ t('each is a series. Label / unit / axis apply per expression.') }}
                 </p>
+              </div>
+              <div v-if="editingWidget.type === 'line'" class="d-section">
+                <span class="d-label">{{ t('Number') }}</span>
+                <div class="d-row">
+                  <label>
+                    <span>{{ t('Show') }}</span>
+                    <select
+                      :value="editingWidget.showValue?.calculation ?? ''"
+                      :disabled="readOnly"
+                      @change="setShowValueCalc(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="">{{ t('none') }}</option>
+                      <option value="avg">{{ t('average') }}</option>
+                      <option value="latest">{{ t('latest') }}</option>
+                      <option value="latestNotNull">{{ t('latest non-null') }}</option>
+                    </select>
+                  </label>
+                  <label v-if="editingWidget.showValue">
+                    <span>{{ t('Layout') }}</span>
+                    <select
+                      :value="editingWidget.showValue.layout ?? LINE_VALUE_DEFAULTS.layout"
+                      :disabled="readOnly"
+                      @change="setShowValueOpt('layout', ($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="stacked">{{ t('Stacked') }}</option>
+                      <option value="sideBySide">{{ t('Side by side') }}</option>
+                    </select>
+                  </label>
+                </div>
+                <div v-if="editingWidget.showValue" class="d-row">
+                  <template v-if="(editingWidget.showValue.layout ?? LINE_VALUE_DEFAULTS.layout) === 'stacked'">
+                    <label>
+                      <span>{{ t('Top margin (px)') }}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="400"
+                        :value="editingWidget.showValue.topMargin ?? LINE_VALUE_DEFAULTS.topMargin"
+                        :disabled="readOnly"
+                        @change="setShowValueOpt('topMargin', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label>
+                      <span>{{ t('Axes') }}</span>
+                      <select
+                        :value="editingWidget.showValue.axes ? 'shown' : 'hidden'"
+                        :disabled="readOnly"
+                        @change="setShowValueOpt('axes', ($event.target as HTMLSelectElement).value)"
+                      >
+                        <option value="hidden">{{ t('hidden') }}</option>
+                        <option value="shown">{{ t('shown') }}</option>
+                      </select>
+                    </label>
+                  </template>
+                  <label v-else>
+                    <span>{{ t('Number width (%)') }}</span>
+                    <input
+                      type="number"
+                      min="15"
+                      max="70"
+                      :value="editingWidget.showValue.split ?? LINE_VALUE_DEFAULTS.split"
+                      :disabled="readOnly"
+                      @change="setShowValueOpt('split', ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </div>
+                <p class="d-hint">{{ t("Latest is the range's last bucket, even while it is still empty; latest non-null skips empty buckets.") }}</p>
               </div>
               <div v-if="editingWidget.type === 'line'" class="d-section">
                 <span class="d-label">{{ t('Trace drill') }}</span>

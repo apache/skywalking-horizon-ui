@@ -168,9 +168,9 @@
             "name": "Agregação e cluster",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "Tamanho do cluster",
-                "tip": "Nós de agregação (papel Mixed ou Aggregator) que este nó vê no cluster, pelo último valor reportado. Inclui este nó, a menos que ele rode com o papel Receiver."
+                "tip": "Nós de agregação (papel Mixed ou Aggregator) que este nó vê no cluster: o último valor reportado e sua evolução. Inclui este nó, a menos que ele rode com o papel Receiver; uma queda indica que um nó saiu do cluster."
               },
               {
                 "id": "aggregation",
@@ -183,11 +183,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "Histórico do tamanho do cluster",
-                "tip": "O tamanho do cluster ao longo do tempo; uma queda indica que um nó saiu do cluster."
               },
               {
                 "id": "remote_traffic",

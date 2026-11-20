@@ -164,9 +164,9 @@
             "name": "Aggregation und Cluster",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "Clustergröße",
-                "tip": "Aggregationsknoten (Rolle Mixed oder Aggregator), die dieser Knoten im Cluster sieht, nach dem zuletzt gemeldeten Wert. Dieser Knoten zählt mit, sofern er nicht mit der Rolle Receiver läuft."
+                "tip": "Aggregationsknoten (Rolle Mixed oder Aggregator), die dieser Knoten im Cluster sieht: der zuletzt gemeldete Wert und der Verlauf. Dieser Knoten zählt mit, sofern er nicht mit der Rolle Receiver läuft; ein Einbruch bedeutet, dass ein Knoten den Cluster verlassen hat."
               },
               {
                 "id": "aggregation",
@@ -179,11 +179,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "Clustergröße im Verlauf",
-                "tip": "Die Clustergröße im Zeitverlauf; ein Einbruch bedeutet, dass ein Knoten den Cluster verlassen hat."
               },
               {
                 "id": "remote_traffic",

@@ -164,9 +164,9 @@
             "name": "집계 및 클러스터",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "클러스터 크기",
-                "tip": "이 노드가 클러스터에서 보는 집계 노드(Mixed 또는 Aggregator 역할) 수의 최신 보고값입니다. 이 노드가 Receiver 역할이 아니면 자신도 포함합니다."
+                "tip": "이 노드가 클러스터에서 보는 집계 노드(Mixed 또는 Aggregator 역할) 수입니다. 최신 보고값과 그 추이를 보여 줍니다. 이 노드가 Receiver 역할이 아니면 자신도 포함하며, 값이 떨어지면 노드가 클러스터에서 빠진 것입니다."
               },
               {
                 "id": "aggregation",
@@ -179,11 +179,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "클러스터 크기 추이",
-                "tip": "시간에 따른 클러스터 크기입니다. 값이 떨어지면 노드가 클러스터에서 빠진 것입니다."
               },
               {
                 "id": "remote_traffic",

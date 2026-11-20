@@ -164,9 +164,9 @@
             "name": "Agrégation et cluster",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "Taille du cluster",
-                "tip": "Nœuds d'agrégation (rôle Mixed ou Aggregator) que ce nœud voit dans le cluster, selon la dernière valeur remontée. Ce nœud est compté aussi, sauf s'il tourne avec le rôle Receiver."
+                "tip": "Nœuds d'agrégation (rôle Mixed ou Aggregator) que ce nœud voit dans le cluster : la dernière valeur remontée et son évolution. Ce nœud est compté aussi, sauf s'il tourne avec le rôle Receiver ; une baisse signifie qu'un nœud a quitté le cluster."
               },
               {
                 "id": "aggregation",
@@ -179,11 +179,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "Historique de la taille du cluster",
-                "tip": "La taille du cluster dans le temps ; une baisse signifie qu'un nœud a quitté le cluster."
               },
               {
                 "id": "remote_traffic",

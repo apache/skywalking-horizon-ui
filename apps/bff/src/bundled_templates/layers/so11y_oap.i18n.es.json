@@ -164,9 +164,9 @@
             "name": "Agregación y clúster",
             "widgets": [
               {
-                "id": "cluster_size_now",
+                "id": "cluster_size",
                 "title": "Tamaño del clúster",
-                "tip": "Nodos de agregación (rol Mixed o Aggregator) que este nodo ve en el clúster, según el último valor reportado. Incluye a este nodo, salvo que se ejecute con el rol Receiver."
+                "tip": "Nodos de agregación (rol Mixed o Aggregator) que este nodo ve en el clúster: el último valor reportado y su evolución. Incluye a este nodo, salvo que se ejecute con el rol Receiver; una caída indica que un nodo salió del clúster."
               },
               {
                 "id": "aggregation",
@@ -179,11 +179,6 @@
                   "L1",
                   "L2"
                 ]
-              },
-              {
-                "id": "cluster_size",
-                "title": "Historial del tamaño del clúster",
-                "tip": "El tamaño del clúster a lo largo del tiempo; una caída indica que un nodo salió del clúster."
               },
               {
                 "id": "remote_traffic",

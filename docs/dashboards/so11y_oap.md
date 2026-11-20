@@ -88,13 +88,11 @@ How much this node writes, and how fast the storage backend takes it.
 
 How much this node aggregates, and how the aggregated metrics move between the OAP nodes of a cluster. The cluster widgets need OAP 11.2.0+ and read `no data` against an older OAP. A standalone OAP 11.2.0+ fills **Cluster Size** (1) and the local sends on the traffic widget; its streams and send-queue widgets read `no data`, because a standalone node has no peers.
 
-- **Cluster Size** — the latest count of aggregation nodes (role Mixed or Aggregator) this node sees in the cluster (`latest(meter_oap_instance_cluster_size)`). It counts this node too, unless it runs with the Receiver role, which only sends to the aggregation nodes.
+- **Cluster Size** — the aggregation nodes (role Mixed or Aggregator) this node sees in the cluster: the latest reported count above, and the count over the picked range below (`meter_oap_instance_cluster_size`). It counts this node too, unless it runs with the Receiver role, which only sends to the aggregation nodes. A dip in the line means a node dropped out of the cluster coordinator's list.
 
 - **Aggregation / min** — metrics aggregated per minute (`meter_oap_instance_metrics_aggregation`).
 
 - **Aggregation Queue Usage (%)** — fill level of the L1 and L2 metrics-aggregation queues, top-10 worst series each (`meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand`, level 1 and level 2). A queue trending toward 100% is back-pressure — OAP is ingesting faster than it can aggregate. Messages received from other nodes go into the L2 queue, so its level also shows how well this node keeps up with its peers.
-
-- **Cluster Size History** — the same count over time (`meter_oap_instance_cluster_size`). A dip means a node dropped out of the cluster coordinator's list.
 
 - **Cluster Remote Traffic / min** — messages per minute. Left axis: **sent to peers** (sends attempted to the other nodes, all peers added together), **sent locally** (this node's own share, handed to its own workers without a network call) and **received** (from the other nodes). Right axis: **send errors**, **receive errors** and **target missing** (`meter_oap_instance_remote_out_count`, `meter_oap_instance_remote_out_error_count`, `meter_oap_instance_remote_in_count`, `meter_oap_instance_remote_in_error_count`, `meter_oap_instance_remote_in_target_not_found_count`). A send error is one failed send or one failed stream, however many messages that stream carried, so it is not a count of lost messages. Target missing is a received message for a worker this node does not have — most often because the nodes run different OAL / MAL rules, though a message still in flight when a rule is removed lands there too. Sent and received describe the two sides of one node, so they need not match: a local send never shows up as received. On a healthy cluster, the nodes' **sent to peers** add up to roughly their **received**.
 
