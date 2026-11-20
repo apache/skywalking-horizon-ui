@@ -4,186 +4,249 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU (%)"
-      },
-      {
-        "id": "mem",
-        "title": "JVM-Speicher (MB)"
-      },
-      {
-        "id": "gc_count",
-        "title": "GC-Anzahl / min"
-      },
-      {
-        "id": "gc_time",
-        "title": "GC-Zeit (ms / min)"
-      },
-      {
-        "id": "buffer_pool",
-        "title": "Buffer Pool (MB)"
-      },
-      {
-        "id": "threads",
-        "title": "Thread-Anzahl",
-        "expressionLabels": [
-          "live",
-          "spitze",
-          "daemon"
+        "id": "oap_node",
+        "title": "OAP-Knoten",
+        "tabs": [
+          {
+            "name": "Receiver und JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU (%)"
+              },
+              {
+                "id": "mem",
+                "title": "JVM-Speicher (MB)"
+              },
+              {
+                "id": "gc_count",
+                "title": "GC-Anzahl / min"
+              },
+              {
+                "id": "gc_time",
+                "title": "GC-Zeit (ms / min)"
+              },
+              {
+                "id": "buffer_pool",
+                "title": "Buffer Pool (MB)"
+              },
+              {
+                "id": "threads",
+                "title": "Thread-Anzahl",
+                "expressionLabels": [
+                  "live",
+                  "spitze",
+                  "daemon"
+                ]
+              },
+              {
+                "id": "thread_states",
+                "title": "Thread-Zustände",
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "blockiert",
+                  "wartend"
+                ]
+              },
+              {
+                "id": "classes",
+                "title": "Klassen-Anzahl",
+                "expressionLabels": [
+                  "geladen",
+                  "entladen gesamt",
+                  "geladen gesamt"
+                ]
+              },
+              {
+                "id": "watermark",
+                "title": "Watermark Circuit Breaker",
+                "tip": "Kumulative Break- + Recover-Zähler pro Listener.",
+                "expressionLabels": [
+                  "break",
+                  "recover"
+                ]
+              },
+              {
+                "id": "trace_analysis",
+                "title": "Trace-Analyse / min",
+                "expressionLabels": [
+                  "gesamt",
+                  "fehler"
+                ]
+              },
+              {
+                "id": "trace_latency",
+                "title": "Trace-Analyse-Latenz (ms)"
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "Mesh-Analyse / min",
+                "expressionLabels": [
+                  "gesamt",
+                  "fehler"
+                ]
+              },
+              {
+                "id": "mesh_latency",
+                "title": "Mesh-Analyse-Latenz (ms)"
+              },
+              {
+                "id": "otel_received",
+                "title": "OTEL empfangen / s",
+                "expressionLabels": [
+                  "metriken",
+                  "logs",
+                  "spans"
+                ]
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8S ALS",
+                "expressionLabels": [
+                  "anzahl",
+                  "verworfen",
+                  "streams",
+                  "err streams"
+                ]
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Zipkin-Spans verworfen"
+              }
+            ]
+          },
+          {
+            "name": "Persistenz und Speicher",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "Persistenz-Anzahl / min",
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ]
+              },
+              {
+                "id": "persistence_cache",
+                "title": "Persistenter Cache / min"
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "Persistenz-Prepare-Latenz (ms)"
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "Persistenz-Ausführungs-Latenz (ms)"
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "BanyanDB Schreib-Latenz (ms)",
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "property"
+                ]
+              },
+              {
+                "id": "es_latency",
+                "title": "Elasticsearch Schreib-Latenz (ms)",
+                "expressionLabels": [
+                  "single",
+                  "bulk"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Aggregation und Cluster",
+            "widgets": [
+              {
+                "id": "cluster_size",
+                "title": "Clustergröße",
+                "tip": "Aggregationsknoten (Rolle Mixed oder Aggregator), die dieser Knoten im Cluster sieht: der zuletzt gemeldete Wert und der Verlauf. Dieser Knoten zählt mit, sofern er nicht mit der Rolle Receiver läuft; ein Einbruch bedeutet, dass ein Knoten den Cluster verlassen hat."
+              },
+              {
+                "id": "aggregation",
+                "title": "Aggregation / min"
+              },
+              {
+                "id": "aggr_queue",
+                "title": "Aggregations-Queue-Nutzung (%)",
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ]
+              },
+              {
+                "id": "remote_traffic",
+                "title": "Cluster-Remote-Traffic / min",
+                "tip": "Nachrichten, die dieser Knoten an andere Knoten (Versuche) und an sich selbst sendet und von anderen Knoten empfängt (linke Achse). Rechte Achse: Sendefehler – einer pro fehlgeschlagenem Senden oder Stream, egal wie viele Nachrichten er enthielt –, Empfangsfehler sowie empfangene Nachrichten für einen Worker, den dieser Knoten nicht hat, oft ein Zeichen für unterschiedliche OAL- / MAL-Regeln auf den Knoten.",
+                "expressionLabels": [
+                  "an Peers gesendet",
+                  "lokal gesendet",
+                  "empfangen",
+                  "Sendefehler",
+                  "Empfangsfehler",
+                  "Ziel fehlt"
+                ]
+              },
+              {
+                "id": "remote_latency",
+                "title": "Cluster-Remote-Sendelatenz p99 (ms)",
+                "tip": "p99-Dauer, bis ein an einen der fünf langsamsten Peers gesendeter Batch abgeschlossen ist, einschließlich der Verarbeitung beim Peer. Ein Peer zeigt 0 in einer Minute, in der kein Batch an ihn abgeschlossen wurde; ein Peer, an den noch nie ein Batch abgeschlossen wurde, hat keine Linie."
+              },
+              {
+                "id": "remote_streams",
+                "title": "Cluster-Remote-Streams",
+                "tip": "Offene gRPC-Streams zu anderen Knoten, höchstens 10 pro Peer (linke Achse), und Wartezeit auf einen freien Stream-Slot in ms pro Minute (rechte Achse). Ein Einzelknoten hat keine Peers und zeigt keine Daten.",
+                "expressionLabels": [
+                  "aktiv",
+                  "Blockierwartezeit"
+                ]
+              },
+              {
+                "id": "remote_queue",
+                "title": "Cluster-Remote-Sendewarteschlange (%)",
+                "tip": "Füllstand der Sendewarteschlange zu jedem anderen Knoten, für die fünf vollsten. Ein Einzelknoten hat keine Peers und zeigt keine Daten."
+              }
+            ]
+          },
+          {
+            "name": "Abfragen und Alarme",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "GraphQL-Latenz (ms)"
+              },
+              {
+                "id": "graphql_count",
+                "title": "GraphQL-Query-Anzahl",
+                "expressionLabels": [
+                  "queries",
+                  "fehler"
+                ]
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "Alarmzustellung / min",
+                "tip": "Alarm-Hook-Zustellungen pro Kanal (HTTP und gRPC) und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "Antworten der Alarmzustellung / min",
+                "tip": "HTTP-Antworten der Alarm-Hooks pro Kanal und Statusklasse."
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "Latenz der Alarmzustellung (ms)",
+                "tip": "Latenz der Alarm-Hook-Zustellung pro Kanal (HTTP und gRPC)."
+              }
+            ]
+          }
         ]
-      },
-      {
-        "id": "thread_states",
-        "title": "Thread-Zustände",
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "blockiert",
-          "wartend"
-        ]
-      },
-      {
-        "id": "classes",
-        "title": "Klassen-Anzahl",
-        "expressionLabels": [
-          "geladen",
-          "entladen gesamt",
-          "geladen gesamt"
-        ]
-      },
-      {
-        "id": "aggregation",
-        "title": "Aggregation / min"
-      },
-      {
-        "id": "persistence_counts",
-        "title": "Persistenz-Anzahl / min",
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ]
-      },
-      {
-        "id": "persistence_cache",
-        "title": "Persistenter Cache / min"
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "Persistenz-Prepare-Latenz (ms)"
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "Persistenz-Ausführungs-Latenz (ms)"
-      },
-      {
-        "id": "graphql_latency",
-        "title": "GraphQL-Latenz (ms)"
-      },
-      {
-        "id": "graphql_count",
-        "title": "GraphQL-Query-Anzahl",
-        "expressionLabels": [
-          "queries",
-          "fehler"
-        ]
-      },
-      {
-        "id": "trace_analysis",
-        "title": "Trace-Analyse / min",
-        "expressionLabels": [
-          "gesamt",
-          "fehler"
-        ]
-      },
-      {
-        "id": "trace_latency",
-        "title": "Trace-Analyse-Latenz (ms)"
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "Mesh-Analyse / min",
-        "expressionLabels": [
-          "gesamt",
-          "fehler"
-        ]
-      },
-      {
-        "id": "mesh_latency",
-        "title": "Mesh-Analyse-Latenz (ms)"
-      },
-      {
-        "id": "otel_received",
-        "title": "OTEL empfangen / s",
-        "expressionLabels": [
-          "metriken",
-          "logs",
-          "spans"
-        ]
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8S ALS",
-        "expressionLabels": [
-          "anzahl",
-          "verworfen",
-          "streams",
-          "err streams"
-        ]
-      },
-      {
-        "id": "watermark",
-        "title": "Watermark Circuit Breaker",
-        "tip": "Kumulative Break- + Recover-Zähler pro Listener.",
-        "expressionLabels": [
-          "break",
-          "recover"
-        ]
-      },
-      {
-        "id": "aggr_queue",
-        "title": "Aggregations-Queue-Nutzung (%)",
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ]
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "BanyanDB Schreib-Latenz (ms)",
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "property"
-        ]
-      },
-      {
-        "id": "es_latency",
-        "title": "Elasticsearch Schreib-Latenz (ms)",
-        "expressionLabels": [
-          "single",
-          "bulk"
-        ]
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Zipkin-Spans verworfen"
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "Alarmzustellung / min",
-        "tip": "Alarm-Hook-Zustellungen pro Kanal (HTTP und gRPC) und Ergebnis: Erfolg oder der Grund, warum die Zustellung fehlschlug."
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "Antworten der Alarmzustellung / min",
-        "tip": "HTTP-Antworten der Alarm-Hooks pro Kanal und Statusklasse."
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "Latenz der Alarmzustellung (ms)",
-        "tip": "Latenz der Alarm-Hook-Zustellung pro Kanal (HTTP und gRPC)."
       }
     ]
   },

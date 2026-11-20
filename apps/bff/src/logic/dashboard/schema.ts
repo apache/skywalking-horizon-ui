@@ -21,6 +21,7 @@
  */
 
 import { z } from 'zod';
+import { LINE_VALUE_CALCULATIONS, LINE_VALUE_LAYOUTS } from '@skywalking-horizon-ui/api-client';
 
 /** A leaf widget — the five queryable kinds, used both at the top level and
  *  inside a tab panel. `widgetSchema` below extends it to add the `tab`
@@ -41,6 +42,16 @@ const leafWidgetSchema = z.object({
   unit: z.string().optional(),
   tableHeaders: z.tuple([z.string(), z.string()]).optional(),
   showTableValues: z.boolean().optional(),
+  showValue: z
+    .object({
+      calculation: z.enum(LINE_VALUE_CALCULATIONS),
+      layout: z.enum(LINE_VALUE_LAYOUTS).optional(),
+      topMargin: z.number().int().min(0).max(400).optional(),
+      axes: z.boolean().optional(),
+      split: z.number().int().min(15).max(70).optional(),
+    })
+    .strict()
+    .optional(),
   span: z.number().int().min(1).max(12).optional(),
   rowSpan: z.number().int().min(1).max(64).optional(),
   // Card value formatting + enum maps. The resolver gates colored status

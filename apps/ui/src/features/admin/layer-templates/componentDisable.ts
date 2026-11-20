@@ -30,8 +30,20 @@
  */
 
 import type { AdminLayerTemplate } from '@/api/client';
+import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 
 export type EntityScope = 'service' | 'instance' | 'endpoint';
+
+/** Widgets as an operator counts them in a confirmation: a `tab` container
+ *  stands for the charts in its panels (or for itself when it holds none),
+ *  so "removes 1 widget" cannot hide a container holding thirty. */
+export function countWidgets(widgets: readonly DashboardWidget[] | undefined): number {
+  return (widgets ?? []).reduce((n, w) => {
+    if (w.type !== 'tab') return n + 1;
+    const charts = (w.tabs ?? []).reduce((k, tab) => k + tab.widgets.length, 0);
+    return n + Math.max(1, charts);
+  }, 0);
+}
 
 /** Non-entity components own a configuration block each. */
 export const COMPONENT_OWNED_BLOCK: Record<
@@ -52,15 +64,15 @@ export function componentOwnedCount(
   scope: EntityScope,
 ): { grid: number; pages: number; pageWidgets: number; settings: number } {
   const grid =
-    (tpl.dashboards?.[scope]?.length ?? 0) +
+    countWidgets(tpl.dashboards?.[scope]) +
     // The legacy flat list IS the service grid for a template that never
     // split, so counting only `dashboards` let it be deleted unmentioned.
-    (scope === 'service' ? (tpl.widgets?.length ?? 0) : 0);
+    (scope === 'service' ? countWidgets(tpl.widgets) : 0);
   const pages = tpl.dashboardExtPages?.[scope] ?? [];
   return {
     grid,
     pages: pages.length,
-    pageWidgets: pages.reduce((n, p) => n + p.widgets.length, 0),
+    pageWidgets: pages.reduce((n, p) => n + countWidgets(p.widgets), 0),
     settings:
       (scope === 'instance' && (tpl as { instances?: unknown }).instances ? 1 : 0) +
       (tpl.dashboardDefaultFilters?.[scope] ? 1 : 0),

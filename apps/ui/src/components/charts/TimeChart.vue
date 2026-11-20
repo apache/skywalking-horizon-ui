@@ -66,6 +66,12 @@ const props = withDefaults(
     xLabels?: string[];
     clickable?: boolean;
     tipSuppressed?: boolean;
+    /** A bare trend: no axes, legend or point markers, an area fading
+     *  downward, and a y-range from the data's min to its max so a small
+     *  dip stays visible. Hover still shows the exact value. */
+    sparkline?: boolean;
+    /** Draw the line fainter — for when a number sits over it. */
+    dim?: boolean;
   }>(),
   {
     height: 180,
@@ -144,6 +150,29 @@ function escHtml(s: string): string {
  * canvas-rendered series, so we evaluate once and feed the hex. Falls
  * back to the orange accent when the variable resolves empty.
  */
+/** `color` with alpha `a`, for a hex or rgb() color; anything else as is. */
+function withAlpha(color: string, a: number): string {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].replace(/./g, (c) => c + c) : hex[1];
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const rgb = /^rgba?\(([^)]+)\)$/i.exec(color.trim());
+  if (rgb) {
+    const [r, g, b] = rgb[1].split(',').map((x) => x.trim());
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  return color;
+}
+
+/** Pads a sparkline's min..max range so the line clears both edges, and
+ *  keeps a flat series off the floor. */
+function sparkRange(v: { min: number; max: number }): { min: number; max: number } {
+  const span = v.max - v.min || Math.abs(v.max) || 1;
+  return { min: v.min - span * 0.25, max: v.max + span * 0.15 };
+}
+
 function cssVar(token: string): string {
   if (!token.startsWith('var(')) return token;
   if (typeof window === 'undefined') return '#f97316';
@@ -163,16 +192,19 @@ const SECONDARY = ENTITY_PALETTE;
 const container = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
 
-function buildOption(): echarts.EChartsCoreOption {
-  // X-axis labels: callers that know the window (e.g. the layer
-  // dashboard, which reconstructs per-bucket times from the active
-  // step + range) pass explicit `xLabels`. When absent, fall back to
-  // relative "-Nm" markers.
+/** X-axis labels: callers that know the window (e.g. the layer dashboard,
+ *  which reconstructs per-bucket times from the active step + range) pass
+ *  explicit `xLabels`. When absent, fall back to relative "-Nm" markers. */
+function axisLabels(): string[] {
   const length = props.series[0]?.data.length ?? 0;
-  const xLabels =
-    props.xLabels && props.xLabels.length === length
-      ? props.xLabels
-      : Array.from({ length }, (_, i) => `-${length - i - 1}m`);
+  return props.xLabels && props.xLabels.length === length
+    ? props.xLabels
+    : Array.from({ length }, (_, i) => `-${length - i - 1}m`);
+}
+
+function buildOption(): echarts.EChartsCoreOption {
+  const xLabels = axisLabels();
+  const length = xLabels.length;
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -283,7 +315,7 @@ function buildOption(): echarts.EChartsCoreOption {
       },
     },
     legend: {
-      show: props.series.length > 1,
+      show: props.series.length > 1 && !props.sparkline,
       top: 2,
       left: 4,
       right: 4,
@@ -295,7 +327,7 @@ function buildOption(): echarts.EChartsCoreOption {
       icon: 'roundRect',
       type: 'scroll',
     },
-    grid: {
+    grid: props.sparkline ? { left: 0, right: 0, top: 2, bottom: 0, containLabel: false } : {
       left: 36,
       right: props.series.some((s) => (s.yAxisIndex ?? 0) === 1) ? 32 : 8,
       // Legend chips need ~16px of their own + ~8px gap before the
@@ -308,6 +340,8 @@ function buildOption(): echarts.EChartsCoreOption {
     xAxis: {
       type: 'category',
       data: xLabels,
+      show: !props.sparkline,
+      boundaryGap: !props.sparkline,
       axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
       // hideOverlap drops any label that would collide — wide HOUR labels
       // ("07-02 05:00") otherwise overlap once the ~length/6 interval isn't
@@ -325,7 +359,20 @@ function buildOption(): echarts.EChartsCoreOption {
      * single-axis multi-series like relabeled percentiles. Bare
      * single-series widgets keep the axis name since the legend is
      * hidden there. */
-    yAxis: (() => {
+    // One hidden axis per axis the series use: a series on axis 1 with no
+    // axis 1 makes ECharts throw and the chart never renders.
+    yAxis: props.sparkline ? Array.from(
+      { length: Math.max(1, ...props.series.map((s) => (s.yAxisIndex ?? 0) + 1)) },
+      () => ({
+        type: 'value',
+        show: false,
+        min: (v: { min: number; max: number }) => sparkRange(v).min,
+        max: (v: { min: number; max: number }) => sparkRange(v).max,
+      }),
+    ) : (() => {
+      // Whole-number ticks for an `int` axis: rounding the default half
+      // steps printed every label twice on a small range (3, 3, 2, 2, …).
+      const intTicks = props.format === 'int' ? { minInterval: 1 } : {};
       const hasRight = props.series.some((s) => (s.yAxisIndex ?? 0) === 1);
       const legendVisible = props.series.length > 1;
       const rightUnit = props.series.find((s) => (s.yAxisIndex ?? 0) === 1)?.unit;
@@ -341,6 +388,7 @@ function buildOption(): echarts.EChartsCoreOption {
           axisLine: { show: false },
           axisLabel: { color: '#64748b', fontSize: 9, formatter: (v: number) => formatAxis(v) },
           splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+          ...intTicks,
         },
       ];
       if (hasRight) {
@@ -353,6 +401,7 @@ function buildOption(): echarts.EChartsCoreOption {
           axisLine: { show: false },
           axisLabel: { color: '#64748b', fontSize: 9, formatter: (v: number) => formatAxis(v) },
           splitLine: { show: false },
+          ...intTicks,
         });
       }
       return axes;
@@ -378,12 +427,12 @@ function buildOption(): echarts.EChartsCoreOption {
         // Small circle markers on every data point so values are
         // visually anchored even before hover; the marker grows on
         // emphasis (hover) for the active point.
-        symbol: 'circle',
+        symbol: props.sparkline ? 'none' : 'circle',
         symbolSize: 4,
-        showSymbol: true,
+        showSymbol: !props.sparkline,
         ...(props.clickable ? { triggerLineEvent: true, cursor: 'pointer' } : {}),
         yAxisIndex: s.yAxisIndex ?? 0,
-        lineStyle: { width: 1.5 },
+        lineStyle: { width: 1.5, opacity: props.dim ? 0.45 : 1 },
         data: s.data.map((v) => (v === null ? '-' : v)),
         itemStyle: { color, borderColor: color, borderWidth: 1 },
         emphasis: {
@@ -395,9 +444,16 @@ function buildOption(): echarts.EChartsCoreOption {
             color: '#fff',
           },
         },
-        areaStyle:
-          props.series.length === 1
-            ? { color: accentHex, opacity: 0.12 }
+        areaStyle: props.sparkline
+          ? {
+              opacity: 1,
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: withAlpha(color, props.dim ? 0.1 : 0.24) },
+                { offset: 1, color: withAlpha(color, 0) },
+              ]),
+            }
+          : props.series.length === 1
+            ? { color: accentHex, opacity: props.dim ? 0.06 : 0.12 }
             : undefined,
       };
     }),
@@ -417,10 +473,18 @@ function seriesFingerprint(series: Series[]): string {
 }
 let prevFingerprint = '';
 
+/** Colours are resolved from CSS variables when the option is built, so a
+ *  theme switch has to rebuild it or the canvas keeps the old theme's ink. */
+let themeObserver: MutationObserver | null = null;
+
 onMounted(() => {
   if (!container.value) return;
   chart = echarts.init(container.value, null, { renderer: 'canvas' });
   chart.setOption(buildOption());
+  if (typeof MutationObserver !== 'undefined') {
+    themeObserver = new MutationObserver(() => chart?.setOption(buildOption(), true));
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-appearance'] });
+  }
   prevFingerprint = seriesFingerprint(props.series);
   // A line-body click may lack dataIndex/value — recover from the click pixel
   // and read the value from series data.
@@ -451,6 +515,7 @@ onMounted(() => {
   ro.observe(container.value);
   onBeforeUnmount(() => {
     ro.disconnect();
+    themeObserver?.disconnect();
     chart?.dispose();
     chart = null;
   });
@@ -465,7 +530,9 @@ watch(
       // Same structure — just update data values. ECharts animates
       // point-by-point so a polling refresh reads as a smooth slide,
       // not a full re-render.
+      // The labels move with the window even when the bucket count does not.
       chart.setOption({
+        xAxis: { data: axisLabels() },
         series: next.map((s, i) => ({
           name: s.label,
           data: s.data.map((v) => (v === null ? '-' : v)),
@@ -492,6 +559,14 @@ watch(
     chart?.setOption(buildOption(), { replaceMerge: ['series'] });
     prevFingerprint = seriesFingerprint(props.series);
   },
+);
+watch(
+  () => props.xLabels?.join('|'),
+  () => chart?.setOption({ xAxis: { data: axisLabels() } }),
+);
+watch(
+  () => [props.sparkline, props.dim],
+  () => chart?.setOption(buildOption(), true),
 );
 watch(
   () => props.clickable,

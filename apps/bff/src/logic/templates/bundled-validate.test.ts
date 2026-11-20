@@ -546,3 +546,36 @@ describe('validateBundledTemplates — record widget trace store', () => {
     expect(messages(findings)).toContain('malformed `recordTrace`');
   });
 });
+
+describe('validateBundledTemplates — a line widget\'s number', () => {
+  function numberLayer(showValue: unknown, type = 'line'): Record<string, unknown> {
+    return layer({
+      dashboards: {
+        service: [{ id: 'pods', title: 'Pods', type, expressions: ['k8s_cluster_pod_total'], showValue }],
+      },
+    });
+  }
+
+  it('accepts a number on a line widget, inside a tab too', () => {
+    expect(messages(run({ layers: { demo: numberLayer({ calculation: 'latestNotNull', layout: 'sideBySide', split: 40 }) } }))).toBe('');
+    const tabbed = layer({
+      dashboards: {
+        service: [{
+          id: 't', title: 'T', type: 'tab', expressions: [],
+          tabs: [{ name: 'A', widgets: [{ id: 'pods', title: 'Pods', type: 'line', expressions: ['k8s_cluster_pod_total'], showValue: { calculation: 'avg' } }] }],
+        }],
+      },
+    });
+    expect(messages(run({ layers: { demo: tabbed } }))).toBe('');
+  });
+
+  it('flags showValue on a widget that is not a line', () => {
+    const findings = run({ layers: { demo: numberLayer({ calculation: 'latest' }, 'card') } });
+    expect(messages(findings)).toContain('`showValue` applies to `line` widgets only');
+  });
+
+  it('refuses an unknown option or calculation', () => {
+    expect(messages(run({ layers: { demo: numberLayer({ calculation: 'max' }) } }))).not.toBe('');
+    expect(messages(run({ layers: { demo: numberLayer({ calculation: 'avg', colour: 'red' }) } }))).not.toBe('');
+  });
+});

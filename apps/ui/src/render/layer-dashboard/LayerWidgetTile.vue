@@ -33,6 +33,7 @@ import RecordList from '@/render/widgets/RecordList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import TabWidget from '@/render/widgets/TabWidget.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
 import type { CompareSeries } from '@/render/layer-dashboard/useCompareEngine';
 import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
@@ -91,7 +92,10 @@ const props = defineProps<{
   compareTableRows: (id: string) => TableRow[];
   compareTableEntities: CompareTableEntity[];
 }>();
-const emit = defineEmits<{ (e: 'switch-tab', index: number): void }>();
+const emit = defineEmits<{
+  (e: 'switch-tab', index: number): void;
+  (e: 'tab-content-height', px: number): void;
+}>();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -208,8 +212,21 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
         </div>
       </template>
       <template v-else-if="widget.type === 'line'">
+        <!-- One number per widget, so a comparison of several entities
+             leaves it to the lines. -->
+        <LineStat
+          v-if="widget.showValue && !compareMode && result(widget.id)?.series?.length"
+          :widget="widget"
+          :series="result(widget.id)!.series!"
+          :height="(widget.rowSpan ?? 1) * 110 - 50"
+          :accent="widgetColor(widget)"
+          :x-labels="xLabelsForLen(result(widget.id)!.series![0]?.data.length ?? 0)"
+          :clickable="Boolean(traceDrillMode(widget)) || evaluationRecordDrillEnabled(widget)"
+          :tip-suppressed="drillOpenId === widget.id"
+          @point-click="onDrillPoint(widget, $event)"
+        />
         <TimeChart
-          v-if="compareMode ? multiLineSeries(widget.id).length : result(widget.id)?.series?.length"
+          v-else-if="compareMode ? multiLineSeries(widget.id).length : result(widget.id)?.series?.length"
           :series="compareMode ? multiLineSeries(widget.id) : result(widget.id)!.series!"
           :unit="widget.unit"
           :height="(widget.rowSpan ?? 1) * 110 - 50"
@@ -294,6 +311,7 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
           :compare-mode="compareMode"
           :host="tabHost"
           @switch="emit('switch-tab', $event)"
+          @content-height="emit('tab-content-height', $event)"
         />
       </template>
     </div>

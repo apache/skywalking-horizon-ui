@@ -57,6 +57,50 @@ import type { TraceStore } from './trace.js';
  */
 export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table' | 'tab';
 
+/** What a `line` widget's `showValue` reduces its first series to. */
+export const LINE_VALUE_CALCULATIONS = ['avg', 'latest', 'latestNotNull'] as const;
+export type LineValueCalculation = (typeof LINE_VALUE_CALCULATIONS)[number];
+
+/** `stacked`: the number on top, its line below. `sideBySide`: the number
+ *  on the left, the line chart on the right. */
+export const LINE_VALUE_LAYOUTS = ['stacked', 'sideBySide'] as const;
+export type LineValueLayout = (typeof LINE_VALUE_LAYOUTS)[number];
+
+/** A `line` widget's number. `topMargin` and `axes` apply to `stacked`;
+ *  `split` to `sideBySide`. */
+export interface LineShowValue {
+  calculation: LineValueCalculation;
+  layout?: LineValueLayout;
+  /** Pixels above the line kept for the number. Less than the number's
+   *  own height lets the line run behind it, drawn fainter. */
+  topMargin?: number;
+  /** Draw the line's axes; off, it is a bare trend. */
+  axes?: boolean;
+  /** Percent of the width the number takes, side by side with the line. */
+  split?: number;
+}
+
+export const LINE_VALUE_DEFAULTS = { layout: 'stacked', topMargin: 40, axes: false, split: 35 } as const;
+
+/** The number a `line` widget with `showValue` shows, from its first series.
+ *  `avg` skips empty buckets; `latest` is null when the last bucket is. */
+export function lineShowValue(
+  values: ReadonlyArray<number | null> | undefined,
+  calculation: LineValueCalculation,
+): number | null {
+  if (!values || values.length === 0) return null;
+  if (calculation === 'latest') return values[values.length - 1] ?? null;
+  if (calculation === 'latestNotNull') {
+    for (let i = values.length - 1; i >= 0; i--) {
+      const v = values[i];
+      if (v !== null && v !== undefined) return v;
+    }
+    return null;
+  }
+  const xs = values.filter((v): v is number => v !== null && v !== undefined);
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
+
 /**
  * Structured widget visibility predicate. When set on a widget, the BFF
  * evaluates it and flags the widget's result `hidden: true` when the
@@ -188,6 +232,11 @@ export interface DashboardWidget {
    *  presence/name-only list (e.g. node conditions, where the value is
    *  always 1). Defaults to `true`. */
   showTableValues?: boolean;
+  /** `line` widget: a number shown with the line, taken from its first
+   *  series. `latest` is the range's last bucket even when it is empty;
+   *  `latestNotNull` is the last bucket holding a value, which is what
+   *  MQE's `latest()` returns. Absent shows no number. */
+  showValue?: LineShowValue;
   /**
    * Numeric formatting override. Defaults to the SPA's smart
    * compact-readable rule (1 decimal under 100, integer ≥ 100, SI

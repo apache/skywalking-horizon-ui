@@ -622,6 +622,7 @@ export function layerCrossRefIssues(tpl: PushLayer, opts: { complete: boolean })
   checkWidgetIds(tpl.widgets as DashboardWidget[] | undefined, 'widgets', add);
   checkExtPages(tpl, add);
   checkRecordTraces(tpl, add);
+  checkShowValues(tpl, add);
   checkDefaultFilters(tpl, add);
   checkMenuOrder(tpl, add);
 
@@ -948,6 +949,16 @@ function checkRecordTraces(tpl: PushLayer, add: (path: string, message: string) 
   for (const { path, w } of widgetEntries(tpl)) {
     if (w.recordTrace !== undefined && w.type !== 'record') {
       add(`${path}.recordTrace`, '`recordTrace` applies to `record` widgets only');
+    }
+  }
+}
+
+/** `showValue` reduces a line's series; on any other type nothing runs it,
+ *  and the editor shows no control to take it off again. */
+function checkShowValues(tpl: PushLayer, add: (path: string, message: string) => void): void {
+  for (const { path, w } of widgetEntries(tpl)) {
+    if (w.showValue !== undefined && w.type !== 'line') {
+      add(`${path}.showValue`, '`showValue` applies to `line` widgets only');
     }
   }
 }

@@ -19,6 +19,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import TimeChart from '@/components/charts/TimeChart.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import TopList from '@/components/charts/TopList.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
@@ -83,6 +84,13 @@ const noValue = computed<boolean>(() => {
       <span v-if="spec.unit" class="cwr-card-unit">{{ spec.unit }}</span>
     </div>
 
+    <LineStat
+      v-else-if="spec.type === 'line' && spec.showValue && result.series?.length"
+      :widget="spec"
+      :series="result.series"
+      :x-labels="xLabels"
+      :height="height ?? 200"
+    />
     <TimeChart
       v-else-if="spec.type === 'line'"
       :series="result.series ?? []"

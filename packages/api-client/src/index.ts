@@ -48,10 +48,13 @@ export type {
   DashboardWidget,
   DashboardWidgetResult,
   DashboardWidgetType,
+  LineShowValue,
+  LineValueCalculation,
+  LineValueLayout,
   RecordTrace,
   VisibleWhen,
 } from './dashboard.js';
-export { walkWidgets, findWidgetById, collectWidgetIds } from './dashboard.js';
+export { walkWidgets, findWidgetById, collectWidgetIds, LINE_VALUE_CALCULATIONS, LINE_VALUE_LAYOUTS, LINE_VALUE_DEFAULTS, lineShowValue } from './dashboard.js';
 export {
   mergeLocalizedNode,
   stampOverlayIds,

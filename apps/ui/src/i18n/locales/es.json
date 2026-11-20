@@ -3646,5 +3646,15 @@
   "No more lines.": "No hay más líneas.",
   "{n} lines on this page come from services you may not read and are left out.": "{n} líneas de esta página vienen de servicios que no puede leer y se omiten.",
   "The trace runs longer than one read can search, so only its last week was searched.": "La traza dura más de lo que una lectura puede buscar, así que solo se buscó su última semana.",
-  "Not a SkyWalking trace? Query this id from:": "¿No es una traza de SkyWalking? Consulte este id en:"
+  "Not a SkyWalking trace? Query this id from:": "¿No es una traza de SkyWalking? Consulte este id en:",
+  "average": "promedio",
+  "latest non-null": "último valor no nulo",
+  "Latest is the range's last bucket, even while it is still empty; latest non-null skips empty buckets.": "«último» es el último intervalo del rango, aunque aún esté vacío; «último valor no nulo» omite los intervalos vacíos.",
+  "Number": "Número",
+  "Stacked": "Apilado",
+  "Side by side": "Lado a lado",
+  "Top margin (px)": "Margen superior (px)",
+  "Axes": "Ejes",
+  "shown": "visible",
+  "Number width (%)": "Ancho del número (%)"
 }

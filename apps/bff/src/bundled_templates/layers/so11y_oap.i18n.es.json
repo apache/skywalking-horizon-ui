@@ -4,186 +4,249 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU (%)"
-      },
-      {
-        "id": "mem",
-        "title": "Memoria JVM (MB)"
-      },
-      {
-        "id": "gc_count",
-        "title": "Conteo de GC / min"
-      },
-      {
-        "id": "gc_time",
-        "title": "Tiempo de GC (ms / min)"
-      },
-      {
-        "id": "buffer_pool",
-        "title": "Buffer pool (MB)"
-      },
-      {
-        "id": "threads",
-        "title": "Conteo de hilos",
-        "expressionLabels": [
-          "vivas",
-          "máximo",
-          "daemon"
+        "id": "oap_node",
+        "title": "Nodo OAP",
+        "tabs": [
+          {
+            "name": "Receptores y JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU (%)"
+              },
+              {
+                "id": "mem",
+                "title": "Memoria JVM (MB)"
+              },
+              {
+                "id": "gc_count",
+                "title": "Conteo de GC / min"
+              },
+              {
+                "id": "gc_time",
+                "title": "Tiempo de GC (ms / min)"
+              },
+              {
+                "id": "buffer_pool",
+                "title": "Buffer pool (MB)"
+              },
+              {
+                "id": "threads",
+                "title": "Conteo de hilos",
+                "expressionLabels": [
+                  "vivas",
+                  "máximo",
+                  "daemon"
+                ]
+              },
+              {
+                "id": "thread_states",
+                "title": "Estados de hilos",
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "bloqueados",
+                  "esperando"
+                ]
+              },
+              {
+                "id": "classes",
+                "title": "Conteo de clases",
+                "expressionLabels": [
+                  "cargadas",
+                  "descargadas total",
+                  "cargadas total"
+                ]
+              },
+              {
+                "id": "watermark",
+                "title": "Circuit breaker de watermark",
+                "tip": "Contadores acumulados de break + recover por listener.",
+                "expressionLabels": [
+                  "break",
+                  "recover"
+                ]
+              },
+              {
+                "id": "trace_analysis",
+                "title": "Análisis de trazas / min",
+                "expressionLabels": [
+                  "total",
+                  "errores"
+                ]
+              },
+              {
+                "id": "trace_latency",
+                "title": "Latencia de análisis de trazas (ms)"
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "Análisis de la malla / min",
+                "expressionLabels": [
+                  "total",
+                  "errores"
+                ]
+              },
+              {
+                "id": "mesh_latency",
+                "title": "Latencia de análisis de la malla (ms)"
+              },
+              {
+                "id": "otel_received",
+                "title": "OTEL recibidos / s",
+                "expressionLabels": [
+                  "métricas",
+                  "logs",
+                  "spans"
+                ]
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8S ALS",
+                "expressionLabels": [
+                  "conteo",
+                  "descartados",
+                  "streams",
+                  "streams err"
+                ]
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Spans Zipkin descartados"
+              }
+            ]
+          },
+          {
+            "name": "Persistencia y almacenamiento",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "Conteo de persistencia / min",
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ]
+              },
+              {
+                "id": "persistence_cache",
+                "title": "Caché persistente / min"
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "Latencia de prepare de persistencia (ms)"
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "Latencia de ejecución de persistencia (ms)"
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "Latencia de escritura de BanyanDB (ms)",
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "propiedad"
+                ]
+              },
+              {
+                "id": "es_latency",
+                "title": "Latencia de escritura de Elasticsearch (ms)",
+                "expressionLabels": [
+                  "single",
+                  "bulk"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Agregación y clúster",
+            "widgets": [
+              {
+                "id": "cluster_size",
+                "title": "Tamaño del clúster",
+                "tip": "Nodos de agregación (rol Mixed o Aggregator) que este nodo ve en el clúster: el último valor reportado y su evolución. Incluye a este nodo, salvo que se ejecute con el rol Receiver; una caída indica que un nodo salió del clúster."
+              },
+              {
+                "id": "aggregation",
+                "title": "Agregación / min"
+              },
+              {
+                "id": "aggr_queue",
+                "title": "Uso de la cola de agregación (%)",
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ]
+              },
+              {
+                "id": "remote_traffic",
+                "title": "Tráfico remoto del clúster / min",
+                "tip": "Mensajes que este nodo envía a otros nodos (intentos) y a sí mismo, y que recibe de otros nodos (eje izquierdo). Eje derecho: errores de envío —uno por cada envío o stream fallido, sin importar cuántos mensajes llevara—, errores de recepción y mensajes recibidos para un worker que este nodo no tiene, a menudo señal de que los nodos ejecutan reglas OAL / MAL distintas.",
+                "expressionLabels": [
+                  "enviados a pares",
+                  "enviados localmente",
+                  "recibidos",
+                  "errores de envío",
+                  "errores de recepción",
+                  "destino ausente"
+                ]
+              },
+              {
+                "id": "remote_latency",
+                "title": "Latencia de envío remoto del clúster p99 (ms)",
+                "tip": "Tiempo p99 hasta que se completa un lote enviado a cada uno de los cinco pares más lentos, incluido su procesamiento en el par. Un par marca 0 en un minuto en el que no se completó ningún lote hacia él; un par hacia el que nunca se ha completado un lote no tiene línea."
+              },
+              {
+                "id": "remote_streams",
+                "title": "Streams remotos del clúster",
+                "tip": "Streams gRPC abiertos hacia otros nodos, como máximo 10 por par (eje izquierdo), y tiempo de espera de un hueco libre de stream, en ms por minuto (eje derecho). Un nodo independiente no tiene pares y no muestra datos.",
+                "expressionLabels": [
+                  "en curso",
+                  "espera de bloqueo"
+                ]
+              },
+              {
+                "id": "remote_queue",
+                "title": "Cola de envío remoto del clúster (%)",
+                "tip": "Nivel de ocupación de la cola de envío hacia cada otro nodo, para las cinco más llenas. Un nodo independiente no tiene pares y no muestra datos."
+              }
+            ]
+          },
+          {
+            "name": "Consultas y alarmas",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "Latencia de GraphQL (ms)"
+              },
+              {
+                "id": "graphql_count",
+                "title": "Conteo de consultas GraphQL",
+                "expressionLabels": [
+                  "consultas",
+                  "errores"
+                ]
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "Entrega de alarmas / min",
+                "tip": "Entregas de hooks de alarma por canal (HTTP y gRPC) y resultado: éxito, o el motivo por el que falló la entrega."
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "Respuestas de entrega de alarmas / min",
+                "tip": "Respuestas HTTP de los hooks de alarma por canal y clase de estado."
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "Latencia de entrega de alarmas (ms)",
+                "tip": "Latencia de entrega del hook de alarma por canal (HTTP y gRPC)."
+              }
+            ]
+          }
         ]
-      },
-      {
-        "id": "thread_states",
-        "title": "Estados de hilos",
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "bloqueados",
-          "esperando"
-        ]
-      },
-      {
-        "id": "classes",
-        "title": "Conteo de clases",
-        "expressionLabels": [
-          "cargadas",
-          "descargadas total",
-          "cargadas total"
-        ]
-      },
-      {
-        "id": "aggregation",
-        "title": "Agregación / min"
-      },
-      {
-        "id": "persistence_counts",
-        "title": "Conteo de persistencia / min",
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ]
-      },
-      {
-        "id": "persistence_cache",
-        "title": "Caché persistente / min"
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "Latencia de prepare de persistencia (ms)"
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "Latencia de ejecución de persistencia (ms)"
-      },
-      {
-        "id": "graphql_latency",
-        "title": "Latencia de GraphQL (ms)"
-      },
-      {
-        "id": "graphql_count",
-        "title": "Conteo de consultas GraphQL",
-        "expressionLabels": [
-          "consultas",
-          "errores"
-        ]
-      },
-      {
-        "id": "trace_analysis",
-        "title": "Análisis de trazas / min",
-        "expressionLabels": [
-          "total",
-          "errores"
-        ]
-      },
-      {
-        "id": "trace_latency",
-        "title": "Latencia de análisis de trazas (ms)"
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "Análisis de la malla / min",
-        "expressionLabels": [
-          "total",
-          "errores"
-        ]
-      },
-      {
-        "id": "mesh_latency",
-        "title": "Latencia de análisis de la malla (ms)"
-      },
-      {
-        "id": "otel_received",
-        "title": "OTEL recibidos / s",
-        "expressionLabels": [
-          "métricas",
-          "logs",
-          "spans"
-        ]
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8S ALS",
-        "expressionLabels": [
-          "conteo",
-          "descartados",
-          "streams",
-          "streams err"
-        ]
-      },
-      {
-        "id": "watermark",
-        "title": "Circuit breaker de watermark",
-        "tip": "Contadores acumulados de break + recover por listener.",
-        "expressionLabels": [
-          "break",
-          "recover"
-        ]
-      },
-      {
-        "id": "aggr_queue",
-        "title": "Uso de la cola de agregación (%)",
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ]
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "Latencia de escritura de BanyanDB (ms)",
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "propiedad"
-        ]
-      },
-      {
-        "id": "es_latency",
-        "title": "Latencia de escritura de Elasticsearch (ms)",
-        "expressionLabels": [
-          "single",
-          "bulk"
-        ]
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Spans Zipkin descartados"
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "Entrega de alarmas / min",
-        "tip": "Entregas de hooks de alarma por canal (HTTP y gRPC) y resultado: éxito, o el motivo por el que falló la entrega."
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "Respuestas de entrega de alarmas / min",
-        "tip": "Respuestas HTTP de los hooks de alarma por canal y clase de estado."
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "Latencia de entrega de alarmas (ms)",
-        "tip": "Latencia de entrega del hook de alarma por canal (HTTP y gRPC)."
       }
     ]
   },

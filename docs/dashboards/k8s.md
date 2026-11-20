@@ -40,23 +40,23 @@ Before opening a cluster, the layer landing page lists every Kubernetes cluster 
 
 The primary drill-down for one selected cluster (a **Service** in OAP terms). It opens with a row of count cards summarizing the cluster's object inventory, then resource trends, then status tables that break the cluster down per node, deployment, service, and pod.
 
-**Inventory cards** — each is a single latest count:
+**Inventory cards** — each shows the latest count, with its trend over the picked range below it:
 
-- **Node Total** — nodes in the cluster (`latest(k8s_cluster_node_total)`).
+- **Node Total** — nodes in the cluster (`k8s_cluster_node_total`).
 
-- **Namespace Total** — namespaces in the cluster (`latest(k8s_cluster_namespace_total)`).
+- **Namespace Total** — namespaces in the cluster (`k8s_cluster_namespace_total`).
 
-- **Deployment Total** — deployments in the cluster (`latest(k8s_cluster_deployment_total)`).
+- **Deployment Total** — deployments in the cluster (`k8s_cluster_deployment_total`).
 
-- **StatefulSet Total** — statefulsets in the cluster (`latest(k8s_cluster_statefulset_total)`).
+- **StatefulSet Total** — statefulsets in the cluster (`k8s_cluster_statefulset_total`).
 
-- **DaemonSet Total** — daemonsets in the cluster (`latest(k8s_cluster_daemonset_total)`).
+- **DaemonSet Total** — daemonsets in the cluster (`k8s_cluster_daemonset_total`).
 
-- **Service Total** — Kubernetes services in the cluster (`latest(k8s_cluster_service_total)`).
+- **Service Total** — Kubernetes services in the cluster (`k8s_cluster_service_total`).
 
-- **Pod Total** — pods in the cluster (`latest(k8s_cluster_pod_total)`).
+- **Pod Total** — pods in the cluster (`k8s_cluster_pod_total`).
 
-- **Container Total** — containers in the cluster (`latest(k8s_cluster_container_total)`).
+- **Container Total** — containers in the cluster (`k8s_cluster_container_total`).
 
 **Resource trends** — cluster-wide capacity vs. demand over time:
 

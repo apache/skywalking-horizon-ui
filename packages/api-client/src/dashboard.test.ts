@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectWidgetIds,
   findWidgetById,
+  lineShowValue,
   walkWidgets,
   type DashboardWidget,
 } from './dashboard.js';
@@ -100,5 +101,32 @@ describe('collectWidgetIds — the id-uniqueness source for the widget editor', 
     expect(seen.has('shared')).toBe(true);
     expect(seen.has('pods_running')).toBe(true);
     expect(seen.size).toBe(7);
+  });
+});
+
+describe('lineShowValue', () => {
+  // The current minute is commonly still empty when the page reads it, which
+  // is the whole difference between the two "latest" modes.
+  const series = [2, null, 3, 3, null];
+
+  it('averages the buckets that hold a value', () => {
+    expect(lineShowValue(series, 'avg')).toBeCloseTo(8 / 3);
+  });
+
+  it('reads the last bucket as it is, empty or not', () => {
+    expect(lineShowValue(series, 'latest')).toBeNull();
+    expect(lineShowValue([1, 4], 'latest')).toBe(4);
+  });
+
+  it('reads the last bucket that holds a value', () => {
+    expect(lineShowValue(series, 'latestNotNull')).toBe(3);
+  });
+
+  it('has no number for a series with no value', () => {
+    for (const mode of ['avg', 'latest', 'latestNotNull'] as const) {
+      expect(lineShowValue([null, null], mode)).toBeNull();
+      expect(lineShowValue([], mode)).toBeNull();
+      expect(lineShowValue(undefined, mode)).toBeNull();
+    }
   });
 });

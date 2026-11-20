@@ -26,7 +26,7 @@
   so a widget dragged into a tab behaves exactly as it did outside.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { DashboardWidget, DashboardTab, DashboardWidgetResult } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
@@ -34,6 +34,7 @@ import TopList from '@/components/charts/TopList.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import LineStat from '@/render/widgets/LineStat.vue';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
@@ -50,7 +51,46 @@ const props = defineProps<{
   /** Host render helpers (color / pop-out / compare fan-out). */
   host: TabHostCtx;
 }>();
-const emit = defineEmits<{ (e: 'switch', index: number): void }>();
+const emit = defineEmits<{
+  (e: 'switch', index: number): void;
+  /** The pixel height the open panel needs, 0 when it holds no chart. The
+   *  host reads it below the collapse breakpoint, where the charts stack
+   *  and outgrow the box's authored height. */
+  (e: 'content-height', px: number): void;
+}>();
+
+const stripEl = ref<HTMLElement | null>(null);
+const panelEl = ref<HTMLElement | null>(null);
+const gridEl = ref<HTMLElement | null>(null);
+let observer: ResizeObserver | null = null;
+function reportHeight(): void {
+  const strip = stripEl.value;
+  const panel = panelEl.value;
+  const grid = gridEl.value;
+  if (!strip || !panel || !grid) {
+    emit('content-height', 0);
+    return;
+  }
+  const pad = getComputedStyle(panel);
+  emit(
+    'content-height',
+    Math.ceil(strip.offsetHeight + grid.offsetHeight + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom)),
+  );
+}
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') return;
+  observer = new ResizeObserver(reportHeight);
+  if (stripEl.value) observer.observe(stripEl.value);
+  if (gridEl.value) observer.observe(gridEl.value);
+});
+// The grid element is replaced when a tab switches between charts and none.
+watch(gridEl, (el, prev) => {
+  if (!observer) return;
+  if (prev) observer.unobserve(prev);
+  if (el) observer.observe(el);
+  else reportHeight();
+});
+onBeforeUnmount(() => observer?.disconnect());
 
 const { t } = useI18n({ useScope: 'global' });
 const timeRange = useTimeRangeStore();
@@ -114,7 +154,7 @@ function loadingOrEmpty(w: DashboardWidget): string {
 
 <template>
   <div class="tab-widget">
-    <div class="tw-strip" role="tablist">
+    <div ref="stripEl" class="tw-strip" role="tablist">
       <button
         v-for="(tab, i) in tabs"
         :key="i"
@@ -126,8 +166,8 @@ function loadingOrEmpty(w: DashboardWidget): string {
         @click="emit('switch', i)"
       >{{ tab.name || `Tab ${i + 1}` }}</button>
     </div>
-    <div class="tw-panel">
-      <div v-if="visibleWidgets.length" class="tw-grid">
+    <div ref="panelEl" class="tw-panel">
+      <div v-if="visibleWidgets.length" ref="gridEl" class="tw-grid">
         <div v-for="w in visibleWidgets" :key="w.id" class="tw-cell" :style="cellStyle(w)">
           <div class="tw-cell-head">
             <span class="tw-cell-title">{{ w.title }}</span>
@@ -166,8 +206,16 @@ function loadingOrEmpty(w: DashboardWidget): string {
               </div>
             </template>
             <template v-else-if="w.type === 'line'">
+              <LineStat
+                v-if="w.showValue && !compare && resultOf(w)?.series?.length"
+                :widget="w"
+                :series="resultOf(w)!.series!"
+                :height="chartHeight(w)"
+                :accent="host.widgetColor(w)"
+                :x-labels="xLabelsForLen(lineDataLen(w))"
+              />
               <TimeChart
-                v-if="compare ? compare.lineSeries(w.id).length : resultOf(w)?.series?.length"
+                v-else-if="compare ? compare.lineSeries(w.id).length : resultOf(w)?.series?.length"
                 :series="compare ? compare.lineSeries(w.id) : resultOf(w)!.series!"
                 :unit="w.unit"
                 :height="chartHeight(w)"
@@ -412,5 +460,12 @@ function loadingOrEmpty(w: DashboardWidget): string {
   margin: auto;
   color: var(--sw-fg-3);
   font-size: 11px;
+}
+/* The same collapse as top-level tiles: below the breakpoint every chart in
+ * the open tab takes the full width. */
+@media (max-width: 1100px) {
+  .tw-cell {
+    grid-column: span 12 !important;
+  }
 }
 </style>

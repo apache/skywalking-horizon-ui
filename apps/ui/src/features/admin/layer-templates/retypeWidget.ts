@@ -52,6 +52,7 @@ const READ_BY: { [K in keyof Required<DashboardWidget>]: 'all' | 'derived' | rea
   valueColors: ['card'],
   expressionAxes: ['line'],
   traceDrill: ['line'],
+  showValue: ['line'],
   recordTrace: ['record'],
   labelTopN: ['table'],
   tableHeaders: ['table'],

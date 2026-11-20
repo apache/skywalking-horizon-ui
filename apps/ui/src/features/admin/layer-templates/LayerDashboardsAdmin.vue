@@ -53,6 +53,7 @@ import PageEntityFilter from './PageEntityFilter.vue';
 import { useExtPages, isPageableScope } from './useExtPages';
 import {
   componentOwnedCount,
+  countWidgets,
   disableEntityComponent,
   COMPONENT_OWNED_BLOCK,
   type EntityScope,
@@ -285,7 +286,7 @@ function confirmDeletePage(id: string): void {
   if (readOnly.value) return;
   const page = extPages.pages.value.find((p) => p.id === id);
   if (!page) return;
-  const count = page.widgets.length;
+  const count = countWidgets(page.widgets);
   askConfirm({
     title: t('Delete page?'),
     message: t(

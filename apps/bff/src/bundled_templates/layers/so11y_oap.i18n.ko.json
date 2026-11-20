@@ -4,186 +4,249 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU (%)"
-      },
-      {
-        "id": "mem",
-        "title": "JVM 메모리 (MB)"
-      },
-      {
-        "id": "gc_count",
-        "title": "GC 수 / 분"
-      },
-      {
-        "id": "gc_time",
-        "title": "GC 시간 (ms / 분)"
-      },
-      {
-        "id": "buffer_pool",
-        "title": "버퍼 풀 (MB)"
-      },
-      {
-        "id": "threads",
-        "title": "스레드 수",
-        "expressionLabels": [
-          "활성",
-          "피크",
-          "daemon"
+        "id": "oap_node",
+        "title": "OAP 노드",
+        "tabs": [
+          {
+            "name": "리시버 및 JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU (%)"
+              },
+              {
+                "id": "mem",
+                "title": "JVM 메모리 (MB)"
+              },
+              {
+                "id": "gc_count",
+                "title": "GC 수 / 분"
+              },
+              {
+                "id": "gc_time",
+                "title": "GC 시간 (ms / 분)"
+              },
+              {
+                "id": "buffer_pool",
+                "title": "버퍼 풀 (MB)"
+              },
+              {
+                "id": "threads",
+                "title": "스레드 수",
+                "expressionLabels": [
+                  "활성",
+                  "피크",
+                  "daemon"
+                ]
+              },
+              {
+                "id": "thread_states",
+                "title": "스레드 상태",
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "blocked",
+                  "waiting"
+                ]
+              },
+              {
+                "id": "classes",
+                "title": "클래스 수",
+                "expressionLabels": [
+                  "loaded",
+                  "unloaded 전체",
+                  "loaded 전체"
+                ]
+              },
+              {
+                "id": "watermark",
+                "title": "워터마크 서킷 브레이커",
+                "tip": "리스너별 누적 break + recover 카운터입니다.",
+                "expressionLabels": [
+                  "break",
+                  "recover"
+                ]
+              },
+              {
+                "id": "trace_analysis",
+                "title": "트레이스 분석 / 분",
+                "expressionLabels": [
+                  "전체",
+                  "오류"
+                ]
+              },
+              {
+                "id": "trace_latency",
+                "title": "트레이스 분석 지연 시간 (ms)"
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "메시 분석 / 분",
+                "expressionLabels": [
+                  "전체",
+                  "오류"
+                ]
+              },
+              {
+                "id": "mesh_latency",
+                "title": "메시 분석 지연 시간 (ms)"
+              },
+              {
+                "id": "otel_received",
+                "title": "OTel 수신 / s",
+                "expressionLabels": [
+                  "metrics",
+                  "logs",
+                  "spans"
+                ]
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8s ALS",
+                "expressionLabels": [
+                  "count",
+                  "dropped",
+                  "streams",
+                  "err 스트림"
+                ]
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Zipkin 스팬 드롭"
+              }
+            ]
+          },
+          {
+            "name": "영속화 및 스토리지",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "영속화 수 / 분",
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ]
+              },
+              {
+                "id": "persistence_cache",
+                "title": "영속 캐시 / 분"
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "영속화 준비 지연 시간 (ms)"
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "영속화 실행 지연 시간 (ms)"
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "BanyanDB 쓰기 지연 시간 (ms)",
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "property"
+                ]
+              },
+              {
+                "id": "es_latency",
+                "title": "Elasticsearch 쓰기 지연 시간 (ms)",
+                "expressionLabels": [
+                  "single",
+                  "bulk"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "집계 및 클러스터",
+            "widgets": [
+              {
+                "id": "cluster_size",
+                "title": "클러스터 크기",
+                "tip": "이 노드가 클러스터에서 보는 집계 노드(Mixed 또는 Aggregator 역할) 수입니다. 최신 보고값과 그 추이를 보여 줍니다. 이 노드가 Receiver 역할이 아니면 자신도 포함하며, 값이 떨어지면 노드가 클러스터에서 빠진 것입니다."
+              },
+              {
+                "id": "aggregation",
+                "title": "집계 / 분"
+              },
+              {
+                "id": "aggr_queue",
+                "title": "집계 큐 사용률 (%)",
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ]
+              },
+              {
+                "id": "remote_traffic",
+                "title": "클러스터 Remote 트래픽 / 분",
+                "tip": "이 노드가 다른 노드(송신 시도)와 자신에게 보내고 다른 노드로부터 받은 메시지 수(왼쪽 축). 오른쪽 축: 송신 오류(실패한 송신이나 스트림마다 1건, 담긴 메시지 수와 무관), 수신 오류, 그리고 이 노드에 없는 worker로 온 수신 메시지 수. 마지막 항목은 대개 노드마다 OAL / MAL 규칙이 다르다는 신호입니다.",
+                "expressionLabels": [
+                  "피어로 송신",
+                  "로컬 송신",
+                  "수신",
+                  "송신 오류",
+                  "수신 오류",
+                  "대상 없음"
+                ]
+              },
+              {
+                "id": "remote_latency",
+                "title": "클러스터 Remote 송신 지연 p99 (ms)",
+                "tip": "가장 느린 피어 5개 각각으로 보낸 배치가 완료되기까지의 p99 시간(피어 측 처리 포함). 해당 분에 완료된 배치가 없는 피어는 0으로, 완료된 배치가 한 번도 없는 피어는 선이 표시되지 않습니다."
+              },
+              {
+                "id": "remote_streams",
+                "title": "클러스터 Remote 스트림",
+                "tip": "다른 노드로 열린 gRPC 스트림 수(피어당 최대 10개, 왼쪽 축)와 빈 스트림 슬롯을 기다린 시간(분당 ms, 오른쪽 축). 단독 노드는 피어가 없어 데이터가 표시되지 않습니다.",
+                "expressionLabels": [
+                  "진행 중",
+                  "차단 대기"
+                ]
+              },
+              {
+                "id": "remote_queue",
+                "title": "클러스터 Remote 송신 큐 (%)",
+                "tip": "다른 노드별 송신 큐 사용률(가장 찬 5개). 단독 노드는 피어가 없어 데이터가 표시되지 않습니다."
+              }
+            ]
+          },
+          {
+            "name": "쿼리 및 알람",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "GraphQL 지연 시간 (ms)"
+              },
+              {
+                "id": "graphql_count",
+                "title": "GraphQL 쿼리 수",
+                "expressionLabels": [
+                  "쿼리",
+                  "오류"
+                ]
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "알람 전송 / 분",
+                "tip": "채널별(HTTP 및 gRPC), 결과별 알람 훅 전송 수입니다. 성공 또는 전송에 실패한 이유를 보여 줍니다."
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "알람 전송 응답 / 분",
+                "tip": "채널별, 상태 클래스별 HTTP 알람 훅 응답 수입니다."
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "알람 전송 지연 시간 (ms)",
+                "tip": "채널별(HTTP 및 gRPC) 알람 훅 전송 지연 시간입니다."
+              }
+            ]
+          }
         ]
-      },
-      {
-        "id": "thread_states",
-        "title": "스레드 상태",
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "blocked",
-          "waiting"
-        ]
-      },
-      {
-        "id": "classes",
-        "title": "클래스 수",
-        "expressionLabels": [
-          "loaded",
-          "unloaded 전체",
-          "loaded 전체"
-        ]
-      },
-      {
-        "id": "aggregation",
-        "title": "집계 / 분"
-      },
-      {
-        "id": "persistence_counts",
-        "title": "영속화 수 / 분",
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ]
-      },
-      {
-        "id": "persistence_cache",
-        "title": "영속 캐시 / 분"
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "영속화 준비 지연 시간 (ms)"
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "영속화 실행 지연 시간 (ms)"
-      },
-      {
-        "id": "graphql_latency",
-        "title": "GraphQL 지연 시간 (ms)"
-      },
-      {
-        "id": "graphql_count",
-        "title": "GraphQL 쿼리 수",
-        "expressionLabels": [
-          "쿼리",
-          "오류"
-        ]
-      },
-      {
-        "id": "trace_analysis",
-        "title": "트레이스 분석 / 분",
-        "expressionLabels": [
-          "전체",
-          "오류"
-        ]
-      },
-      {
-        "id": "trace_latency",
-        "title": "트레이스 분석 지연 시간 (ms)"
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "메시 분석 / 분",
-        "expressionLabels": [
-          "전체",
-          "오류"
-        ]
-      },
-      {
-        "id": "mesh_latency",
-        "title": "메시 분석 지연 시간 (ms)"
-      },
-      {
-        "id": "otel_received",
-        "title": "OTel 수신 / s",
-        "expressionLabels": [
-          "metrics",
-          "logs",
-          "spans"
-        ]
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8s ALS",
-        "expressionLabels": [
-          "count",
-          "dropped",
-          "streams",
-          "err 스트림"
-        ]
-      },
-      {
-        "id": "watermark",
-        "title": "워터마크 서킷 브레이커",
-        "tip": "리스너별 누적 break + recover 카운터입니다.",
-        "expressionLabels": [
-          "break",
-          "recover"
-        ]
-      },
-      {
-        "id": "aggr_queue",
-        "title": "집계 큐 사용률 (%)",
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ]
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "BanyanDB 쓰기 지연 시간 (ms)",
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "property"
-        ]
-      },
-      {
-        "id": "es_latency",
-        "title": "Elasticsearch 쓰기 지연 시간 (ms)",
-        "expressionLabels": [
-          "single",
-          "bulk"
-        ]
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Zipkin 스팬 드롭"
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "알람 전송 / 분",
-        "tip": "채널별(HTTP 및 gRPC), 결과별 알람 훅 전송 수입니다. 성공 또는 전송에 실패한 이유를 보여 줍니다."
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "알람 전송 응답 / 분",
-        "tip": "채널별, 상태 클래스별 HTTP 알람 훅 응답 수입니다."
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "알람 전송 지연 시간 (ms)",
-        "tip": "채널별(HTTP 및 gRPC) 알람 훅 전송 지연 시간입니다."
       }
     ]
   },

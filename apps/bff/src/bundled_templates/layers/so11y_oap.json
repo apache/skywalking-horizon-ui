@@ -23,401 +23,531 @@
   "dashboards": {
     "instance": [
       {
-        "id": "cpu",
-        "title": "CPU (%)",
-        "type": "line",
-        "unit": "%",
-        "expressions": [
-          "meter_oap_instance_cpu_percentage"
-        ],
-        "span": 3,
-        "rowSpan": 2
-      },
-      {
-        "id": "mem",
-        "title": "JVM Memory (MB)",
-        "type": "line",
-        "unit": "MB",
-        "expressions": [
-          "meter_oap_instance_jvm_memory_bytes_used/1024/1024"
-        ],
-        "span": 3,
-        "rowSpan": 2
-      },
-      {
-        "id": "gc_count",
-        "title": "GC Count / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_jvm_gc_count"
-        ],
-        "span": 3,
-        "rowSpan": 2
-      },
-      {
-        "id": "gc_time",
-        "title": "GC Time (ms / min)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "meter_oap_instance_jvm_gc_time"
-        ],
-        "span": 3,
-        "rowSpan": 2
-      },
-      {
-        "id": "buffer_pool",
-        "title": "Buffer Pool (MB)",
-        "type": "line",
-        "unit": "MB",
-        "expressions": [
-          "meter_oap_instance_jvm_buffer_pool_bytes_used/1024/1024"
-        ],
-        "span": 3,
-        "rowSpan": 2
-      },
-      {
-        "id": "threads",
-        "title": "Thread Count",
-        "type": "line",
-        "expressions": [
-          "meter_oap_jvm_thread_live_count",
-          "meter_oap_jvm_thread_peak_count",
-          "meter_oap_jvm_thread_daemon_count"
-        ],
-        "expressionLabels": [
-          "live",
-          "peak",
-          "daemon"
-        ],
-        "span": 5,
-        "rowSpan": 2
-      },
-      {
-        "id": "thread_states",
-        "title": "Thread States",
-        "type": "line",
-        "expressions": [
-          "meter_oap_jvm_thread_runnable_count",
-          "meter_oap_jvm_thread_timed_waiting_count",
-          "meter_oap_jvm_thread_blocked_count",
-          "meter_oap_jvm_thread_waiting_count"
-        ],
-        "expressionLabels": [
-          "runnable",
-          "timed-waiting",
-          "blocked",
-          "waiting"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "classes",
-        "title": "Class Count",
-        "type": "line",
-        "expressions": [
-          "meter_oap_jvm_class_loaded_count",
-          "meter_oap_jvm_class_total_unloaded_count",
-          "meter_oap_jvm_class_total_loaded_count"
-        ],
-        "expressionLabels": [
-          "loaded",
-          "unloaded total",
-          "loaded total"
-        ],
+        "id": "oap_node",
+        "title": "OAP node",
+        "type": "tab",
+        "expressions": [],
         "span": 12,
-        "rowSpan": 2
-      },
-      {
-        "id": "aggregation",
-        "title": "Aggregation / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_metrics_aggregation"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "persistence_counts",
-        "title": "Persistence Counts / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_persistence_prepare_count",
-          "meter_oap_instance_persistence_execute_count"
-        ],
-        "expressionLabels": [
-          "prepare",
-          "execute"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "persistence_cache",
-        "title": "Persistent Cache / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_metrics_persistent_cache"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "persist_prepare_latency",
-        "title": "Persistence Prepare Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_instance_persistence_prepare_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "persist_execute_latency",
-        "title": "Persistence Execute Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_instance_persistence_execute_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "graphql_latency",
-        "title": "GraphQL Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_graphql_query_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "graphql_count",
-        "title": "GraphQL Query Count",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_graphql_query_count",
-          "meter_oap_instance_graphql_query_error_count"
-        ],
-        "expressionLabels": [
-          "queries",
-          "errors"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "trace_analysis",
-        "title": "Trace Analysis / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_trace_count",
-          "meter_oap_instance_trace_analysis_error_count"
-        ],
-        "expressionLabels": [
-          "total",
-          "errors"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "trace_latency",
-        "title": "Trace Analysis Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_instance_trace_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "mesh_analysis",
-        "title": "Mesh Analysis / min",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_mesh_count",
-          "meter_oap_instance_mesh_analysis_error_count"
-        ],
-        "expressionLabels": [
-          "total",
-          "errors"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "mesh_latency",
-        "title": "Mesh Analysis Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_instance_mesh_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "otel_received",
-        "title": "OTEL Received / s",
-        "type": "line",
-        "expressions": [
-          "meter_oap_otel_metrics_received",
-          "meter_oap_otel_logs_received",
-          "meter_oap_otel_spans_received"
-        ],
-        "expressionLabels": [
-          "metrics",
-          "logs",
-          "spans"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "k8s_als",
-        "title": "K8S ALS",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_k8s_als_count",
-          "meter_oap_instance_k8s_als_drop",
-          "meter_oap_instance_k8s_als_streams",
-          "meter_oap_instance_k8s_als_error_streams"
-        ],
-        "expressionLabels": [
-          "count",
-          "dropped",
-          "streams",
-          "err streams"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "watermark",
-        "title": "Watermark Circuit Breaker",
-        "tip": "Cumulative break + recover counters per listener.",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_watermark_circuit_breaker_break_count",
-          "meter_oap_instance_watermark_circuit_breaker_recover_count"
-        ],
-        "expressionLabels": [
-          "break",
-          "recover"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "aggr_queue",
-        "title": "Aggregation Queue Usage (%)",
-        "type": "line",
-        "unit": "%",
-        "expressions": [
-          "sort_values(meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand{level='1'},10,des,avg)/100",
-          "sort_values(meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand{level='2'},10,des,avg)/100"
-        ],
-        "expressionLabels": [
-          "L1",
-          "L2"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "alarm_delivery",
-        "title": "Alarm Delivery / min",
-        "tip": "Alarm hook deliveries per channel (HTTP and gRPC) and result: success, or why the delivery failed.",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_alarm_http_delivery_count"
-        ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "alarm_delivery_status",
-        "title": "Alarm Delivery Responses / min",
-        "tip": "HTTP responses of alarm hooks per channel and status class.",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_alarm_http_delivery_status_count"
-        ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_status_count", "op": "exists" },
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "alarm_delivery_latency",
-        "title": "Alarm Delivery Latency (ms)",
-        "tip": "Alarm hook delivery latency per channel (HTTP and gRPC).",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "relabels(meter_oap_instance_alarm_http_delivery_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
-        ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_instance_alarm_http_delivery_count", "op": "exists" },
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "banyandb_latency",
-        "title": "BanyanDB Write Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "meter_oap_banyandb_write_latency_percentile{catalog='measure',operation='bulk_write'}",
-          "meter_oap_banyandb_write_latency_percentile{catalog='stream',operation='bulk_write'}",
-          "meter_oap_banyandb_write_latency_percentile{catalog='trace',operation='bulk_write'}",
-          "meter_oap_banyandb_write_latency_percentile{catalog='stream',operation='single_write'}",
-          "meter_oap_banyandb_write_latency_percentile{catalog='property'}"
-        ],
-        "expressionLabels": [
-          "measure bulk",
-          "stream bulk",
-          "trace bulk",
-          "stream single",
-          "property"
-        ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_banyandb_write_latency_percentile{catalog='measure',operation='bulk_write'}", "op": "exists" },
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "es_latency",
-        "title": "Elasticsearch Write Latency (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "meter_oap_elasticsearch_write_latency_percentile{operation='single_write,single_update,single_delete'}",
-          "meter_oap_elasticsearch_write_latency_percentile{operation='bulk_write'}"
-        ],
-        "expressionLabels": [
-          "single",
-          "bulk"
-        ],
-        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_elasticsearch_write_latency_percentile{operation='single_write,single_update,single_delete'}", "op": "exists" },
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "zipkin_drop",
-        "title": "Zipkin Spans Dropped",
-        "type": "line",
-        "expressions": [
-          "meter_oap_instance_spans_dropped_count"
-        ],
-        "span": 6,
-        "rowSpan": 2
+        "rowSpan": 12,
+        "tabs": [
+          {
+            "name": "Receivers & JVM",
+            "widgets": [
+              {
+                "id": "cpu",
+                "title": "CPU (%)",
+                "type": "line",
+                "unit": "%",
+                "expressions": [
+                  "meter_oap_instance_cpu_percentage"
+                ],
+                "span": 3,
+                "rowSpan": 2
+              },
+              {
+                "id": "mem",
+                "title": "JVM Memory (MB)",
+                "type": "line",
+                "unit": "MB",
+                "expressions": [
+                  "meter_oap_instance_jvm_memory_bytes_used/1024/1024"
+                ],
+                "span": 3,
+                "rowSpan": 2
+              },
+              {
+                "id": "gc_count",
+                "title": "GC Count / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_jvm_gc_count"
+                ],
+                "span": 3,
+                "rowSpan": 2
+              },
+              {
+                "id": "gc_time",
+                "title": "GC Time (ms / min)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "meter_oap_instance_jvm_gc_time"
+                ],
+                "span": 3,
+                "rowSpan": 2
+              },
+              {
+                "id": "buffer_pool",
+                "title": "Buffer Pool (MB)",
+                "type": "line",
+                "unit": "MB",
+                "expressions": [
+                  "meter_oap_instance_jvm_buffer_pool_bytes_used/1024/1024"
+                ],
+                "span": 3,
+                "rowSpan": 2
+              },
+              {
+                "id": "threads",
+                "title": "Thread Count",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_jvm_thread_live_count",
+                  "meter_oap_jvm_thread_peak_count",
+                  "meter_oap_jvm_thread_daemon_count"
+                ],
+                "expressionLabels": [
+                  "live",
+                  "peak",
+                  "daemon"
+                ],
+                "span": 5,
+                "rowSpan": 2
+              },
+              {
+                "id": "thread_states",
+                "title": "Thread States",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_jvm_thread_runnable_count",
+                  "meter_oap_jvm_thread_timed_waiting_count",
+                  "meter_oap_jvm_thread_blocked_count",
+                  "meter_oap_jvm_thread_waiting_count"
+                ],
+                "expressionLabels": [
+                  "runnable",
+                  "timed-waiting",
+                  "blocked",
+                  "waiting"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              },
+              {
+                "id": "classes",
+                "title": "Class Count",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_jvm_class_loaded_count",
+                  "meter_oap_jvm_class_total_unloaded_count",
+                  "meter_oap_jvm_class_total_loaded_count"
+                ],
+                "expressionLabels": [
+                  "loaded",
+                  "unloaded total",
+                  "loaded total"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "watermark",
+                "title": "Watermark Circuit Breaker",
+                "tip": "Cumulative break + recover counters per listener.",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_watermark_circuit_breaker_break_count",
+                  "meter_oap_instance_watermark_circuit_breaker_recover_count"
+                ],
+                "expressionLabels": [
+                  "break",
+                  "recover"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "trace_analysis",
+                "title": "Trace Analysis / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_trace_count",
+                  "meter_oap_instance_trace_analysis_error_count"
+                ],
+                "expressionLabels": [
+                  "total",
+                  "errors"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "trace_latency",
+                "title": "Trace Analysis Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_instance_trace_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "mesh_analysis",
+                "title": "Mesh Analysis / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_mesh_count",
+                  "meter_oap_instance_mesh_analysis_error_count"
+                ],
+                "expressionLabels": [
+                  "total",
+                  "errors"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "mesh_latency",
+                "title": "Mesh Analysis Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_instance_mesh_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "otel_received",
+                "title": "OTEL Received / s",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_otel_metrics_received",
+                  "meter_oap_otel_logs_received",
+                  "meter_oap_otel_spans_received"
+                ],
+                "expressionLabels": [
+                  "metrics",
+                  "logs",
+                  "spans"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              },
+              {
+                "id": "k8s_als",
+                "title": "K8S ALS",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_k8s_als_count",
+                  "meter_oap_instance_k8s_als_drop",
+                  "meter_oap_instance_k8s_als_streams",
+                  "meter_oap_instance_k8s_als_error_streams"
+                ],
+                "expressionLabels": [
+                  "count",
+                  "dropped",
+                  "streams",
+                  "err streams"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              },
+              {
+                "id": "zipkin_drop",
+                "title": "Zipkin Spans Dropped",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_spans_dropped_count"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              }
+            ]
+          },
+          {
+            "name": "Persistence & Storage",
+            "widgets": [
+              {
+                "id": "persistence_counts",
+                "title": "Persistence Counts / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_persistence_prepare_count",
+                  "meter_oap_instance_persistence_execute_count"
+                ],
+                "expressionLabels": [
+                  "prepare",
+                  "execute"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "persistence_cache",
+                "title": "Persistent Cache / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_metrics_persistent_cache"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "persist_prepare_latency",
+                "title": "Persistence Prepare Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_instance_persistence_prepare_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "persist_execute_latency",
+                "title": "Persistence Execute Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_instance_persistence_execute_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "banyandb_latency",
+                "title": "BanyanDB Write Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "meter_oap_banyandb_write_latency_percentile{catalog='measure',operation='bulk_write'}",
+                  "meter_oap_banyandb_write_latency_percentile{catalog='stream',operation='bulk_write'}",
+                  "meter_oap_banyandb_write_latency_percentile{catalog='trace',operation='bulk_write'}",
+                  "meter_oap_banyandb_write_latency_percentile{catalog='stream',operation='single_write'}",
+                  "meter_oap_banyandb_write_latency_percentile{catalog='property'}"
+                ],
+                "expressionLabels": [
+                  "measure bulk",
+                  "stream bulk",
+                  "trace bulk",
+                  "stream single",
+                  "property"
+                ],
+                "visibleWhen": {
+                  "kind": "mqe",
+                  "expression": "meter_oap_banyandb_write_latency_percentile{catalog='measure',operation='bulk_write'}",
+                  "op": "exists"
+                },
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "es_latency",
+                "title": "Elasticsearch Write Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "meter_oap_elasticsearch_write_latency_percentile{operation='single_write,single_update,single_delete'}",
+                  "meter_oap_elasticsearch_write_latency_percentile{operation='bulk_write'}"
+                ],
+                "expressionLabels": [
+                  "single",
+                  "bulk"
+                ],
+                "visibleWhen": {
+                  "kind": "mqe",
+                  "expression": "meter_oap_elasticsearch_write_latency_percentile{operation='single_write,single_update,single_delete'}",
+                  "op": "exists"
+                },
+                "span": 6,
+                "rowSpan": 2
+              }
+            ]
+          },
+          {
+            "name": "Aggregation & Cluster",
+            "widgets": [
+              {
+                "id": "cluster_size",
+                "title": "Cluster Size",
+                "tip": "Aggregation nodes (Mixed or Aggregator role) this node sees in the cluster: the latest reported count, and the count over time. It counts this node too, unless it runs with the Receiver role; a dip means a node dropped out of the cluster.",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_cluster_size"
+                ],
+                "showValue": {
+                  "calculation": "latestNotNull"
+                },
+                "format": "int",
+                "span": 2,
+                "rowSpan": 2
+              },
+              {
+                "id": "aggregation",
+                "title": "Aggregation / min",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_metrics_aggregation"
+                ],
+                "span": 5,
+                "rowSpan": 2
+              },
+              {
+                "id": "aggr_queue",
+                "title": "Aggregation Queue Usage (%)",
+                "type": "line",
+                "unit": "%",
+                "expressions": [
+                  "sort_values(meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand{level='1'},10,des,avg)/100",
+                  "sort_values(meter_oap_instance_metrics_aggregation_queue_used_per_ten_thousand{level='2'},10,des,avg)/100"
+                ],
+                "expressionLabels": [
+                  "L1",
+                  "L2"
+                ],
+                "span": 5,
+                "rowSpan": 2
+              },
+              {
+                "id": "remote_traffic",
+                "title": "Cluster Remote Traffic / min",
+                "tip": "Messages this node sends to other nodes (attempts) and to itself, and receives from other nodes (left axis). Right axis: send errors — one per failed send or failed stream, however many messages it carried — receive errors, and received messages for a worker this node does not have, often a sign that the nodes run different OAL / MAL rules.",
+                "type": "line",
+                "expressions": [
+                  "aggregate_labels(meter_oap_instance_remote_out_count{self='N'}, sum)",
+                  "aggregate_labels(meter_oap_instance_remote_out_count{self='Y'}, sum)",
+                  "meter_oap_instance_remote_in_count",
+                  "aggregate_labels(meter_oap_instance_remote_out_error_count, sum)",
+                  "meter_oap_instance_remote_in_error_count",
+                  "meter_oap_instance_remote_in_target_not_found_count"
+                ],
+                "expressionLabels": [
+                  "sent to peers",
+                  "sent locally",
+                  "received",
+                  "send errors",
+                  "receive errors",
+                  "target missing"
+                ],
+                "expressionAxes": [
+                  0,
+                  0,
+                  0,
+                  1,
+                  1,
+                  1
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "remote_latency",
+                "title": "Cluster Remote Send Latency p99 (ms)",
+                "tip": "p99 time for a batch sent to each of the five slowest peers to complete, the peer's handling included. A peer reads 0 in a minute where no batch to it completed; a peer that no batch has ever completed to has no line.",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "sort_values(aggregate_labels(meter_oap_instance_remote_out_latency_percentile{self='N',p='99'}, max(dest)),5,des,avg)"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "remote_streams",
+                "title": "Cluster Remote Streams",
+                "tip": "gRPC streams open to other nodes, at most 10 per peer (left axis), and time spent waiting for a free stream slot, in ms per minute (right axis). A standalone node has no peers and reads no data.",
+                "type": "line",
+                "expressions": [
+                  "aggregate_labels(meter_oap_instance_remote_out_stream_inflight{self='N'}, sum)",
+                  "aggregate_labels(meter_oap_instance_remote_out_stream_block_milliseconds{self='N'}, sum)"
+                ],
+                "expressionLabels": [
+                  "in flight",
+                  "block wait"
+                ],
+                "expressionUnits": [
+                  "",
+                  "ms"
+                ],
+                "expressionAxes": [
+                  0,
+                  1
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "remote_queue",
+                "title": "Cluster Remote Send Queue (%)",
+                "tip": "How full the send queue to each other node is, for the five fullest. A standalone node has no peers and reads no data.",
+                "type": "line",
+                "unit": "%",
+                "expressions": [
+                  "sort_values(aggregate_labels(meter_oap_instance_remote_out_queue_used_per_ten_thousand{self='N'}, max(dest)),5,des,avg)/100"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              }
+            ]
+          },
+          {
+            "name": "Query & Alarms",
+            "widgets": [
+              {
+                "id": "graphql_latency",
+                "title": "GraphQL Latency (ms)",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_graphql_query_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "graphql_count",
+                "title": "GraphQL Query Count",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_graphql_query_count",
+                  "meter_oap_instance_graphql_query_error_count"
+                ],
+                "expressionLabels": [
+                  "queries",
+                  "errors"
+                ],
+                "span": 6,
+                "rowSpan": 2
+              },
+              {
+                "id": "alarm_delivery",
+                "title": "Alarm Delivery / min",
+                "tip": "Alarm hook deliveries per channel (HTTP and gRPC) and result: success, or why the delivery failed.",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_alarm_http_delivery_count"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              },
+              {
+                "id": "alarm_delivery_status",
+                "title": "Alarm Delivery Responses / min",
+                "tip": "HTTP responses of alarm hooks per channel and status class.",
+                "type": "line",
+                "expressions": [
+                  "meter_oap_instance_alarm_http_delivery_status_count"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              },
+              {
+                "id": "alarm_delivery_latency",
+                "title": "Alarm Delivery Latency (ms)",
+                "tip": "Alarm hook delivery latency per channel (HTTP and gRPC).",
+                "type": "line",
+                "unit": "ms",
+                "expressions": [
+                  "relabels(meter_oap_instance_alarm_http_delivery_latency_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+                ],
+                "span": 4,
+                "rowSpan": 2
+              }
+            ]
+          }
+        ]
       }
     ]
   }

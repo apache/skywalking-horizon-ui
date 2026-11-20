@@ -26,20 +26,11 @@
   not yet migrated to use this component.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { DashboardScope, DashboardWidget } from '@skywalking-horizon-ui/api-client';
-import TimeChart from '@/components/charts/TimeChart.vue';
-import TopList from '@/components/charts/TopList.vue';
-import WidgetTip from '@/components/primitives/WidgetTip.vue';
-import { fmtMetric } from '@/utils/formatters';
-import {
-  mockCardValue,
-  mockLineSeries,
-  mockRecordRows,
-  mockTopGroups,
-} from '@/features/admin/layer-templates/widget-mock';
+import LayerCanvasLeaf from './LayerCanvasLeaf.vue';
 
 type AdminScope = DashboardScope;
 
@@ -57,7 +48,17 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'select-widget': [payload: { widget: DashboardWidget; idx: number; el: HTMLElement; event: MouseEvent }];
+  /** `child` names a chart inside a `tab` widget's panel; without it the
+   *  click was on the widget itself — for a `tab` widget, its tab strip. */
+  'select-widget': [
+    payload: {
+      widget: DashboardWidget;
+      idx: number;
+      el: HTMLElement;
+      event: MouseEvent;
+      child?: { tab: number; index: number };
+    },
+  ];
   'select-header': [payload: { el: HTMLElement; event: MouseEvent }];
   'select-page': [payload: { el: HTMLElement; event: MouseEvent }];
 }>();
@@ -83,8 +84,33 @@ function widgetGridStyle(w: DashboardWidget): Record<string, string> {
   return { gridColumn: `span ${widgetSpan(w)}`, gridRow: `span ${widgetRowSpan(w)}` };
 }
 
+/** A `tab` widget keeps the height its author gave it, past the cap the
+ *  other widgets take, so its tallest panel fits as it does on the page. */
+function tabGridStyle(w: DashboardWidget): Record<string, string> {
+  return { gridColumn: `span ${widgetSpan(w)}`, gridRow: `span ${Math.max(1, w.rowSpan ?? 2)}` };
+}
+const activeTabs = ref<Record<string, number>>({});
+function activeTab(w: DashboardWidget): number {
+  const n = w.tabs?.length ?? 0;
+  return n === 0 ? 0 : Math.min(activeTabs.value[w.id] ?? 0, n - 1);
+}
+function activeChildren(w: DashboardWidget): DashboardWidget[] {
+  return w.tabs?.[activeTab(w)]?.widgets ?? [];
+}
+
 function onCellClick(e: MouseEvent, w: DashboardWidget, i: number): void {
   emit('select-widget', { widget: w, idx: i, el: e.currentTarget as HTMLElement, event: e });
+}
+
+/** Opening a tab also opens its widget's own fields — the panel names live
+ *  there — so a click on a tab name lands where that name is translated. */
+function onTabClick(e: MouseEvent, w: DashboardWidget, i: number, tab: number): void {
+  activeTabs.value = { ...activeTabs.value, [w.id]: tab };
+  emit('select-widget', { widget: w, idx: i, el: e.currentTarget as HTMLElement, event: e });
+}
+
+function onChildClick(e: MouseEvent, c: DashboardWidget, i: number, tab: number, index: number): void {
+  emit('select-widget', { widget: c, idx: i, el: e.currentTarget as HTMLElement, event: e, child: { tab, index } });
 }
 
 function onHeaderClick(e: MouseEvent): void {
@@ -131,55 +157,47 @@ const activePageRef = computed(() => {
     <div v-if="widgets.length === 0" class="ldc-empty">
       {{ t('No widgets in this scope.') }}
     </div>
-    <div
-      v-for="(w, i) in widgets"
-      :key="`${w.id}-${i}`"
-      class="ldc-cell"
-      :class="{ 'is-sel': selectedWidgetId === w.id }"
-      :style="widgetGridStyle(w)"
-      @click="onCellClick($event, w, i)"
-    >
-      <header class="ldc-head">
-        <h5>{{ w.title || w.id || t('untitled') }}</h5>
-        <WidgetTip :tip="w.tip" />
-      </header>
-      <div class="ldc-body">
-        <template v-if="w.type === 'line' && w.expressions.length > 0">
-          <TimeChart
-            :series="mockLineSeries(w)"
-            :unit="w.unit"
-            :height="Math.max(60, widgetRowSpan(w) * 120 - 50)"
-          />
-        </template>
-        <template v-else-if="w.type === 'top' && w.expressions.length > 0">
-          <TopList
-            :groups="mockTopGroups(w, Math.max(4, widgetRowSpan(w) * 3))"
-            :unit="w.unit"
-          />
-        </template>
-        <template v-else-if="w.type === 'card'">
-          <div class="ldc-card-value">
-            <span class="num">{{ fmtMetric(mockCardValue(w)) }}</span>
-            <span v-if="w.unit" class="unit">{{ w.unit }}</span>
+    <template v-for="(w, i) in widgets" :key="`${w.id}-${i}`">
+      <div
+        v-if="w.type === 'tab'"
+        class="ldc-cell ldc-tab"
+        :style="tabGridStyle(w)"
+        @click="onCellClick($event, w, i)"
+      >
+        <div class="ldc-tab-strip" role="tablist">
+          <button
+            v-for="(tab, ti) in w.tabs ?? []"
+            :key="ti"
+            type="button"
+            role="tab"
+            class="ldc-tab-btn"
+            :class="{ on: ti === activeTab(w) }"
+            :aria-selected="ti === activeTab(w)"
+            @click.stop="onTabClick($event, w, i, ti)"
+          >{{ tab.name || t('Tab {n}', { n: ti + 1 }) }}</button>
+        </div>
+        <div class="ldc-tab-grid">
+          <div
+            v-for="(c, ci) in activeChildren(w)"
+            :key="`${c.id}-${ci}`"
+            class="ldc-cell"
+            :style="widgetGridStyle(c)"
+            @click.stop="onChildClick($event, c, i, activeTab(w), ci)"
+          >
+            <LayerCanvasLeaf :widget="c" :row-span="widgetRowSpan(c)" :row-px="110" />
           </div>
-        </template>
-        <template v-else-if="w.type === 'record' && w.expressions.length > 0">
-          <ul class="ldc-records">
-            <li
-              v-for="(r, ri) in mockRecordRows(w, Math.max(3, widgetRowSpan(w) * 2))"
-              :key="ri"
-              class="ldc-record-row"
-            >
-              <span class="rec-name">{{ r.name }}</span>
-              <span class="rec-value">
-                {{ fmtMetric(r.value ?? null) }}<span v-if="w.unit" class="unit">{{ w.unit }}</span>
-              </span>
-            </li>
-          </ul>
-        </template>
-        <p v-else class="ldc-empty-cell">{{ t('No preview for this widget kind.') }}</p>
+        </div>
       </div>
-    </div>
+      <div
+        v-else
+        class="ldc-cell"
+        :class="{ 'is-sel': selectedWidgetId === w.id }"
+        :style="widgetGridStyle(w)"
+        @click="onCellClick($event, w, i)"
+      >
+        <LayerCanvasLeaf :widget="w" :row-span="widgetRowSpan(w)" :row-px="120" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -253,93 +271,42 @@ const activePageRef = computed(() => {
   border-color: var(--sw-accent);
   box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.18);
 }
-.ldc-head {
+.ldc-tab {
+  cursor: default;
+  background: transparent;
+}
+.ldc-tab-strip {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 2px;
   border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-2);
-  min-width: 0;
+  overflow-x: auto;
+  flex: 0 0 auto;
+  cursor: pointer;
 }
-.ldc-head h5 {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sw-fg-0);
+.ldc-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--sw-fg-2);
+  cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
 }
-.ldc-body {
+.ldc-tab-btn:hover { color: var(--sw-fg-0); }
+.ldc-tab-btn.on {
+  color: var(--sw-fg-0);
+  border-bottom-color: var(--sw-accent);
+}
+.ldc-tab-grid {
   flex: 1;
   min-height: 0;
-  padding: 6px 8px 12px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.ldc-empty-cell {
-  margin: auto;
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
-  text-align: center;
-  padding: 8px 12px;
-}
-.ldc-card-value {
-  flex: 1;
+  overflow: auto;
   display: grid;
-  place-items: center;
-  gap: 4px;
-  padding: 8px;
-}
-.ldc-card-value .num {
-  font-family: var(--sw-mono);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--sw-fg-0);
-  font-variant-numeric: tabular-nums;
-}
-.ldc-card-value .unit {
-  font-size: 11px;
-  color: var(--sw-fg-3);
-}
-.ldc-records {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-.ldc-record-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 3px 4px;
-  border-bottom: 1px dashed var(--sw-line);
-}
-.ldc-record-row:last-child { border-bottom: none; }
-.rec-name {
-  flex: 1;
-  font-family: var(--sw-mono);
-  font-size: 10.5px;
-  color: var(--sw-fg-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rec-value {
-  font-family: var(--sw-mono);
-  font-size: 10.5px;
-  color: var(--sw-fg-0);
-  font-variant-numeric: tabular-nums;
-}
-.rec-value .unit {
-  margin-left: 2px;
-  color: var(--sw-fg-3);
-  font-size: 9.5px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 110px;
+  gap: 6px;
+  padding: 8px 0 2px;
+  align-content: start;
 }
 </style>
