@@ -521,7 +521,14 @@ function buildLayerSchemas(complete: boolean) {
         })
         .strict()
         .optional(),
-      log: z.object({ scope: z.enum(['service', 'instance', 'endpoint']).optional() }).strict().optional(),
+      log: z
+        .object({
+          scope: z.enum(['service', 'instance', 'endpoint']).optional(),
+          // Absent is `native`.
+          type: z.enum(['native', 'otlp']).optional(),
+        })
+        .strict()
+        .optional(),
       naming: z
         .object({
           pattern: text,

@@ -83,6 +83,9 @@ export interface OapCapabilities {
   /** `TraceScopeCondition.otlpSpanId` — the logs one OTLP or Zipkin span
    *  wrote (OAP 11.2.0+). Older OAPs read logs by trace, or by native span. */
   logOtlpSpanId: boolean;
+  /** The `TagType` enum (`LOG`, `OTLP_LOG`) of the log tag autocomplete
+   *  queries (OAP 11.2.0+). The BFF then reads each source's log tags apart. */
+  logTagType: boolean;
 }
 
 /** Storage backend the connected OAP runs on, as far as the BFF can

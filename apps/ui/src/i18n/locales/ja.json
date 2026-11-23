@@ -3656,5 +3656,12 @@
   "Top margin (px)": "上余白（px）",
   "Axes": "軸",
   "shown": "表示",
-  "Number width (%)": "数値の幅（%）"
+  "Number width (%)": "数値の幅（%）",
+  "SkyWalking native": "SkyWalking ネイティブ",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "SkyWalking ネイティブプロトコルで送信されるログ：SkyWalking エージェント、ALS 経由の Envoy アクセスログなど。テンプレートで種類を指定しない場合の既定値です。",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "OTLP で受信したログ（OpenTelemetry SDK や Collector から）。",
+  "Log type": "ログの種類",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "SkyWalking 11.2 以降は OTLP ログの検索可能なタグを他のログのタグとは別に保持するため、「タグ」欄ではこの種類のタグのみを候補表示します。それより前の OAP は両方を 1 つのリストで保持するため、この選択は影響しません。",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "このレイヤーのログの送信元 — 「タグ」欄が候補に出すタグを決めます",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "この OAP はすべてのログのタグを 1 つのリストで保持するため、「タグ」欄にはこのレイヤーの {type} ログだけでなく、すべてのログのタグが候補表示されます。SkyWalking 11.2 以降は OTLP ログのタグを別に保持します。"
 }

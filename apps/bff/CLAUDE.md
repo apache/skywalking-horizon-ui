@@ -84,10 +84,12 @@ rather than replacing the client's own timeout.
   timezone, the capability set, the layer-level table and the storage backend
   are properties of that deployment, not of whichever node a request lands on —
   Horizon may read any of them and get the same answer. So a process-level cache
-  of any of those needs no per-`queryUrl` key: there is no second answer for a
-  key to separate. Several of them carry one anyway, from before this was
-  written down; it is harmless and load-bearing nowhere, and new code should not
-  copy it.
+  of any of those holds ONE entry, not a map per `queryUrl`: there is no second
+  answer for a key to separate. A hot reload can still repoint Horizon at
+  another deployment, so the capability and storage-backend caches remember the
+  `queryUrl` their one entry was read from and probe again on the next request
+  after it changes. Repointing is rare; it need only take effect by the next
+  request, not mid-request.
 
 ## Cold stage
 

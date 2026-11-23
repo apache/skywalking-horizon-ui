@@ -307,6 +307,9 @@ export interface LogConfig {
    *     selector is shown alongside.
    *  Matches booster-ui's ConditionTags routing (`EntityType[1|2|3]`). */
   scope?: 'service' | 'instance' | 'endpoint';
+  /** The source of the layer's logs, which picks the tags the Tags field
+   *  suggests. Absent is `native`. */
+  type?: 'native' | 'otlp';
 }
 
 /**

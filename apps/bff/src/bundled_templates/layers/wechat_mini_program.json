@@ -17,6 +17,9 @@
     "traces": true,
     "logs": true
   },
+  "log": {
+    "type": "otlp"
+  },
   "layer-header": {
     "orderBy": "cpm",
     "columns": [

@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
-import type { DashboardWidget, InstanceAttributePredicate, TracesConfig } from '@skywalking-horizon-ui/api-client';
+import type { DashboardWidget, InstanceAttributePredicate, LogConfig, TracesConfig } from '@skywalking-horizon-ui/api-client';
 
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import StoredTemplatesBanner from '@/features/admin/_shared/StoredTemplatesBanner.vue';
@@ -44,6 +44,7 @@ import TopologyConfigEditor from './TopologyConfigEditor.vue';
 import DeploymentConfigEditor from './DeploymentConfigEditor.vue';
 import LayerSetupEditor from './LayerSetupEditor.vue';
 import TraceStoresEditor from './TraceStoresEditor.vue';
+import LogTypeEditor from './LogTypeEditor.vue';
 import ServiceListMetricsEditor from './ServiceListMetricsEditor.vue';
 import LayerBrowseRail from './LayerBrowseRail.vue';
 import LayerHeaderBar from './LayerHeaderBar.vue';
@@ -355,6 +356,14 @@ function setTraces(v: TracesConfig | undefined): void {
   if (readOnly.value || !draft.template) return;
   if (v) draft.template.traces = v;
   else delete draft.template.traces;
+}
+
+/* The Logs tab's own config: the log type, which picks the tags its Tags field
+ * suggests. Native is written as an absent `type` — see `LogTypeEditor`. */
+function setLog(v: LogConfig | undefined): void {
+  if (readOnly.value || !draft.template) return;
+  if (v) draft.template.log = v;
+  else delete draft.template.log;
 }
 
 /** Menu-preview click: focus the component's scope (if surfaced) and
@@ -741,9 +750,9 @@ const namingTest = computed<NamingTestResult>(() => {
             :read-only="readOnly"
           />
 
-          <!-- Trace + Logs are built-in views with no per-layer config
-               other than enable/disable, which is already handled via
-               the Components toggle in the right sidebar. -->
+          <!-- Trace + Logs are built-in views: Trace names its stores, Logs its
+               log type; enable/disable is the Components toggle in the right
+               sidebar. -->
           <section
             v-else-if="activeScopeRuntimeOnly"
             class="sw-card editor-card topo-cfg-card scope-titled"
@@ -753,7 +762,9 @@ const namingTest = computed<NamingTestResult>(() => {
               <span class="sub">
                 {{ activeScope === 'trace'
                   ? t('which trace APIs this layer exposes — one sidebar row each')
-                  : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
+                  : activeScope === 'logs'
+                    ? t('where this layer’s logs come from — picks the tags the Tags field suggests')
+                    : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
               </span>
             </div>
             <div class="topo-cfg-body">
@@ -763,6 +774,12 @@ const namingTest = computed<NamingTestResult>(() => {
                 :read-only="readOnly"
                 :layer-key="selectedKey"
                 @update="setTraces"
+              />
+              <LogTypeEditor
+                v-else-if="activeScope === 'logs'"
+                :log="draft.template?.log"
+                :read-only="readOnly"
+                @update="setLog"
               />
               <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">
                 <template #tab><b>{{ scopeLabel(activeScope) }}</b></template>

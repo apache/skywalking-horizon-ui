@@ -44,7 +44,7 @@ Conditions for the stored stream:
 
 | Condition | What it does |
 |---|---|
-| Tags | Comma-separated `key=value` pairs, AND-joined, with autocomplete: type to see known keys, type `=` for that key's known values, **Enter** commits the pair and primes a comma for the next. Filter by level with a `level=…` tag. |
+| Tags | Comma-separated `key=value` pairs, AND-joined, with autocomplete: type to see known keys, type `=` for that key's known values, **Enter** commits the pair and primes a comma for the next. Filter by level with a `level=…` tag. The suggestions are the tags of the picked layer's log type, and of native logs when no layer is picked — see [Layer templates](../customization/layer-templates.md#log). |
 | Trace ID | Show only the lines correlated with one trace. |
 | Time | A rolling preset (15m, 30m, 1h, 3h, 6h, 12h, 24h) or **Custom…** with an absolute start/end pair. Second-precision, like the per-layer tab. |
 | Limit | Result cap: 20, 50 (default), 100, or 200. The server additionally caps a single batch at its configured page-size limit (100 by default), so 200 only takes effect when that limit has been raised — see the query-limits section of the [horizon.yaml reference](../setup/horizon-yaml.md). |

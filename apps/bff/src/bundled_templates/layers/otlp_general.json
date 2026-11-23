@@ -22,6 +22,9 @@
     "asyncProfiling": false,
     "pprofProfiling": false
   },
+  "log": {
+    "type": "otlp"
+  },
   "traces": {
     "sources": ["traceql-otlp"],
     "stores": {

@@ -68,16 +68,20 @@ interface TtlProbeRaw {
 interface Entry {
   backend: OapBackend;
   fetchedAt: number;
+  queryUrl: string;
 }
-// One deployment, one answer — see apps/bff/CLAUDE.md. Keying this on
-// `oap.queryUrl` separated nothing: it is a single config field.
+// One deployment at a time, one answer. It remembers the `oap.queryUrl` it was
+// read from, so the next request after a hot reload that repoints Horizon
+// probes the new OAP — see apps/bff/CLAUDE.md.
 let cache: Entry | null = null;
+let flight: Promise<OapBackend> | null = null;
 const TTL_OK_MS = 5 * 60_000;
 const TTL_FAIL_MS = 60_000;
 
 /** Reset the cache. Test-only. */
 export function _resetBackendCache(): void {
   cache = null;
+  flight = null;
 }
 
 export function classifyBackend(raw: TtlProbeRaw): OapBackend {
@@ -108,18 +112,28 @@ export async function getOapBackend(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
 ): Promise<OapBackend> {
-  const now = Date.now();
+  const queryUrl = config.oap.queryUrl;
   const hit = cache;
-  if (hit && now - hit.fetchedAt < TTL_OK_MS) return hit.backend;
-  try {
-    const raw = await probeTtl(config, fetchImpl);
-    const backend = classifyBackend(raw);
-    cache = { backend, fetchedAt: now };
+  if (hit && hit.queryUrl === queryUrl && Date.now() - hit.fetchedAt < TTL_OK_MS) return hit.backend;
+  // ONE probe at a time, shared by every caller: concurrent polls each probing
+  // let a slow failure from one node replace the answer another had just given.
+  flight ??= probeBackend(config, fetchImpl).finally(() => {
+    flight = null;
+  });
+  return flight;
+}
+
+async function probeBackend(config: HorizonConfig, fetchImpl: FetchLike | undefined): Promise<OapBackend> {
+  // Both TTLs count from when the answer lands, not from when the probe began.
+  const store = (backend: OapBackend, ttl: number): OapBackend => {
+    cache = { backend, queryUrl: config.oap.queryUrl, fetchedAt: Date.now() - TTL_OK_MS + ttl };
     return backend;
+  };
+  try {
+    return store(classifyBackend(await probeTtl(config, fetchImpl)), TTL_OK_MS);
   } catch {
     // Conservative: report unknown rather than guessing. Short cache
     // so the next poll re-probes and recovers when OAP comes back.
-    cache = { backend: 'unknown', fetchedAt: now - TTL_OK_MS + TTL_FAIL_MS };
-    return 'unknown';
+    return store('unknown', TTL_FAIL_MS);
   }
 }

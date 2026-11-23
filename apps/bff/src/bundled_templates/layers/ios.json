@@ -17,6 +17,9 @@
     "traces": false,
     "logs": true
   },
+  "log": {
+    "type": "otlp"
+  },
   "layer-header": {
     "orderBy": "launch",
     "columns": [

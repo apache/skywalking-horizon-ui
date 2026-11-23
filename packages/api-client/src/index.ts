@@ -26,7 +26,10 @@ export type {
   LayerHeaderConfig,
   MenuResponse,
   ServiceNamingRule,
+  LogConfig,
+  LogType,
 } from './menu.js';
+export { LOG_TYPES, logTypeOf } from './menu.js';
 export type {
   AggregationKind,
   LandingColumn,

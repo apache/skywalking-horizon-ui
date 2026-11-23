@@ -18,6 +18,7 @@
 import type {
   LogFacetsResponse,
   LogQueryRequest,
+  LogType,
   LogsResponse,
   TraceLogsRequest,
   TraceLogsResponse,
@@ -70,16 +71,21 @@ export class LogApi {
     );
   }
 
-  tagKeys(windowMinutes = 30): Promise<{ keys: string[]; generatedAt: number; error?: string }> {
-    return this.bff.request('GET', `/api/log-tags/keys?windowMinutes=${windowMinutes}`);
+  /** `logType` is the layer's log source, whose tags are suggested. */
+  tagKeys(
+    windowMinutes = 30,
+    logType: LogType = 'native',
+  ): Promise<{ keys: string[]; generatedAt: number; error?: string }> {
+    return this.bff.request('GET', `/api/log-tags/keys?windowMinutes=${windowMinutes}&type=${logType}`);
   }
   tagValues(
     key: string,
     windowMinutes = 30,
+    logType: LogType = 'native',
   ): Promise<{ key: string; values: string[]; generatedAt: number; error?: string }> {
     return this.bff.request(
       'GET',
-      `/api/log-tags/values?key=${encodeURIComponent(key)}&windowMinutes=${windowMinutes}`,
+      `/api/log-tags/values?key=${encodeURIComponent(key)}&windowMinutes=${windowMinutes}&type=${logType}`,
     );
   }
 

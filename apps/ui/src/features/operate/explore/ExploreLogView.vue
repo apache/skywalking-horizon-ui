@@ -44,6 +44,7 @@ import {
 } from '@/utils/recordTimeRange';
 
 import { useI18n } from 'vue-i18n';
+import { logTypeOf, type LogType } from '@skywalking-horizon-ui/api-client';
 import { bff, bffClient, describeApiError } from '@/api/client';
 import type {
   BrowserErrorCategory,
@@ -78,7 +79,7 @@ import { usePodLogTail } from './usePodLogTail';
 import { logRowKey } from '@/utils/logRow';
 
 const { t } = useI18n();
-const { availableLayers } = useLayers();
+const { availableLayers, findLayer } = useLayers();
 const { openTrace } = useTracePopout();
 
 // ── source. `raw` = queryLogs (any service across layers); `browser` =
@@ -126,6 +127,10 @@ const {
 // runs: the rows are that query's, whatever the picker says since.
 const rowsLayer = ref<string | null>(null);
 const pageTraceSource = usePageTraceSource(() => rowsLayer.value);
+// Tags are suggested from the picked layer's log source; without one, native.
+const tagLogType = computed<LogType>(() =>
+  entityMode.value === 'pick' && pickLayer.value ? logTypeOf(findLayer(pickLayer.value)?.log) : 'native',
+);
 
 // No layer seed for the browser source: this is an inspect tool, so it
 // exposes every layer/service rather than pinning BROWSER (which left the
@@ -791,6 +796,7 @@ watch(logSource, (next, prev) => {
                 <TagInput
                   v-model="cond.tags"
                   kind="log"
+                  :log-type="tagLogType"
                   separator=","
                   :window-minutes="cond.windowMinutes"
                   :placeholder="t('level=ERROR, …')"

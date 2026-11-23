@@ -40,6 +40,7 @@ export interface LayerTemplateContent {
   metrics?: LayerDef['metrics'];
   naming?: LayerDef['naming'];
   traces?: LayerDef['traces'];
+  log?: LayerDef['log'];
   /** Only the `instanceTopology` presence is read here, to gate the
    *  Instance-map drill-down cap — same rule the menu's `deriveLayer` uses. */
   topology?: { instanceTopology?: unknown };
@@ -139,6 +140,7 @@ export function layerContentToDef(t: LayerTemplateContent): LayerDef {
     metrics: t.metrics,
     naming: t.naming,
     traces: t.traces,
+    log: t.log,
   });
 }
 
@@ -202,5 +204,6 @@ export function overlayLayerDef(base: LayerDef, t: LayerTemplateContent): LayerD
     extPages: extPagesOf(t),
     defaultFilters: defaultFiltersOf(t),
     menuOrder: t.menuOrder,
+    log: t.log,
   });
 }

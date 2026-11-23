@@ -21,7 +21,7 @@
  * newer field need to know whether the connected OAP exposes it.
  *
  * The probe runs a minimal `__type(name: "Query") { fields { name } }`
- * introspection call, then one more per input type whose growth matters, and
+ * introspection call, then one more per type whose growth matters, and
  * reports per-feature booleans. One `__type` per request: OAP's GraphQL engine
  * refuses a document that names it twice as bad-faith introspection, which
  * would fail every capability at once. Result is cached
@@ -53,6 +53,10 @@ export interface OapCapabilities {
   /** `TraceScopeCondition.otlpSpanId` — the logs one OTLP or Zipkin span wrote
    *  (OAP 11.2.0+). Sending it to an OAP without it fails the whole query. */
   logOtlpSpanId: boolean;
+  /** The `TagType` enum (`LOG`, `OTLP_LOG`) — the optional `type` of the log
+   *  tag autocomplete queries (OAP 11.2.0+). Naming it on an older OAP fails
+   *  the whole query. */
+  logTagType: boolean;
 }
 
 const INTROSPECTION_QUERY = /* GraphQL */ `
@@ -67,12 +71,21 @@ const TRACE_SCOPE_QUERY = /* GraphQL */ `
   }
 `;
 
+const TAG_TYPE_QUERY = /* GraphQL */ `
+  query HorizonTagTypeValues {
+    __type(name: "TagType") { enumValues { name } }
+  }
+`;
+
 type NameList = Array<{ name?: string | null } | null> | null;
 interface IntrospectionRaw {
   __type?: { fields?: NameList } | null;
 }
 interface InputFieldsRaw {
   __type?: { inputFields?: NameList } | null;
+}
+interface EnumValuesRaw {
+  __type?: { enumValues?: NameList } | null;
 }
 
 /** The storage-answered half. Asked only when introspection proved the field
@@ -90,11 +103,11 @@ interface LogKeywordsRaw {
 interface Entry {
   result: OapCapabilities;
   fetchedAt: number;
+  queryUrl: string;
 }
-// One Horizon reads one OAP deployment, and every node in it answers alike, so
-// there is no second answer for a key to separate — see apps/bff/CLAUDE.md.
-// This was a Map keyed on `oap.queryUrl`, which is a single config field: it
-// held exactly one entry for the life of the process and separated nothing.
+// One Horizon reads one OAP deployment at a time, so one entry. It remembers
+// the `oap.queryUrl` it was read from, so the next request after a hot reload
+// that repoints Horizon probes the new OAP — see apps/bff/CLAUDE.md.
 let cache: Entry | null = null;
 let flight: Promise<OapCapabilities> | null = null;
 const CAPS_TTL_MS = 5 * 60_000;
@@ -110,6 +123,13 @@ export function _resetCapabilitiesCache(): void {
   flight = null;
 }
 
+function store(queryUrl: string, result: OapCapabilities, failed: boolean): void {
+  // Counted from now, not from the start of the probe: its lookups run one
+  // after another, and a slow failure could otherwise land already expired.
+  const now = Date.now();
+  cache = { result, queryUrl, fetchedAt: failed ? now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS : now };
+}
+
 export async function getOapCapabilities(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
@@ -117,7 +137,9 @@ export async function getOapCapabilities(
    *  see `getServerOffsetMinutes`, which shares its probe the same way. */
   signal?: AbortSignal,
 ): Promise<OapCapabilities> {
-  if (cache && Date.now() - cache.fetchedAt < CAPS_TTL_MS) return cache.result;
+  if (cache && cache.queryUrl === config.oap.queryUrl && Date.now() - cache.fetchedAt < CAPS_TTL_MS) {
+    return cache.result;
+  }
 
   // ONE introspection per expiry, shared by every concurrent caller. Without
   // this a round's dozen reads each probed, and a slow failure landing after a
@@ -145,7 +167,6 @@ async function probeCapabilities(
   config: HorizonConfig,
   fetchImpl: FetchLike | undefined,
 ): Promise<OapCapabilities> {
-  const now = Date.now();
   let raw: IntrospectionRaw;
   try {
     raw = await graphqlPost<IntrospectionRaw>(
@@ -153,8 +174,14 @@ async function probeCapabilities(
       INTROSPECTION_QUERY,
     );
   } catch {
-    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false, aiConversations: false, logOtlpSpanId: false };
-    cache = { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS };
+    const conservative: OapCapabilities = {
+      queryAlarms: false,
+      logKeywords: false,
+      aiConversations: false,
+      logOtlpSpanId: false,
+      logTagType: false,
+    };
+    store(config.oap.queryUrl, conservative, true);
     return conservative;
   }
 
@@ -185,19 +212,25 @@ async function probeCapabilities(
   } catch {
     probeFailed = true;
   }
+  let logTagType = false;
+  try {
+    const env = await graphqlPost<EnumValuesRaw>(buildOapOpts(config, fetchImpl), TAG_TYPE_QUERY);
+    const values = new Set((env.__type?.enumValues ?? []).map((v) => v?.name));
+    logTagType = values.has('LOG') && values.has('OTLP_LOG');
+  } catch {
+    probeFailed = true;
+  }
   const result: OapCapabilities = {
     queryAlarms: fieldSet.has('queryAlarms'),
     logKeywords,
     aiConversations: fieldSet.has('listConversations'),
     logOtlpSpanId,
+    logTagType,
   };
   // A false that came from a TIMEOUT expires on the short TTL, not the long
   // one: caching it for the full window would hide content search on a
   // capable backend for five minutes over one slow reply. A false the storage
   // actually answered is durable — it only changes when OAP restarts.
-  cache = {
-    result,
-    fetchedAt: probeFailed ? now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS : now,
-  };
+  store(config.oap.queryUrl, result, probeFailed);
   return result;
 }
