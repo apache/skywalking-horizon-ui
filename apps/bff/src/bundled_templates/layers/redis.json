@@ -283,7 +283,7 @@
       },
       {
         "id": "avg_cmd_time",
-        "title": "Avg Command Time",
+        "title": "Avg Command Time (microseconds)",
         "type": "line",
         "expressions": [
           "meter_redis_instance_average_time_spent_by_command"

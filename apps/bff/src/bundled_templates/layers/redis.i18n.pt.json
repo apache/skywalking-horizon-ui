@@ -126,7 +126,7 @@
       },
       {
         "id": "avg_cmd_time",
-        "title": "Tempo médio de comando"
+        "title": "Tempo médio de comando (microssegundos)"
       }
     ]
   }

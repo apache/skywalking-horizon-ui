@@ -92,7 +92,7 @@ For one selected node (a single Redis process under the cluster).
 
 - **Total Command Time (s)** — total time spent on commands per second for this node (`meter_redis_instance_commands_duration_seconds_total_rate`).
 
-- **Avg Command Time** — mean time spent per command on this node (`meter_redis_instance_average_time_spent_by_command`).
+- **Avg Command Time (microseconds)** — mean time spent per command on this node (`meter_redis_instance_average_time_spent_by_command`).
 
 ## Requirements
 
