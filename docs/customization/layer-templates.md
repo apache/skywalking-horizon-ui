@@ -57,7 +57,7 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 | `topology` | object | — | Topology MQE override for the service-map view. |
 | `endpointDependency` | object | — | API-dependency dashboard MQE override. |
 | `traces` | `{ sources?: TraceStore[], stores?: {…} }` | `native` | Which trace stores this layer exposes, and each row's name and service filter. Absent reads as the native store; `"sources": []` is how a layer says it has no trace rows. |
-| `log` | object | — | Logs tab scope (service / instance / endpoint). |
+| `log` | object | — | Logs tab scope (service / instance / endpoint), and the log type — where the layer's logs come from. |
 | `naming` | object | — | Service-name parsing rule (extracts cluster or other tokens from the OAP-reported name). |
 
 ## `aliases`
@@ -550,7 +550,7 @@ Edited in the admin under the layer's **Trace** scope: tick the stores the layer
 ## `log`
 
 ```json
-"log": { "scope": "service" }
+"log": { "scope": "service", "type": "otlp" }
 ```
 
 | Scope | Behavior |
@@ -558,6 +558,15 @@ Edited in the admin under the layer's **Trace** scope: tick the stores the layer
 | `service` | Logs are queried per service. |
 | `instance` | Logs are queried per service instance. |
 | `endpoint` | Logs are queried per endpoint. |
+
+`type` says where the layer's logs come from, which decides the tags the Logs tab's **Tags** field suggests:
+
+| Type | Logs |
+|---|---|
+| `native` | Sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when `type` is absent. |
+| `otlp` | Received over OTLP, from OpenTelemetry SDKs and collectors. |
+
+From SkyWalking 11.2, OAP keeps the searchable tags of OTLP logs apart from those of every other log, so the field suggests the tags of this type only. An earlier OAP keeps one list for both, and the type changes nothing there. Set it in **Dashboard setup → Layer dashboards**, on the layer's **Logs** tab. **Log inspect** suggests the tags of the type of the layer picked there, and native tags when no layer is picked.
 
 ## `naming`
 

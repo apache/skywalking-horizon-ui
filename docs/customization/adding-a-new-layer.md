@@ -67,6 +67,7 @@ Optional:
 - `documentLink`: external docs URL.
 - `traces.sources`: the trace stores this layer exposes — `native`, `zipkin`, `traceql-native`, `traceql-zipkin`. Omit it and the layer shows the native row; `[]` gives it no trace rows at all.
 - `log.scope`: scope for the Logs tab.
+- `log.type`: `otlp` when the layer's logs arrive over OTLP; omit it for logs sent over the SkyWalking native protocols. It decides which tags the Logs tab suggests.
 - `naming`: regex for extracting clusters from service names.
 
 See [Layer Dashboard Templates](layer-templates.md) for the full field reference.

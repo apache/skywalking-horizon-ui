@@ -67,6 +67,13 @@ describe('layerContentToDef — a draft OAP does not list', () => {
     expect(layerContentToDef(DRAFT).extPages?.service?.[1].serviceFilter).toBe('/^agent::/');
   });
 
+  it('carries the draft log settings', () => {
+    expect(layerContentToDef({ ...DRAFT, log: { scope: 'instance', type: 'otlp' } }).log).toEqual({
+      scope: 'instance',
+      type: 'otlp',
+    });
+  });
+
   it('leaves extPages absent for a draft that declares none', () => {
     const def = layerContentToDef({ key: 'X', components: { service: true } });
     expect(def.extPages).toBeUndefined();
@@ -94,6 +101,12 @@ describe('overlayLayerDef — a draft over a live layer', () => {
       { path: 'logs', icon: 'log' },
     ],
   } as unknown as LayerDef;
+
+  it('takes the log settings from the draft, not the published template', () => {
+    const live = { ...published, log: { scope: 'instance' } } as LayerDef;
+    expect(overlayLayerDef(live, { ...DRAFT, log: { type: 'otlp' } }).log).toEqual({ type: 'otlp' });
+    expect(overlayLayerDef(live, DRAFT).log).toBeUndefined();
+  });
 
   it('replaces the published pages rather than merging them', () => {
     // The published `old-page` must not survive: the operator deleted it

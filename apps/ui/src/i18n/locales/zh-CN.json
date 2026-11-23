@@ -3656,5 +3656,12 @@
   "Top margin (px)": "顶部间距（px）",
   "Axes": "坐标轴",
   "shown": "显示",
-  "Number width (%)": "数值宽度（%）"
+  "Number width (%)": "数值宽度（%）",
+  "SkyWalking native": "SkyWalking 原生",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "通过 SkyWalking 原生协议发送的日志：SkyWalking agent、经 ALS 上报的 Envoy 访问日志等。模板未指定类型时默认使用此项。",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "通过 OTLP 接收的日志，来自 OpenTelemetry SDK 和 Collector。",
+  "Log type": "日志类型",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "SkyWalking 11.2 及以上版本将 OTLP 日志的可搜索标签与其他日志的分开保存，因此“标签”字段只提示此类型日志的标签。更早版本的 OAP 对两者只保存一份列表，此选项在那里不起作用。",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "该 layer 的日志来自何处 —— 决定“标签”字段提示哪些标签",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "当前 OAP 对所有日志只保存一份标签列表，因此“标签”字段会提示所有日志的标签，而不只是该 layer 的 {type} 日志。SkyWalking 11.2 及以上版本会将 OTLP 日志的标签分开保存。"
 }

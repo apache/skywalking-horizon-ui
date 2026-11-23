@@ -19,7 +19,8 @@
 
   Suggests tag KEYS (rendered `key=`) before the operator types `=`, and
   per-key VALUES (rendered `key=value`) after — OAP's native trace/log tags
-  by `kind`, or whatever a host passes as `suggestions`. The suggestion
+  by `kind` (log tags of the host's `logType`), or whatever a host passes as
+  `suggestions`. The suggestion
   completes the whole text, or — for a host whose field holds several terms
   — the term after the last `separator`: `,` for cross-layer inspect's
   list, ` and ` for Zipkin's annotation query. A single tag's value may hold
@@ -34,6 +35,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
+import type { LogType } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import type { TagSuggestions } from './tagFilter';
 
@@ -41,13 +43,14 @@ const props = withDefaults(
   defineProps<{
     modelValue: string;
     kind?: 'trace' | 'log';
+    logType?: LogType;
     suggestions?: TagSuggestions | null;
     separator?: string;
     windowMinutes?: number;
     placeholder?: string;
     disabled?: boolean;
   }>(),
-  { kind: undefined, suggestions: null, separator: '', windowMinutes: 30, placeholder: '', disabled: false },
+  { kind: undefined, logType: 'native', suggestions: null, separator: '', windowMinutes: 30, placeholder: '', disabled: false },
 );
 
 const emit = defineEmits<{
@@ -131,14 +134,25 @@ const valueCache = reactive(new Map<string, string[]>());
 const loadingValuesFor = ref<string | null>(null);
 let valueDebounce: ReturnType<typeof setTimeout> | null = null;
 
+// Another log type is another tag list: drop what the previous one suggested.
+watch(
+  () => props.logType,
+  () => {
+    keyCache.value = null;
+    valueCache.clear();
+  },
+);
+
 async function ensureKeys(): Promise<void> {
   if (props.suggestions || !props.kind || keyCache.value !== null) return;
   keyCache.value = [];
+  const logType = props.logType;
   try {
     const res =
       props.kind === 'trace'
         ? await bffClient.trace.tagKeys(winMinutes.value)
-        : await bffClient.log.tagKeys(winMinutes.value);
+        : await bffClient.log.tagKeys(winMinutes.value, logType);
+    if (logType !== props.logType) return;
     if (!res.error) keyCache.value = res.keys ?? [];
   } catch {
     /* autocomplete is best-effort */
@@ -153,11 +167,13 @@ async function ensureValues(key: string): Promise<void> {
   }
   if (!props.kind || valueCache.has(key) || loadingValuesFor.value === key) return;
   loadingValuesFor.value = key;
+  const logType = props.logType;
   try {
     const res =
       props.kind === 'trace'
         ? await bffClient.trace.tagValues(key, winMinutes.value)
-        : await bffClient.log.tagValues(key, winMinutes.value);
+        : await bffClient.log.tagValues(key, winMinutes.value, logType);
+    if (logType !== props.logType) return;
     valueCache.set(key, res.error ? [] : (res.values ?? []));
   } catch {
     valueCache.set(key, []);

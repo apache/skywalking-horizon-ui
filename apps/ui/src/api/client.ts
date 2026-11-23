@@ -44,6 +44,7 @@ import type {
   DeploymentConfig,
   TopologyConfig,
   TracesConfig,
+  LogConfig,
   Catalog,
   InstanceAttributePredicate,
 } from '@skywalking-horizon-ui/api-client';
@@ -428,6 +429,7 @@ export interface AdminLayerTemplate {
   endpointDependency?: EndpointDependencyConfig;
   processTopology?: ProcessTopologyConfig;
   traces?: TracesConfig;
+  log?: LogConfig;
   naming?: {
     pattern: string;
     flags?: string;

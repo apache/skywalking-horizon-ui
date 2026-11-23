@@ -3656,5 +3656,12 @@
   "Top margin (px)": "위쪽 여백(px)",
   "Axes": "축",
   "shown": "표시",
-  "Number width (%)": "숫자 너비(%)"
+  "Number width (%)": "숫자 너비(%)",
+  "SkyWalking native": "SkyWalking 네이티브",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "SkyWalking 네이티브 프로토콜로 전송되는 로그: SkyWalking 에이전트, ALS를 통한 Envoy 액세스 로그 등. 템플릿에 유형이 없을 때의 기본값입니다.",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "OpenTelemetry SDK와 Collector에서 OTLP로 수신한 로그.",
+  "Log type": "로그 유형",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "SkyWalking 11.2 이상은 OTLP 로그의 검색 가능한 태그를 다른 로그의 태그와 따로 보관하므로, \"태그\" 필드는 이 유형의 태그만 제안합니다. 이전 OAP는 둘을 하나의 목록으로 보관하므로 이 선택이 영향을 주지 않습니다.",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "이 레이어의 로그 출처 — \"태그\" 필드가 제안할 태그를 정합니다",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "이 OAP는 모든 로그의 태그를 하나의 목록으로 보관하므로, \"태그\" 필드는 이 레이어의 {type} 로그뿐 아니라 모든 로그의 태그를 제안합니다. SkyWalking 11.2 이상은 OTLP 로그의 태그를 따로 보관합니다."
 }

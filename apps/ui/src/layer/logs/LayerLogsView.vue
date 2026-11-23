@@ -28,6 +28,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
+import { logTypeOf } from '@skywalking-horizon-ui/api-client';
 import type { LayerDef, LogRow, LogsResponse, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
@@ -151,6 +152,7 @@ watch(
 const logScope = computed<'service' | 'instance' | 'endpoint'>(
   () => layer.value?.log?.scope ?? 'service',
 );
+const logType = computed(() => logTypeOf(layer.value?.log));
 // Instance + endpoint selectors render unconditionally now (with All
 // as the default). `showEndpointSelector` still gates whether the
 // combobox lists an `All` row — for endpoint-pinned layers picking
@@ -226,7 +228,10 @@ const traceIdInput = ref('');
 // reports that per backend (ElasticSearch yes, BanyanDB no). A backend
 // that says no accepts `keywordsOfContent` and ignores it, so offering
 // the box there would return an unfiltered page that reads as a match.
-const { capabilities } = useOapInfo();
+const { capabilities, reachable: oapReachable } = useOapInfo();
+// An OAP without the `TagType` enum keeps one tag list for every log, so the
+// layer's log type cannot narrow the Tags field's suggestions there.
+const tagsNotByType = computed(() => oapReachable.value && !capabilities.value.logTagType);
 const logKeywordsSupported = computed(() => capabilities.value.logKeywords);
 const keywordInput = ref('');
 const page = ref(1);
@@ -479,6 +484,9 @@ watch(
 
 <template>
   <div class="lg-tab" :class="{ 'is-embedded': embedded }">
+    <div v-if="tagsNotByType && !embedded" class="banner warn">
+      {{ t('This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.', { type: logType === 'otlp' ? 'OTLP' : t('SkyWalking native') }) }}
+    </div>
     <!-- Toolbar mirrors the trace tab: head row (kicker + Run query)
          on top, conditions grid below, active tag chips at the foot.
          Hidden in embedded (chat) mode — the focus is fixed by the prompt. -->
@@ -548,6 +556,7 @@ watch(
           <TagInput
             v-model="tagInput"
             kind="log"
+            :log-type="logType"
             :placeholder="t('key=value, then Enter')"
             @commit="addTagFilter"
           />
@@ -797,6 +806,14 @@ watch(
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
   color: #f87171;
+  font-size: 11.5px;
+}
+.banner.warn {
+  padding: 8px 12px;
+  background: var(--sw-warn-soft);
+  border: 1px solid var(--sw-warn);
+  border-radius: 6px;
+  color: var(--sw-warn);
   font-size: 11.5px;
 }
 

@@ -3656,5 +3656,12 @@
   "Top margin (px)": "Marge haute (px)",
   "Axes": "Axes",
   "shown": "affiché",
-  "Number width (%)": "Largeur du nombre (%)"
+  "Number width (%)": "Largeur du nombre (%)",
+  "SkyWalking native": "SkyWalking natif",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "Journaux envoyés par les protocoles natifs de SkyWalking : agents SkyWalking, journaux d’accès Envoy via ALS, et les autres. Valeur par défaut lorsque le modèle n’indique aucun type.",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "Journaux reçus via OTLP, depuis les SDK et collecteurs OpenTelemetry.",
+  "Log type": "Type de journaux",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "À partir de SkyWalking 11.2, les étiquettes interrogeables des journaux OTLP sont conservées à part de celles de tous les autres journaux : le champ « Étiquettes » ne propose donc que les étiquettes de ce type. Un OAP plus ancien tient une seule liste pour les deux, et ce choix n’y change rien.",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "d’où viennent les journaux de cette couche — détermine les étiquettes que propose le champ « Étiquettes »",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "Cet OAP tient une seule liste d’étiquettes pour tous les journaux : le champ « Étiquettes » propose donc les étiquettes de tous les journaux, pas seulement celles des journaux {type} de cette couche. À partir de SkyWalking 11.2, les étiquettes des journaux OTLP sont conservées à part."
 }

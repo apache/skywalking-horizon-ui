@@ -19,8 +19,8 @@
  * Trace + log tag autocomplete routes:
  *   GET /api/trace-tags/keys?windowMinutes=30
  *   GET /api/trace-tags/values?key=<k>&windowMinutes=30
- *   GET /api/log-tags/keys?windowMinutes=30
- *   GET /api/log-tags/values?key=<k>&windowMinutes=30
+ *   GET /api/log-tags/keys?windowMinutes=30&type=native|otlp
+ *   GET /api/log-tags/values?key=<k>&windowMinutes=30&type=native|otlp
  *
  * All four wrap OAP's `queryXxxTagAutocompleteKeys` /
  * `queryXxxTagAutocompleteValues` GraphQL endpoints. Same pattern as
@@ -28,14 +28,17 @@
  * the suggestion list swaps between keys (before `=`) and per-key
  * values (after `=`). Log keys/values share the same response shape
  * as traces, so the routes co-locate here and the UI side reuses the
- * same client helper pair.
+ * same client helper pair. The log lists are read in `logic/oap/log-tags.ts`,
+ * which picks the request shape for the connected OAP.
  */
 
-import type { FetchLike } from '@skywalking-horizon-ui/api-client';
+import type { FetchLike, LogType } from '@skywalking-horizon-ui/api-client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AuthDeps } from '../../user/middleware.js';
 import { requireAuth } from '../../user/middleware.js';
-import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
+import { clientGone } from '../client-gone.js';
+import { buildOapOpts, graphqlPost, type GraphqlOptions } from '../../client/graphql.js';
+import { readLogTagKeys, readLogTagValues } from '../../logic/oap/log-tags.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface TraceTagRouteDeps extends AuthDeps {
@@ -68,30 +71,25 @@ const TRACE_VALUES_QUERY = /* GraphQL */ `
     values: queryTraceTagAutocompleteValues(tagKey: $tagKey, duration: $duration)
   }
 `;
-const LOG_KEYS_QUERY = /* GraphQL */ `
-  query LogTagKeys($duration: Duration!) {
-    keys: queryLogTagAutocompleteKeys(duration: $duration)
-  }
-`;
-const LOG_VALUES_QUERY = /* GraphQL */ `
-  query LogTagValues($tagKey: String!, $duration: Duration!) {
-    values: queryLogTagAutocompleteValues(tagKey: $tagKey, duration: $duration)
-  }
-`;
+type Duration = ReturnType<typeof rollingWindow>;
+type TagQuery = { key?: string; windowMinutes?: string; type?: string };
+type KeysReader = (opts: GraphqlOptions, duration: Duration, q: TagQuery) => Promise<string[]>;
+type ValuesReader = (opts: GraphqlOptions, duration: Duration, key: string, q: TagQuery) => Promise<string[]>;
 
 export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRouteDeps): void {
   const auth = requireAuth(deps);
 
-  function tagsKeysHandler(query: string) {
+  function tagsKeysHandler(read: KeysReader) {
     return async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = req.query as { windowMinutes?: string };
+      const q = req.query as TagQuery;
       const m = q.windowMinutes ? Number(q.windowMinutes) : DEFAULT_WINDOW_MIN;
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
-      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
-      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
       try {
-        const env = await graphqlPost<{ keys: string[] | null }>(opts, query, { duration });
-        return reply.send({ keys: env.keys ?? [], generatedAt: Date.now() });
+        const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
+        const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
+        const keys = await read(opts, duration, q);
+        return reply.send({ keys, generatedAt: Date.now() });
       } catch (err) {
         return reply.code(200).send({
           keys: [],
@@ -101,21 +99,19 @@ export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRoute
       }
     };
   }
-  function tagsValuesHandler(query: string) {
+  function tagsValuesHandler(read: ValuesReader) {
     return async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = req.query as { key?: string; windowMinutes?: string };
+      const q = req.query as TagQuery;
       const key = (q.key ?? '').trim();
       if (!key) return reply.code(400).send({ error: 'missing_key' });
       const m = q.windowMinutes ? Number(q.windowMinutes) : DEFAULT_WINDOW_MIN;
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
-      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
-      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const signal = clientGone(reply);
+      const opts = buildOapOpts(deps.config.current, deps.fetch, signal);
       try {
-        const env = await graphqlPost<{ values: string[] | null }>(opts, query, {
-          tagKey: key,
-          duration,
-        });
-        return reply.send({ key, values: env.values ?? [], generatedAt: Date.now() });
+        const offset = await getServerOffsetMinutes(deps.config, deps.fetch, signal);
+        const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
+        const values = await read(opts, duration, key, q);
+        return reply.send({ key, values, generatedAt: Date.now() });
       } catch (err) {
         return reply.code(200).send({
           key,
@@ -127,8 +123,26 @@ export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRoute
     };
   }
 
-  app.get('/api/trace-tags/keys', { preHandler: auth }, tagsKeysHandler(TRACE_KEYS_QUERY));
-  app.get('/api/trace-tags/values', { preHandler: auth }, tagsValuesHandler(TRACE_VALUES_QUERY));
-  app.get('/api/log-tags/keys', { preHandler: auth }, tagsKeysHandler(LOG_KEYS_QUERY));
-  app.get('/api/log-tags/values', { preHandler: auth }, tagsValuesHandler(LOG_VALUES_QUERY));
+  const traceKeys: KeysReader = async (opts, duration) =>
+    (await graphqlPost<{ keys: string[] | null }>(opts, TRACE_KEYS_QUERY, { duration })).keys ?? [];
+  const traceValues: ValuesReader = async (opts, duration, tagKey) =>
+    (await graphqlPost<{ values: string[] | null }>(opts, TRACE_VALUES_QUERY, { tagKey, duration })).values ?? [];
+
+  app.get('/api/trace-tags/keys', { preHandler: auth }, tagsKeysHandler(traceKeys));
+  app.get('/api/trace-tags/values', { preHandler: auth }, tagsValuesHandler(traceValues));
+  const logRead = (opts: GraphqlOptions, duration: Duration, q: TagQuery) => ({
+    config: deps.config.current,
+    fetch: deps.fetch,
+    opts,
+    duration,
+    // Absent, or anything but `otlp`, is native — as in the layer template.
+    logType: (q.type === 'otlp' ? 'otlp' : 'native') as LogType,
+  });
+
+  app.get('/api/log-tags/keys', { preHandler: auth }, tagsKeysHandler((opts, duration, q) => readLogTagKeys(logRead(opts, duration, q))));
+  app.get(
+    '/api/log-tags/values',
+    { preHandler: auth },
+    tagsValuesHandler((opts, duration, key, q) => readLogTagValues(logRead(opts, duration, q), key)),
+  );
 }

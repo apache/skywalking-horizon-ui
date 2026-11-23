@@ -3656,5 +3656,12 @@
   "Top margin (px)": "Abstand oben (px)",
   "Axes": "Achsen",
   "shown": "eingeblendet",
-  "Number width (%)": "Breite der Zahl (%)"
+  "Number width (%)": "Breite der Zahl (%)",
+  "SkyWalking native": "SkyWalking-nativ",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "Logs, die über die nativen SkyWalking-Protokolle gesendet werden: SkyWalking-Agents, Envoy-Zugriffslogs über ALS und alle übrigen. Der Standard, wenn das Template keinen Typ angibt.",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "Über OTLP empfangene Logs, von OpenTelemetry-SDKs und -Collectors.",
+  "Log type": "Log-Typ",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "SkyWalking ab 11.2 führt die durchsuchbaren Tags von OTLP-Logs getrennt von denen aller anderen Logs, daher schlägt das Feld „Tags“ nur die Tags dieses Typs vor. Ein älterer OAP führt für beide eine gemeinsame Liste; dort ändert diese Auswahl nichts.",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "woher die Logs dieser Ebene stammen — bestimmt, welche Tags das Feld „Tags“ vorschlägt",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "Dieser OAP führt eine gemeinsame Tag-Liste für alle Logs, daher schlägt das Feld „Tags“ die Tags aller Logs vor, nicht nur die der {type}-Logs dieser Ebene. SkyWalking ab 11.2 führt die Tags von OTLP-Logs getrennt."
 }

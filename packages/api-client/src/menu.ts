@@ -268,6 +268,18 @@ export interface LogConfig {
    *
    *  The pinned entity is the one the layer's data is indexed by. */
   scope?: 'service' | 'instance' | 'endpoint';
+  /** The source of the layer's logs, which picks the tags the Tags field
+   *  suggests: `native` (SkyWalking agents, Envoy ALS and every other source
+   *  but OTLP) or `otlp`. Absent is `native`. */
+  type?: LogType;
+}
+
+export type LogType = 'native' | 'otlp';
+export const LOG_TYPES: readonly LogType[] = ['native', 'otlp'];
+
+/** The layer's log type; absent, or anything unknown, is `native`. */
+export function logTypeOf(log: LogConfig | null | undefined): LogType {
+  return log?.type === 'otlp' ? 'otlp' : 'native';
 }
 
 export interface MenuResponse {

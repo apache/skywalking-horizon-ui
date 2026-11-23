@@ -3656,5 +3656,12 @@
   "Top margin (px)": "Top margin (px)",
   "Axes": "Axes",
   "shown": "shown",
-  "Number width (%)": "Number width (%)"
+  "Number width (%)": "Number width (%)",
+  "SkyWalking native": "SkyWalking native",
+  "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.": "Logs sent over the SkyWalking native protocols: SkyWalking agents, Envoy access logs through ALS, and the rest. The default when the template names no type.",
+  "Logs received over OTLP, from OpenTelemetry SDKs and collectors.": "Logs received over OTLP, from OpenTelemetry SDKs and collectors.",
+  "Log type": "Log type",
+  "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.": "SkyWalking 11.2 and later keep the searchable tags of OTLP logs apart from those of every other log, so the Tags field suggests the tags of this type only. An earlier OAP keeps one list for both, and this choice changes nothing there.",
+  "where this layer’s logs come from — picks the tags the Tags field suggests": "where this layer’s logs come from — picks the tags the Tags field suggests",
+  "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart.": "This OAP keeps one tag list for every log, so the Tags field suggests the tags of all logs, not only this layer’s {type} logs. SkyWalking 11.2 and later keep the tags of OTLP logs apart."
 }

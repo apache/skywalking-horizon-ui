@@ -17,7 +17,8 @@
     "logs": true
   },
   "log": {
-    "scope": "service"
+    "scope": "service",
+    "type": "otlp"
   },
   "layer-header": {
     "orderBy": "cpm",
