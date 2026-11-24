@@ -69,7 +69,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Trace 解析 / 分",
+                "title": "Trace スパン解析数 / 分",
+                "tip": "プロトコル別の 1 分あたりの解析スパン数：SkyWalking エージェントの grpc・http・kafka、zipkin-http・zipkin-kafka、otlp-grpc・otlp-http。エラーは全体として失敗した Trace データ（エージェントのセグメント、Zipkin のリクエストまたは Kafka メッセージ、OTLP エクスポートリクエスト）の数。",
                 "expressionLabels": [
                   "合計",
                   "エラー"
@@ -77,7 +78,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Trace 解析レイテンシ (ms)"
+                "title": "Trace 解析レイテンシ (ms / 1,000 スパン)",
+                "tip": "1,000 スパンの解析にかかる時間の p50〜p99。スパンごとに計測。エージェントのセグメントはまとめて解析されるため、そのスパンはセグメントの平均を共有します。"
               },
               {
                 "id": "mesh_analysis",
@@ -93,11 +95,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTEL 受信 / s",
+                "title": "OTEL 受信 / 分",
+                "tip": "OTLP で受信した 1 分あたりのメトリクス、ログ、スパン、およびリソースにサービス名がないため拒否されたスパン。",
                 "expressionLabels": [
                   "メトリクス",
                   "ログ",
-                  "スパン"
+                  "スパン",
+                  "拒否スパン"
                 ]
               },
               {
@@ -111,8 +115,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Zipkin スパン破棄"
+                "id": "spans_dropped",
+                "title": "Trace スパン破棄 / 分",
+                "tip": "受信したが保存されなかったスパン。プロトコル（zipkin-http、zipkin-kafka、otlp-grpc、otlp-http）と理由（sampled、rate_limited、store_failed、process_failed）別。"
               }
             ]
           },

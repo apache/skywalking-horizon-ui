@@ -73,7 +73,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Análise de traces / min",
+                "title": "Spans de traces analisados / min",
+                "tip": "Spans analisados por minuto por protocolo: grpc, http e kafka dos agentes SkyWalking, zipkin-http e zipkin-kafka, otlp-grpc e otlp-http. Os erros contam os dados de trace que falharam por inteiro: um segmento de agente, uma requisição ou mensagem Kafka do Zipkin, uma requisição de exportação OTLP.",
                 "expressionLabels": [
                   "total",
                   "erros"
@@ -81,7 +82,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Latência da análise de traces (ms)"
+                "title": "Latência da análise de traces (ms / 1k spans)",
+                "tip": "Tempo de p50 a p99 para analisar 1.000 spans, medido em cada span. Um segmento de agente é analisado por inteiro, então seus spans compartilham a média do segmento."
               },
               {
                 "id": "mesh_analysis",
@@ -97,11 +99,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTEL recebidos / s",
+                "title": "OTEL recebidos / min",
+                "tip": "Métricas, logs e spans recebidos via OTLP por minuto, e spans rejeitados porque o recurso não indica nenhum serviço.",
                 "expressionLabels": [
                   "metrics",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans rejected"
                 ]
               },
               {
@@ -115,8 +119,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Spans Zipkin descartados"
+                "id": "spans_dropped",
+                "title": "Spans de traces descartados / min",
+                "tip": "Spans recebidos mas não armazenados, por protocolo (zipkin-http, zipkin-kafka, otlp-grpc, otlp-http) e motivo: sampled, rate_limited, store_failed, process_failed."
               }
             ]
           },

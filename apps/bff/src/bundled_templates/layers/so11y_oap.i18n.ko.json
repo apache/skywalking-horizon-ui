@@ -69,7 +69,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "트레이스 분석 / 분",
+                "title": "분석된 트레이스 스팬 / 분",
+                "tip": "프로토콜별 분당 분석된 스팬: SkyWalking 에이전트의 grpc, http, kafka, zipkin-http, zipkin-kafka, otlp-grpc, otlp-http. 오류는 전체가 실패한 트레이스 데이터(에이전트 세그먼트, Zipkin 요청 또는 Kafka 메시지, OTLP export 요청)의 수입니다.",
                 "expressionLabels": [
                   "전체",
                   "오류"
@@ -77,7 +78,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "트레이스 분석 지연 시간 (ms)"
+                "title": "트레이스 분석 지연 시간 (ms / 1,000 스팬)",
+                "tip": "스팬 1,000개를 분석하는 시간의 p50~p99로, 스팬마다 측정합니다. 에이전트 세그먼트는 통째로 분석되므로 그 스팬들은 세그먼트의 평균을 공유합니다."
               },
               {
                 "id": "mesh_analysis",
@@ -93,11 +95,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTel 수신 / s",
+                "title": "OTel 수신 / 분",
+                "tip": "OTLP로 분당 수신한 메트릭, 로그, 스팬, 그리고 리소스에 서비스 이름이 없어 거부된 스팬.",
                 "expressionLabels": [
                   "metrics",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans rejected"
                 ]
               },
               {
@@ -111,8 +115,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Zipkin 스팬 드롭"
+                "id": "spans_dropped",
+                "title": "트레이스 스팬 드롭 / 분",
+                "tip": "수신했지만 저장하지 않은 스팬. 프로토콜(zipkin-http, zipkin-kafka, otlp-grpc, otlp-http)과 사유(sampled, rate_limited, store_failed, process_failed)별."
               }
             ]
           },

@@ -54,19 +54,19 @@ Start here: when the JVM and the receivers look healthy, the OAP node usually is
 
 - **Watermark Circuit Breaker** — cumulative **break** and **recover** counters per listener; when OAP sheds load under memory pressure, breaks climb (`meter_oap_instance_watermark_circuit_breaker_break_count`, `meter_oap_instance_watermark_circuit_breaker_recover_count`).
 
-- **Trace Analysis / min** — traces analyzed per minute, **total** vs **errors** (`meter_oap_instance_trace_count`, `meter_oap_instance_trace_analysis_error_count`).
+- **Trace Spans Analyzed / min** — spans analyzed per minute by `protocol` (`grpc`, `http` and `kafka` from SkyWalking agents, `zipkin-http`, `zipkin-kafka`, `otlp-grpc`, `otlp-http`), **total** vs **errors**; an error counts trace data that failed as a whole: an agent segment, a Zipkin request or Kafka message, an OTLP export request (`meter_oap_instance_trace_count`, `meter_oap_instance_trace_analysis_error_count`).
 
-- **Trace Analysis Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of trace analysis (`meter_oap_instance_trace_latency_percentile`).
+- **Trace Analysis Latency (ms / 1k spans)** — p50 / p75 / p90 / p95 / p99 time to analyze 1,000 spans, observed for each span; an agent segment is analyzed as a whole, so its spans share the segment's average (`meter_oap_instance_trace_latency_percentile`).
 
 - **Mesh Analysis / min** — service-mesh telemetry analyzed per minute, **total** vs **errors** (`meter_oap_instance_mesh_count`, `meter_oap_instance_mesh_analysis_error_count`).
 
 - **Mesh Analysis Latency (ms)** — p50 / p75 / p90 / p95 / p99 latency of mesh analysis (`meter_oap_instance_mesh_latency_percentile`).
 
-- **OTEL Received / s** — OpenTelemetry records received per second, broken out as **metrics**, **logs**, and **spans** (`meter_oap_otel_metrics_received`, `meter_oap_otel_logs_received`, `meter_oap_otel_spans_received`).
+- **OTEL Received / min** — OpenTelemetry records received per minute, broken out as **metrics**, **logs**, and **spans**, plus **spans rejected** because their resource names no service (`meter_oap_otel_metrics_received`, `meter_oap_otel_logs_received`, `meter_oap_otel_spans_received`, `meter_oap_otel_spans_rejected`).
 
 - **K8S ALS** — Kubernetes Access Log Service throughput: **count**, **dropped**, **streams**, and **err streams** (`meter_oap_instance_k8s_als_count`, `meter_oap_instance_k8s_als_drop`, `meter_oap_instance_k8s_als_streams`, `meter_oap_instance_k8s_als_error_streams`).
 
-- **Zipkin Spans Dropped** — Zipkin spans dropped by this node, for deployments running the Zipkin receiver (`meter_oap_instance_spans_dropped_count`).
+- **Trace Spans Dropped / min** — spans received but not stored, by `protocol` (`zipkin-http`, `zipkin-kafka`, `otlp-grpc`, `otlp-http`) and `reason` (`sampled`, `rate_limited`, `store_failed`, `process_failed`) (`meter_oap_instance_spans_dropped_by_reason`).
 
 ### Persistence & Storage
 
@@ -128,7 +128,7 @@ The SO11Y_OAP dashboard is a pure consumer of what OAP reports about itself — 
 
 - **Query metrics** — `meter_oap_graphql_query_latency_percentile` and `meter_oap_instance_graphql_query_count` / `_error_count` for the GraphQL surface.
 
-- **Ingestion metrics** — the trace, mesh, OTEL, K8s ALS, watermark, and Zipkin families (`meter_oap_instance_trace_*`, `meter_oap_instance_mesh_*`, `meter_oap_otel_*`, `meter_oap_instance_k8s_als_*`, `meter_oap_instance_watermark_circuit_breaker_*`, `meter_oap_instance_spans_dropped_count`). A pipeline that isn't running on a given node simply reports nothing, and its widget reads `no data`.
+- **Ingestion metrics** — the trace, mesh, OTEL, K8s ALS, watermark, and dropped-span families (`meter_oap_instance_trace_*`, `meter_oap_instance_mesh_*`, `meter_oap_otel_*`, `meter_oap_instance_k8s_als_*`, `meter_oap_instance_watermark_circuit_breaker_*`, `meter_oap_instance_spans_dropped_by_reason`). A pipeline that isn't running on a given node simply reports nothing, and its widget reads `no data`.
 
 - **Alarm delivery metrics** — `meter_oap_instance_alarm_http_delivery_count` / `_status_count` / `_latency_percentile` (OAP 11.1.0+ after a hook delivery). With OAP 11.2.0+, gRPC deliveries appear as `hook_type=gRPC` on the delivery and latency meters.
 

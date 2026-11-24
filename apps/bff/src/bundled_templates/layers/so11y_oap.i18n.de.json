@@ -69,7 +69,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Trace-Analyse / min",
+                "title": "Analysierte Trace-Spans / min",
+                "tip": "Pro Minute analysierte Spans nach Protokoll: grpc, http und kafka von SkyWalking-Agenten, zipkin-http und zipkin-kafka, otlp-grpc und otlp-http. Fehler zählen Trace-Daten, die als Ganzes fehlschlugen: ein Agent-Segment, eine Zipkin-Anfrage oder Kafka-Nachricht, eine OTLP-Export-Anfrage.",
                 "expressionLabels": [
                   "gesamt",
                   "fehler"
@@ -77,7 +78,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Trace-Analyse-Latenz (ms)"
+                "title": "Trace-Analyse-Latenz (ms / 1k Spans)",
+                "tip": "p50 bis p99 der Zeit für die Analyse von 1.000 Spans, für jeden Span erfasst. Ein Agent-Segment wird als Ganzes analysiert, daher teilen sich seine Spans den Durchschnitt des Segments."
               },
               {
                 "id": "mesh_analysis",
@@ -93,11 +95,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTEL empfangen / s",
+                "title": "OTEL empfangen / min",
+                "tip": "Pro Minute über OTLP empfangene Metriken, Logs und Spans sowie Spans, die abgelehnt wurden, weil ihre Ressource keinen Service nennt.",
                 "expressionLabels": [
                   "metriken",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans abgelehnt"
                 ]
               },
               {
@@ -111,8 +115,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Zipkin-Spans verworfen"
+                "id": "spans_dropped",
+                "title": "Verworfene Trace-Spans / min",
+                "tip": "Empfangene, aber nicht gespeicherte Spans nach Protokoll (zipkin-http, zipkin-kafka, otlp-grpc, otlp-http) und Grund: sampled, rate_limited, store_failed, process_failed."
               }
             ]
           },

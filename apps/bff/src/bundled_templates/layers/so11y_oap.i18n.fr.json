@@ -69,7 +69,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Analyse de traces / min",
+                "title": "Spans de traces analysés / min",
+                "tip": "Spans analysés par minute selon le protocole : grpc, http et kafka des agents SkyWalking, zipkin-http et zipkin-kafka, otlp-grpc et otlp-http. Les erreurs comptent les données de trace en échec dans leur ensemble : un segment d'agent, une requête ou un message Kafka Zipkin, une requête d'export OTLP.",
                 "expressionLabels": [
                   "total",
                   "erreurs"
@@ -77,7 +78,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Latence d'analyse de traces (ms)"
+                "title": "Latence d'analyse de traces (ms / 1k spans)",
+                "tip": "Temps de p50 à p99 pour analyser 1 000 spans, mesuré pour chaque span. Un segment d'agent est analysé d'un bloc, ses spans en partagent donc la moyenne."
               },
               {
                 "id": "mesh_analysis",
@@ -93,11 +95,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTEL reçus / s",
+                "title": "OTEL reçus / min",
+                "tip": "Métriques, logs et spans reçus via OTLP par minute, et spans refusés parce que leur ressource ne nomme aucun service.",
                 "expressionLabels": [
                   "métriques",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans refusés"
                 ]
               },
               {
@@ -111,8 +115,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Spans Zipkin rejetés"
+                "id": "spans_dropped",
+                "title": "Spans de traces rejetés / min",
+                "tip": "Spans reçus mais non stockés, par protocole (zipkin-http, zipkin-kafka, otlp-grpc, otlp-http) et motif : sampled, rate_limited, store_failed, process_failed."
               }
             ]
           },
