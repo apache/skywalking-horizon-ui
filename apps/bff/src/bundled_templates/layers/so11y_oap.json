@@ -158,7 +158,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Trace Analysis / min",
+                "title": "Trace Spans Analyzed / min",
+                "tip": "Spans analyzed per minute by protocol: grpc, http and kafka from SkyWalking agents, zipkin-http and zipkin-kafka, otlp-grpc and otlp-http. Errors count the trace data that failed as a whole: an agent segment, a Zipkin request or Kafka message, an OTLP export request.",
                 "type": "line",
                 "expressions": [
                   "meter_oap_instance_trace_count",
@@ -173,7 +174,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Trace Analysis Latency (ms)",
+                "title": "Trace Analysis Latency (ms / 1k spans)",
+                "tip": "p50 to p99 time to analyze 1,000 spans, observed for each span. An agent segment is analyzed as a whole, so its spans share the segment's average.",
                 "type": "line",
                 "unit": "ms",
                 "expressions": [
@@ -210,17 +212,20 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTEL Received / s",
+                "title": "OTEL Received / min",
+                "tip": "Metrics, logs and spans received over OTLP per minute, and spans rejected because their resource names no service.",
                 "type": "line",
                 "expressions": [
                   "meter_oap_otel_metrics_received",
                   "meter_oap_otel_logs_received",
-                  "meter_oap_otel_spans_received"
+                  "meter_oap_otel_spans_received",
+                  "meter_oap_otel_spans_rejected"
                 ],
                 "expressionLabels": [
                   "metrics",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans rejected"
                 ],
                 "span": 4,
                 "rowSpan": 2
@@ -245,11 +250,12 @@
                 "rowSpan": 2
               },
               {
-                "id": "zipkin_drop",
-                "title": "Zipkin Spans Dropped",
+                "id": "spans_dropped",
+                "title": "Trace Spans Dropped / min",
+                "tip": "Spans received but not stored, by protocol (zipkin-http, zipkin-kafka, otlp-grpc, otlp-http) and reason: sampled, rate_limited, store_failed, process_failed.",
                 "type": "line",
                 "expressions": [
-                  "meter_oap_instance_spans_dropped_count"
+                  "meter_oap_instance_spans_dropped_by_reason"
                 ],
                 "span": 4,
                 "rowSpan": 2

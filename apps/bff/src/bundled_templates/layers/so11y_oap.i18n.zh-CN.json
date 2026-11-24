@@ -73,7 +73,8 @@
               },
               {
                 "id": "trace_analysis",
-                "title": "Trace 分析 / 分钟",
+                "title": "Trace Span 分析数 / 分钟",
+                "tip": "按协议统计每分钟分析的 Span：SkyWalking 探针的 grpc、http、kafka，zipkin-http、zipkin-kafka，otlp-grpc、otlp-http。错误统计整体处理失败的 Trace 数据：一个探针 Segment、一个 Zipkin 请求或 Kafka 消息、一个 OTLP 导出请求。",
                 "expressionLabels": [
                   "total",
                   "errors"
@@ -81,7 +82,8 @@
               },
               {
                 "id": "trace_latency",
-                "title": "Trace 分析延迟（ms）"
+                "title": "Trace 分析延迟（ms / 1,000 Span）",
+                "tip": "分析 1,000 个 Span 所需时间的 p50 至 p99，按每个 Span 记录。探针 Segment 整体分析，其中的 Span 共用 Segment 的平均值。"
               },
               {
                 "id": "mesh_analysis",
@@ -97,11 +99,13 @@
               },
               {
                 "id": "otel_received",
-                "title": "OTel 接收 / 秒",
+                "title": "OTel 接收 / 分钟",
+                "tip": "每分钟通过 OTLP 接收的指标、日志和 Span，以及因资源未指明服务而被拒绝的 Span。",
                 "expressionLabels": [
                   "metrics",
                   "logs",
-                  "spans"
+                  "spans",
+                  "spans rejected"
                 ]
               },
               {
@@ -115,8 +119,9 @@
                 ]
               },
               {
-                "id": "zipkin_drop",
-                "title": "Zipkin Span 丢弃数"
+                "id": "spans_dropped",
+                "title": "Trace Span 丢弃数 / 分钟",
+                "tip": "已接收但未存储的 Span，按协议（zipkin-http、zipkin-kafka、otlp-grpc、otlp-http）和原因（sampled、rate_limited、store_failed、process_failed）区分。"
               }
             ]
           },
