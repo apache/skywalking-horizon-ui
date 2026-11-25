@@ -168,6 +168,16 @@ verify:
           | yq -P '{"hasAgentMeter": ([.results[].values[].value | select(. != null)] | length > 0)}'
       expected: expected/has-agent-meter.yml
 
+    # 6c. READINESS: the emitter's OTLP spans have reached OAP. The `ui`
+    #     project debugs the `otlp-general` TAL rule and captures the OTLP
+    #     pairing, both on these spans, from a different producer than the
+    #     agent's segments every check above waits on. Both services register
+    #     only once OAP has run the rule on their spans.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
+          | yq -P '{"otlpServices": [.[] | select(.name == "e2e-pairing-frontend" or .name == "e2e-pairing-backend")] | length}'
+      expected: expected/has-otlp-services.yml
+
     # 7+8. The suites. Playwright owns its own assertions and reporting; the
     #      contract with infra-e2e is only "exit 0 and print passed: true".
     #      Split by project so a red run says which half broke — a route

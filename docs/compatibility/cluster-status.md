@@ -57,7 +57,8 @@ When the host answers, each feature is probed on its own path and gets its own r
 |---|---|---|
 | `admin-server` | `/debugging/config/dump` | Everything on the admin port — its probe is the config-dump call itself. |
 | `receiver-runtime-rule` | `/runtime/rule/list` | DSL Management (catalog, editor save/load, OAL catalog), the cluster rule matrix, the Live Debugger rule picker, Inspect source attribution. |
-| `dsl-debugging` | `/dsl-debugging/status` | The Live Debugger (MAL / LAL / OAL session start / poll / stop). |
+| `dsl-debugging` | `/dsl-debugging/status` | The Live Debugger (MAL / LAL / OAL / TAL session start / poll / stop) and the TAL rules page. |
+| `trace-pairing-debugging` | `/trace-pairing-debugging/status` | The OTLP pairing page. New in OAP 11.2, so an older OAP reads unreachable. |
 | `inspect` | `/inspect/metrics` | The Inspect pages. |
 | `ui-management` | `/ui-management/templates` | Dashboard templates — the layer / overview / alert / 3D template store the config surface reads and writes. |
 

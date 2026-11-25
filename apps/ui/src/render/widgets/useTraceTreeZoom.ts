@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { onBeforeUnmount, ref, type Ref } from 'vue';
+import { onBeforeUnmount, ref, watch, type Ref } from 'vue';
 import * as d3 from 'd3';
 
 /**
@@ -24,13 +24,40 @@ import * as d3 from 'd3';
  *
  * Returns the svg element ref to bind to the <svg>, the live transform to
  * project onto the inner <g>, `ensureZoom()` to (re)attach on activation,
- * the zoom-by / reset controls, and `revealNode()` to pan a node into view.
+ * the zoom-by / reset controls, `revealNode()` to pan a node into view, and
+ * `viewBoxFor()`, the viewBox to draw a laid-out tree in.
  */
 export function useTraceTreeZoom() {
   const treeSvgEl = ref<SVGSVGElement | null>(null);
   const treeTransform = ref<{ x: number; y: number; k: number }>({ x: 0, y: 0, k: 1 });
   let treeZoomBehavior: ReturnType<typeof d3.zoom<SVGSVGElement, unknown>> | null = null;
   let treeZoomBoundEl: SVGSVGElement | null = null;
+
+  // The SVG's drawn size. The canvas sets it, never the viewBox, so measuring it
+  // cannot feed back into it.
+  const drawnSize = ref({ w: 0, h: 0 });
+  let resizeObserver: ResizeObserver | null = null;
+  watch(treeSvgEl, (el) => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    if (!el) return;
+    const measure = (): void => {
+      const box = el.getBoundingClientRect();
+      drawnSize.value = { w: box.width, h: box.height };
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(el);
+    }
+  }, { immediate: true });
+
+  /** The viewBox for a tree laid out at `w` × `h`: at least the drawn canvas, so
+   *  a small tree draws at its own size rather than scaled up to fill the
+   *  canvas, while a larger one still shrinks to fit. */
+  function viewBoxFor(w: number, h: number): { w: number; h: number } {
+    return { w: Math.max(w, drawnSize.value.w), h: Math.max(h, drawnSize.value.h) };
+  }
 
   function ensureZoom(): void {
     const el = treeSvgEl.value;
@@ -80,6 +107,8 @@ export function useTraceTreeZoom() {
   }
 
   onBeforeUnmount(() => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
     if (treeZoomBoundEl) d3.select(treeZoomBoundEl).on('.zoom', null);
     treeZoomBoundEl = null;
     treeZoomBehavior = null;
@@ -92,5 +121,6 @@ export function useTraceTreeZoom() {
     zoomBy,
     zoomReset,
     revealNode,
+    viewBoxFor,
   };
 }

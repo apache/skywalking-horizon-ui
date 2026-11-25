@@ -16,7 +16,7 @@
  */
 
 /**
- * Lightweight per-line syntax highlighter for the three DSLs Studio
+ * Lightweight per-line syntax highlighter for the four DSLs Studio
  * shows in read-only viewers (OAL catalog file pane, debugger source
  * pane). Operates per-line so line-number gutters stay aligned —
  * the tokenizer never crosses a newline, no multi-line state.
@@ -34,7 +34,7 @@
  * a LAL block opens.
  */
 
-export type SyntaxLang = 'oal' | 'mal' | 'lal';
+export type SyntaxLang = 'oal' | 'mal' | 'lal' | 'tal';
 
 export type TokenKind =
   | 'comment'
@@ -162,6 +162,60 @@ const MAL_KEYWORDS = new Set([
   'unit',
 ]);
 
+/** TAL blocks and statements, with the YAML keys of a TAL rule file. */
+const TAL_KEYWORDS = new Set([
+  'filter',
+  'extractor',
+  'persist',
+  'abort',
+  'service',
+  'instance',
+  'endpoint',
+  'layer',
+  'tag',
+  'metrics',
+  'source',
+  'foreach',
+  'in',
+  'first',
+  'build',
+  'segmentDef',
+  'def',
+  'if',
+  'else',
+  'as',
+  'log',
+  'match',
+  'sampler',
+  'rateLimit',
+  'enforcer',
+  'dropper',
+  'prepareNetworkAlias',
+  'buildNetworkAlias',
+  'writeNetworkAlias',
+  'rules',
+  'name',
+  'inputType',
+  'dsl',
+]);
+
+/** What a TAL rule reads, and the casts and enum values it writes. */
+const TAL_TYPES = new Set([
+  'span',
+  'meta',
+  'String',
+  'Long',
+  'Integer',
+  'Double',
+  'Float',
+  'Boolean',
+  'Layer',
+  'RequestType',
+  'DetectPoint',
+  'CLIENT',
+  'SERVER',
+]);
+
 const RE_LINE_COMMENT = /^(?:\/\/|#)/;
 const RE_STRING_SQ = /^'(?:\\.|[^'\\])*'/;
 const RE_STRING_DQ = /^"(?:\\.|[^"\\])*"/;
@@ -179,6 +233,11 @@ function classifyIdent(text: string, lang: SyntaxLang): TokenKind {
   }
   if (lang === 'lal') {
     if (LAL_KEYWORDS.has(text)) return 'keyword';
+    return 'plain';
+  }
+  if (lang === 'tal') {
+    if (TAL_KEYWORDS.has(text)) return 'keyword';
+    if (TAL_TYPES.has(text)) return 'type';
     return 'plain';
   }
   // MAL

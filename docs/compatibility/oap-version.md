@@ -24,6 +24,7 @@ The rest of this page is the detail behind those three lines.
 | MQE execution / metric reads | ✓ | ✓ |
 | Cluster Status — Admin pane (admin-server, runtime-rule, dsl-debugging, inspect) | ✗ — admin-port modules don't exist on v10; pane is hidden | ✓ |
 | DSL Management, Live Debugger, Alarm Rule editor | ✗ — needs `receiver-runtime-rule` + `dsl-debugging` (v11-only) | ✓ |
+| **Live Debugger TAL tab, OTLP pairing page** | ✗ | ✓ from 11.2, which adds TAL debugging and the `trace-pairing-debugging` module; an earlier 11.x shows a banner that they need 11.2 or higher |
 | **Inspect page** (metric catalog + entity enumerator) | ✗ — `/inspect/*` endpoints don't exist | ✓ — requires `SW_INSPECT=default` on OAP |
 | **OAP UI-template sync** (admin pages edit OAP-stored dashboards) | ✗ in Horizon — OAP 10 stores and manages templates through legacy GraphQL, but Horizon does not consume that protocol, so the store reads as unreachable and layer-driven pages block. `templates.mode: readonly` is required. | ✓ — Horizon consumes `/ui-management/templates*` on the admin REST port |
 

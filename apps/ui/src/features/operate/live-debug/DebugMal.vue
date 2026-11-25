@@ -27,7 +27,7 @@
  */
 import { computed, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
   BundledEntry,
@@ -67,6 +67,7 @@ import {
   type MalSampleRow,
   type SampleGroup,
 } from './malGroups.js';
+import { forgetCaptureAddress, routeIsTab, saveLiveCapture, settingsOf } from './useDebugReplay.js';
 
 interface RuleOption {
   catalog: Catalog;
@@ -83,6 +84,7 @@ const MAL_CATALOGS: Catalog[] = [
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const dbg = useDebugSession('mal');
 const history = useDebugHistory('mal');
 /** A MAL "rule" in the catalog is a YAML **file** (rule-set) — e.g.
@@ -103,8 +105,9 @@ const retentionMinutes = ref<number>(DEFAULT_RETENTION_MINUTES);
  *  pre-selects the file. Optional `?ruleName=` pre-fills the metric
  *  too (used by future fine-grained deep-links). */
 watch(
-  () => [route.query.catalog, route.query.name, route.query.ruleName] as const,
-  ([c, n, r]) => {
+  () => [route.params.tab, route.query.catalog, route.query.name, route.query.ruleName] as const,
+  ([, c, n, r]) => {
+    if (!routeIsTab(route, 'mal')) return;
     if (typeof c === 'string' && typeof n === 'string' && c.length > 0 && n.length > 0) {
       selectedKey.value = `${c}/${n}`;
     }
@@ -247,6 +250,8 @@ const stopEnabled = computed(
 async function startSampling(): Promise<void> {
   const rule = selectedRule.value;
   if (!rule || !selectedMetric.value) return;
+  // A start leaves a saved capture on screen, as back to live does: the new capture is the one shown and saved.
+  clearHistorical();
   await dbg.start({
     catalog: rule.catalog,
     name: rule.name,
@@ -292,6 +297,19 @@ const foldedRecords = ref<Set<string>>(new Set());
 const expandedGroups = ref<Set<string>>(new Set());
 const fullLabelGroups = ref<Set<string>>(new Set());
 
+/** What the view holds of the capture on screen — the selected row, the folds and expansions — starts over with another
+ *  capture, saved or live: its records are not the last one's, though their node and index keys repeat. */
+function resetViewState(): void {
+  selectedRow.value = null;
+  expandedEntities.value = new Set();
+  foldedRecords.value = new Set();
+  expandedGroups.value = new Set();
+  fullLabelGroups.value = new Set();
+}
+watch(() => displaySession.value?.sessionId, (now, before) => {
+  if (now !== before) resetViewState();
+});
+
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
   selectedKey.value = `${entry.catalog}/${entry.name}`;
@@ -300,16 +318,11 @@ function loadHistorical(entry: HistoryEntry): void {
   if (entry.retentionMillis !== undefined) {
     retentionMinutes.value = Math.max(1, Math.round(entry.retentionMillis / MS_PER_MINUTE));
   }
-  // Reset transient view state so the historical capture lands clean.
-  selectedRow.value = null;
-  expandedEntities.value = new Set();
-  foldedRecords.value = new Set();
-  expandedGroups.value = new Set();
-  fullLabelGroups.value = new Set();
 }
 
 function clearHistorical(): void {
   historicalEntry.value = null;
+  forgetCaptureAddress(router, route);
   selectedRow.value = null;
 }
 
@@ -324,56 +337,23 @@ function clearHistorical(): void {
  *  the page blank. We've already routed to the right widget by the
  *  time we land here; the id alone is the join key. */
 watch(
-  () => route.query.historyId,
-  (id) => {
+  () => [route.params.tab, route.query.historyId] as const,
+  ([, id]) => {
     if (typeof id !== 'string' || id === '') {
-      if (historicalEntry.value !== null) clearHistorical();
+      // Only this tab's view: the address is the one the route moved to, maybe another tab's to keep.
+      historicalEntry.value = null;
       return;
     }
-    if (historicalEntry.value?.id === id) return;
+    if (historicalEntry.value?.id === id || !routeIsTab(route, 'mal')) return;
     const entry = history.all.value.find((e) => e.id === id);
     if (entry) loadHistorical(entry);
   },
   { immediate: true },
 );
 
-/** Auto-save during capture. We watch both `sessionId` (set the
- *  moment dbg.start resolves) and `session` (replaced on each poll)
- *  so the entry shows up in history immediately — even before any
- *  poll has returned data. Subsequent polls upsert the same entry by
- *  sessionId; localStorage writes are skipped when nothing changed.
- *  Skipped entirely while replaying history. */
-function persistCapture(): void {
-  if (historicalEntry.value !== null) return;
-  const id = dbg.sessionId.value;
-  if (!id) return;
-  const rule = selectedRule.value;
-  if (!rule || !selectedMetric.value) return;
-  // Synthesize a placeholder session when polls haven't yet returned
-  // — keeps the history entry findable from the moment OAP allocates
-  // the session id.
-  const sess: SessionResponse = dbg.session.value ?? {
-    sessionId: id,
-    capturedAt: Date.now(),
-    nodes: [],
-  };
-  history.save({
-    widget: 'mal',
-    catalog: rule.catalog,
-    name: rule.name,
-    ruleName: selectedMetric.value,
-    recordCap: recordCap.value,
-    retentionMillis: retentionMinutes.value * MS_PER_MINUTE,
-    retentionDeadline: dbg.retentionDeadline.value ?? undefined,
-    recordCount: sess.nodes.reduce((n, x) => n + (x.records?.length ?? 0), 0),
-    nodeCount: sess.nodes.length,
-    session: sess,
-  });
-}
-
 watch(
   () => [dbg.sessionId.value, dbg.session.value, dbg.retentionDeadline.value] as const,
-  () => persistCapture(),
+  () => saveLiveCapture(dbg, history, 'mal'),
 );
 
 /** Resume an active session in this tab — `?resumeSessionId=<id>`
@@ -382,12 +362,12 @@ watch(
  *  matching history entry supplies the rule selection + retention
  *  deadline so the controls + countdown reflect reality. */
 watch(
-  () => route.query.resumeSessionId,
-  (id) => {
-    if (typeof id !== 'string' || id === '') return;
+  () => [route.params.tab, route.query.resumeSessionId] as const,
+  ([, id]) => {
+    if (typeof id !== 'string' || id === '' || !routeIsTab(route, 'mal')) return;
     if (dbg.sessionId.value === id) return;
     // Cross-widget lookup for the same reason as the historyId watch:
-    // routing already pinned us to the right widget, and a mismatched
+    // the check above pinned the route to this tab, and a mismatched
     // entry.widget shouldn't silently swallow the lookup.
     const entry = history.all.value.find((e) => e.session.sessionId === id);
     if (!entry) return;
@@ -397,7 +377,7 @@ watch(
     if (entry.retentionMillis !== undefined) {
       retentionMinutes.value = Math.max(1, Math.round(entry.retentionMillis / MS_PER_MINUTE));
     }
-    dbg.resume(id, entry.retentionDeadline ?? null);
+    dbg.resume(id, entry.retentionDeadline ?? null, entry.session, settingsOf(entry));
   },
   { immediate: true },
 );
@@ -499,7 +479,8 @@ function toggleRecord(nodeKey: string, recordIdx: number): void {
 function foldAllRecords(): void {
   const next = new Set<string>();
   for (const n of nodeViews.value) {
-    const nKey = n.nodeId ?? n.peer ?? '?';
+    // The key the record cards fold by (`nodeKey(node)` in the template), or fold all folds none of them.
+    const nKey = nodeKey(n);
     for (const rv of n.recordViews) {
       next.add(recordFoldKey(nKey, rv.recordIdx));
     }

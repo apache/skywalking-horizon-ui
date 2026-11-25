@@ -79,7 +79,15 @@ const REQUIRED_MODULES: readonly ModuleDef[] = [
     required: true,
     probePath: '/dsl-debugging/status',
     affects:
-      'Live debugger across MAL / LAL / OAL (start / poll / stop) and the DSL-debugging health pane on Cluster status.',
+      'Live debugger across MAL / LAL / OAL / TAL (start / poll / stop), the TAL rule listing, and the DSL-debugging health pane on Cluster status.',
+  },
+  {
+    name: 'trace-pairing-debugging',
+    envVar: 'SW_TRACE_PAIRING_DEBUGGING',
+    required: true,
+    probePath: '/trace-pairing-debugging/status',
+    affects:
+      'The OTLP pairing page (start / read / stop); it needs SkyWalking 11.2 or later, so an older OAP reads unreachable here.',
   },
   {
     name: 'inspect',

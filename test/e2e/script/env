@@ -60,7 +60,7 @@
 # Must also be at or after edf43f3f30 (#14213), which stores an OTLP log
 # record's trace id and span id and reads logs by an OTLP or Zipkin span: the
 # `genai` case opens both from its traces.
-SW_OAP_COMMIT=edf43f3f30ecf2ec729c79dabeb15ed57270d814
+SW_OAP_COMMIT=bd8f2764dbcaa6ab887fd8a9110820a16f33a33c
 
 # The AI Sessionizer, which builds a conversation and pushes it to OAP. Only
 # the `ai-agent` case runs it, and only once: a conversation is a chain of

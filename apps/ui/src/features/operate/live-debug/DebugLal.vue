@@ -32,7 +32,7 @@
  */
 import { computed, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
   BundledEntry,
@@ -67,9 +67,12 @@ import {
   MS_PER_MINUTE,
   RECORD_CAP_MAX,
 } from './constants.js';
+import { byNode } from './nodeIdentity.js';
+import { forgetCaptureAddress, routeIsTab, saveLiveCapture, settingsOf } from './useDebugReplay.js';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
+const router = useRouter();
 const dbg = useDebugSession('lal');
 const history = useDebugHistory('lal');
 /** A LAL "rule" in the catalog is a YAML **file** — e.g.
@@ -92,8 +95,9 @@ const retentionMinutes = ref<number>(DEFAULT_RETENTION_MINUTES);
  *  file. Older callers that only pass `?name=` get the file inferred
  *  (the inner rule and file share a name in single-rule files). */
 watch(
-  () => [route.query.name, route.query.file] as const,
-  ([n, f]) => {
+  () => [route.params.tab, route.query.name, route.query.file] as const,
+  ([, n, f]) => {
+    if (!routeIsTab(route, 'lal')) return;
     if (typeof f === 'string' && f.length > 0) {
       selectedFile.value = f;
     } else if (typeof n === 'string' && n.length > 0) {
@@ -177,6 +181,8 @@ const stopEnabled = computed(
 
 async function startSampling(): Promise<void> {
   if (!selectedFile.value || !selectedRule.value) return;
+  // A start leaves a saved capture on screen, as back to live does: the new capture is the one shown and saved.
+  clearHistorical();
   await dbg.start({
     catalog: 'lal',
     name: selectedFile.value,
@@ -223,45 +229,22 @@ function loadHistorical(entry: HistoryEntry): void {
 
 function clearHistorical(): void {
   historicalEntry.value = null;
+  forgetCaptureAddress(router, route);
   selectedCell.value = null;
-}
-
-function persistCapture(): void {
-  if (historicalEntry.value !== null) return;
-  const id = dbg.sessionId.value;
-  if (!id || !selectedFile.value || !selectedRule.value) return;
-  const sess: SessionResponse = dbg.session.value ?? {
-    sessionId: id,
-    capturedAt: Date.now(),
-    nodes: [],
-  };
-  history.save({
-    widget: 'lal',
-    catalog: 'lal',
-    name: selectedFile.value,
-    ruleName: selectedRule.value,
-    granularity: granularity.value,
-    recordCap: recordCap.value,
-    retentionMillis: retentionMinutes.value * MS_PER_MINUTE,
-    retentionDeadline: dbg.retentionDeadline.value ?? undefined,
-    recordCount: sess.nodes.reduce((n, x) => n + (x.records?.length ?? 0), 0),
-    nodeCount: sess.nodes.length,
-    session: sess,
-  });
 }
 
 watch(
   () => [dbg.sessionId.value, dbg.session.value, dbg.retentionDeadline.value] as const,
-  () => persistCapture(),
+  () => saveLiveCapture(dbg, history, 'lal'),
 );
 
 watch(
-  () => route.query.resumeSessionId,
-  (id) => {
-    if (typeof id !== 'string' || id === '') return;
+  () => [route.params.tab, route.query.resumeSessionId] as const,
+  ([, id]) => {
+    if (typeof id !== 'string' || id === '' || !routeIsTab(route, 'lal')) return;
     if (dbg.sessionId.value === id) return;
-    // Cross-widget lookup (`history.all`) — routing already pinned us
-    // to the right widget, so filtering again by widget would silently
+    // Cross-widget lookup (`history.all`) — the check above pinned the
+    // route to this tab, so filtering again by widget would silently
     // swallow entries with a mismatched widget field.
     const entry = history.all.value.find((e) => e.session.sessionId === id);
     if (!entry) return;
@@ -274,19 +257,20 @@ watch(
     if (entry.retentionMillis !== undefined) {
       retentionMinutes.value = Math.max(1, Math.round(entry.retentionMillis / MS_PER_MINUTE));
     }
-    dbg.resume(id, entry.retentionDeadline ?? null);
+    dbg.resume(id, entry.retentionDeadline ?? null, entry.session, settingsOf(entry));
   },
   { immediate: true },
 );
 
 watch(
-  () => route.query.historyId,
-  (id) => {
+  () => [route.params.tab, route.query.historyId] as const,
+  ([, id]) => {
     if (typeof id !== 'string' || id === '') {
-      if (historicalEntry.value !== null) clearHistorical();
+      // Only this tab's view: the address is the one the route moved to, maybe another tab's to keep.
+      historicalEntry.value = null;
       return;
     }
-    if (historicalEntry.value?.id === id) return;
+    if (historicalEntry.value?.id === id || !routeIsTab(route, 'lal')) return;
     const entry = history.all.value.find((e) => e.id === id);
     if (entry) loadHistorical(entry);
   },
@@ -296,13 +280,9 @@ watch(
 const nodeViews = computed<LalNodeView[]>(() => {
   const s = displaySession.value;
   if (!s) return [];
-  // Stable order by nodeKey so cards don't reshuffle between polls
+  // Stable order so cards don't reshuffle between polls
   // (OAP doesn't guarantee a fixed order in session.nodes).
-  const sortedNodes = s.nodes.slice().sort((a, b) => {
-    const ak = a.nodeId ?? a.peer ?? '?';
-    const bk = b.nodeId ?? b.peer ?? '?';
-    return ak.localeCompare(bk);
-  });
+  const sortedNodes = s.nodes.slice().sort(byNode);
   return sortedNodes.map((n) => {
     const records = n.records ?? [];
     const recordViews: LalRecordView[] = records.map((rec, recIdx) => ({ rec, recIdx }));
@@ -407,6 +387,16 @@ function toggleExpandRecord(nKey: string, recIdx: number): void {
  *  independently; a cluster renders one matrix per node. */
 const rowFilter = ref<Record<string, string>>({});
 
+/** What the view holds of the capture on screen — the selected cell, the expanded record, the row filters — starts over
+ *  with another capture, saved or live: its records are not the last one's, though their node and index keys repeat. */
+watch(() => displaySession.value?.sessionId, (now, before) => {
+  if (now === before) return;
+  selectedCell.value = null;
+  selectedNodeKey.value = null;
+  expandedRecord.value = null;
+  rowFilter.value = {};
+});
+
 function toggleRowFilter(nKey: string, stepKey: string): void {
   const next = { ...rowFilter.value };
   if (next[nKey] === stepKey) delete next[nKey];
@@ -504,6 +494,14 @@ function closeCellPopout(): void {
  *    - any LogBuilder tag key/value
  *  Empty query matches everything. */
 const searchQuery = ref<string>('');
+
+/** The cell popout and the search are of the capture on screen too, as the view state reset above: another capture
+ *  closes the one and clears the other, which would otherwise hide every record of the next. */
+watch(() => displaySession.value?.sessionId, (now, before) => {
+  if (now === before) return;
+  popoutOpen.value = false;
+  searchQuery.value = '';
+});
 /** UI-side cap so a busy capture doesn't render hundreds of columns
  *  at once; operators raise this when they want the full set. */
 const displayLimit = ref<number>(20);

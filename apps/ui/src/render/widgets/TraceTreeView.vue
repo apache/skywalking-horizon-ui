@@ -163,7 +163,8 @@ const nativeTreeLayout = computed<TreeLayout>(() => {
   };
 });
 
-const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset, revealNode } = useTraceTreeZoom();
+const { treeSvgEl, treeTransform, ensureZoom, zoomBy, zoomReset, revealNode, viewBoxFor } = useTraceTreeZoom();
+const treeView = computed(() => viewBoxFor(nativeTreeLayout.value.width, nativeTreeLayout.value.height));
 // Attach d3.zoom once the SVG mounts. The tree view only renders while
 // active, so mount == active; re-attach if the SVG ref swaps.
 watch(treeSvgEl, async () => {
@@ -178,7 +179,7 @@ function revealFocused(): void {
   const service = props.focusService;
   const layout = nativeTreeLayout.value;
   const n = service ? layout.nodes.find((node) => node.span.serviceCode === service) : undefined;
-  if (n) revealNode(n.x, n.y, NODE_W, NODE_H, layout.width, layout.height, () => revealFirstHighlighted(canvasEl.value));
+  if (n) revealNode(n.x, n.y, NODE_W, NODE_H, treeView.value.w, treeView.value.h, () => revealFirstHighlighted(canvasEl.value));
 }
 watch(() => props.focusService, revealFocused, { flush: 'post' });
 onMounted(async () => { await nextTick(); revealFocused(); });
@@ -198,7 +199,7 @@ onMounted(async () => { await nextTick(); revealFocused(); });
       class="tree-svg"
       width="100%"
       height="100%"
-      :viewBox="`0 0 ${nativeTreeLayout.width} ${nativeTreeLayout.height}`"
+      :viewBox="`0 0 ${treeView.w} ${treeView.h}`"
       preserveAspectRatio="xMidYMid meet"
     >
       <g :transform="`translate(${treeTransform.x}, ${treeTransform.y}) scale(${treeTransform.k})`">
@@ -310,7 +311,8 @@ onMounted(async () => { await nextTick(); revealFocused(); });
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
-  background: rgba(15, 18, 30, 0.85);
+  background: color-mix(in srgb, var(--sw-bg-1) 88%, transparent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
   border: 1px solid var(--sw-line-2);
   border-radius: 6px;
   z-index: 2;

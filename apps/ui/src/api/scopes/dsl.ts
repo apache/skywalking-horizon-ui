@@ -27,6 +27,7 @@ import type {
   RuleResponse,
   RuleSource,
   RuleStatusResponse,
+  TalFilesResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient, ClusterStateResponse } from '../client';
 import { BffApiError, withBase } from '../client';
@@ -168,6 +169,27 @@ export class DslApi {
       return await this.bff.request<string>(
         'GET',
         `/api/oal/files/${encodeURIComponent(name)}`,
+        undefined,
+        { Accept: 'text/plain' },
+      );
+    } catch (err) {
+      if (err instanceof BffApiError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  // ── TAL (read-only) ────────────────────────────────────────────────
+
+  talFiles(): Promise<TalFilesResponse> {
+    return this.bff.request<TalFilesResponse>('GET', '/api/tal/files');
+  }
+
+  /** Returns the TAL file's YAML or `null` when the node loaded no such file. */
+  async talFileContent(name: string): Promise<string | null> {
+    try {
+      return await this.bff.request<string>(
+        'GET',
+        `/api/tal/files/${encodeURIComponent(name)}`,
         undefined,
         { Accept: 'text/plain' },
       );

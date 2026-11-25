@@ -25,10 +25,12 @@
 import {
   AlarmStatusClient,
   DslDebuggingClient,
+  TracePairingDebuggingClient,
   InspectClient,
   OalClient,
   RuntimeRuleClient,
   StatusClient,
+  TalClient,
   UITemplateClient,
   type FetchLike,
 } from '@skywalking-horizon-ui/api-client';
@@ -50,6 +52,9 @@ export interface OapClients {
    *  binary-version drift, which is operator deployment discipline);
    *  the BFF doesn't fan-out for the catalog browse. */
   oal(): OalClient;
+  /** TAL read-only listing client for the *first* admin URL; like the OAL
+   *  listing, it is per-node and the BFF doesn't fan out for it. */
+  tal(): TalClient;
   /** DSL-debugging client for the *first* admin URL. Session install
    *  and collect both fan-out internally on the OAP side; Studio
    *  hits one node and lets OAP do the cluster work. */
@@ -57,6 +62,8 @@ export interface OapClients {
   /** Build a DSL-debugging client for one specific URL — used by the
    *  DNS-resolved per-IP fan-out for `/dsl-debugging/status`. */
   debugForUrl(adminUrl: string): DslDebuggingClient;
+  /** Trace-pairing debugging client for the *first* admin URL; OAP fans a session out to every node itself. */
+  pairing(): TracePairingDebuggingClient;
   /** Inspect API client (SWIP-14) — metadata-only catalog + entity
    *  enumeration. */
   inspect(): InspectClient;
@@ -108,11 +115,17 @@ export function buildOapClients(
     oal(): OalClient {
       return new OalClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
+    tal(): TalClient {
+      return new TalClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
+    },
     debug(): DslDebuggingClient {
       return new DslDebuggingClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
     debugForUrl(adminUrl: string): DslDebuggingClient {
       return new DslDebuggingClient({ adminUrl, fetch, timeoutMs, headers });
+    },
+    pairing(): TracePairingDebuggingClient {
+      return new TracePairingDebuggingClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
     inspect(): InspectClient {
       return new InspectClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });

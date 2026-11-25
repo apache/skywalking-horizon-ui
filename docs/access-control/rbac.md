@@ -55,11 +55,11 @@ None of these is granted to `viewer` or `maintainer`. Those roles read the dashb
 |---|---|
 | `alarm-rule:read` | Alarm Rule catalog: list (read-only — alarm-rule edits go through the OAP alarm-rule YAML, not this page). |
 | `alarm-rule:write` | **Reserved** — OAP's alarm-rule catalog is read-only, so there is no write for Horizon to gate. |
-| `rule:read` | DSL Management — list rules, read a rule body, and download a runtime-rule dump. |
+| `rule:read` | DSL Management — list rules, read a rule body, and download a runtime-rule dump; the read-only OAL and TAL rule pages (`/operate/oal`, `/operate/tal`). |
 | `rule:write` | DSL Management — save a rule whose change is not structural, and inactivate a rule. |
 | `rule:write:structural` | DSL Management — save an edit that moves a metric's storage identity (scope, downsampling, single ↔ labeled ↔ histogram), force a re-apply to recover a degraded rule, and revert a rule to its bundled version. |
 | `rule:delete` | DSL Management — delete a rule. |
-| `live-debug:read` / `live-debug:write` | Live Debugger — watch captures (the page, the active-session list, per-node status, capture history) / start and stop them. These two are the whole of the Live Debugger's access control: `live-debug:read` is enough on its own to watch, `live-debug:write` is enough on its own to start and stop, and no `rule:*` verb takes part. |
+| `live-debug:read` / `live-debug:write` | Live Debugger and OTLP pairing (`/operate/otlp-pairing`) — watch captures (the pages, the active-session list, per-node status, capture history) / start and stop them. These two are the whole of the Live Debugger's access control: `live-debug:read` is enough on its own to watch, `live-debug:write` is enough on its own to start and stop, and no `rule:*` verb takes part. |
 | `source-map:write` | Browser Logs — upload / remove source maps (held in BFF memory). |
 | `profile:enable` | Create a profiling task on a layer, and arm a continuous-profiling policy. |
 

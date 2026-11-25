@@ -37,6 +37,11 @@ services:
     ports:
       - 12800
       - 17128
+    environment:
+      # Every sampled trace's network-alias pairing goes to its owner, so the
+      # OTLP pairing page's capture sees the emitter's call within seconds
+      # instead of on one trace in four (the default `pairingSamplePercent`).
+      SW_TRACE_TAL_PAIRING_SAMPLE_PERCENT: "100"
     depends_on:
       banyandb:
         condition: service_healthy
@@ -60,6 +65,27 @@ services:
       - 9092
     depends_on:
       provider:
+        condition: service_healthy
+
+  # OTLP spans for the TAL debugger's OTLP rule and the OTLP pairing page: one
+  # trace a second across two OTLP_GENERAL services, a CLIENT call and the
+  # SERVER span under it, so `otlp-general` runs on each span and the call's
+  # two halves meet at the trace's owner. The genai case's OpenTelemetry image,
+  # running a script of its own instead of the instrumented LLM caller.
+  span-emitter:
+    build:
+      context: ../../script
+      dockerfile: Dockerfile.otel-python
+    image: horizon-e2e-otel-python:e2e
+    networks: [e2e]
+    command: ["python3", "/otlp-pairing-emitter.py"]
+    volumes:
+      - ../../script/python/otlp-pairing-emitter.py:/otlp-pairing-emitter.py:ro
+    environment:
+      OTLP_ENDPOINT: http://oap:11800
+      EMITTER_INTERVAL_S: "1"
+    depends_on:
+      oap:
         condition: service_healthy
 
   # The audit log's backing store. Only this case runs it: sign-in recording

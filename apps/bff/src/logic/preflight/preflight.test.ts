@@ -27,6 +27,7 @@ const DUMP_BODY: Record<string, string> = {
   'admin-server.provider': 'default',
   'receiver-runtime-rule.provider': 'default',
   'dsl-debugging.provider': 'default',
+  'trace-pairing-debugging.provider': 'default',
   'inspect.provider': 'default',
   'ui-management.provider': 'default',
 };
@@ -67,6 +68,7 @@ const ALL_OK = {
   '/ui-management/templates': 200,
   '/runtime/rule/list': 200,
   '/dsl-debugging/status': 200,
+  '/trace-pairing-debugging/status': 200,
   '/inspect/metrics': 200,
 } as const;
 
@@ -82,7 +84,7 @@ describe('runPreflight — reachability via path probes', () => {
     expect(r.templatesMode).toBe('live');
     // admin-server's probe IS the dump fetch — reachable without a 2nd call.
     expect(byName(r, 'admin-server').reachable).toBe(true);
-    for (const n of ['receiver-runtime-rule', 'dsl-debugging', 'inspect', 'ui-management']) {
+    for (const n of ['receiver-runtime-rule', 'dsl-debugging', 'trace-pairing-debugging', 'inspect', 'ui-management']) {
       expect(byName(r, n).reachable).toBe(true);
     }
     // config-presence is a footnote, present here for every module.

@@ -39,6 +39,7 @@ import {
   type MalRecordView,
   type MalSampleRow,
 } from './malGroups.js';
+import { byNode, nodeKey } from './nodeIdentity.js';
 
 export function useMalRecordViews(
   session: Ref<SessionResponse | null>,
@@ -49,14 +50,10 @@ export function useMalRecordViews(
     // OAP's session payload isn't guaranteed to list nodes in the same
     // order across polls. Without a stable sort the per-node cards
     // visibly reshuffle every refresh — hard to track which node moved.
-    // Sort by nodeKey (nodeId / peer) so each card stays in place.
-    const sortedNodes = s.nodes.slice().sort((a, b) => {
-      const ak = a.nodeId ?? a.peer ?? '?';
-      const bk = b.nodeId ?? b.peer ?? '?';
-      return ak.localeCompare(bk);
-    });
+    // A stable order keeps each card in place.
+    const sortedNodes = s.nodes.slice().sort(byNode);
     return sortedNodes.map((n) => {
-      const nKey = n.nodeId ?? n.peer ?? '?';
+      const nKey = nodeKey(n);
       const recordViews: MalRecordView[] = (n.records ?? []).map((rec, ri) => {
         const rows: MalSampleRow[] = [];
         let prevSamples: MalSamplesPayload | null = null;

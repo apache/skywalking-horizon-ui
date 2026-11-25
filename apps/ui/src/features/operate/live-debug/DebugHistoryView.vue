@@ -77,7 +77,7 @@ function countdown(deadline: number | undefined): string {
 }
 
 const counts = computed(() => {
-  const c: Record<WidgetFilter, number> = { all: 0, mal: 0, lal: 0, oal: 0 };
+  const c: Record<WidgetFilter, number> = { all: 0, mal: 0, lal: 0, oal: 0, tal: 0 };
   for (const e of history.all.value) {
     c.all += 1;
     c[e.widget] += 1;
@@ -85,10 +85,11 @@ const counts = computed(() => {
   return c;
 });
 
-const widgetTone: Record<DebugWidget, 'info' | 'warn' | 'ok'> = {
+const widgetTone: Record<DebugWidget, 'info' | 'warn' | 'ok' | 'active'> = {
   mal: 'info',
   lal: 'warn',
   oal: 'ok',
+  tal: 'active',
 };
 
 function formatDateTime(ms: number): string {
@@ -147,7 +148,7 @@ function clearAll(): void {
 
     <div class="dh__filters">
       <button
-        v-for="key in (['all', 'mal', 'lal', 'oal'] as const)"
+        v-for="key in (['all', 'mal', 'lal', 'oal', 'tal'] as const)"
         :key="key"
         type="button"
         class="dh__filterchip"

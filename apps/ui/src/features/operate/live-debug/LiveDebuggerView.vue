@@ -16,25 +16,27 @@
 -->
 <script setup lang="ts">
 /**
- * Live debugger — three-tab shell over MAL / LAL / OAL views.
+ * Live debugger — four-tab shell over MAL / LAL / OAL / TAL views.
  * Each tab owns its own session via the per-widget clientId so an
- * operator can have all three running in parallel from the same
+ * operator can have all four running in parallel from the same
  * tab.
  *
- * The active tab is **URL-driven** (`/operate/live-debug/{mal|lal|oal}`)
+ * The active tab is **URL-driven** (`/operate/live-debug/{mal|lal|oal|tal}`)
  * so deep links from elsewhere (catalog rule cards, OAL file viewer's
  * gutter arrow) land on the right tab with their query params intact
  * for the per-DSL picker to read.
  */
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
+import { runningCaptures } from './useDebugSession';
 import DebugMal from './DebugMal.vue';
 import DebugLal from './DebugLal.vue';
 import DebugOal from './DebugOal.vue';
+import DebugTal from './DebugTal.vue';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
 
-type Tab = 'mal' | 'lal' | 'oal';
+type Tab = 'mal' | 'lal' | 'oal' | 'tal';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -42,7 +44,7 @@ const router = useRouter();
 
 const tab = computed<Tab>(() => {
   const raw = route.params.tab;
-  if (raw === 'mal' || raw === 'lal' || raw === 'oal') return raw;
+  if (raw === 'mal' || raw === 'lal' || raw === 'oal' || raw === 'tal') return raw;
   return 'mal';
 });
 
@@ -50,9 +52,27 @@ const tabs = computed<{ id: Tab; label: string; hint: string }[]>(() => [
   { id: 'mal', label: 'MAL', hint: t('meter analyzer · OTEL + log-mal') },
   { id: 'lal', label: 'LAL', hint: t('log analyzer · per-block + statement') },
   { id: 'oal', label: 'OAL', hint: t('observability analysis · per-clause') },
+  { id: 'tal', label: 'TAL', hint: t('trace analysis · native segments + OTLP spans') },
 ]);
 
 const activeHint = computed(() => tabs.value.find((tt) => tt.id === tab.value)?.hint ?? '');
+
+// Leaving the page unmounts the tabs and the sessions reading their captures (Capture history is a page of its own).
+// The captures run on in OAP until their retention ends, and Capture history resumes them, so it only asks.
+onBeforeRouteLeave(() =>
+  runningCaptures.value.length === 0
+  || window.confirm(t('A capture is running on {tabs}. Leaving the Live debugger stops reading it; it runs on in OAP until its retention ends, and Capture history can resume it. Leave?', {
+    tabs: runningCaptures.value.map((w) => w.toUpperCase()).join(', '),
+  })));
+
+// A reload or a closed browser tab leaves without the router: the browser asks its own question, whose text it sets.
+function onBeforeUnload(e: BeforeUnloadEvent): void {
+  if (runningCaptures.value.length === 0) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+onMounted(() => window.addEventListener('beforeunload', onBeforeUnload));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload));
 
 function selectTab(t: Tab): void {
   // Tab clicks clear deep-link query params — they were specific to
@@ -83,7 +103,7 @@ function selectTab(t: Tab): void {
     </nav>
 
     <KeepAlive>
-      <component :is="tab === 'mal' ? DebugMal : tab === 'lal' ? DebugLal : DebugOal" />
+      <component :is="{ mal: DebugMal, lal: DebugLal, oal: DebugOal, tal: DebugTal }[tab]" />
     </KeepAlive>
   </div>
 </template>

@@ -40,15 +40,22 @@ curl -sSf -c "${JAR}" -X POST "${BASE}/api/auth/login" \
   -d "{\"username\":\"${USER}\",\"password\":\"${PASSWORD}\"}" > /dev/null
 
 # A minimal but VALID rule: it must parse, or OAP rejects it structurally and
-# the apply phase never reaches APPLIED. Deliberately inert — it sinks nothing
-# and matches nothing, so it cannot alter what other assertions observe.
+# the apply phase never reaches APPLIED. It keeps the layer of the bundled rule
+# it replaces (lal.yaml's `layer: auto` fallback): OAP refuses a push that moves
+# a rule to another layer as a storage change without explicit approval. Its
+# body is OAP's own `default-fallback`, filing the logs without a layer under
+# GENERAL and saving them, so the logs later assertions read keep arriving.
 curl -sSf -b "${JAR}" -X POST "${BASE}/api/rule?catalog=${CATALOG}&name=${NAME}" \
   -H 'Content-Type: text/plain' \
   --data-binary "rules:
   - name: ${NAME}
-    layer: GENERAL
+    layer: auto
+    fallback: true
     dsl: |
       filter {
+        extractor {
+          layer \"GENERAL\"
+        }
         sink {
         }
       }

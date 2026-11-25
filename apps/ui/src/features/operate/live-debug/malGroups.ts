@@ -438,9 +438,7 @@ export function highlightSegments(text: string | undefined, fragment: string): S
   return segments;
 }
 
-export function nodeKey(n: NodeSlice): string {
-  return n.nodeId ?? n.peer ?? '?';
-}
+export { nodeKey } from './nodeIdentity.js';
 
 export function formatTime(ms: number): string {
   const d = new Date(ms);

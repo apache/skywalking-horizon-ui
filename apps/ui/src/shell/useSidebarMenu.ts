@@ -96,7 +96,7 @@ export function useSidebarMenu() {
           // the L1 itself is clickable; activeWhen covers all DSL routes.
           to: '/operate/dsl/otel-rules',
           verb: 'rule:read',
-          activeWhen: (p) => p === '/operate/oal' || /^\/operate\/dsl(\/|$)/.test(p),
+          activeWhen: (p) => p === '/operate/oal' || p === '/operate/tal' || /^\/operate\/dsl(\/|$)/.test(p),
           children: [
             { icon: 'set', label: 'MAL · OTEL', to: '/operate/dsl/otel-rules', verb: 'rule:read' },
             { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules', verb: 'rule:read' },
@@ -104,6 +104,7 @@ export function useSidebarMenu() {
             { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
             { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
             { icon: 'trace', label: t('OAL · read-only'), to: '/operate/oal', verb: 'rule:read' },
+            { icon: 'trace', label: t('TAL · read-only'), to: '/operate/tal', verb: 'rule:read' },
             { icon: 'download', label: t('Runtime-rule dump'), to: '/operate/dsl/dump', verb: 'rule:read' },
           ],
         },
@@ -114,11 +115,12 @@ export function useSidebarMenu() {
           verb: 'live-debug:read',
           // Match the tab variants only; the history sibling at
           // /operate/live-debug/history must NOT highlight this row.
-          activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal)(\/|$)/.test(p),
+          activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal|tal)(\/|$)/.test(p),
         },
         { icon: 'event', label: t('Capture history'), to: '/operate/live-debug/history', verb: 'live-debug:read' },
         { icon: 'metric', label: t('Metrics inspect'), to: '/operate/inspect', verb: 'inspect:read' },
         { icon: 'trace', label: t('Trace inspect'), to: '/operate/trace-inspect', verb: 'inspect:read' },
+        { icon: 'trace', label: t('OTLP pairing'), to: '/operate/otlp-pairing', verb: 'live-debug:read' },
         { icon: 'log', label: t('Log inspect'), to: '/operate/log-inspect', verb: 'inspect:read' },
       ],
     },

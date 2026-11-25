@@ -61,7 +61,7 @@ const GATES: ReadonlyArray<{ verb: string; rows: string[]; paths: string[] }> = 
   },
   {
     verb: 'live-debug:read',
-    rows: ['Live debugger · Capture history'],
+    rows: ['Live debugger · Capture history · OTLP pairing'],
     paths: ['/operate/live-debug', '/operate/live-debug/history'],
   },
   {
