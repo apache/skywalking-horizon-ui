@@ -43,6 +43,7 @@ import {
   type DebugCatalog,
   type DslDebuggingStatus,
   type Granularity,
+  type SessionReadOptions,
   type StartSessionArgs,
 } from '@skywalking-horizon-ui/api-client';
 import type { AuthDeps } from '../../user/middleware.js';
@@ -89,8 +90,10 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = req.params as { id: string };
       if (!params.id) return reply.code(400).send({ error: 'missing_id' });
+      const read = readOptionsOf(req.query);
+      if (typeof read === 'string') return reply.code(400).send({ error: 'invalid_page', message: read });
       try {
-        const got = await clients().debug().getSession(params.id);
+        const got = await clients().debug().getSession(params.id, read);
         if (got === null) return reply.code(404).send({ error: 'not_found' });
         return reply.send(got);
       } catch (err) {
@@ -156,6 +159,33 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       return reply.send(body);
     },
   );
+}
+
+
+/** A capture time as OAP writes it: epoch millis, a dot, six-digit nanos. */
+const CAPTURE_TIME_RE = /^[0-9]{1,19}\.[0-9]{6}$/;
+/** OAP's bound on one read's records. */
+const MAX_PAGE_SIZE = 1000;
+
+/** The optional read point and page size of a session read, or why they
+ *  are malformed, so OAP is not asked. */
+export function readOptionsOf(query: unknown): SessionReadOptions | string {
+  const q = (query ?? {}) as { capturedSince?: unknown; pageSize?: unknown };
+  const read: SessionReadOptions = {};
+  if (q.capturedSince !== undefined && q.capturedSince !== '') {
+    if (typeof q.capturedSince !== 'string' || !CAPTURE_TIME_RE.test(q.capturedSince)) {
+      return 'capturedSince is <millis>.<six-digit nanos>';
+    }
+    read.capturedSince = q.capturedSince;
+  }
+  if (q.pageSize !== undefined) {
+    const size = Number(q.pageSize);
+    if (!Number.isInteger(size) || size < 1 || size > MAX_PAGE_SIZE) {
+      return `pageSize is 1 to ${MAX_PAGE_SIZE}`;
+    }
+    read.pageSize = size;
+  }
+  return read;
 }
 
 /** Validate the JSON body the SPA posts. Translates to the wire's

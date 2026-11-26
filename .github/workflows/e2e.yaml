@@ -59,7 +59,14 @@
 #             catalog's green ▶ on the `service_cpm` statement — through to
 #             a captured Service source row carrying a fixture service name,
 #             and MAL live debug over the agent's own self-observability
-#             meters, through to the metric its output step materialised.
+#             meters, through to the metric its output step materialised;
+#             TAL live debug on both trace inputs — the native `native-segment`
+#             rule entered from the TAL rules page's ▶, its run's lines inside
+#             the rule, and the OTLP `otlp-general` rule on a span emitter's
+#             two-service trace, through to the network-alias line it ran —
+#             and the OTLP pairing page capturing that trace's call matched
+#             to its server on the node that holds it, the round it keeps
+#             once stopped, and History's open, fold and in-place delete.
 #             Also the LOGIN AUDIT, which is why this case runs a Postgres:
 #             the sign-in the suite performs to reach anything is recorded
 #             and read back on the audit page, a valid API token is counted
@@ -76,7 +83,9 @@
 #             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
 #             AlarmsWidget, SectionBreak, AppShell, DebugView,
 #             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
-#             live debug), DebugMal (MAL live debug), AuditView,
+#             live debug), DebugMal (MAL live debug), TalCatalogView +
+#             DebugTal (TAL live debug), OtlpPairingView + PairingRoundView
+#             (OTLP pairing), AuditView,
 #             AuditStatBlock, AuditList, TokenUsageList
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE

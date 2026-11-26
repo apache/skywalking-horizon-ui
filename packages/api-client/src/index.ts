@@ -412,6 +412,15 @@ export {
   type OalSourceMetricDetail,
 } from './oal.js';
 export {
+  TalClient,
+  type TalClientOptions,
+  type TalFileList,
+  type TalFileListing,
+  type TalFilesResponse,
+  type TalInputType,
+  type TalRuleListing,
+} from './tal.js';
+export {
   InspectClient,
   InspectApiError,
   INSPECT_STEPS,
@@ -486,6 +495,16 @@ export {
   type SampleType,
   type SessionSample,
   type SessionRecord,
+  type CaptureTime,
+  type SessionReadOptions,
+  type TalRecordKind,
+  type TalSegmentSummary,
+  type TalSegmentDerived,
+  type TalRecordContext,
+  type TalStep,
+  type TalOutput,
+  type TalRun,
+  type TalSpanEntry,
   type SessionRecordRule,
   type SamplePayload,
   type MalSampleRow,
@@ -512,6 +531,20 @@ export {
   type DebugErrorBody,
   type DebugErrorCode,
 } from './dsl-debugging.js';
+
+export {
+  TracePairingDebuggingClient,
+  type TracePairingDebuggingClientOptions,
+  type PairingOutcome,
+  type PairingCaptureState,
+  type PairingCaptureStatus,
+  type PairingNode,
+  type MatchedPeer,
+  type UnmatchedPeer,
+  type UnmatchedServer,
+  type PairingsResponse,
+  type PairingCaptureResponse,
+} from './trace-pairing-debugging.js';
 
 export {
   buildAttrMap,

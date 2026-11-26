@@ -7,6 +7,7 @@ DSL Management lets you edit a connected OAP's analysis rules — MAL (`otel-rul
 Two companion pages, both `rule:read`-gated, sit alongside the editable catalogs:
 
 - **OAL catalog** (`/operate/oal`) — a read-only browser of the connected OAP's OAL rules. OAL rules are **not** runtime-editable; this page lets you read them, but changes go through the OAP build, not the live editor.
+- **TAL rules** (`/operate/tal`) — a read-only browser of the TAL rule files the connected OAP loaded at boot, from `talFiles` (OTLP spans) and `nativeTalFiles` (SkyWalking native segments), with each file's rules, their layer and input. A ▶ beside a rule opens the [Live Debugger](live-debugger.md#the-tal-debugger-view) with it picked; a rule without one cannot be debugged on this node, because the node runs without the debugger's probes or another rule of the file has its name. TAL rules are **not** runtime-editable. Needs SkyWalking 11.2 or later and the OAP `dsl-debugging` module, which serves the listing.
 - **Runtime-rule dump** (`/operate/dsl/dump`) — downloads the connected OAP's runtime rules as an archive, either every catalog at once or one catalog at a time. It is an export only, for backup and offline review: the archive cannot be uploaded back, on this page or anywhere else in Horizon.
 
 ## The two kinds of edit

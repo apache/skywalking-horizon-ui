@@ -66,7 +66,8 @@ export type DebugCatalog =
   | 'telegraf-rules'
   | 'meter-analyzer-config'
   | 'lal'
-  | 'oal';
+  | 'oal'
+  | 'tal';
 
 export const DEBUG_CATALOGS: readonly DebugCatalog[] = [
   'otel-rules',
@@ -75,6 +76,7 @@ export const DEBUG_CATALOGS: readonly DebugCatalog[] = [
   'meter-analyzer-config',
   'lal',
   'oal',
+  'tal',
 ] as const;
 
 export function isDebugCatalog(value: unknown): value is DebugCatalog {
@@ -471,23 +473,123 @@ export interface SessionSample {
 export interface SessionRecordRule {
   ruleName: string;
   sourceLine?: string;
+  /** TAL: the file line the rule's DSL starts at, which the steps' file
+   *  lines count from; absent when the node could not read the file. */
+  dslFirstLine?: string;
   /** Open: MAL emits multi-field rule metadata (filter, exp, …). */
   [key: string]: string | undefined;
 }
+
+/** When a node captured a record: `<epoch millis>.<nanoseconds within
+ *  the millisecond, six digits>`, e.g. `1795505219786.871986`. Both parts
+ *  have a fixed width, so plain string order is time order. A client
+ *  passes it back untouched; it is never a number, which would round. */
+export type CaptureTime = string;
 
 /** One captured execution of the rule. The verbatim `dsl` is the
  *  rule source as it stood at capture time — Studio renders this
  *  directly in the per-record card and the foldable LAL source pane,
  *  so hot-update edits show up record-by-record without an extra
- *  fetch (each record carries its own snapshot). */
+ *  fetch (each record carries its own snapshot).
+ *
+ *  MAL / LAL / OAL records carry `samples`; a TAL record carries
+ *  `context` and `spans` instead. */
 export interface SessionRecord {
   /** Unix-ms when the execution started on the receiving node. */
   startedAtMs: number;
+  /** When its node captured it; absent from an OAP before paged reads. */
+  captureTime?: CaptureTime;
   /** Verbatim rule source — multi-line, exactly as the holder owned
-   *  it when this execution fired. */
+   *  it when this execution fired. Absent on an oversized stub. */
   dsl: string;
   rule: SessionRecordRule;
-  samples: SessionSample[];
+  samples?: SessionSample[];
+  /** TAL: the object the runner passed through the rule. */
+  context?: TalRecordContext;
+  /** TAL: the spans of the record, each with the rule's run on it. */
+  spans?: TalSpanEntry[];
+  /** Set, to its size in bytes, when the record was larger than one
+   *  message between OAP nodes; it then carries no content. */
+  oversizedBytes?: number;
+}
+
+/** What a TAL record holds: one native segment or one OTLP span. */
+export type TalRecordKind = 'segment' | 'span';
+
+/** A SkyWalking `SegmentObject` without its spans. */
+export interface TalSegmentSummary {
+  traceId: string;
+  traceSegmentId: string;
+  service: string;
+  serviceInstance: string;
+  isSizeLimited: boolean;
+  spanCount: number;
+}
+
+/** What the native runner derives once per segment, before any rule runs,
+ *  named by the function a rule reads each with. */
+export interface TalSegmentDerived {
+  segmentStartTime: number;
+  segmentLatency: number;
+  segmentIsError: boolean;
+  segmentSampled: boolean;
+  segmentTags: { key: string; value: string }[];
+  segmentBytes: number;
+}
+
+export interface TalRecordContext {
+  kind: TalRecordKind;
+  segment?: TalSegmentSummary;
+  derived?: TalSegmentDerived;
+  resource?: Record<string, string>;
+  scope?: Record<string, string>;
+}
+
+/** One executed statement of a run. `sourceLine` is the line in the rule
+ *  file; `dslLine`, the line within the rule's DSL, replaces it when the
+ *  node could not read the file. `output` indexes the run's `outputs`. */
+export interface TalStep {
+  /** The block the step sits in; a `failure` step names none. */
+  stage?: string;
+  kind: string;
+  sourceLine?: number;
+  dslLine?: number;
+  sourceText?: string;
+  value?: unknown;
+  /** An `if`: what its condition decided. */
+  result?: boolean;
+  /** An `if`: each operand its condition evaluated, in order, as written and
+   *  with its value; one that short-circuiting skipped is not listed. */
+  operands?: { text: string; value: unknown }[];
+  output?: number;
+}
+
+/** What a run pushed out of the rule: a `source`, a `metrics` value, a
+ *  `writeNetworkAlias`, a `persist` vote, or a `pairing` half. The remaining
+ *  fields depend on the kind. */
+export interface TalOutput {
+  kind: string;
+  sourceLine?: number;
+  dslLine?: number;
+  [field: string]: unknown;
+}
+
+export interface TalRun {
+  continueOn: boolean;
+  reason?: string;
+  steps: TalStep[];
+  outputs: TalOutput[];
+  /** OTLP: `meta`, `tags`, `persist`; native: `segmentDefs`. */
+  state?: Record<string, unknown>;
+}
+
+/** A span as it arrived, and the rule's run on it — absent on a native
+ *  span the rule never ran on. */
+export interface TalSpanEntry {
+  span: Record<string, unknown>;
+  /** OTLP: the span's metadata as the receiver read it. */
+  meta?: Record<string, unknown>;
+  run?: TalRun;
 }
 
 export type NodeStatus = 'ok' | 'captured' | 'not_local' | 'unreachable';
@@ -498,6 +600,10 @@ export interface NodeSlice {
   /** Set on peer slices (the gRPC peer address); always present for
    *  unreachable peers, may also appear on healthy ones. */
   peer?: string;
+  /** The OAP process, apart from every other, a restarted one included;
+   *  node ids repeat across nodes that bind 0.0.0.0. Absent from a node
+   *  that did not answer, and from an OAP before paged reads. */
+  instanceId?: string;
   status: NodeStatus;
   captured?: boolean;
   totalBytes?: number;
@@ -514,6 +620,24 @@ export interface SessionResponse {
    *  slice is null (post-stop polls / unknown session). */
   ruleKey?: RuleKey;
   nodes: NodeSlice[];
+  /** Every record captured before it, on every node that answered, is in
+   *  this response or an earlier one; the next read passes it back as
+   *  `capturedSince`. Empty when no node holding the session answered and
+   *  no point was given. Absent from an OAP before paged reads, whose
+   *  every response is the whole capture. */
+  nextCapturedSince?: CaptureTime;
+  /** The capture is read through: every node holding the session answered,
+   *  reached its cap, and this response holds the rest of its records. */
+  complete?: boolean;
+}
+
+/** Optional query of a session read. */
+export interface SessionReadOptions {
+  /** Read the records captured at or after this point. */
+  capturedSince?: CaptureTime;
+  /** At most this many records, 1 to 1000; records of one capture time
+   *  are not split, so a page may hold a few more. */
+  pageSize?: number;
 }
 
 export interface StopPeerOutcome {
@@ -629,11 +753,16 @@ export class DslDebuggingClient {
     return (await res.json()) as StartSessionResponse;
   }
 
-  /** `GET /dsl-debugging/session/{id}`. Returns `null` on `404
-   *  session_not_found`; live polls return a normal envelope where
-   *  the local slice may be `status: "not_local"` after a stop. */
-  async getSession(id: string): Promise<SessionResponse | null> {
-    const url = `${this.base}/dsl-debugging/session/${encodeURIComponent(id)}`;
+  /** `GET /dsl-debugging/session/{id}[?capturedSince=&pageSize=]`.
+   *  Returns `null` on `404 session_not_found`; live polls return a
+   *  normal envelope where the local slice may be `status: "not_local"`
+   *  after a stop. */
+  async getSession(id: string, options: SessionReadOptions = {}): Promise<SessionResponse | null> {
+    const params = new URLSearchParams();
+    if (options.capturedSince) params.set('capturedSince', options.capturedSince);
+    if (options.pageSize !== undefined) params.set('pageSize', String(options.pageSize));
+    const query = params.toString();
+    const url = `${this.base}/dsl-debugging/session/${encodeURIComponent(id)}${query ? `?${query}` : ''}`;
     const res = await this.send(url, { method: 'GET' });
     if (res.status === 404) return null;
     if (!res.ok) throw await this.toError(res, url);

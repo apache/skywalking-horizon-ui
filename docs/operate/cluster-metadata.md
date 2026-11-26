@@ -24,6 +24,7 @@ The triage flow during a banner-heavy incident lives here. The full check sequen
 │  admin-server            reachable    /debugging/config/dump          │
 │  receiver-runtime-rule   reachable    /runtime/rule/list              │
 │  dsl-debugging           reachable    /dsl-debugging/status           │
+│  trace-pairing-debugging reachable    /trace-pairing-debugging/status │
 │  inspect                 reachable    /inspect/metrics                │
 │  ui-management           reachable    /ui-management/templates        │
 ├───────────────────────────────────────────────────────────────────────┤
@@ -46,7 +47,7 @@ The Query and Admin panes are **independent**, refreshed in parallel. A third Zi
 ### Admin pane
 
 - **Refresh:** 60 s; **refresh both** forces an immediate re-check.
-- **Per-feature rows:** `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `inspect`, `ui-management` (the dashboard-template store).
+- **Per-feature rows:** `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `trace-pairing-debugging` (OAP 11.2 and later), `inspect`, `ui-management` (the dashboard-template store).
 - Each row shows a state chip — **reachable** (green), **unreachable** (red), or **readonly · bundled** (yellow, `ui-management` when Horizon runs templates in readonly mode and never calls the store) — plus the REST path that was probed and a **checked … ago** stamp for when the probe actually ran.
 - Under the chip, a **selector detected / selector not detected** footnote reports whether the module's selector appears in OAP's config dump. It is an informational hint only; the reachability chip is the verdict.
 - The Gates column of each row says what breaks when the feature is unreachable and names the env-var that enables it on OAP (e.g. `SW_INSPECT=default`).

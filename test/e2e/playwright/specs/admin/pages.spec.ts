@@ -50,7 +50,7 @@ test('the capture history page mounts with its per-catalog filters', async ({ pa
   // rather than content the wire cases created. Populating it would mean
   // driving a capture through the debugger UI, which would race the wire
   // cases' mutations.
-  // The catalog chips BY NAME, in order. `.dh button` counted the four chips
+  // The catalog chips BY NAME, in order. `.dh button` counted the five chips
   // plus the conditional "clear all", so the number it produced could not say
   // WHICH buttons had rendered — naming them can.
   await expect(page.locator('.dh__filterchip')).toHaveText([
@@ -58,6 +58,7 @@ test('the capture history page mounts with its per-catalog filters', async ({ pa
     /^mal\b/,
     /^lal\b/,
     /^oal\b/,
+    /^tal\b/,
   ]);
 
   expect(pageErrors).toEqual([]);

@@ -3,7 +3,7 @@
 Horizon UI talks to OAP through **two ports**:
 
 - `:12800` — GraphQL query port (always required).
-- `:17128` — admin REST port (required for Cluster Status, Inspect, DSL Management, Live Debugger, and — in live template mode — the dashboard-template store).
+- `:17128` — admin REST port (required for Cluster Status, Inspect, DSL Management, Live Debugger, OTLP pairing, and — in live template mode — the dashboard-template store).
 
 The admin-port endpoints are gated by per-module selectors on the OAP side. Horizon verifies each feature by **probing the real REST path that feature calls** and reporting per-feature reachability; the config-dump selector scan survives only as an informational "selector detected" footnote on the Cluster Status page.
 
@@ -15,13 +15,16 @@ OAP 10 has a separate, legacy template-management API on the query GraphQL port 
 |---|---|---|---|---|
 | **admin-server** | `SW_ADMIN_SERVER=default` | 11.x | `GET /debugging/config/dump` (plus it hosts every other admin endpoint) | Everything on the admin port. The admin-host check is the config-dump call itself; when it fails, every other feature reads unreachable — one root cause, not five stacked warnings (and OAP itself fails to start the other admin modules without it). |
 | **receiver-runtime-rule** | `SW_RECEIVER_RUNTIME_RULE=default` | 11.x | `GET /runtime/rule/list`, `GET /runtime/rule`, `POST /runtime/rule/addOrUpdate`, `POST /runtime/rule/delete`, `GET /runtime/rule/bundled` | DSL Management page; alarm rule editor save/load; cluster-status rule matrix; Live Debugger rule picker; Inspect page source attribution. |
-| **dsl-debugging** | `SW_DSL_DEBUGGING=default` | 11.x | `GET /dsl-debugging/status`, session start / poll / stop under `/dsl-debugging/*` | Live Debugger (MAL / LAL / OAL session start, poll, stop); cluster-status DSL health pane. |
+| **dsl-debugging** | `SW_DSL_DEBUGGING=default` | 11.x | `GET /dsl-debugging/status`, session start / poll / stop under `/dsl-debugging/*`, the TAL rule listing under `/runtime/tal/*` | Live Debugger (MAL / LAL / OAL / TAL session start, poll, stop); the TAL rules page; cluster-status DSL health pane. |
+| **trace-pairing-debugging** | `SW_TRACE_PAIRING_DEBUGGING=default` | 11.2 | `GET /trace-pairing-debugging/status`, the capture's start / stop / pairings under `/trace-pairing-debugging/*` | The OTLP pairing page; it shows a banner that it needs SkyWalking 11.2 or higher. |
 | **inspect** | `SW_INSPECT=default` | 11.x | `GET /inspect/metrics`, `GET /inspect/entities`, `POST /inspect/values` | Inspect page (returns 404 from OAP). |
 | **ui-management** | `SW_UI_MANAGEMENT=default` | 11.x | `/ui-management/templates*` | Dashboard templates — the layer / overview / alert / 3D template store the config surface reads and writes. Unreachable in live template mode makes the dashboard-template admin surface read-only, and Horizon keeps rendering the templates it last read successfully (see [Layer templates](../customization/layer-templates.md)); in readonly mode the store is never called. |
 
-All five are recommended on v11. **admin-server** is non-optional for the v11 admin surface; the rest can be left off if you do not need the corresponding feature, but the Cluster Status page will surface warnings.
+**trace-pairing-debugging** is new in OAP 11.2: against an older OAP its row reads unreachable, and the OTLP pairing page shows a banner that it needs SkyWalking 11.2 or higher. The TAL tab of the Live Debugger reads a 404 from the TAL rule listing, also new in 11.2, the same way.
 
-The entire admin-port surface (all five modules) is **OAP 11.x only**. On OAP 10.x the data-plane stack is available in readonly template mode, subject to the minor-version query-schema caveats in the compatibility matrix; the admin-port features (DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and Inspect) are unavailable. Horizon template sync is also unavailable because Horizon has no adapter for OAP 10's otherwise-existing GraphQL template API. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
+All six are recommended on v11. **admin-server** is non-optional for the v11 admin surface; the rest can be left off if you do not need the corresponding feature, but the Cluster Status page will surface warnings.
+
+The entire admin-port surface (all six modules) is **OAP 11.x only**, and `trace-pairing-debugging` 11.2 or later. On OAP 10.x the data-plane stack is available in readonly template mode, subject to the minor-version query-schema caveats in the compatibility matrix; the admin-port features (DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and Inspect) are unavailable. Horizon template sync is also unavailable because Horizon has no adapter for OAP 10's otherwise-existing GraphQL template API. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
 
 ## How Horizon checks feature state
 
@@ -43,11 +46,12 @@ SW_CORE_GRPC_SSL_ENABLED=false           # if applicable to your deployment
 SW_ADMIN_SERVER=default
 SW_RECEIVER_RUNTIME_RULE=default
 SW_DSL_DEBUGGING=default
+SW_TRACE_PAIRING_DEBUGGING=default        # OAP 11.2 and later
 SW_INSPECT=default
 SW_UI_MANAGEMENT=default
 ```
 
-Without these selectors active, Horizon falls back to a "query-only" mode: dashboards and triage screens work, but the entire **Operate** section of the sidebar (Cluster, Inspect, DSL Management, Live Debugger) is degraded, and in live template mode the dashboard-template admin surface is blocked.
+Without these selectors active, Horizon falls back to a "query-only" mode: dashboards and triage screens work, but the entire **Operate** section of the sidebar (Cluster, Inspect, DSL Management, Live Debugger, OTLP pairing) is degraded, and in live template mode the dashboard-template admin surface is blocked.
 
 ## Port not exposed vs selector off
 

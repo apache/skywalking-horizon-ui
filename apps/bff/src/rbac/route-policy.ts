@@ -316,6 +316,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/oal/files/:name':                      'rule:read',
   'GET /api/oal/rules':                            'rule:read',
   'GET /api/oal/rules/:source':                    'rule:read',
+  'GET /api/tal/files':                            'rule:read',
+  'GET /api/tal/files/:name':                      'rule:read',
   'GET /api/catalog/list':                         'rule:read',
   'GET /api/catalog/bundled':                      'rule:read',
   'GET /api/admin/audit':                          'audit:read',
@@ -342,6 +344,10 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/debug/status':                         'live-debug:read',
   'POST /api/debug/session':                       'live-debug:write',
   'POST /api/debug/session/:id/stop':              'live-debug:write',
+  // OTLP pairing debugging watches a backend task, not a rule's run, and is gated like the live debugger.
+  'GET /api/otlp-pairing/pairings':                'live-debug:read',
+  'POST /api/otlp-pairing/start':                  'live-debug:write',
+  'POST /api/otlp-pairing/stop':                   'live-debug:write',
 
   'GET /api/admin/alarm-rules':                    'alarm-rule:read',
   'GET /api/admin/alarm-rules/:id':                'alarm-rule:read',

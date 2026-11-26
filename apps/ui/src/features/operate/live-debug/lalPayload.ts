@@ -92,9 +92,7 @@ export function stepKeyOf(s: SessionSample): string {
   return `${s.type}@${s.sourceLine ?? 0}`;
 }
 
-export function nodeKey(n: NodeSlice): string {
-  return n.nodeId ?? n.peer ?? '?';
-}
+export { nodeKey } from './nodeIdentity.js';
 
 export function cellAt(
   view: LalNodeView,

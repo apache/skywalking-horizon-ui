@@ -17,13 +17,14 @@
 
 /**
  * Browser-local history of past debug captures, shared across the
- * three live-debugger views (MAL / LAL / OAL).
+ * four live-debugger views (MAL / LAL / OAL / TAL).
  *
  * Each session that finishes capture is auto-saved here so the
  * operator can re-open it later without re-running OAP. The store
  * lives entirely in `localStorage` under one key — no BFF round-trip,
- * survives reloads, capped at MAX_ENTRIES (oldest dropped on overflow
- * or quota error).
+ * survives reloads, capped at MAX_ENTRIES (oldest dropped). Over the
+ * storage quota it stores what fits, a capture grown too large keeping
+ * its last stored copy (`storeWhatFits`).
  *
  * The composable returns a `widget`-filtered reactive list plus
  * mutators. The underlying cache is a singleton ref so multiple
@@ -32,8 +33,9 @@
 
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import type { SessionResponse } from '@skywalking-horizon-ui/api-client';
+import { storeWhatFits } from '@/utils/storedList';
 
-export type DebugWidget = 'mal' | 'lal' | 'oal';
+export type DebugWidget = 'mal' | 'lal' | 'oal' | 'tal';
 
 export interface HistoryEntry {
   /** Stable id; survives serialization. */
@@ -84,20 +86,8 @@ function readAll(): HistoryEntry[] {
   }
 }
 
-function writeAll(entries: HistoryEntry[]): void {
-  if (typeof localStorage === 'undefined') return;
-  let candidate = entries;
-  // On quota errors, peel oldest entries off the tail until the write
-  // succeeds — beats losing the new capture entirely.
-  for (;;) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
-      return;
-    } catch {
-      if (candidate.length === 0) return;
-      candidate = candidate.slice(0, -1);
-    }
-  }
+export function writeAll(entries: HistoryEntry[]): void {
+  storeWhatFits(STORAGE_KEY, entries, (e) => e.id, readAll);
 }
 
 function getCache(): Ref<HistoryEntry[]> {
@@ -155,7 +145,7 @@ export function useDebugHistory(widget: DebugWidget): DebugHistoryHandle {
       // records. After `stop()`, the per-DSL view's `session()`
       // post-stop refresh sees OAP's already-cleaned-up session — all
       // nodes flip to `not_local` and `records` come back empty. That
-      // poll triggers `persistCapture`, which without this guard
+      // poll triggers a save (`saveLiveCapture`), which without this guard
       // overwrites the entry's record-rich snapshot with the empty
       // post-stop one and wipes the user's captured data.
       // Preserve the session payload + counts when the new input would

@@ -344,6 +344,15 @@ describe('enforcement detection tells a gate from a log field', () => {
   });
 });
 
+describe('the TAL rule listing reads like the OAL one', () => {
+  it('requires rule:read and nothing else, as its OAL counterpart does', () => {
+    for (const route of ['GET /api/tal/files', 'GET /api/tal/files/:name']) {
+      expect(ROUTE_POLICY[route], route).toEqual('rule:read');
+      expect(ROUTE_POLICY[route.replace('/tal/', '/oal/')], route).toEqual(ROUTE_POLICY[route]);
+    }
+  });
+});
+
 describe('the live debugger is gated on live-debug alone', () => {
   it('start and stop require live-debug:write', () => {
     expect(ROUTE_POLICY['POST /api/debug/session']).toEqual('live-debug:write');

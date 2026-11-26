@@ -151,6 +151,31 @@ describe('DslDebuggingClient — session polling and stop', () => {
   });
 });
 
+describe('DslDebuggingClient — paged reads', () => {
+  it('sends the read point and page size, and no query at all for a plain read', async () => {
+    const { fetchImpl, calls } = recorder(() => json({ sessionId: 's-1', nodes: [] }));
+    const c = client(fetchImpl);
+    await c.getSession('s-1');
+    await c.getSession('s-1', { capturedSince: '1795505219786.871986', pageSize: 50 });
+    expect(calls[0].url).toBe('http://oap:17128/dsl-debugging/session/s-1');
+    expect(query(calls[1].url).get('capturedSince')).toBe('1795505219786.871986');
+    expect(query(calls[1].url).get('pageSize')).toBe('50');
+  });
+
+  it('keeps the capture times as the strings OAP sends, which a number would round', async () => {
+    const envelope = {
+      sessionId: 's-1',
+      capturedAt: 1795505219790,
+      nextCapturedSince: '1795505219786.871987',
+      nodes: [{ nodeId: 'n1', status: 'ok', records: [{ startedAtMs: 1, captureTime: '1795505219786.871986', dsl: '', rule: {} }] }],
+    };
+    const { fetchImpl } = recorder(() => json(envelope));
+    const got = await client(fetchImpl).getSession('s-1');
+    expect(got?.nextCapturedSince).toBe('1795505219786.871987');
+    expect(got?.nodes[0].records[0].captureTime).toBe('1795505219786.871986');
+  });
+});
+
 describe('DslDebuggingClient — error envelopes', () => {
   it('parses the {status,code,message} envelope into an object body so callers can switch on code', async () => {
     // The BFF derives its audit outcome and the UI its message from `code`;
@@ -242,6 +267,7 @@ describe('dsl-debugging vocabulary', () => {
       'meter-analyzer-config',
       'oal',
       'otel-rules',
+      'tal',
       'telegraf-rules',
     ]);
     for (const c of DEBUG_CATALOGS) expect(isDebugCatalog(c)).toBe(true);

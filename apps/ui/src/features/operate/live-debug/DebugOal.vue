@@ -48,7 +48,7 @@ import Btn from '@/components/primitives/Btn.vue';
 import Pill from '@/components/primitives/Pill.vue';
 import DebugView from './DebugView.vue';
 import { highlightSegments, isOalMetricsPayload, isOalSourcePayload, sampleTone } from './payload.js';
-import { useDebugReplay } from './useDebugReplay.js';
+import { routeIsTab, useDebugReplay } from './useDebugReplay.js';
 import { useRecordFold } from './useRecordFold.js';
 import {
   decodeEntityId,
@@ -60,6 +60,7 @@ import {
   MS_PER_MINUTE,
   RECORD_CAP_MAX,
 } from './constants.js';
+import { byNode, nodeKey } from './nodeIdentity.js';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -82,8 +83,9 @@ const retentionMinutes = ref<number>(DEFAULT_RETENTION_MINUTES);
  *  pre-fills the picker so a one-click jump from a rule line lands
  *  on the right session target. */
 watch(
-  () => [route.query.file, route.query.ruleName] as const,
-  ([f, m]) => {
+  () => [route.params.tab, route.query.file, route.query.ruleName] as const,
+  ([, f, m]) => {
+    if (!routeIsTab(route, 'oal')) return;
     if (typeof f === 'string' && f.length > 0) selectedFile.value = f;
     if (typeof m === 'string' && m.length > 0) selectedMetric.value = m;
   },
@@ -117,6 +119,8 @@ const stopEnabled = computed(
 
 async function startSampling(): Promise<void> {
   if (!selectedFile.value || !selectedMetric.value) return;
+  // A start leaves a saved capture on screen, as back to live does: the new capture is the one shown and saved.
+  clearHistorical();
   await dbg.start({
     catalog: 'oal',
     name: selectedFile.value,
@@ -165,13 +169,9 @@ function formatTime(ms: number): string {
 const nodeViews = computed<OalNodeView[]>(() => {
   const s = displaySession.value;
   if (!s) return [];
-  // Stable order by nodeKey so cards don't reshuffle between polls
+  // Stable order so cards don't reshuffle between polls
   // (OAP doesn't guarantee a fixed order in session.nodes).
-  const sortedNodes = s.nodes.slice().sort((a, b) => {
-    const ak = a.nodeId ?? a.peer ?? '?';
-    const bk = b.nodeId ?? b.peer ?? '?';
-    return ak.localeCompare(bk);
-  });
+  const sortedNodes = s.nodes.slice().sort(byNode);
   return sortedNodes.map((n) => {
     const groups: OalRecordGroup[] = [];
     let idx = 0;
@@ -191,9 +191,6 @@ const nodeViews = computed<OalNodeView[]>(() => {
   });
 });
 
-function nodeKey(n: NodeSlice): string {
-  return n.nodeId ?? n.peer ?? '?';
-}
 
 interface OalKv {
   k: string;
@@ -289,9 +286,16 @@ const {
   allFolded,
 } = useRecordFold(() =>
   nodeViews.value.flatMap((v) =>
-    v.groups.map((g) => ({ nodeKey: v.nodeId ?? v.peer ?? '?', index: g.index })),
+    v.groups.map((g) => ({ nodeKey: nodeKey(v), index: g.index })),
   ),
 );
+/** What the view holds of the capture on screen — the selected row, the folds — starts over with another capture,
+ *  saved or live: its records are not the last one's, though their node and index keys repeat. */
+watch(() => displaySession.value?.sessionId, (now, before) => {
+  if (now === before) return;
+  selectedRow.value = null;
+  expandAllRecords();
+});
 </script>
 
 <template>

@@ -21,8 +21,8 @@
  *
  * `peerAcks` come from the install fan-out's per-peer `InstallDebugSession`
  * acks; `nodeStatuses` come from the session response's `nodes[]` array
- * (collect-time status). The two correlate by node identity (peer
- * address or nodeId).
+ * (collect-time status). How the two are joined into one row per node, and
+ * which node took the start, is `nodeCoverage`.
  *
  * Wire enums (from `DSLDebuggingRestHandler.java`):
  * - install ack: INSTALLED | NOT_LOCAL | ALREADY_INSTALLED | REJECTED |
@@ -38,6 +38,7 @@ import type {
   PriorCleanup,
 } from '@skywalking-horizon-ui/api-client';
 import Pill from '@/components/primitives/Pill.vue';
+import { coverageRows, type CoverageRow } from './nodeCoverage.js';
 
 const { t } = useI18n();
 
@@ -48,47 +49,52 @@ const props = defineProps<{
   priorCleanup: PriorCleanup | null;
 }>();
 
-interface Row {
-  /** Best-effort identity — prefer nodeId, fall back to peer address. */
-  key: string;
-  label: string;
-  install: PeerInstallAck['ack'] | null;
-  collect: NodeSlice['status'] | null;
-}
+/** How the start's acks and the reads name the nodes, and which node took the start: `nodeCoverage`. */
+const rows = computed<CoverageRow[]>(() =>
+  coverageRows(props.peerAcks, props.nodeStatuses, props.priorCleanup?.local?.nodeId),
+);
 
-function rowKey(nodeId?: string, peer?: string): string {
-  return nodeId && nodeId.length > 0 ? `node:${nodeId}` : `peer:${peer ?? '?'}`;
-}
-
-function rowLabel(nodeId?: string, peer?: string): string {
-  return nodeId && nodeId.length > 0 ? nodeId : (peer ?? '?');
-}
-
-const rows = computed<Row[]>(() => {
-  const map = new Map<string, Row>();
-  for (const a of props.peerAcks) {
-    const k = rowKey(a.nodeId, a.peer);
-    map.set(k, {
-      key: k,
-      label: rowLabel(a.nodeId, a.peer),
-      install: a.ack,
-      collect: null,
-    });
-  }
-  for (const n of props.nodeStatuses) {
-    const k = rowKey(n.nodeId, n.peer);
-    const existing = map.get(k);
-    if (existing) existing.collect = n.status;
-    else
-      map.set(k, {
-        key: k,
-        label: rowLabel(n.nodeId, n.peer),
-        install: null,
-        collect: n.status,
-      });
-  }
-  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
+/** The node that served the start installs the session itself and reports it
+ *  in the summary rather than as an ack: what the peers' acks leave of the
+ *  summary's count is its own install. */
+const servingInstalled = computed(() => {
+  if (!props.installed) return false;
+  const peers = props.peerAcks.filter((a) => a.ack === 'INSTALLED' || a.ack === 'ALREADY_INSTALLED').length;
+  return props.installed.created > peers;
 });
+
+function installWord(row: CoverageRow): string {
+  switch (row.install) {
+    case 'INSTALLED':
+    case 'ALREADY_INSTALLED':
+      return t('installed');
+    case 'NOT_LOCAL':
+      return t('not on this node');
+    case 'REJECTED':
+      return t('rejected');
+    case 'TOO_MANY_SESSIONS':
+      return t('too many sessions');
+    case 'FAILED':
+      return t('failed');
+    default:
+      return servingInstalled.value && row.startedHere ? t('installed') : '—';
+  }
+}
+
+function collectWord(status: NodeSlice['status'] | null): string {
+  switch (status) {
+    case 'ok':
+      return t('answered');
+    case 'captured':
+      return t('cap reached');
+    case 'not_local':
+      return t('no session');
+    case 'unreachable':
+      return t('unreachable');
+    default:
+      return '—';
+  }
+}
 
 function installTone(ack: PeerInstallAck['ack'] | null): 'ok' | 'warn' | 'err' | 'dim' {
   switch (ack) {
@@ -159,13 +165,13 @@ const cleanupSummary = computed<string>(() => {
     <div v-if="rows.length === 0" class="cov__empty">{{ t('no peers reported') }}</div>
     <div v-for="row in rows" :key="row.key" class="cov__row">
       <span class="cov__nodeid">{{ row.label }}</span>
-      <span class="cov__pair">
-        <span class="cov__label">{{ t('install') }}</span>
-        <Pill :tone="installTone(row.install)">{{ row.install ?? '—' }}</Pill>
+      <span class="cov__pair" :title="t('Whether this OAP node accepted the session and records the rule on it.')">
+        <span class="cov__label">{{ t('recorder') }}</span>
+        <Pill :tone="row.install === null && servingInstalled && row.startedHere ? 'ok' : installTone(row.install)">{{ installWord(row) }}</Pill>
       </span>
-      <span class="cov__pair">
-        <span class="cov__label">{{ t('collect') }}</span>
-        <Pill :tone="collectTone(row.collect)">{{ row.collect ?? '—' }}</Pill>
+      <span class="cov__pair" :title="t('How this OAP node answered the latest read: answered, cap reached (it holds as many records as the cap allows), no session, or unreachable.')">
+        <span class="cov__label">{{ t('last read') }}</span>
+        <Pill :tone="collectTone(row.collect)">{{ collectWord(row.collect) }}</Pill>
       </span>
     </div>
     <div v-if="cleanupSummary" class="cov__cleanup">{{ cleanupSummary }}</div>

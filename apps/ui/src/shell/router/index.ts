@@ -211,6 +211,12 @@ const shellRoutes: RouteRecordRaw[] = [
     component: () => import('@/features/operate/dsl/OalCatalogView.vue'),
     meta: { verb: 'rule:read' },
   },
+  {
+    path: 'operate/tal',
+    name: 'tal-catalog',
+    component: () => import('@/features/operate/dsl/TalCatalogView.vue'),
+    meta: { verb: 'rule:read' },
+  },
   // Inspect — gated on the `inspect` module (and `receiver-runtime-rule`
   // for rule attribution; degrades cleanly to "unknown" attribution
   // when admin-server is missing).
@@ -230,6 +236,13 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'trace-inspect',
     component: () => import('@/features/operate/explore/ExploreView.vue'),
     meta: { verb: 'inspect:read' },
+  },
+  // OTLP pairing — the pairing of OTLP calls into network aliases, on the OAP node that owns each trace; OAP 11.2+.
+  {
+    path: 'operate/otlp-pairing',
+    name: 'otlp-pairing',
+    component: () => import('@/features/operate/otlp-pairing/OtlpPairingView.vue'),
+    meta: { verb: 'live-debug:read' },
   },
   {
     path: 'operate/log-inspect',
@@ -261,7 +274,7 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'live-debug:read' },
   },
   {
-    path: 'operate/live-debug/:tab(mal|lal|oal)?',
+    path: 'operate/live-debug/:tab(mal|lal|oal|tal)?',
     name: 'live-debugger',
     component: () => import('@/features/operate/live-debug/LiveDebuggerView.vue'),
     meta: { verb: 'live-debug:read' },

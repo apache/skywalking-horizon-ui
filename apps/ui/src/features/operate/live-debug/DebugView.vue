@@ -37,6 +37,8 @@
  *                   from this node"). Falls back to a generic line.
  *   - `node-body`:  the per-node body (the actual records table).
  *                   Receives `{ node }` as the slot prop.
+ *   - `capture`:    replaces the per-node cards with one view of the
+ *                   whole session. Receives `{ session }`.
  *
  * The shell owns the polling-state plumbing — it reads from the
  * passed-in `dbg` (a UseDebugSessionResult) and the typed
@@ -54,6 +56,7 @@ import { computed, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Pill from '@/components/primitives/Pill.vue';
 import NodeCoverage from './NodeCoverage.vue';
+import { nodeKey, nodeLabel } from './nodeIdentity.js';
 
 const { t } = useI18n();
 
@@ -105,6 +108,8 @@ const slots = defineSlots<{
   'idle-hint'(): unknown;
   empty(props: { node: N }): unknown;
   'node-body'(props: { node: N }): unknown;
+  /** One view of the whole session in place of the per-node cards. */
+  capture(props: { session: SessionResponse }): unknown;
   /** Optional source-pane sidecar — when supplied, the capture
    *  section becomes a two-column grid with node cards on the left
    *  and the source pane on the right. */
@@ -116,9 +121,6 @@ const hasSourcePane = computed(() => slots['source-pane'] !== undefined);
  *  flagged it open (typically driven by step-row selection). */
 const sourceVisible = computed(() => hasSourcePane.value && props.sourceOpen);
 
-function nodeKey(n: NodeSlice): string {
-  return n.nodeId ?? n.peer ?? '?';
-}
 
 function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | 'err' | 'dim' {
   switch (status) {
@@ -177,38 +179,40 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
         <span class="dv__sid2">{{ t('session {id}', { id: effectiveSession.sessionId }) }}</span>
       </header>
 
-      <div v-if="sourceVisible" class="dv__sourcepane">
-        <slot name="source-pane" />
-      </div>
+      <slot name="capture" :session="effectiveSession">
+        <div v-if="sourceVisible" class="dv__sourcepane">
+          <slot name="source-pane" />
+        </div>
 
-      <div class="dv__nodes">
-        <div v-for="node in nodeViews" :key="nodeKey(node)" class="dv__node">
-          <header class="dv__nodeh">
-            <span class="dv__nodeid">{{ nodeKey(node) }}</span>
-            <Pill :tone="nodeStatusTone(node.status)">{{ node.status }}</Pill>
-            <span v-if="node.totalBytes !== undefined" class="dv__bytes">
-              {{ t('{n} bytes', { n: node.totalBytes }) }}
-            </span>
-          </header>
-          <slot name="node-body" :node="node">
-            <slot name="empty" :node="node">
-              <div class="dv__nodeempty">{{ t('no records from this node') }}</div>
+        <div class="dv__nodes">
+          <div v-for="node in nodeViews" :key="nodeKey(node)" class="dv__node">
+            <header class="dv__nodeh">
+              <span class="dv__nodeid">{{ nodeLabel(node) }}</span>
+              <Pill :tone="nodeStatusTone(node.status)">{{ node.status }}</Pill>
+              <span v-if="node.totalBytes !== undefined" class="dv__bytes">
+                {{ t('{n} bytes', { n: node.totalBytes }) }}
+              </span>
+            </header>
+            <slot name="node-body" :node="node">
+              <slot name="empty" :node="node">
+                <div class="dv__nodeempty">{{ t('no records from this node') }}</div>
+              </slot>
             </slot>
-          </slot>
+          </div>
+          <!-- effectiveSession is set but no nodes were ever populated.
+               Most common in history replay: the capture was archived
+               before the first poll cycle returned data. Surface this
+               explicitly so the view doesn't look broken. -->
+          <div v-if="nodeViews.length === 0" class="dv__nodeempty dv__sessionempty">
+            <template v-if="isHistorical">
+              {{ t('This capture has no records — the session was archived before any data arrived. Try a longer-running capture.') }}
+            </template>
+            <template v-else>
+              {{ t('Waiting for the first poll to return records…') }}
+            </template>
+          </div>
         </div>
-        <!-- effectiveSession is set but no nodes were ever populated.
-             Most common in history replay: the capture was archived
-             before the first poll cycle returned data. Surface this
-             explicitly so the view doesn't look broken. -->
-        <div v-if="nodeViews.length === 0" class="dv__nodeempty dv__sessionempty">
-          <template v-if="isHistorical">
-            {{ t('This capture has no records — the session was archived before any data arrived. Try a longer-running capture.') }}
-          </template>
-          <template v-else>
-            {{ t('Waiting for the first poll to return records…') }}
-          </template>
-        </div>
-      </div>
+      </slot>
     </section>
 
     <p v-else-if="dbg.state.value === 'idle'" class="dv__hint">

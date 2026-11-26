@@ -97,6 +97,7 @@ import { AsyncProfileApi } from './scopes/async-profile';
 import { PprofApi } from './scopes/pprof';
 import { DslApi } from './scopes/dsl';
 import { LiveDebugApi } from './scopes/live-debug';
+import { OtlpPairingApi } from './scopes/otlp-pairing';
 import { InspectApi } from './scopes/inspect';
 import { MqeApi } from './scopes/mqe';
 import { ExploreApi } from './scopes/explore';
@@ -1076,6 +1077,7 @@ export class BffClient {
   readonly pprof = new PprofApi(this);
   readonly dsl = new DslApi(this);
   readonly liveDebug = new LiveDebugApi(this);
+  readonly otlpPairing = new OtlpPairingApi(this);
   readonly inspect = new InspectApi(this);
   readonly mqe = new MqeApi(this);
   readonly explore = new ExploreApi(this);

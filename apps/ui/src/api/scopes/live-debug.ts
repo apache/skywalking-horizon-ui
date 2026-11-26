@@ -17,6 +17,7 @@
 
 import type {
   ActiveSessionsResponse,
+  SessionReadOptions,
   SessionResponse,
   StartSessionArgs,
   StartSessionResponse,
@@ -34,12 +35,17 @@ export class LiveDebugApi {
     return this.bff.request<StartSessionResponse>('POST', '/api/debug/session', args);
   }
 
-  /** Returns `null` when the session id has been collected or expired. */
-  async session(id: string): Promise<SessionResponse | null> {
+  /** Returns `null` when the session id has been collected or expired.
+   *  With `capturedSince`, only the records captured at or after it. */
+  async session(id: string, options: SessionReadOptions = {}): Promise<SessionResponse | null> {
+    const params = new URLSearchParams();
+    if (options.capturedSince) params.set('capturedSince', options.capturedSince);
+    if (options.pageSize !== undefined) params.set('pageSize', String(options.pageSize));
+    const query = params.toString();
     try {
       return await this.bff.request<SessionResponse>(
         'GET',
-        `/api/debug/session/${encodeURIComponent(id)}`,
+        `/api/debug/session/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
       );
     } catch (err) {
       if (err instanceof BffApiError && err.status === 404) return null;
